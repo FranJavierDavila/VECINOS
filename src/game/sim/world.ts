@@ -3,8 +3,6 @@ import { nextRandom } from './rng';
 import { instantiateRooms } from './rooms';
 import { advanceMissions, newMission } from './missions';
 
-const DEFAULT_NEEDS: Record<string, number> = { sleep: 80, social: 50, fun: 55, money: 60 };
-
 /** Crea una partida nueva a partir de un escenario. La vivienda del jugador se elige con la semilla. */
 export function createWorld(content: Content, scenarioId: string, overrides: { seed?: number } = {}): World {
   const scenario = content.scenarios[scenarioId];
@@ -20,6 +18,7 @@ export function createWorld(content: Content, scenarioId: string, overrides: { s
     tick: 0,
     clock: { ...scenario.world.clock },
     playerId: scenario.player.residentId,
+    entry: scenario.player.startBlock,
     community: { ...scenario.building.community },
     weather: { ...scenario.world.weather },
     blocks: {},
@@ -73,7 +72,7 @@ export function createWorld(content: Content, scenarioId: string, overrides: { s
       parentOf: [...(r.parentOf ?? [])],
       wallet: r.wallet,
       reputation: r.reputation,
-      needs: { ...DEFAULT_NEEDS, ...(r.needs ?? {}) },
+      needs: { ...content.rules.sim.defaultNeeds, ...(r.needs ?? {}) },
       relations: r.relations.map((x) => ({ ...x })),
       cooldowns: {},
     };
@@ -110,7 +109,7 @@ export function createWorld(content: Content, scenarioId: string, overrides: { s
     parentOf: [],
     wallet: scenario.player.wallet,
     reputation: scenario.player.reputation,
-    needs: { ...DEFAULT_NEEDS },
+    needs: { ...content.rules.sim.defaultNeeds },
     relations: [],
     cooldowns: {},
   };

@@ -1,0 +1,90 @@
+{
+  "startScenario": "slice",
+  "sim": {
+    "night": { "from": "23:00", "to": "07:30" },
+    "aiHopTicks": 2,
+    "missionLoopMax": 4,
+    "defaultNeeds": { "sleep": 80, "social": 50, "fun": 55, "money": 60 },
+    "economy": {
+      "rentMinute": "09:00",
+      "corridorDirtParam": "cleanliness",
+      "corridorDirtPerTick": 0.005,
+      "needDrift": {
+        "sleep": { "base": -0.04, "activity": { "sleep": 0.35 } },
+        "fun": { "base": -0.02, "activity": { "party": 0.5 } },
+        "social": { "base": -0.015, "activity": { "watch_corridor": 0.3 } }
+      }
+    },
+    "work": {
+      "pay": 120,
+      "cooldownTicks": 120,
+      "funCost": 10,
+      "toastCooldown": "Acabas de cerrar el portátil. Tus ojos te lo agradecen.",
+      "toastDone": "+{amount} €: \"reunión que podía ser un correo\" (x1)."
+    },
+    "knock": {
+      "affinityGain": 2,
+      "asleepLine": "Zzz... zzz... (no abre, pero sí sueña)",
+      "fallbackLines": ["¿Quién es? ¡Ahora bajo! ...(no baja)"]
+    },
+    "weather": {
+      "cycle": [
+        { "state": "sunny", "weight": 0.4 },
+        { "state": "cloudy", "weight": 0.25 },
+        { "state": "rain", "weight": 0.22 },
+        { "state": "storm", "weight": 0.13 }
+      ],
+      "durationMinutes": { "min": 180, "max": 480 }
+    },
+    "junta": {
+      "baseYes": 0.45,
+      "affinityDivisor": 200,
+      "generosityFactor": 0.2,
+      "defaultGenerosity": 0.3,
+      "moodThreshold": 25,
+      "moodPenalty": 0.15,
+      "clamp": { "min": 0.05, "max": 0.95 }
+    }
+  },
+  "view": {
+    "cellW": 2.4,
+    "cellH": 2.6,
+    "walkSpeed": 3.6,
+    "roomSpeed": 2.6,
+    "stairsSeconds": 1.6,
+    "elevatorSeconds": 0.6,
+    "margin": 0.35,
+    "nearRadius": 1.6,
+    "laptopOffset": 0.7,
+    "bedOffset": 0.6,
+    "itemRadius": 0.9,
+    "corridorZ": -0.95,
+    "roomZ": 0,
+    "depth": 1.4,
+    "wall": 0.1,
+    "gapW": 0.12,
+    "gapH": 0.14,
+    "slab": 0.07,
+    "sky": { "r": 0.106, "g": 0.122, "b": 0.165 },
+    "ambient": { "dir": [0.2, 1, -0.6], "intensity": 0.85 },
+    "sun": { "dir": [-0.4, -0.7, 0.8], "intensity": 0.55 },
+    "lockedColor": "#7d8493",
+    "vacantTint": 0.45,
+    "brokenColor": "#c1666b",
+    "lockColor": "#ffd166",
+    "homeEdge": "#ffffff",
+    "channelGlow": { "noise": "#ff5900", "water": "#1a59cc" },
+    "actorFallbackColor": "#e8e6e1",
+    "actorFallbackHeight": 1.3,
+    "actorRadius": 0.28
+  },
+  "demo": {
+    "resident": "res_fiestero_01",
+    "block": "blk_p2_b",
+    "noise": 0.9,
+    "toast": "Fiesta en 2B. Observa el resplandor naranja del ruido (y compadece al 3B)."
+  },
+  "labels": {
+    "weather": { "sunny": "Soleado", "cloudy": "Nublado", "rain": "Lluvia", "storm": "Tormenta" }
+  }
+}

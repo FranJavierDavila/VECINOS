@@ -199,5 +199,5 @@ function advanceOnce(world: World, content: Content): boolean {
 
 /** Activa misiones pendientes o con disparador cumplido y caduca las que se pasaron de plazo. */
 export function advanceMissions(world: World, content: Content): void {
-  for (let i = 0; i < 4; i++) if (!advanceOnce(world, content)) break;
+  for (let i = 0; i < content.rules.sim.missionLoopMax; i++) if (!advanceOnce(world, content)) break;
 }

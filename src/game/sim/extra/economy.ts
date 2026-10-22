@@ -2,14 +2,20 @@ import type { Content, World } from '@/game/core/types';
 import { emit } from '../events';
 
 const clamp100 = (n: number) => Math.max(0, Math.min(100, n));
+const minuteOf = (hhmm: string): number => {
+  const [h, m] = hhmm.split(':').map(Number) as [number, number];
+  return h * 60 + m;
+};
 
 /**
- * Economía y vida diaria: alquiler del jugador a las 9:00, deriva de necesidades
- * (sueño, diversión, social) y deterioro suave de la limpieza del pasillo.
+ * Economía y vida diaria. Todos los ritmos (hora del alquiler, deriva de necesidades,
+ * suciedad del pasillo) vienen de content.rules.sim.economy: aquí solo hay algoritmo.
  */
-export function economyTick(world: World, _content: Content): void {
-  // Alquiler diario a las 09:00 de las viviendas del jugador ocupadas por otros.
-  if (world.clock.minute === 540) {
+export function economyTick(world: World, content: Content): void {
+  const eco = content.rules.sim.economy;
+
+  // Alquiler diario de las viviendas del jugador ocupadas por otros.
+  if (world.clock.minute === minuteOf(eco.rentMinute)) {
     for (const b of Object.values(world.blocks)) {
       if (b.ownerId !== world.playerId || b.id === world.residents[world.playerId]!.home) continue;
       if (b.occupancy !== 'occupied') continue;
@@ -22,19 +28,19 @@ export function economyTick(world: World, _content: Content): void {
     }
   }
 
-  // Necesidades: deriva lenta; las actividades relevantes empujan al alza.
+  // Necesidades: deriva base por necesidad + empuje de la actividad en curso.
   for (const r of Object.values(world.residents)) {
     if (!r.present) continue;
-    const sleeping = r.activity === 'sleep';
-    r.needs['sleep'] = clamp100((r.needs['sleep'] ?? 50) + (sleeping ? 0.35 : -0.04));
-    r.needs['fun'] = clamp100((r.needs['fun'] ?? 50) + (r.activity === 'party' ? 0.5 : -0.02));
-    r.needs['social'] = clamp100((r.needs['social'] ?? 50) + (r.activity === 'watch_corridor' ? 0.3 : -0.015));
+    for (const [need, drift] of Object.entries(eco.needDrift)) {
+      const push = r.activity ? (drift.activity[r.activity] ?? 0) : 0;
+      r.needs[need] = clamp100((r.needs[need] ?? 50) + drift.base + push);
+    }
   }
 
-  // El pasillo se ensucia solo; la cotilla juzga en silencio.
+  // Los espacios con parámetro de suciedad se ensucian solos; la cotilla juzga en silencio.
   for (const b of Object.values(world.blocks)) {
-    if (b.defId !== 'pasillo_planta') continue;
-    const c = Number(b.params['cleanliness'] ?? 70);
-    b.params['cleanliness'] = Math.max(0, c - 0.005);
+    if (b.params[eco.corridorDirtParam] === undefined) continue;
+    const current = Number(b.params[eco.corridorDirtParam]!);
+    b.params[eco.corridorDirtParam] = Math.max(0, current - eco.corridorDirtPerTick);
   }
 }

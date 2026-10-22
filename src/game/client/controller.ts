@@ -1,9 +1,9 @@
 'use client';
 
 import type { AbstractEngine, Scene } from '@babylonjs/core';
-import type { Input, World } from '@/game/core/types';
+import type { Content, Input, World } from '@/game/core/types';
 import { blockLabel } from '@/game/core/types';
-import { buildContent, PARAM_LABELS } from '@/game/content';
+import { loadContent } from '@/game/content';
 import { activeObjective, applyEffects, buildCirculation, createWorld, dispatch, drainEvents, tick, travelMinutes, visibleParams } from '@/game/sim';
 import { PlayerLogic } from '@/game/player-logic';
 import { createEngine } from './engine';
@@ -14,39 +14,29 @@ import { B } from './babylon';
 import { setController } from './bridge';
 import { selectModalOpen, useGameStore, type Speed, type Tone } from './store';
 
-/** Etiquetas de actividades para el registro (solo presentación). */
-const ACTIVITY_LABELS: Record<string, string> = {
-  party: '🎉 fiesta en casa',
-  laundry: '🌀 pone la lavadora',
-  tv_loud: '📺 tele a todo volumen',
-  watch_corridor: '🔭 vigila el pasillo',
-  study_music: '🎸 estudia... con amplificador',
-  paint_cabin: '🎨 pinta "arte" en la cabina',
-  chair: '🪑 ocupa la silla del pasillo',
-  stroll: '🚶 inspecciona el pasillo',
-  sleep: '😴 duerme',
-  out: '🚪 sale fuera',
-};
-
-const WEATHER_LABELS: Record<string, string> = { sunny: 'Soleado', cloudy: 'Nublado', rain: 'Lluvia', storm: 'Tormenta' };
-
 const CAM_BY_KEY: Record<string, CamMode> = { Digit1: 'edificio', Digit2: 'planta', Digit3: 'estancia' };
 
 /**
  * Único dueño del mundo en el navegador: engine Babylon, PlayerLogic, bucle de render,
  * reparto de eventos hacia el store de React y órdenes de la interfaz hacia el sim.
  * El sim no sabe que existe Babylon ni React; aquí es donde se tocan.
+ * Tampoco contiene datos: TODO (contenido, balance, etiquetas, greybox) viene de /content/.
  */
 class GameController {
   private canvas: HTMLCanvasElement | null = null;
   private engine: AbstractEngine | null = null;
   private scene: Scene | null = null;
-  private content = buildContent().content;
+  private _content: Content | null = null;
   private world: World | null = null;
   private logic: PlayerLogic | null = null;
   private building: ReturnType<typeof createBuilding> | null = null;
   private actors: ReturnType<typeof createActors> | null = null;
   private rig: CameraRig | null = null;
+
+  private get content(): Content {
+    if (!this._content) throw new Error('El catálogo de contenido todavía no se ha cargado');
+    return this._content;
+  }
 
   private keys = new Set<string>();
   private clockAcc = 0;
@@ -62,13 +52,15 @@ class GameController {
     this.initializing = true;
     this.canvas = canvas;
 
-    const { content, issues } = buildContent();
-    this.content = content;
-    if (issues.length > 0) {
-      useGameStore.getState().pushToast(`Contenido inválido: ${issues.length} errores de validación`, 'bad');
-    }
-
     try {
+      // 1) Contenido externo + validación (los errores de referencias se avisan, no abortan).
+      const { content, issues } = await loadContent();
+      this._content = content;
+      if (issues.length > 0) {
+        useGameStore.getState().pushToast(`Contenido inválido: ${issues.length} errores de validación`, 'bad');
+      }
+
+      // 2) Motor de render (WebGPU con fallback WebGL2).
       const { engine, backend } = await createEngine(canvas);
       this.engine = engine;
       window.addEventListener('resize', this.onResize);
@@ -78,7 +70,7 @@ class GameController {
       // Gancho de depuración/pruebas E2E (no lo usa la UI).
       (window as unknown as { __vecinos?: unknown }).__vecinos = { store: useGameStore, controller: this };
     } catch (err) {
-      console.error('No se pudo arrancar el motor de render', err);
+      console.error('No se pudo arrancar el juego (contenido o motor de render)', err);
       useGameStore.getState().setEngineError(true);
     }
   }
@@ -132,14 +124,15 @@ class GameController {
     useGameStore.getState().setCamMode(mode);
   }
 
-  /** Botón "Fiesta demo": muda al fiestero al 2B e inyecta ruido para ver el canal en acción. */
+  /** Botón "Fiesta demo": datos en rules.demo (residente, bloque y ruido) → canal de ruido en acción. */
   partyDemo(): void {
     if (!this.world) return;
-    if (!this.world.residents['res_fiestero_01']!.present) {
-      applyEffects(this.world, this.content, [{ op: 'unlock', target: 'blk_p2_b', resident: 'res_fiestero_01', arrival: 'mudanza' }]);
+    const demo = this.content.rules.demo;
+    if (!this.world.residents[demo.resident]!.present) {
+      applyEffects(this.world, this.content, [{ op: 'unlock', target: demo.block, resident: demo.resident, arrival: 'mudanza' }]);
     }
-    tick(this.world, this.content, { noise: { blk_p2_b: 0.9 } });
-    useGameStore.getState().pushToast('Fiesta en 2B. Observa el resplandor naranja del ruido (y compadece al 3B).', 'info');
+    tick(this.world, this.content, { noise: { [demo.block]: demo.noise } });
+    useGameStore.getState().pushToast(demo.toast, 'info');
     this.pump();
   }
 
@@ -224,6 +217,10 @@ class GameController {
         store.pushToast('Todavía no hay ninguna partida guardada.', 'info');
         return;
       }
+      if (!this._content) {
+        store.pushToast('El contenido todavía se está cargando. Espera un momento.', 'info');
+        return;
+      }
       await this.restart(json.state as World);
       store.pushToast('Partida cargada. El vecindario, exactamente como lo dejaste.', 'good');
     } catch {
@@ -235,18 +232,23 @@ class GameController {
 
   /** (Re)crea el mundo y la escena. Con `state` restaura una partida guardada. */
   private async restart(state?: World): Promise<void> {
-    if (!this.engine || !this.canvas) return;
+    if (!this.engine || !this.canvas || !this._content) return;
     const { Color4, DirectionalLight, HemisphericLight, Scene, UniversalCamera, Vector3 } = B();
+    const view = this.content.rules.view;
     useGameStore.getState().resetUi();
 
-    this.world = state ?? createWorld(this.content, 'slice');
+    this.world = state ?? createWorld(this.content, this.content.rules.startScenario);
+    // Guardados antiguos sin `entry`: la entrada es la zona común de planta baja.
+    if (!this.world.entry) {
+      this.world.entry = Object.values(this.world.blocks).find((b) => b.cell.floor === 0 && b.kind !== 'dwelling')?.id ?? Object.keys(this.world.blocks)[0]!;
+    }
     this.logic = new PlayerLogic(this.world, this.content);
 
     this.scene?.dispose();
     this.scene = new Scene(this.engine);
-    this.scene.clearColor = new Color4(0.106, 0.122, 0.165, 1);
-    new HemisphericLight('ambient', new Vector3(0.2, 1, -0.6), this.scene).intensity = 0.85;
-    new DirectionalLight('sun', new Vector3(-0.4, -0.7, 0.8), this.scene).intensity = 0.55;
+    this.scene.clearColor = new Color4(view.sky.r, view.sky.g, view.sky.b, 1);
+    new HemisphericLight('ambient', new Vector3(...view.ambient.dir), this.scene).intensity = view.ambient.intensity;
+    new DirectionalLight('sun', new Vector3(...view.sun.dir), this.scene).intensity = view.sun.intensity;
 
     this.building = createBuilding(this.scene, this.world, this.content);
     this.actors = createActors(this.scene, this.world, this.content);
@@ -256,6 +258,8 @@ class GameController {
       this.engine,
       Math.max(...blocks.map((b) => b.cell.col + b.size.w)),
       Math.max(...blocks.map((b) => b.cell.floor)) + 1,
+      view.cellW,
+      view.cellH,
     );
     this.rig.mode = useGameStore.getState().camMode;
 
@@ -331,6 +335,12 @@ class GameController {
     return this.content.missions[String(missionId)]?.title ?? String(missionId);
   }
 
+  /** Etiqueta visible de una actividad (vive en el arquetipo, no en el código). */
+  private activityLabel(residentId: unknown, activity: string): string {
+    const r = this.world?.residents[String(residentId)];
+    return r ? this.content.archetypes[r.archetype]?.activities[activity]?.label ?? activity : activity;
+  }
+
   private handleEvents(): void {
     if (!this.world) return;
     const store = useGameStore.getState();
@@ -383,7 +393,7 @@ class GameController {
           store.pushLog(`💧 Goteo detectado en ${blockLabel(String(d.block))}. El cubo del salón hace ojitos.`, 'bad');
           break;
         case 'weather_changed':
-          store.pushLog(`El cielo cambia: ${WEATHER_LABELS[String(d.state)] ?? String(d.state)}`, 'info');
+          store.pushLog(`El cielo cambia: ${this.content.rules.labels.weather[String(d.state)] ?? String(d.state)}`, 'info');
           break;
         case 'rent_collected':
           store.pushToast(`+${String(d.amount)} € de alquiler (${blockLabel(String(d.block))})`, 'good');
@@ -392,7 +402,7 @@ class GameController {
           store.pushLog(`💻 Cerrada una "reunión que podía ser un correo": +${String(d.amount)} €`, 'info');
           break;
         case 'activity_started':
-          if (d.activity !== 'idle') store.pushLog(`${this.nameOf(d.resident)} ${ACTIVITY_LABELS[String(d.activity)] ?? String(d.activity)}`, 'info');
+          if (d.activity !== 'idle') store.pushLog(`${this.nameOf(d.resident)} ${this.activityLabel(d.resident, String(d.activity))}`, 'info');
           break;
         case 'junta_requested': {
           const agenda = (d.agenda as { id: string; title: string; description: string; cost: number }[] | undefined) ?? [];
@@ -487,8 +497,8 @@ class GameController {
     const world = this.world;
     if (!world) return;
     const player = world.residents[world.playerId]!;
-    const home = world.residents[world.playerId]!.home;
-    const params = visibleParams(world, this.content, home).map((p) => ({ name: p.name, label: PARAM_LABELS[p.name] ?? p.name, value: String(p.value) }));
+    const home = player.home;
+    const params = visibleParams(world, this.content, home).map((p) => ({ name: p.name, label: p.def.label ?? p.name, value: String(p.value) }));
     const missions = world.missions.map((m) => {
       const def = this.content.missions[m.id]!;
       const step = m.state === 'active' ? def.steps[m.step] : undefined;
@@ -500,14 +510,15 @@ class GameController {
         remaining: m.until !== null ? `quedan ${Math.max(0, m.until - world.tick)} min` : null,
       };
     });
-    const travel = travelMinutes(buildCirculation(world, this.content), 'blk_p0_portal', home);
+    const travel = travelMinutes(buildCirculation(world, this.content), world.entry, home);
+    const elevatorBlock = Object.values(world.blocks).find((b) => b.params.elevator_status !== undefined);
     useGameStore.getState().syncHud({
       clock: { ...world.clock },
       weather: world.weather.state,
       funds: world.community.funds,
       wallet: player.wallet,
       reputation: player.reputation,
-      elevator: String(world.blocks['blk_p1_nucleo']!.params.elevator_status),
+      elevator: String(elevatorBlock?.params.elevator_status ?? 'ok'),
       homeLabel: blockLabel(home),
       travelText: Number.isFinite(travel) ? `del portal a tu puerta: ${travel} min` : null,
       objective: this.objectiveUi(),

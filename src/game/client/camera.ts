@@ -1,6 +1,5 @@
 import type { AbstractEngine, UniversalCamera, Vector3 } from '@babylonjs/core';
 import type { PlayerPosition } from '@/game/core/types';
-import { CELL_H, CELL_W } from '@/game/player-logic';
 import { B } from './babylon';
 
 export type CamMode = 'edificio' | 'planta' | 'estancia';
@@ -17,6 +16,8 @@ export class CameraRig {
     private readonly engine: AbstractEngine,
     private readonly cols: number,
     private readonly floors: number,
+    private readonly cellW: number,
+    private readonly cellH: number,
   ) {
     const { Vector3 } = B();
     this.pos = new Vector3(8, 8, -40);
@@ -28,17 +29,17 @@ export class CameraRig {
   update(dt: number, p: PlayerPosition) {
     const { Vector3 } = B();
     const aspect = this.engine.getRenderWidth() / Math.max(1, this.engine.getRenderHeight());
-    const width = this.cols * CELL_W;
+    const width = this.cols * this.cellW;
     let viewH: number;
     let cx = width / 2;
-    let cy = (this.floors * CELL_H) / 2;
+    let cy = (this.floors * this.cellH) / 2;
     if (this.mode === 'edificio') {
-      viewH = Math.max(this.floors * CELL_H * 1.25, (width * 1.25) / aspect);
+      viewH = Math.max(this.floors * this.cellH * 1.25, (width * 1.25) / aspect);
     } else {
-      viewH = this.mode === 'planta' ? Math.max(CELL_H * 2.4, (width * 1.1) / aspect) : Math.max(CELL_H * 2.0, (CELL_W * 2.2) / aspect);
+      viewH = this.mode === 'planta' ? Math.max(this.cellH * 2.4, (width * 1.1) / aspect) : Math.max(this.cellH * 2.0, (this.cellW * 2.2) / aspect);
       const half = (viewH * aspect) / 2;
       cx = half * 2 >= width ? width / 2 : Math.min(width - half, Math.max(half, p.x));
-      cy = (p.floor + 0.5) * CELL_H;
+      cy = (p.floor + 0.5) * this.cellH;
     }
     const dist = viewH / (2 * Math.tan(FOV / 2));
     const k = 1 - Math.exp(-dt * 6);

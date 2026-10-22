@@ -79,14 +79,36 @@ export interface ArchetypeView {
   height: number;
 }
 
+/** Ventana horaria de una actividad (HH:MM; si `to` ≤ `from`, cruza medianoche). */
+export interface ScheduleWindow {
+  from: string;
+  to?: string;
+  /** Probabilidad por tick de elegir la actividad mientras la ventana está abierta. */
+  chance?: number;
+  days?: 'all' | 'even' | 'odd';
+}
+
+/** Actividad de un arquetipo: qué emite, dónde ocurre, cuándo (schedule) y qué dice. */
+export interface ActivityDef {
+  /** Etiqueta para el registro de la interfaz (con emoji si procede). */
+  label?: string;
+  at?: 'home' | 'corridor' | 'core' | 'out';
+  say?: string[];
+  emits?: Record<string, number>;
+  schedule?: ScheduleWindow[];
+  /** Efectos aplicados una vez al empezar la actividad (p. ej. pintar la cabina). */
+  onStart?: Effect[];
+}
+
 export interface ArchetypeDef {
   id: string;
   name: string;
   tagline: string;
   traits: Partial<{ gossip: number; sociability: number; tidiness: number; noisiness: number; generosity: number; mischief: number }>;
+  /** Sesgo propio en las votaciones de junta (p. ej. el presidente vota que sí). */
+  voteBias?: number;
   needs: string[];
-  /** Actividades: emiten influencias y tienen horario. `say` son frases que suelta al interactuar. */
-  activities: Record<string, { emits?: Record<string, number>; at?: 'home' | 'corridor' | 'core' | 'out'; say?: string[] }>;
+  activities: Record<string, ActivityDef>;
   view: ArchetypeView;
 }
 
@@ -194,6 +216,7 @@ export interface ScenarioDef {
 }
 
 export interface Content {
+  rules: Rules;
   blocks: Record<string, BlockDef>;
   rooms: Record<string, RoomDef>;
   layouts: Record<string, LayoutDef>;
@@ -203,6 +226,78 @@ export interface Content {
   dialogs: Record<string, DialogDef>;
   templates: Record<string, TemplateDef>;
   scenarios: Record<string, ScenarioDef>;
+}
+
+// ───────────────────────── Reglas y ajustes (catálogo rules.json) ─────────────────────────
+
+/**
+ * Hoja de balance y configuración de presentación. CERO números de gameplay en código:
+ * todo lo tunable vive aquí y se recarga con el resto del contenido.
+ */
+export interface Rules {
+  /** Escenario con el que arranca el juego por defecto. */
+  startScenario: string;
+  sim: {
+    /** Ventana nocturna: si existe actividad "sleep", se impone durante esta ventana. */
+    night: ScheduleWindow;
+    aiHopTicks: number;
+    missionLoopMax: number;
+    defaultNeeds: Record<string, number>;
+    economy: {
+      rentMinute: string;
+      corridorDirtParam: string;
+      corridorDirtPerTick: number;
+      needDrift: Record<string, { base: number; activity: Record<string, number> }>;
+    };
+    work: { pay: number; cooldownTicks: number; funCost: number; toastCooldown: string; toastDone: string };
+    knock: { affinityGain: number; asleepLine: string; fallbackLines: string[] };
+    weather: { cycle: { state: Weather; weight: number }[]; durationMinutes: { min: number; max: number } };
+    junta: {
+      baseYes: number;
+      affinityDivisor: number;
+      generosityFactor: number;
+      defaultGenerosity: number;
+      moodThreshold: number;
+      moodPenalty: number;
+      clamp: { min: number; max: number };
+    };
+  };
+  /** Configuración de la presentación placeholder (greybox). El arte final la sustituirá. */
+  view: {
+    cellW: number;
+    cellH: number;
+    walkSpeed: number;
+    roomSpeed: number;
+    stairsSeconds: number;
+    elevatorSeconds: number;
+    margin: number;
+    nearRadius: number;
+    laptopOffset: number;
+    bedOffset: number;
+    itemRadius: number;
+    corridorZ: number;
+    roomZ: number;
+    depth: number;
+    wall: number;
+    gapW: number;
+    gapH: number;
+    slab: number;
+    sky: { r: number; g: number; b: number };
+    ambient: { dir: [number, number, number]; intensity: number };
+    sun: { dir: [number, number, number]; intensity: number };
+    lockedColor: string;
+    vacantTint: number;
+    brokenColor: string;
+    lockColor: string;
+    homeEdge: string;
+    channelGlow: Record<string, string>;
+    actorFallbackColor: string;
+    actorFallbackHeight: number;
+    actorRadius: number;
+  };
+  /** Datos del botón de demostración "Fiesta" (solo dev/debug, también en catálogo). */
+  demo: { resident: string; block: string; noise: number; toast: string };
+  labels: { weather: Record<string, string> };
 }
 
 // ───────────────────────── Instancias (estado) ─────────────────────────
@@ -288,6 +383,8 @@ export interface World {
   tick: number;
   clock: { day: number; minute: number };
   playerId: string;
+  /** Bloque de entrada al edificio (de ahí salen y entran los vecinos IA). */
+  entry: string;
   community: { funds: number; presidentId: string | null };
   weather: { state: Weather; nextChangeMinute: number };
   blocks: Record<string, BlockInstance>;

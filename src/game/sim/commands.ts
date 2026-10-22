@@ -33,9 +33,9 @@ export function canMove(world: World, content: Content, from: string | null, to:
 function knockLine(world: World, content: Content, residentId: string): { line: string; asleep: boolean } {
   const r = world.residents[residentId]!;
   const arch = content.archetypes[r.archetype];
-  if (r.activity === 'sleep') return { line: 'Zzz... zzz... (no abre, pero sí sueña)', asleep: true };
+  if (r.activity === 'sleep') return { line: content.rules.sim.knock.asleepLine, asleep: true };
   const pool = Object.values(arch?.activities ?? {}).flatMap((a) => a.say ?? []);
-  const fallback = ['¿Quién es? ¡Ahora bajo! ...(no baja)'];
+  const fallback = content.rules.sim.knock.fallbackLines;
   const line = pool.length > 0 ? pool[Math.floor(nextRandom(world) * pool.length)]! : fallback[0]!;
   return { line, asleep: false };
 }
@@ -92,15 +92,16 @@ function run(world: World, content: Content, cmd: Command): CommandResult {
       return ok();
     }
     case 'work': {
+      const cfg = content.rules.sim.work;
       if (world.tick < (player.cooldowns['work'] ?? 0)) {
-        emit(world, 'ui_toast', { text: 'Acabas de cerrar el portátil. Tus ojos te lo agradecen.', tone: 'info' });
+        emit(world, 'ui_toast', { text: cfg.toastCooldown, tone: 'info' });
         return fail('cooldown');
       }
-      player.cooldowns['work'] = world.tick + 120;
-      player.wallet += 120;
-      player.needs['fun'] = Math.max(0, player.needs['fun'] - 10);
-      emit(world, 'work_done', { amount: 120 });
-      emit(world, 'ui_toast', { text: '+120 €: "reunión que podía ser un correo" (x1).', tone: 'good' });
+      player.cooldowns['work'] = world.tick + cfg.cooldownTicks;
+      player.wallet += cfg.pay;
+      player.needs['fun'] = Math.max(0, player.needs['fun'] - cfg.funCost);
+      emit(world, 'work_done', { amount: cfg.pay });
+      emit(world, 'ui_toast', { text: cfg.toastDone.replace('{amount}', String(cfg.pay)), tone: 'good' });
       return ok();
     }
     case 'buy_block': {
@@ -127,12 +128,13 @@ function run(world: World, content: Content, cmd: Command): CommandResult {
       const { line, asleep } = knockLine(world, content, target.id);
       // Afinidad mutua: llamar a la puerta siempre suma un poquito (salvo si duerme).
       if (!asleep) {
+        const gain = content.rules.sim.knock.affinityGain;
         let rel = player.relations.find((x) => x.with === target.id);
         if (!rel) player.relations.push((rel = { with: target.id, affinity: 0, trust: 0 }));
-        rel.affinity += 2;
+        rel.affinity += gain;
         let rel2 = target.relations.find((x) => x.with === world.playerId);
         if (!rel2) target.relations.push((rel2 = { with: world.playerId, affinity: 0, trust: 0 }));
-        rel2.affinity += 2;
+        rel2.affinity += gain;
       }
       emit(world, 'knock_result', { resident: target.id, block: b.id, line, asleep, name: content.archetypes[target.archetype]?.name ?? target.id });
       return ok();

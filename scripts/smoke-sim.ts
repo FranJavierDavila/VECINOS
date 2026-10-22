@@ -1,17 +1,18 @@
-/** Prueba de humo del sim: crea el mundo, avanza ticks, responde el teléfono y sigue la misión tutorial. */
-import { buildContent } from '@/game/content';
+/** Prueba de humo del sim: valida el contenido JSON, crea el mundo, avanza ticks y sigue el tutorial. */
+import { loadContent, formatIssues } from '@/game/content';
 import { createWorld, dispatch, drainEvents, tick, buildCirculation, travelMinutes } from '@/game/sim';
 
-const { content, issues } = buildContent();
+const baseUrl = new URL('../public/content/', import.meta.url).href;
+const { content, issues } = await loadContent(baseUrl);
 if (issues.length) {
-  console.error('ISSUES:', issues);
+  console.error('ISSUES:', formatIssues(issues));
   process.exit(1);
 }
-const world = createWorld(content, 'slice');
+const world = createWorld(content, content.rules.startScenario);
 
 console.log('Bloques:', Object.keys(world.blocks).length, '| Residentes:', Object.keys(world.residents).length);
 console.log('Misiones iniciales:', world.missions.map((m) => `${m.id}:${m.state}`).join(', '));
-console.log('Viaje portal→3C:', travelMinutes(buildCirculation(world, content), 'blk_p0_portal', 'blk_p3_c'), 'min');
+console.log('Viaje portal→3C:', travelMinutes(buildCirculation(world, content), world.entry, 'blk_p3_c'), 'min');
 
 // Responde el teléfono del tutorial
 const phone = world.missions.find((m) => m.state === 'active');
@@ -20,7 +21,7 @@ if (phone) {
   console.log('answer_call:', r.ok);
 }
 
-// Avanza 200 minutos de mundo
+// Avanza 200 minutos de mundo (los vecinos AI hacen su vida según los horarios del catálogo)
 for (let i = 0; i < 200; i++) tick(world, content);
 
 console.log('Día', world.clock.day, world.clock.minute, 'min · clima:', world.weather.state);

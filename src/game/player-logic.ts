@@ -1,30 +1,16 @@
 import type { BlockInstance, Content, Input, InteractTarget, PlayerPosition, World } from '@/game/core/types';
 import { dispatch } from '@/game/sim';
 
-export const CELL_W = 2.4;
-export const CELL_H = 2.6;
-
-const WALK_SPEED = 3.6;
-const ROOM_SPEED = 2.6;
-const STAIRS_SECONDS = 1.6;
-const ELEVATOR_SECONDS = 0.6;
-const MARGIN = 0.35;
-
 export type InteractResult =
   | { type: 'none' }
   | { type: 'entered'; block: string }
   | { type: 'exited'; block: string }
   | { type: 'locked'; block: string; reason: string | null; price: number | null };
 
-const range = (b: BlockInstance): [number, number] => [b.cell.col * CELL_W, (b.cell.col + b.size.w) * CELL_W];
-const within = (x: number, b: BlockInstance) => {
-  const [a, z] = range(b);
-  return x >= a && x < z;
-};
-
 /**
  * Lógica del personaje sin gráficos: dónde está, qué puerta tiene delante, escaleras y ascensor.
- * No decide nada por su cuenta: cada cambio de bloque pasa por `dispatch`, que aplica las reglas.
+ * No decide nada por su cuenta (cada cambio de bloque pasa por `dispatch`) y NO contiene constantes:
+ * geometría y velocidades vienen de content.rules.view (catálogo greybox sustituible por arte final).
  */
 export class PlayerLogic {
   x: number;
@@ -35,17 +21,27 @@ export class PlayerLogic {
   private approached: string | null = null;
   private readonly width: number;
   private readonly topFloor: number;
+  private readonly view;
 
   constructor(
     private readonly world: World,
     private readonly content: Content,
   ) {
+    this.view = content.rules.view;
     const blocks = Object.values(world.blocks);
-    this.width = Math.max(...blocks.map((b) => (b.cell.col + b.size.w) * CELL_W));
+    this.width = Math.max(...blocks.map((b) => (b.cell.col + b.size.w) * this.view.cellW));
     this.topFloor = Math.max(...blocks.map((b) => b.cell.floor));
-    const start = world.blocks[world.residents[world.playerId]!.location ?? world.residents[world.playerId]!.home] ?? blocks.find((b) => b.defId === 'portal')!;
+    const start = world.blocks[world.residents[world.playerId]!.location ?? world.residents[world.playerId]!.home] ?? blocks.find((b) => b.kind !== 'dwelling')!;
     this.floor = start.cell.floor;
-    this.x = (range(start)[0] + range(start)[1]) / 2;
+    this.x = (this.rangeOf(start)[0] + this.rangeOf(start)[1]) / 2;
+  }
+
+  private rangeOf(b: BlockInstance): [number, number] {
+    return [b.cell.col * this.view.cellW, (b.cell.col + b.size.w) * this.view.cellW];
+  }
+  private within(x: number, b: BlockInstance): boolean {
+    const [a, z] = this.rangeOf(b);
+    return x >= a && x < z;
   }
 
   private get location(): string | null {
@@ -66,14 +62,14 @@ export class PlayerLogic {
 
   /** Bloque bajo los pies del jugador (zona común) o, si no, el pasillo. */
   zone(): BlockInstance {
-    const common = this.onFloor(this.floor).find((b) => b.layer === 'main' && b.kind !== 'dwelling' && within(this.x, b));
+    const common = this.onFloor(this.floor).find((b) => b.layer === 'main' && b.kind !== 'dwelling' && this.within(this.x, b));
     return common ?? this.corridor();
   }
 
   /** Vivienda justo delante (la puerta que puede abrir), si la hay. */
   doorInFront(): BlockInstance | null {
     if (this.mode !== 'corridor') return null;
-    return this.onFloor(this.floor).find((b) => b.kind === 'dwelling' && within(this.x, b)) ?? null;
+    return this.onFloor(this.floor).find((b) => b.kind === 'dwelling' && this.within(this.x, b)) ?? null;
   }
 
   position(): PlayerPosition {
@@ -99,9 +95,9 @@ export class PlayerLogic {
     const to = this.floor + delta;
     const core = this.core(this.floor);
     if (to < 0 || to > this.topFloor || !core || this.zone().id !== core.id) return;
-    const [a, z] = range(core);
+    const [a, z] = this.rangeOf(core);
     this.x = (a + z) / 2;
-    this.climb = { from: this.floor, to, t: 0, duration: this.elevatorWorks(this.floor, to) ? ELEVATOR_SECONDS : STAIRS_SECONDS };
+    this.climb = { from: this.floor, to, t: 0, duration: this.elevatorWorks(this.floor, to) ? this.view.elevatorSeconds : this.view.stairsSeconds };
   }
 
   update(dt: number, input: Input) {
@@ -117,11 +113,11 @@ export class PlayerLogic {
     const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
     if (this.mode === 'inside') {
       const home = this.world.blocks[this.insideBlock!]!;
-      const [a, z] = range(home);
-      this.x = Math.min(z - MARGIN, Math.max(a + MARGIN, this.x + dir * ROOM_SPEED * dt));
+      const [a, z] = this.rangeOf(home);
+      this.x = Math.min(z - this.view.margin, Math.max(a + this.view.margin, this.x + dir * this.view.roomSpeed * dt));
       return;
     }
-    this.x = Math.min(this.width - MARGIN, Math.max(MARGIN, this.x + dir * WALK_SPEED * dt));
+    this.x = Math.min(this.width - this.view.margin, Math.max(this.view.margin, this.x + dir * this.view.walkSpeed * dt));
     this.sync();
     const door = this.doorInFront()?.id ?? null;
     if (door !== this.approached) {
@@ -142,7 +138,7 @@ export class PlayerLogic {
       const myZone = this.mode === 'inside' ? this.insideBlock : this.zone().id;
       const theirZone = loc.kind === 'dwelling' ? (this.mode === 'inside' && this.insideBlock === loc.id ? loc.id : null) : loc.id;
       if (!theirZone || theirZone !== myZone) continue;
-      if (Math.abs((loc.cell.col + loc.size.w / 2) * CELL_W - this.x) < 1.6) return other.id;
+      if (Math.abs((loc.cell.col + loc.size.w / 2) * this.view.cellW - this.x) < this.view.nearRadius) return other.id;
     }
     return null;
   }
@@ -154,10 +150,11 @@ export class PlayerLogic {
       const b = this.world.blocks[this.insideBlock!]!;
       if (b.ownerId === this.world.playerId) {
         const home = b;
-        // Portátil en el salón: lado izquierdo; cama en el dormitorio: lado derecho.
+        // Portátil en el salón: lado izquierdo; cama en el dormitorio: lado derecho (offsets del catálogo).
         if (home.cell.col === this.world.blocks[this.world.residents[this.world.playerId]!.home].cell.col) {
-          const nearLaptop = Math.abs(this.x - (range(home)[0] + 0.7)) < 0.9;
-          const nearBed = Math.abs(this.x - (range(home)[1] - 0.6)) < 0.9;
+          const [a, z] = this.rangeOf(home);
+          const nearLaptop = Math.abs(this.x - (a + this.view.laptopOffset)) < this.view.itemRadius;
+          const nearBed = Math.abs(this.x - (z - this.view.bedOffset)) < this.view.itemRadius;
           if (nearLaptop) return { kind: 'laptop' };
           if (nearBed) return { kind: 'bed' };
         }
@@ -169,8 +166,9 @@ export class PlayerLogic {
     const door = this.doorInFront();
     if (door) return { kind: 'door', blockId: door.id };
     const z = this.zone();
-    if (this.content.blocks[z.defId]!.features?.mailboxes && Math.abs(this.x - (range(z)[0] + 1.2)) < 1.2) return { kind: 'mailbox' };
-    if (this.content.blocks[z.defId]!.features?.noticeboard && Math.abs(this.x - (range(z)[1] - 0.8)) < 1.0) return { kind: 'noticeboard' };
+    const [za, zz] = this.rangeOf(z);
+    if (this.content.blocks[z.defId]!.features?.mailboxes && Math.abs(this.x - (za + 1.2)) < this.view.itemRadius) return { kind: 'mailbox' };
+    if (this.content.blocks[z.defId]!.features?.noticeboard && Math.abs(this.x - (zz - 0.8)) < this.view.itemRadius) return { kind: 'noticeboard' };
     return null;
   }
 

@@ -3,18 +3,18 @@ import { emit } from '../events';
 import { applyEffects } from '../effects';
 import { nextRandom } from '../rng';
 
-/** Los vecinos IA votan según afinidad con el jugador, generosidad y oficio (el presidente casi siempre sí). */
+/** Los vecinos IA votan según afinidad con el jugador, generosidad y su sesgo propio (voteBias del arquetipo). */
 export function castVotes(world: World, content: Content): void {
   if (!world.junta) return;
+  const cfg = content.rules.sim.junta;
   for (const r of Object.values(world.residents).sort((a, b) => a.id.localeCompare(b.id))) {
     if (r.controller.type === 'human' || !r.present || world.junta.votes[r.id]) continue;
     const affinity = r.relations.find((x) => x.with === world.playerId)?.affinity ?? 0;
     const traits = content.archetypes[r.archetype]?.traits ?? {};
-    let pYes = 0.45 + affinity / 200 + (traits.generosity ?? 0.3) * 0.2;
-    if (r.archetype === 'presidente') pYes += 0.35;
-    if (r.archetype === 'fondo_buitre') pYes -= 0.3;
-    if (r.needs['fun'] < 25) pYes -= 0.15; // de mal humor
-    const vote: Vote = nextRandom(world) < Math.max(0.05, Math.min(0.95, pYes)) ? 'yes' : 'no';
+    let pYes = cfg.baseYes + affinity / cfg.affinityDivisor + (traits.generosity ?? cfg.defaultGenerosity) * cfg.generosityFactor;
+    pYes += content.archetypes[r.archetype]?.voteBias ?? 0;
+    if ((r.needs['fun'] ?? 50) < cfg.moodThreshold) pYes -= cfg.moodPenalty; // de mal humor
+    const vote: Vote = nextRandom(world) < Math.max(cfg.clamp.min, Math.min(cfg.clamp.max, pYes)) ? 'yes' : 'no';
     world.junta.votes[r.id] = vote;
   }
   emit(world, 'junta_votes', { votes: { ...world.junta.votes } });

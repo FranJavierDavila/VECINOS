@@ -101,3 +101,25 @@ Work Log:
 Stage Summary:
 - Vertical slice 0.1 COMPLETA y jugable en `/`: sim determinista (1 tick = 1 min) + render Babylon 2.5D + UI React + misiones con decisiones + junta + influencias ruido/agua + guardado persistente.
 - Pendiente para próximas iteraciones: controles táctiles móviles, minijuegos, editor de interiores, más misiones/arquetipos, audio.
+
+---
+Task ID: 4
+Agent: main (Z.ai Code)
+Task: Refactor 100% data-driven: eliminar todo hardcodeo (directriz del usuario: juego agnóstico, arte final sustituible)
+
+Work Log:
+- Auditoría de hardcodeo en las 3 capas: (1) contenido en módulos TS en vez de JSON externo; (2) sim: horarios de IA en switch por arquetipo, constantes de economía/clima/junta/trabajo/llamadas, DEFAULT_NEEDS, bucle de misiones; (3) client: CELL_W/CELL_H, velocidades, colores de greybox, glows de canales, 'slice', 'blk_p0_portal', 'blk_p1_nucleo', labels de actividades/clima, partyDemo con ids fijos.
+- Creado catálogo `rules.json` (hoja de balance): sim (night, aiHopTicks, missionLoopMax, defaultNeeds, economy con rentMinute/needDrift/corridorDirt, work, knock, weather cycle+duration, junta con clamp y factors) + view (geometría greybox, velocidades, sky/luces, lockedColor/brokenColor/lockColor, channelGlow noise/water, actor fallbacks) + demo + labels.weather.
+- Nuevo campo por catálogo: `archetypes: activities[].schedule` (ventanas HH:MM con chance y days even/odd, cruce de medianoche), `activities[].label` (emojis del log), `activities[].onStart` (efectos al iniciar actividad, p. ej. pintar cabina), `archetypes.voteBias` (sustituye al special-casing presidente/fondo_buitre en junta).
+- Migrados los 9 catálogos TS → JSON externos en `public/content/` (blocks, rooms, layouts, influences, archetypes, dialogs, missions, templates, scenarios, rules). Eliminado `src/game/content/data/`.
+- Creado `src/game/content/schemas.ts` (Zod v4: efecto/condición/paso como unions discriminadas, rules completo) y reescrito `content/index.ts`: `loadContent(baseUrl)` async (fetch + parse + indexado + validación cruzada ampliada: startScenario, attenuatedBy, canales de activities), cache en promesa.
+- Sim genérico: ai.ts (scheduler por datos con prioridad = orden del catálogo; entry desde world.entry; hop desde rules), economy.ts (drift por tabla de rules; suciedad aplicada a cualquier bloque que tenga el parámetro), weather.ts (ciclo/duración de rules), junta.ts (fórmula de rules + voteBias), commands.ts (work/knock de rules, toastDone con {amount}), world.ts (defaultNeeds de rules + world.entry), missions.ts (missionLoopMax de rules).
+- Client data-driven: player-logic.ts (sin CELL_W/CELL_H exportados; todo de rules.view), building.ts (geometría + colores + glows de rules.view, emissive acumulativo por canal con color del catálogo), actors.ts (fallbacks/radio de rules.view), camera.ts (cellW/cellH por parámetro), controller.ts (carga async de contenido, getter con error claro, labels de activities desde arquetipo y clima desde rules, demo de rules, ascensor localizado por presencia de parámetro, viaje desde world.entry, migración de guardados antiguos sin entry, sky/luces de rules).
+- smoke-sim.ts actualizado: loadContent vía file:// con URL de import.meta y escenario desde rules.
+- Verificación: tsc 0 errores en src/, lint 0 errores, SMOKE OK (28 bloques, 9 residentes, tutorial completo → m_bienvenida done +200 €), E2E con agent-browser: teléfono → subir 3 plantas → puerta 3C → entrar; cadena m_ascensor → junta (4 sí/1 no, rechazada por caja insuficiente, voteBias OK) → m_pintadas activa; Fiesta demo (ruido propagado a 2A/3B/1B/pasillo, Kevin mudado); Guardar/Cargar OK; móvil 390px OK; sin errores de consola.
+
+Stage Summary:
+- El juego ya es 100% data-driven: CERO ids/constantes de gameplay en código. Añadir un vecino, misión, edificio o rebalancear = editar JSON en public/content/ (validado por Zod al vuelo, sin tocar código).
+- La costura para el arte final está en rules.view (geometría/colores greybox) + block.view/archetype.view: sustituir cajas/cápsulas por prefabs/glTF no toca sim ni lógica.
+- World gana `entry` (con migración de guardados antiguos); guardar/cargar sigue funcionando.
+- Pendientes futuros: editor de interiores, minijuegos, más canales (olor/plagas/wifi), audio, multiplayer.

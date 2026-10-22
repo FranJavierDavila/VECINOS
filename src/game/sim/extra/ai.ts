@@ -1,15 +1,52 @@
-import type { Content, ResidentInstance, World } from '@/game/core/types';
+import type { Content, ResidentInstance, ScheduleWindow, World } from '@/game/core/types';
 import { emit } from '../events';
 import { nextRandom } from '../rng';
-import { applyEffect, resolveBlocks } from '../effects';
+import { applyEffects, resolveBlocks } from '../effects';
 import { nextStepTowards } from '../graph';
 
 /**
- * IA de los vecinos: sin física. Eligen actividad por horario y arquetipo y se mueven
- * por el grafo de circulación hop a hop (2 ticks por paso). La vista las interpola.
+ * IA de los vecinos: sin física y SIN datos de gameplay. Cada arquetipo declara sus
+ * actividades con ventanas horarias (schedule) en el catálogo; aquí solo está el algoritmo
+ * genérico que las evalúa. Los vecinos se mueven por el grafo de circulación (2 ticks por paso).
  */
 
-const isNight = (minute: number) => minute >= 23 * 60 || minute < 7 * 60 + 30;
+const toMinutes = (hhmm: string): number => {
+  const [h, m] = hhmm.split(':').map(Number) as [number, number];
+  return h * 60 + m;
+};
+
+/** ¿Está `minute` dentro de la ventana? Si `to` ≤ `from`, la ventana cruza medianoche. */
+export function inMinuteWindow(minute: number, w: { from: string; to?: string }): boolean {
+  const from = toMinutes(w.from);
+  const to = w.to ? toMinutes(w.to) : 1440;
+  return to <= from ? minute >= from || minute < to : minute >= from && minute < to;
+}
+
+function windowActive(w: ScheduleWindow, minute: number, day: number): boolean {
+  if (w.days === 'even' && day % 2 !== 0) return false;
+  if (w.days === 'odd' && day % 2 !== 1) return false;
+  return inMinuteWindow(minute, w);
+}
+
+/** Decide la actividad deseada del residente: primera actividad cuyo schedule encaje (orden del catálogo). */
+function desire(world: World, content: Content, r: ResidentInstance): [string | null, 'home' | 'corridor' | 'core' | 'out'] {
+  const acts = content.archetypes[r.archetype]?.activities ?? {};
+  const { night } = content.rules.sim;
+  const minute = world.clock.minute;
+  const day = world.clock.day;
+
+  // Por la noche manda el sueño (si el arquetipo sabe dormir).
+  if (inMinuteWindow(minute, night) && acts['sleep']) return ['sleep', 'home'];
+
+  for (const [id, a] of Object.entries(acts)) {
+    for (const w of a.schedule ?? []) {
+      if (!windowActive(w, minute, day)) continue;
+      if (w.chance !== undefined && nextRandom(world) >= w.chance) continue;
+      return [id, a.at ?? 'home'];
+    }
+  }
+  return ['idle', 'home'];
+}
 
 function corridorOf(world: World, floor: number): string | null {
   return Object.values(world.blocks).find((b) => b.layer === 'corridor' && b.cell.floor === floor)?.id ?? null;
@@ -18,61 +55,15 @@ function coreOf(world: World, floor: number): string | null {
   return Object.values(world.blocks).find((b) => b.layer === 'main' && b.cell.floor === floor && !!b.params.elevator_status)?.id ?? null;
 }
 
-/** Decide la actividad deseada del residente según su arquetipo y la hora. Devuelve [actividad, destino]. */
-function desire(world: World, content: Content, r: ResidentInstance): [string | null, 'home' | 'corridor' | 'core' | 'out'] {
-  const m = world.clock.minute;
-  const day = world.clock.day;
-  const has = (a: string) => !!content.archetypes[r.archetype]?.activities[a];
-
-  if (isNight(m)) return [has('sleep') ? 'sleep' : null, 'home'];
-
-  switch (r.archetype) {
-    case 'cotilla':
-      if (m >= 7 * 60 + 30 && m < 9 * 60) return ['watch_corridor', 'corridor'];
-      if (m >= 17 * 60 && m < 19 * 60) return [nextRandom(world) < 0.6 ? 'tv_loud' : 'watch_corridor', nextRandom(world) < 0.6 ? 'home' : 'corridor'];
-      return ['idle', 'home'];
-    case 'fiestero':
-      if (m >= 10 * 60 + 30 && m < 19 * 60) return ['out', 'out'];
-      if (m >= 21 * 60 + 30 || m < 60) return [nextRandom(world) < 0.75 ? 'party' : 'idle', 'home'];
-      return ['idle', 'home'];
-    case 'jubilada':
-      if (m >= 10 * 60 + 30 && m < 11 * 60 + 10 && day % 2 === 0) return ['laundry', 'home'];
-      if ((m >= 8 * 60 && m < 8 * 60 + 40) || (m >= 12 * 60 && m < 12 * 60 + 40) || (m >= 18 * 60 && m < 18 * 60 + 40)) return ['chair', 'corridor'];
-      return ['idle', 'home'];
-    case 'presidente':
-      if (m >= 12 * 60 && m < 12 * 60 + 30) return ['stroll', 'corridor'];
-      if (m >= 17 * 60 && m < 17 * 60 + 30) return ['stroll', 'corridor'];
-      return ['idle', 'home'];
-    case 'estudiante':
-      if (m >= 8 * 60 && m < 15 * 60) return ['out', 'out'];
-      if (m >= 16 * 60 && m < 22 * 60) return ['study_music', 'home'];
-      return ['idle', 'home'];
-    case 'nino_grafitero':
-      if (m >= 8 * 60 && m < 15 * 60) return ['out', 'out'];
-      if (m >= 16 * 60 && m < 19 * 60) return [nextRandom(world) < 0.4 ? 'paint_cabin' : 'roam', 'core'];
-      return ['idle', 'home'];
-    case 'fondo_buitre':
-      if ((m >= 9 * 60 + 30 && m < 10 * 60) || (m >= 14 * 60 && m < 14 * 60 + 30)) return ['stroll', 'corridor'];
-      return ['idle', 'home'];
-    case 'inquilino':
-      if (m >= 8 * 60 && m < 14 * 60) return ['out', 'out'];
-      return ['idle', 'home'];
-    default:
-      return ['idle', 'home'];
-  }
-}
-
 function setActivity(world: World, content: Content, r: ResidentInstance, activity: string | null) {
   if (r.activity === activity) return;
   if (r.activity) emit(world, 'activity_ended', { resident: r.id, activity: r.activity });
   r.activity = activity;
   if (activity) {
     emit(world, 'activity_started', { resident: r.id, activity, archetype: r.archetype });
-    // Efectos especiales de actividades concretas.
-    if (activity === 'paint_cabin') {
-      const core = resolveBlocks(world, content, 'nucleo').find((b) => b.cell.floor === world.blocks[r.home]?.cell.floor) ?? resolveBlocks(world, content, 'nucleo')[0];
-      if (core) applyEffect(world, content, { op: 'setParam', target: core.id, param: 'cabin_graffiti', delta: 15 });
-    }
+    // Efectos al empezar, declarados en el catálogo (p. ej. pintar la cabina ensucia).
+    const onStart = content.archetypes[r.archetype]?.activities[activity]?.onStart;
+    if (onStart?.length) applyEffects(world, content, onStart, {});
   }
 }
 
@@ -93,10 +84,10 @@ export function runAI(world: World, content: Content): void {
       continue;
     }
 
-    // Volver al edificio: entra por el portal.
+    // Volver al edificio: entra por el portal del mundo.
     if (r.location === null) {
-      r.location = 'blk_p0_portal';
-      emit(world, 'resident_moved', { resident: r.id, block: 'blk_p0_portal' });
+      r.location = world.entry;
+      emit(world, 'resident_moved', { resident: r.id, block: world.entry });
     }
 
     if (targetBlock && r.location !== targetBlock) {
@@ -105,7 +96,7 @@ export function runAI(world: World, content: Content): void {
         if (step) {
           r.location = step;
           emit(world, 'resident_moved', { resident: r.id, block: step });
-          r.cooldowns['hop'] = world.tick + 2;
+          r.cooldowns['hop'] = world.tick + content.rules.sim.aiHopTicks;
         }
       }
       // De camino: sin actividad destacable (pasea).
