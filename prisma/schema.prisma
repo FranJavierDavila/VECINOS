@@ -30,3 +30,15 @@ model Post {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+/** Partida guardada de VECINOS: el estado del mundo serializado (definiciones fuera, solo instancias). */
+model GameSave {
+  id        String   @id @default(cuid())
+  slot      String   @unique
+  state     String
+  tick      Int
+  day       Int
+  minute    Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

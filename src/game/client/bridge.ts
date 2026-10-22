@@ -1,0 +1,36 @@
+'use client';
+
+/**
+ * Puente entre la UI React y el controlador del juego.
+ * El controlador (que depende de Babylon) se carga dinámicamente en el cliente;
+ * la página y los componentes solo conocen esta interfaz, sin importar Babylon.
+ */
+
+export type CamModeBridge = 'edificio' | 'planta' | 'estancia';
+export type SpeedBridge = 1 | 3 | 10;
+
+export interface GameControllerApi {
+  onKeyDown(code: string): void;
+  onKeyUp(code: string): void;
+  togglePause(): void;
+  setSpeed(speed: SpeedBridge): void;
+  setCamMode(mode: CamModeBridge): void;
+  partyDemo(): void;
+  skipTime(): void;
+  phoneNext(): void;
+  choose(choiceId: string): void;
+  juntaVote(vote: 'yes' | 'no'): void;
+  finaleClose(): void;
+  save(): Promise<void>;
+  load(): Promise<void>;
+}
+
+let current: GameControllerApi | null = null;
+
+export function setController(c: GameControllerApi | null): void {
+  current = c;
+}
+
+export function getController(): GameControllerApi | null {
+  return current;
+}

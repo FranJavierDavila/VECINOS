@@ -7,6 +7,7 @@ export * from './commands';
 export * from './effects';
 export * from './graph';
 export * from './influence';
+export * from './selectors';
 export * from './tick';
 export * from './extra/weather';
 export * from './extra/ai';

@@ -28,7 +28,10 @@ export function resolveJunta(world: World, content: Content, playerVote: Vote): 
   for (const item of world.junta.agenda) {
     let yes = 0;
     let no = 0;
-    for (const v of Object.values(world.junta.votes)) (v === 'yes' ? yes++ : no++);
+    for (const v of Object.values(world.junta.votes)) {
+      if (v === 'yes') yes += 1;
+      else no += 1;
+    }
     const approved = yes > no && world.community.funds >= item.cost;
     emit(world, 'junta_result', { item: item.id, title: item.title, approved, yes, no });
     if (approved) {
