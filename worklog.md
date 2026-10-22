@@ -251,3 +251,19 @@ Stage Summary:
 - Respaldo 100% operativo y sincronizado: github.com/FranJavierDavila/VECINOS (privado) == /home/z/my-project (rama main), con historial completo y tooling de backup (scripts/backup-github.sh + docs/BACKUP-GITHUB.md).
 - Lección registrada: con cuentas nuevas, VERIFICAR EL EMAIL de GitHub antes de generar el PAT (si no, GitHub revoca el token automáticamente). Si el token muere de nuevo → regenerarlo y pedir "actualiza el token" en chat, o git remote set-url.
 - Recomendaciones pendientes para el usuario: verificar email de GitHub; re-escopar el PAT a "Only select repositories" = VECINOS; opcionalmente configurar user.email con su email noreply para vincular commits a su perfil.
+---
+Task ID: 10
+Agent: main (Z.ai Code)
+Task: Vincular los commits al perfil de GitHub del usuario (identidad git = FranJavierDavila <trabajosen3d@gmail.com>)
+
+Work Log:
+- Backup de seguridad antes de tocar historial: git bundle en /tmp/vecinos-pre-rewrite.bundle (--all) + rama local backup/pre-rewrite. Estado previo verificado: 10 commits, 258 ficheros, autor "Z User <z@container>".
+- Configurada la identidad a nivel repo y global: user.name=FranJavierDavila, user.email=trabajosen3d@gmail.com (todos los commits futuros saldrán ya con esta autoría).
+- Re-atribución del historial completo con git filter-branch --env-filter (author+committer) sobre --all: 10/10 commits reescritos. Integridad verificada tras el rewrite: mismos 10 commits y 258 ficheros, working tree limpio, único autor del historial = FranJavierDavila <trabajosen3d@gmail.com>.
+- Push forzado y verificado: + 2a15700...c0f49b2 main -> main (forced update); ls-remote == HEAD local (c0f49b2).
+- Worklog Task 10 creado con la nueva identidad (este commit es el primero nacido ya atribuido al usuario) y push normal.
+- NOTA: los hashes citados en entries anteriores (cae0119, 26b57b4, 27ee397, 2a15700) quedaron obsoletos por el rewrite; el contenido es idéntico. Local y remoto sincronizados.
+
+Stage Summary:
+- Todo el historial del repo (10 commits) aparece ahora en GitHub con la autoría FranJavierDavila <trabajosen3d@gmail.com>; los commits se vincularán a su perfil en cuanto el email esté verificado en GitHub (pendiente crítico: verificar trabajosen3d@gmail.com en Settings → Emails, también necesario para que GitHub deje de revocar los PAT).
+- Artefactos: bundle de seguridad /tmp/vecinos-pre-rewrite.bundle y rama local backup/pre-rewrite (eliminables cuando el usuario confirme que todo se ve bien en GitHub).
