@@ -235,3 +235,19 @@ Stage Summary:
 - Respaldo ACTIVO: todo el proyecto (código, contenido data-driven, partida guardada, docs, historial de 8 commits) está en github.com/FranJavierDavila/VECINOS (privado).
 - Mantenimiento: "sube los cambios a GitHub" en chat, o ./scripts/backup-github.sh [-m "mensaje"]. Rotación de token: git remote set-url origin https://<NUEVO>@github.com/FranJavierDavila/VECINOS.git.
 - Pendiente opcional para el usuario: re-escopar el PAT solo a VECINOS (ahora cubre 4 repos) y, si quiere vincular los commits a su perfil, configurar user.email con su email noreply de GitHub.
+---
+Task ID: 9
+Agent: main (Z.ai Code)
+Task: Recuperar la conexión con GitHub tras la invalidación del primer token (nuevo PAT) y sincronizar todo
+
+Work Log:
+- Incidencia (Task 8, pendiente de registrar): el segundo push falló con "remote: Invalid username or token" y GET /user confirmó 401 Bad credentials para el primer PAT, minutos después de un push exitoso. Descartada fuga del token en el historial (git log -S 'github_pat_11BOXV' = 0 resultados → no fue secret-scanning por nuestro push). Causa más probable: cuenta de GitHub recién creada (id 196038989) con email sin verificar → GitHub auto-revoca los fine-grained PAT de cuentas sin verificar. El respaldo principal NO estuvo en riesgo: el primer push (historial completo, 258 ficheros) ya se había completado y verificado.
+- El usuario regeneró el token y confirmó la URL del repo (https://github.com/FranJavierDavila/VECINOS.git). Nuevo PAT validado vía API: GET /user → 200 (FranJavierDavila) y GET /repos/FranJavierDavila/VECINOS → push: true.
+- Actualizado el remote: git remote set-url origin https://FranJavierDavila:<NUEVO-PAT>@github.com/FranJavierDavila/VECINOS.git.
+- Push del commit pendiente 27ee397 (worklog Task 8): 26b57b4..27ee397 main -> main. Verificado ls-remote == HEAD local.
+- Este entry (Task 9) se commitea y push-ea como sync final; tras él, local y remoto quedan idénticos.
+
+Stage Summary:
+- Respaldo 100% operativo y sincronizado: github.com/FranJavierDavila/VECINOS (privado) == /home/z/my-project (rama main), con historial completo y tooling de backup (scripts/backup-github.sh + docs/BACKUP-GITHUB.md).
+- Lección registrada: con cuentas nuevas, VERIFICAR EL EMAIL de GitHub antes de generar el PAT (si no, GitHub revoca el token automáticamente). Si el token muere de nuevo → regenerarlo y pedir "actualiza el token" en chat, o git remote set-url.
+- Recomendaciones pendientes para el usuario: verificar email de GitHub; re-escopar el PAT a "Only select repositories" = VECINOS; opcionalmente configurar user.email con su email noreply para vincular commits a su perfil.
