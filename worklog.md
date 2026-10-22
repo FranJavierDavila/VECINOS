@@ -201,3 +201,19 @@ Work Log:
 - V0.3 jugable: editor con drag & drop (ratón+táctil, fantasma, resaltado por compatibilidad, el sim sigue siendo el juez), catálogo de minijuegos de 4 tipos (añadir un tipo de PARTIDA concreta = editar minigames.json), y canales de influencia plagas/smoke con emisores y absorbentes en el catálogo de muebles y actividades de arquetipos.
 - Cero hardcodeo mantenido: textos de minijuegos en rules.minigames, configs por tipo en cada def, umbrales/spreads de canales en influences.json, params nuevos declarados en blocks.json.
 - Pendientes futuros: controles táctiles del juego, audio, multi-vivienda destacada, win-path E2E automatizable (bajar tiempos del catálogo en un scenario de test), más arquetipos/misiones.
+---
+Task ID: 7
+Agent: main (Z.ai Code)
+Task: Preparar copia de respaldo del proyecto en GitHub y el mecanismo para mantenerla actualizada
+
+Work Log:
+- Auditado el estado git del sandbox: repo local sano (rama main, working tree limpio, 256 ficheros trackeados, 6 commits), SIN remote configurado, sin gh CLI y sin credenciales de GitHub en el entorno → el push exige credenciales del usuario (su cuenta/token); nada de esto se puede suplir desde el sandbox.
+- Creado scripts/backup-github.sh (ejecutable): un comando hace add -A + commit (mensaje automático con timestamp o -m "mensaje") + push a origin/main; modos --check (estado sin subir) y -m; valida remote ausente con mensaje accionable; diagnostica fallos de push (token caducado 401/403, red, permisos) y oculta el token al imprimir la URL del remote.
+- Creada docs/BACKUP-GITHUB.md (español): Paso 1 crear repo vacío en GitHub (private, sin README/gitignore/license), Paso 2 fine-grained PAT (solo ese repo, Contents: Read and write, 90 días, revocable), Paso 3 conexión (Opción A: usuario pega repo+token en el chat y yo lo conecto y hago el primer push; Opción B: comandos manuales), mantenimiento ("sube los cambios a GitHub" en chat o el script), caducidad/rotación del token, notas de contenido (upload/VECINOS.zip 43 MB < límite 100 MB sube sin LFS; tool-results/ y db/custom.db incluidos por decisión del usuario, con opción de .gitignore), y cómo restaurar el proyecto desde GitHub (clone + bun install + bun run dev, la partida db/custom.db viaja con el repo).
+- Probado el script: bash -n OK y el camino sin remote muestra el mensaje accionable correcto (exit 1 esperado).
+- Commit de la herramienta con mensaje limpio: "chore(backup): script backup-github.sh y guía de respaldo en GitHub" (cae0119). Historial queda en 7 commits, tree limpio.
+
+Stage Summary:
+- Respaldo 100% preparado en el lado sandbox: falta ÚNICAMENTE que el usuario cree el repo en GitHub y facilite URL + fine-grained PAT (con Contents: Read and write); con eso, primer push inmediato (sube historial completo incluida v0.3) y de ahí en adelante "mantener actualizado" = un comando o pedírmelo en el chat.
+- Artefactos: scripts/backup-github.sh, docs/BACKUP-GITHUB.md, commit cae0119.
+- Riesgo/limitación: no puedo crear la cuenta/repo ni autenticarme por mi cuenta; sin token no hay push. Ofrecida rotación y revocación del token como control de seguridad.
