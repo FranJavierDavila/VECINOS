@@ -73,7 +73,7 @@
     "brokenColor": "#c1666b",
     "lockColor": "#ffd166",
     "homeEdge": "#ffffff",
-    "channelGlow": { "noise": "#ff5900", "water": "#1a59cc", "odors": "#74c69d", "wifi": "#c77dff" },
+    "channelGlow": { "noise": "#ff5900", "water": "#1a59cc", "odors": "#74c69d", "wifi": "#c77dff", "smoke": "#9aa5b1", "plagas": "#8bc34a" },
     "actorFallbackColor": "#e8e6e1",
     "actorFallbackHeight": 1.3,
     "actorRadius": 0.28
@@ -96,6 +96,25 @@
       "slot_empty": "Ahí no hay nada que quitar. Ni polvo, técnicamente.",
       "slot_mismatch": "Eso no entra ahí. La física es terca.",
       "no_money": "Sin fondos. El mueble se queda en el catálogo (y en tus sueños)."
+    }
+  },
+  "minigames": {
+    "winLine": "¡Dominado! Hasta el presidente aplaude.",
+    "loseLine": "Sin intentos. Esta vez gana el vecindario... por ahora.",
+    "hitLine": "¡Una más!",
+    "failLines": [
+      "Casi. Como el wifi del portal.",
+      "El vecindario no negocia, vecino.",
+      "Eso pasó de largo, como la paella del tercero.",
+      "Has pulsado con el corazón, no con el ojo.",
+      "Casi clavado. \"Casi\" no paga la derrama.",
+      "El vecino de enfrente lo ha visto. Y lo contará."
+    ],
+    "introByType": {
+      "timing_bar": "Pulsa ¡AHORA! cuando el cursor pise la zona verde.",
+      "tap_sequence": "Memoriza la secuencia de palancas y repítela sin fallar.",
+      "reflex_targets": "Toca los objetivos antes de que escapen. Los señuelos NO se tocan.",
+      "memory_pairs": "Voltea fichas y encuentra todas las parejas."
     }
   },
   "labels": {

@@ -465,7 +465,7 @@ class GameController {
         case 'minigame_requested': {
           const def = this.content.minigames[String(d.minigame)];
           if (!def) break;
-          store.setMinigame({ id: def.id, name: def.name, description: def.description, emoji: def.emoji ?? '🎮', config: { ...def.config } });
+          store.setMinigame({ ...def, emoji: def.emoji ?? '🎮', instruction: def.instruction ?? null });
           break;
         }
         case 'minigame_finished': {

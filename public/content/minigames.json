@@ -47,5 +47,58 @@
       { "op": "addRelation", "a": "player", "b": "fiestero", "affinity": -5 },
       { "op": "toast", "text": "Kevin te ha enseñado el grupo de WhatsApp de la fiesta. Te has quedado. Es de los buenos.", "tone": "info" }
     ]
+  },
+  {
+    "id": "mg_fumigar",
+    "name": "Exterminio vecinal",
+    "description": "Las cucarachas del 2B se han mudado al 1B sin fianza. Aplástalas antes de que pidan el alta en el padrón.",
+    "emoji": "🪳",
+    "type": "reflex_targets",
+    "instruction": "Toca las cucarachas antes de que escapen. Las telas NO se tocan.",
+    "config": { "targets": 8, "spawnIntervalMs": 900, "targetLifeMs": 1600, "radiusPct": 9, "missesAllowed": 4, "lives": 2, "emoji": "🪳", "decoyEmoji": "🕸️", "decoyChance": 0.2 },
+    "onSuccess": [
+      { "op": "setParam", "target": "blk_p1_b.plague", "value": 0 },
+      { "op": "addRelation", "a": "player", "b": "cotilla", "affinity": 8 },
+      { "op": "toast", "text": "1B a prueba de bichos. Dolores te nombra vecino del mes (con acta).", "tone": "good" }
+    ],
+    "onFail": [
+      { "op": "setParam", "target": "blk_p1_b.plague", "delta": 10 },
+      { "op": "toast", "text": "Las cucarachas te han visto. Y, por lo que sea, se han organizado.", "tone": "bad" }
+    ]
+  },
+  {
+    "id": "mg_fusibles",
+    "name": "El cuadro de fusibles",
+    "description": "El detector de humo del portal lleva pitando desde el guiso quemado. Baja las palancas en el orden correcto.",
+    "emoji": "💡",
+    "type": "tap_sequence",
+    "instruction": "Memoriza la secuencia de palancas y repítela.",
+    "config": { "rounds": 3, "pads": ["🔴", "🟡", "🟢", "🔵"], "sequenceStart": 2, "sequenceGrow": 1, "showMs": 550, "gapMs": 260, "inputTimeoutMs": 6000, "lives": 2 },
+    "onSuccess": [
+      { "op": "addReputation", "resident": "player", "amount": 5 },
+      { "op": "toast", "text": "Detector silenciado. SILENCIO. Un vecino aplaude desde el 3º. Otro te lo recordará en la junta.", "tone": "good" }
+    ],
+    "onFail": [
+      { "op": "setParam", "target": "nucleo.condition", "delta": -5 },
+      { "op": "toast", "text": "Chispazo, portal a oscuras y una reclamación a la compañía eléctrica. La noche es joven.", "tone": "bad" }
+    ]
+  },
+  {
+    "id": "mg_buzones",
+    "name": "Buzones revueltos",
+    "description": "El cartero ha mezclado la correspondencia del edificio. Empareja cada cosa con su gemela antes de que Dolores clasifique por su cuenta.",
+    "emoji": "📬",
+    "type": "memory_pairs",
+    "instruction": "Voltea dos fichas y encuentra todas las parejas. Los errores cuestan paciencia vecinal.",
+    "config": { "items": ["🔑", "📨", "📦", "🧢", "🪴", "🍷"], "lives": 5 },
+    "onSuccess": [
+      { "op": "addFunds", "to": "player", "amount": 120 },
+      { "op": "addRelation", "a": "player", "b": "presidente", "affinity": 10 },
+      { "op": "toast", "text": "Correspondencia al día. El presidente te debe un favor... y un sello.", "tone": "good" }
+    ],
+    "onFail": [
+      { "op": "addReputation", "resident": "player", "amount": -5 },
+      { "op": "toast", "text": "Has entregado la nómina de Don Ramón a Kevin. Ahora es \"inversión en cripto\". Tema cerrado.", "tone": "bad" }
+    ]
   }
 ]

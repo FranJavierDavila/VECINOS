@@ -146,5 +146,56 @@
     "slots": ["dorm_mesa"],
     "params": [{ "param": "comfort", "delta": 5 }],
     "view": { "color": "#ffd166", "size": [0.3, 0.45, 0.3] }
+  },
+  {
+    "id": "mue_plancha",
+    "name": "Plancha de balcón (carbón)",
+    "description": "Asar en el balcón: tradición, derecho y humo del bueno. El del 4º dirá algo. El humo sube igual.",
+    "emoji": "🥩",
+    "price": 90,
+    "slots": ["salon_suelo"],
+    "emits": { "smoke": 0.6 },
+    "params": [{ "param": "comfort", "delta": 4 }],
+    "view": { "color": "#5f5b4a", "size": [0.6, 0.5, 0.4] }
+  },
+  {
+    "id": "mue_incienso",
+    "name": "Incienso espiritual",
+    "description": "Tapa olores ajenos. Genera humo propio. Zen, con matices.",
+    "emoji": "🪔",
+    "price": 45,
+    "slots": ["dorm_mesa", "bano_suelo"],
+    "emits": { "odors": -0.25, "smoke": 0.3 },
+    "view": { "color": "#b08968", "size": [0.15, 0.3, 0.15] }
+  },
+  {
+    "id": "mue_trastos",
+    "name": "Caja de trastos (herencia)",
+    "description": "Del anterior inquilino. Contiene un cargador del 2011 y un ecosistema propio.",
+    "emoji": "🗑️",
+    "price": 30,
+    "slots": ["salon_suelo"],
+    "emits": { "plagas": 0.55 },
+    "view": { "color": "#8d6e4c", "size": [0.7, 0.5, 0.5] }
+  },
+  {
+    "id": "mue_trampa",
+    "name": "Casitas anti-cucarachas (pack 12)",
+    "description": "Campanas de muerte. Silenciosas, eficaces, poéticas. La comunidad te lo agradecerá.",
+    "emoji": "🪤",
+    "price": 55,
+    "slots": ["salon_suelo", "dorm_suelo", "bano_suelo"],
+    "emits": { "plagas": -0.3 },
+    "view": { "color": "#495057", "size": [0.3, 0.12, 0.25] }
+  },
+  {
+    "id": "mue_extractor",
+    "name": "Campana extractora turbo",
+    "description": "Tu guiso, en modo susurro. El humo se queda dentro. El vecindario, en suspense.",
+    "emoji": "🌀",
+    "price": 140,
+    "slots": ["salon_pared"],
+    "emits": { "smoke": -0.3, "odors": -0.15 },
+    "view": { "color": "#adb5bd", "size": [0.6, 0.3, 0.5] }
   }
 ]

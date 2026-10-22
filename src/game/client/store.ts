@@ -1,7 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
-import type { Access, Weather } from '@/game/core/types';
+import type { Access, MinigameDef, Weather } from '@/game/core/types';
 
 // ───────────────────────── Tipos de la interfaz ─────────────────────────
 
@@ -93,14 +93,12 @@ export interface HomeUi {
   rooms: HomeRoomUi[];
 }
 
-/** Minijuego activo en pantalla (definición que llega del catálogo). */
-export interface MinigameState {
-  id: string;
-  name: string;
-  description: string;
+/** Minijuego activo en pantalla: la definición del catálogo (unión discriminada por `type`) con emoji/instrucción resueltos. */
+type DistOmit<T, K extends keyof never> = T extends unknown ? Omit<T, K> : never;
+export type MinigameState = DistOmit<MinigameDef, 'emoji' | 'instruction'> & {
   emoji: string;
-  config: { rounds: number; cursorSpeed: number; zoneWidth: number; zones: number[]; accelPerRound: number; lives: number };
-}
+  instruction: string | null;
+};
 
 /** Foto del HUD que el bucle de juego manda a la interfaz (throttled). */
 export interface HudSnapshot {

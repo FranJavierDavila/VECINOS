@@ -39,5 +39,25 @@
     "decayPerTick": 0.2,
     "threshold": 0.5,
     "onThreshold": { "emitEvent": "wifi_shared", "uiLog": true, "tone": "good", "message": "📶 Señal de wifi compartida en {block}. Alguien ahorra 50 € al mes y gana un amigo." }
+  },
+  {
+    "id": "smoke",
+    "channel": "smoke",
+    "label": "Humo",
+    "emoji": "💨",
+    "spread": { "horizontal": 0.5, "up": 0.9, "down": 0.2, "diagonal": 0.25, "corridor": 0.6 },
+    "decayPerTick": 0.12,
+    "threshold": 0.45,
+    "onThreshold": { "emitEvent": "smoke_alarm", "uiLog": true, "tone": "bad", "message": "💨 Humo en {block}. Todos en pijama en el portal, como marca la tradición.", "setParam": { "param": "soot", "delta": 15 } }
+  },
+  {
+    "id": "plagas",
+    "channel": "plagas",
+    "label": "Plagas",
+    "emoji": "🐜",
+    "spread": { "horizontal": 0.4, "up": 0.25, "down": 0.55, "diagonal": 0.2, "corridor": 0.45 },
+    "decayPerTick": 0.03,
+    "threshold": 0.15,
+    "onThreshold": { "emitEvent": "plague_sighting", "uiLog": true, "tone": "bad", "message": "🐜 Plaga vista en {block}. Vienen por el wifi gratis y se quedan por el guiso.", "setParam": { "param": "plague", "delta": 25 } }
   }
 ]

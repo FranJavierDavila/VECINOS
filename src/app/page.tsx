@@ -11,7 +11,7 @@ import { HelpCard } from '@/components/game/HelpCard';
 import { InteriorEditorPanel } from '@/components/game/InteriorEditorPanel';
 import { getController } from '@/game/client/bridge';
 
-/** Vertical slice 0.2 de VECINOS: editor de interiores + minijuegos + canales de influencia ampliados. */
+/** Vertical slice 0.3 de VECINOS: drag & drop en el editor, catálogo de minijuegos y canales plagas/humo. */
 export default function Home() {
   const g = () => getController();
   return (
@@ -19,8 +19,8 @@ export default function Home() {
       <header className="border-b">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
           <h1 className="text-xl font-extrabold tracking-tight">VECINOS</h1>
-          <span className="rounded-full border border-amber-500/30 bg-amber-500/15 px-2.5 py-0.5 text-xs font-semibold text-amber-600">vertical slice 0.2</span>
-          <p className="text-sm text-muted-foreground">Mudanzas, ruido, olores, wifi y derramas: el simulador de vecindario.</p>
+          <span className="rounded-full border border-amber-500/30 bg-amber-500/15 px-2.5 py-0.5 text-xs font-semibold text-amber-600">vertical slice 0.3</span>
+          <p className="text-sm text-muted-foreground">Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.</p>
         </div>
       </header>
 
@@ -51,7 +51,7 @@ export default function Home() {
 
       <footer className="mt-auto border-t bg-muted/40 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
         <div className="mx-auto max-w-7xl px-4 text-xs text-muted-foreground">
-          VECINOS · prototipo jugable — sim determinista (1 tick = 1 minuto) + render Babylon.js (WebGPU/WebGL2) + editor de interiores + minijuegos + guardado en SQLite. Construyéndolo por hitos, juntos.
+          VECINOS · prototipo jugable — sim determinista (1 tick = 1 minuto) + render Babylon.js (WebGPU/WebGL2) + editor con drag & drop + catálogo de minijuegos + guardado en SQLite. Construyéndolo por hitos, juntos.
         </div>
       </footer>
     </div>

@@ -60,6 +60,8 @@
       "condition": { "type": "number", "min": 0, "max": 100, "default": 70, "tier": 1, "label": "Estado" },
       "soundproofing": { "type": "number", "min": 0, "max": 1, "default": 0.4, "tier": 1, "label": "Aislamiento" },
       "humidity": { "type": "number", "min": 0, "max": 100, "default": 10, "tier": 1, "label": "Humedad" },
+      "plague": { "type": "number", "min": 0, "max": 100, "default": 0, "tier": 2, "label": "Plagas" },
+      "soot": { "type": "number", "min": 0, "max": 100, "default": 0, "tier": 2, "label": "Hollín" },
       "rent": { "type": "number", "min": 0, "default": 40, "tier": 2, "label": "Alquiler/día" }
     },
     "view": { "color": "#f4a261", "altColor": "#e9c46a" }

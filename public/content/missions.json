@@ -370,5 +370,154 @@
       }
     ],
     "onComplete": [{ "op": "revealParams", "tier": 2 }]
+  },
+  {
+    "id": "m_plagas_1b",
+    "title": "Plaga en el 1B",
+    "description": "Las cucarachas del afterparty del 2B han bajado a la cocina de Dolores. La diplomacia no funciona con bichos.",
+    "trigger": { "all": [{ "mission": "m_bienvenida", "state": "done" }, { "param": "blk_p1_b.plague", "gte": 20 }] },
+    "steps": [{ "id": "aviso", "type": "phone_call", "dialog": "dlg_plagas", "hint": "Dolores llama. Y no está para bromas" }],
+    "choices": [
+      {
+        "id": "fumigar",
+        "label": "Fumigar tú mismo (minijuego)",
+        "hint": "Reflejos de acero y una zapatilla de marca",
+        "icon": "spray",
+        "effects": [
+          { "op": "startMinigame", "id": "mg_fumigar" },
+          { "op": "addRelation", "a": "player", "b": "cotilla", "affinity": 5 }
+        ]
+      },
+      {
+        "id": "derrama_fumigacion",
+        "label": "Derrama: fumigación profesional",
+        "hint": "Que pague la comunidad. Y empiece el espectáculo",
+        "icon": "vote",
+        "effects": [
+          {
+            "op": "openJunta",
+            "agenda": [
+              {
+                "id": "fumigacion_comunitaria",
+                "title": "Fumigación integral del edificio",
+                "description": "Un profesional, dos horas y un coche con un insecto gigante pintado. 350 € de caja.",
+                "cost": 350,
+                "effects": [
+                  { "op": "setParam", "target": "vivienda_estandar", "param": "plague", "value": 0 },
+                  { "op": "addReputation", "resident": "player", "amount": 5 },
+                  { "op": "toast", "text": "Edificio fumigado. Las cucarachas se mudan al edificio de al lado. Con referencias y todo.", "tone": "good" }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "culpar_kevin",
+        "label": "Echarle la culpa al 2B",
+        "hint": "Técnicamente es verdad. Técnicamente no arregla nada",
+        "icon": "megaphone",
+        "effects": [
+          { "op": "addRelation", "a": "player", "b": "cotilla", "affinity": 10 },
+          { "op": "addRelation", "a": "player", "b": "fiestero", "affinity": -15 },
+          { "op": "addReputation", "resident": "player", "amount": -5 },
+          { "op": "toast", "text": "Dolores ya llama al timbre del 2B con la zapatilla en ristre. La paz vecinal, suspendida.", "tone": "bad" }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "m_humo_detector",
+    "title": "El detector que no calla",
+    "description": "El guiso quemado de Dolores ha activado el detector del rellano. Pita. PITA. Desde las tres.",
+    "trigger": { "all": [{ "mission": "m_bienvenida", "state": "done" }, { "param": "blk_p2_b.soot", "gte": 10 }] },
+    "steps": [{ "id": "aviso", "type": "phone_call", "dialog": "dlg_humo", "hint": "Kevin llama (con el detector de fondo)" }],
+    "choices": [
+      {
+        "id": "fusibles",
+        "label": "Apagarlo en el cuadro (minijuego)",
+        "hint": "Baja las palancas en el orden correcto",
+        "icon": "wrench",
+        "effects": [
+          { "op": "startMinigame", "id": "mg_fusibles" },
+          { "op": "addRelation", "a": "player", "b": "fiestero", "affinity": 5 }
+        ]
+      },
+      {
+        "id": "ventilar",
+        "label": "Ventilar el rellano con Kevin",
+        "hint": "Dos puertas abiertas y un ventilador prestado",
+        "icon": "wind",
+        "effects": [
+          { "op": "addRelation", "a": "player", "b": "fiestero", "affinity": 10 },
+          { "op": "setParam", "target": "blk_p2_b.soot", "delta": -5 },
+          { "op": "addReputation", "resident": "player", "amount": 3 },
+          { "op": "toast", "text": "Detector silenciado a lo bruto: una toalla y cinta aislante. Solución de vecinos, patentada.", "tone": "info" }
+        ]
+      },
+      {
+        "id": "junta_detectores",
+        "label": "Junta: detectores nuevos",
+        "hint": "El acta durará más que el pitido",
+        "icon": "vote",
+        "effects": [
+          {
+            "op": "openJunta",
+            "agenda": [
+              {
+                "id": "detectores_nuevos",
+                "title": "Detectores de humo nuevos (y mudos)",
+                "description": "Modelo \"Silencio 3000\". 300 € de caja. El de ahora se apaga con toalla.",
+                "cost": 300,
+                "effects": [
+                  { "op": "setParam", "target": "vivienda_estandar", "param": "soot", "value": 0 },
+                  { "op": "setParam", "target": "nucleo", "param": "condition", "delta": 10 },
+                  { "op": "toast", "text": "Detectores instalados. Silencio. Y un acta de 6 páginas sobre \"qué es humo\".", "tone": "good" }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "m_correos",
+    "title": "Buzones revueltos",
+    "description": "El cartero ha mezclado TODA la correspondencia del edificio. Hay cartas en peligro (y una nómina).",
+    "trigger": { "all": [{ "mission": "m_bienvenida", "state": "done" }, { "dayMin": 3 }] },
+    "steps": [{ "id": "aviso", "type": "phone_call", "dialog": "dlg_correos", "hint": "El presidente llama" }],
+    "choices": [
+      {
+        "id": "ordenar",
+        "label": "Ordenarlo tú (minijuego)",
+        "hint": "Memoria de elefante, pulso de cartero",
+        "icon": "mailbox",
+        "effects": [{ "op": "startMinigame", "id": "mg_buzones" }]
+      },
+      {
+        "id": "pagar_profesional",
+        "label": "Pagar a un profesional (150 €)",
+        "hint": "Hay gente para todo. Y facturas",
+        "icon": "coins",
+        "effects": [
+          { "op": "addFunds", "to": "player", "amount": -150 },
+          { "op": "addFunds", "to": "player", "amount": 100 },
+          { "op": "addReputation", "resident": "player", "amount": 3 },
+          { "op": "toast", "text": "El 'gestor documental vecinal' lo deja impecable. Cobrando 150 €. Buen trabajo si puedes conseguirlo.", "tone": "info" }
+        ]
+      },
+      {
+        "id": "caos",
+        "label": "Que cada vecino busque el suyo",
+        "hint": "Darwinismo postal",
+        "icon": "clock",
+        "effects": [
+          { "op": "addReputation", "resident": "player", "amount": -10 },
+          { "op": "addRelation", "a": "player", "b": "presidente", "affinity": -10 },
+          { "op": "toast", "text": "Caos postal. Dolores ha encontrado UNA carta: la tuya. La está leyendo \"por si acaso\".", "tone": "bad" }
+        ]
+      }
+    ]
   }
 ]

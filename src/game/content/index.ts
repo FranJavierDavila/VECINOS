@@ -114,10 +114,40 @@ export function validateContent(c: Content): Issue[] {
   }
 
   for (const g of Object.values(c.minigames)) {
-    if (g.config.zones.length === 0) err(`minigames/${g.id}`, 'un timing_bar necesita al menos una zona');
-    for (const z of g.config.zones) if (z < 0 || z > 1) err(`minigames/${g.id}`, `zona fuera de rango (0..1): ${z}`);
-    if (g.config.zoneWidth <= 0 || g.config.zoneWidth > 1) err(`minigames/${g.id}`, `zoneWidth fuera de rango: ${g.config.zoneWidth}`);
+    switch (g.type) {
+      case 'timing_bar':
+        if (g.config.zones.length === 0) err(`minigames/${g.id}`, 'un timing_bar necesita al menos una zona');
+        for (const z of g.config.zones) if (z < 0 || z > 1) err(`minigames/${g.id}`, `zona fuera de rango (0..1): ${z}`);
+        if (g.config.zoneWidth <= 0 || g.config.zoneWidth > 1) err(`minigames/${g.id}`, `zoneWidth fuera de rango: ${g.config.zoneWidth}`);
+        break;
+      case 'tap_sequence':
+        if (g.config.pads.length < 2) err(`minigames/${g.id}`, 'tap_sequence necesita al menos 2 pads');
+        if (g.config.rounds < 1) err(`minigames/${g.id}`, 'tap_sequence necesita al menos 1 ronda');
+        if (g.config.sequenceStart < 1) err(`minigames/${g.id}`, `sequenceStart fuera de rango: ${g.config.sequenceStart}`);
+        if (g.config.sequenceStart + (g.config.rounds - 1) * g.config.sequenceGrow > g.config.pads.length * 2)
+          err(`minigames/${g.id}`, 'la secuencia crece más que el doble de pads disponibles');
+        if (g.config.showMs <= 0 || g.config.gapMs <= 0 || g.config.inputTimeoutMs <= 0)
+          err(`minigames/${g.id}`, 'showMs/gapMs/inputTimeoutMs deben ser positivos');
+        break;
+      case 'reflex_targets':
+        if (g.config.targets < 1) err(`minigames/${g.id}`, 'reflex_targets necesita al menos 1 objetivo');
+        if (g.config.spawnIntervalMs < 200) err(`minigames/${g.id}`, `spawnIntervalMs demasiado rápido: ${g.config.spawnIntervalMs}`);
+        if (g.config.targetLifeMs < 300) err(`minigames/${g.id}`, `targetLifeMs demasiado corto: ${g.config.targetLifeMs}`);
+        if (g.config.radiusPct <= 0 || g.config.radiusPct >= 50) err(`minigames/${g.id}`, `radiusPct fuera de rango (0..50): ${g.config.radiusPct}`);
+        if (g.config.decoyChance !== undefined && (g.config.decoyChance < 0 || g.config.decoyChance > 1))
+          err(`minigames/${g.id}`, `decoyChance fuera de rango (0..1): ${g.config.decoyChance}`);
+        if (g.config.decoyChance !== undefined && !g.config.decoyEmoji) err(`minigames/${g.id}`, 'decoyChance sin decoyEmoji');
+        break;
+      case 'memory_pairs':
+        if (g.config.items.length < 3) err(`minigames/${g.id}`, 'memory_pairs necesita al menos 3 parejas');
+        if (new Set(g.config.items).size !== g.config.items.length) err(`minigames/${g.id}`, 'memory_pairs: los emojis de pareja deben ser únicos');
+        break;
+    }
   }
+
+  const minigameTypes = new Set(Object.values(c.minigames).map((g) => g.type));
+  for (const t of minigameTypes)
+    if (!c.rules.minigames.introByType[t]) err('rules/minigames', `introByType no cubre el tipo: ${t}`);
 
   for (const a of Object.values(c.archetypes)) {
     for (const [act, def] of Object.entries(a.activities))

@@ -55,5 +55,26 @@
       { "speaker": "Dolores (2B)", "text": "Esto pasa por no tener cotilla cerca... perdón. Por no tener VECINA ATENTA. En el tablón hay un panel nuevo: «Mi piso». Hasta yo lo sé usar." },
       { "speaker": "Dolores (2B)", "text": "Y si hueles algo raro a mediodía, no es un problema del edificio: es mi guiso. Un abrazo. Cuelgo, que se me quema." }
     ]
+  },
+  {
+    "id": "dlg_plagas",
+    "lines": [
+      { "speaker": "Dolores (1B)", "text": "CUCARACHAS. En MI cocina. Y no, no son mías: yo limpio. Son de la fiesta de arriba, vienen con el hambre de la mañana siguiente." },
+      { "speaker": "Dolores (1B)", "text": "O lo arreglas tú, o subo yo. Y cuando subo yo, habla todo el edificio. Tienes hasta las cinco." }
+    ]
+  },
+  {
+    "id": "dlg_humo",
+    "lines": [
+      { "speaker": "Kevin (2B)", "text": "Vecino. El detector de humo del rellano NO PARA DE PITAR desde el guiso quemado de la planta primera. Mi resaca tiene voz nueva." },
+      { "speaker": "Kevin (2B)", "text": "Dicen que bajando las palancas del cuadro en el orden correcto se apaga. Dicen. Yo solo sé de altavoces." }
+    ]
+  },
+  {
+    "id": "dlg_correos",
+    "lines": [
+      { "speaker": "Don Ramón (presidente)", "text": "El cartero ha mezclado la correspondencia del edificio. TODA. Hay un sobre del banco en el buzón del 4D. Y una carta de amor en el mío. No es de mi mujer." },
+      { "speaker": "Don Ramón (presidente)", "text": "La junta sugiere (bueno, sugiero) que alguien con pulso y memoria lo ordene. Hoy. Antes de que Dolores \"ayude\"." }
+    ]
   }
 ]

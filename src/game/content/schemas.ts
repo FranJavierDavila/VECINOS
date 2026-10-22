@@ -153,23 +153,81 @@ const effectSchema: z.ZodType<Effect> = z.lazy(() =>
 
 const effects = z.array(effectSchema);
 
-export const minigameDefSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  description: z.string(),
-  emoji: z.string().optional(),
-  type: z.literal('timing_bar'),
-  config: z.object({
-    rounds: z.number(),
-    cursorSpeed: z.number(),
-    zoneWidth: z.number(),
-    zones: z.array(z.number()),
-    accelPerRound: z.number(),
-    lives: z.number(),
+export const minigameDefSchema = z.discriminatedUnion('type', [
+  z.object({
+    id: z.string(),
+    name: z.string(),
+    description: z.string(),
+    emoji: z.string().optional(),
+    instruction: z.string().optional(),
+    type: z.literal('timing_bar'),
+    config: z.object({
+      rounds: z.number(),
+      cursorSpeed: z.number(),
+      zoneWidth: z.number(),
+      zones: z.array(z.number()),
+      accelPerRound: z.number(),
+      lives: z.number(),
+    }),
+    onSuccess: effects,
+    onFail: effects,
   }),
-  onSuccess: effects,
-  onFail: effects,
-});
+  z.object({
+    id: z.string(),
+    name: z.string(),
+    description: z.string(),
+    emoji: z.string().optional(),
+    instruction: z.string().optional(),
+    type: z.literal('tap_sequence'),
+    config: z.object({
+      rounds: z.number(),
+      pads: z.array(z.string()),
+      sequenceStart: z.number(),
+      sequenceGrow: z.number(),
+      showMs: z.number(),
+      gapMs: z.number(),
+      inputTimeoutMs: z.number(),
+      lives: z.number(),
+    }),
+    onSuccess: effects,
+    onFail: effects,
+  }),
+  z.object({
+    id: z.string(),
+    name: z.string(),
+    description: z.string(),
+    emoji: z.string().optional(),
+    instruction: z.string().optional(),
+    type: z.literal('reflex_targets'),
+    config: z.object({
+      targets: z.number(),
+      spawnIntervalMs: z.number(),
+      targetLifeMs: z.number(),
+      radiusPct: z.number(),
+      missesAllowed: z.number(),
+      lives: z.number(),
+      emoji: z.string(),
+      decoyEmoji: z.string().optional(),
+      decoyChance: z.number().optional(),
+    }),
+    onSuccess: effects,
+    onFail: effects,
+  }),
+  z.object({
+    id: z.string(),
+    name: z.string(),
+    description: z.string(),
+    emoji: z.string().optional(),
+    instruction: z.string().optional(),
+    type: z.literal('memory_pairs'),
+    config: z.object({
+      items: z.array(z.string()),
+      lives: z.number(),
+    }),
+    onSuccess: effects,
+    onFail: effects,
+  }),
+]);
 
 export const archetypeDefSchema = z.object({
   id: z.string(),
@@ -353,6 +411,13 @@ export const rulesSchema = z.object({
     refundRatio: z.number(),
     roomUnlock: z.object({ price: z.number(), toast: z.string() }),
     errors: z.record(z.string(), z.string()),
+  }),
+  minigames: z.object({
+    winLine: z.string(),
+    loseLine: z.string(),
+    hitLine: z.string(),
+    failLines: z.array(z.string()),
+    introByType: z.record(z.string(), z.string()),
   }),
   labels: z.object({ weather: z.record(z.string(), z.string()) }),
 });

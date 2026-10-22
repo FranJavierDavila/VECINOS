@@ -23,6 +23,7 @@
       "sleep": { "at": "home", "label": "😴 duerme" },
       "tv_loud": { "at": "home", "label": "📺 tele a todo volumen", "emits": { "noise": 0.5 }, "say": ["¡Está en el minuto clave del concurso!"], "schedule": [{ "from": "17:00", "to": "19:00", "chance": 0.6 }] },
       "cocina_guiso": { "at": "home", "label": "🍲 cocina el guiso de siempre", "emits": { "odors": 0.7 }, "say": ["Es la receta de mi madre. Y huelen TODOS los pisos."], "schedule": [{ "from": "13:00", "to": "15:00", "chance": 0.8 }] },
+      "quema_guiso": { "at": "home", "label": "🔥 quema el guiso de siempre", "emits": { "smoke": 0.85, "odors": 0.4 }, "say": ["¡El guiso! ¡MI GUISO!"], "schedule": [{ "from": "13:00", "to": "15:00", "chance": 0.22 }] },
       "watch_corridor": {
         "at": "corridor",
         "label": "🔭 vigila el pasillo",
@@ -45,8 +46,8 @@
       "party": {
         "at": "home",
         "label": "🎉 fiesta en casa",
-        "emits": { "noise": 0.9, "odors": 0.3 },
-        "say": ["¡Pásate! Hay ice-cream en la nevera y confeti en el suelo.", "¿Esto es ruido? Esto es CULTURA."],
+        "emits": { "noise": 0.9, "odors": 0.3, "plagas": 0.45 },
+        "say": ["¡Pásate! Hay ice-cream en la nevera y confeti en el suelo.", "¿Esto es ruido? Esto es CULTURA.", "¿Las cucarachas? Son los invitados de verdad."],
         "schedule": [{ "from": "21:30", "to": "01:00", "chance": 0.75 }]
       }
     },

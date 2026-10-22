@@ -94,16 +94,77 @@ export interface MinigameTimingBarConfig {
   lives: number;
 }
 
-export interface MinigameDef {
+/** Minijuego tipo "secuencia" (Simón): memoriza y repite pads del catálogo. */
+export interface MinigameTapSequenceConfig {
+  /** Secuencias que hay que completar para ganar. */
+  rounds: number;
+  /** Etiquetas/emojis de los pads (el tablero sale del catálogo, no del código). */
+  pads: string[];
+  /** Longitud de la primera secuencia. */
+  sequenceStart: number;
+  /** Pads que crece la secuencia por ronda. */
+  sequenceGrow: number;
+  /** Duración del destello de cada pad (ms) y pausa entre pads (ms). */
+  showMs: number;
+  gapMs: number;
+  /** Tiempo máximo para completar la repetición (ms). */
+  inputTimeoutMs: number;
+  /** Errores permitidos. */
+  lives: number;
+}
+
+/** Minijuego tipo "reflejos": objetivos que aparecen y desaparecen (con señuelos opcionales). */
+export interface MinigameReflexTargetsConfig {
+  /** Aciertos necesarios para ganar. */
+  targets: number;
+  spawnIntervalMs: number;
+  /** Tiempo que vive cada objetivo antes de escapar (ms). */
+  targetLifeMs: number;
+  /** Tamaño del objetivo como radio, % del ancho del tablero. */
+  radiusPct: number;
+  /** Objetivos que pueden escaparse antes de perder. */
+  missesAllowed: number;
+  /** Errores permitidos (tocar un señuelo). */
+  lives: number;
+  /** Emoji del objetivo y del señuelo (catálogo). */
+  emoji: string;
+  decoyEmoji?: string;
+  /** Probabilidad (0..1) de que un spawn sea señuelo. */
+  decoyChance?: number;
+}
+
+/** Minijuego tipo "parejas" (memoria): voltear fichas hasta emparejarlas todas. */
+export interface MinigameMemoryPairsConfig {
+  /** Un emoji por pareja: el mazo son dos copias barajadas de cada uno. */
+  items: string[];
+  /** Parejas fallidas permitidas. */
+  lives: number;
+}
+
+export type MinigameType = 'timing_bar' | 'tap_sequence' | 'reflex_targets' | 'memory_pairs';
+
+export type MinigameConfig =
+  | MinigameTimingBarConfig
+  | MinigameTapSequenceConfig
+  | MinigameReflexTargetsConfig
+  | MinigameMemoryPairsConfig;
+
+/** Unión discriminada por `type`: cada runner recibe su config ya estrechada. */
+export type MinigameDef = {
   id: string;
   name: string;
   description: string;
   emoji?: string;
-  type: 'timing_bar';
-  config: MinigameTimingBarConfig;
+  /** Cómo se juega, en una frase (si falta, usa rules.minigames.introByType del catálogo). */
+  instruction?: string;
   onSuccess: Effect[];
   onFail: Effect[];
-}
+} & (
+  | { type: 'timing_bar'; config: MinigameTimingBarConfig }
+  | { type: 'tap_sequence'; config: MinigameTapSequenceConfig }
+  | { type: 'reflex_targets'; config: MinigameReflexTargetsConfig }
+  | { type: 'memory_pairs'; config: MinigameMemoryPairsConfig }
+);
 
 export interface LayoutDef {
   id: string;
@@ -374,6 +435,15 @@ export interface Rules {
     roomUnlock: { price: number; toast: string };
     /** Textos de error de los comandos de muebles (razón → mensaje). */
     errors: Record<string, string>;
+  };
+  /** Textos de la interfaz de minijuegos (catálogo; el código no escribe humor, lo recita). */
+  minigames: {
+    winLine: string;
+    loseLine: string;
+    hitLine: string;
+    failLines: string[];
+    /** Instrucción por defecto por tipo de minijuego (la def.instruction del catálogo tiene prioridad). */
+    introByType: Partial<Record<MinigameType, string>>;
   };
   labels: { weather: Record<string, string> };
 }

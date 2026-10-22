@@ -38,7 +38,9 @@ export function HelpCard() {
           El tiempo corre solo: 1 segundo real = 1 minuto de juego (x1). Las fiestas de Kevin empiezan a las 21:30. Tú fuiste advertido.
         </p>
         <p className="text-[11px] leading-relaxed text-muted-foreground">
-          Nuevo: panel «Mi piso» para amueblar (los muebles emiten: ruido, olores, wifi...), minijuegos en misiones y reformas de estancias.
+          Nuevo: ARRASTRA muebles del catálogo al plano (clic largo en móvil), minijuegos nuevos
+          (secuencias, reflejos y parejas) y los canales plagas 🐜 y humo 💨: el guiso quemado de
+          Dolores sube pisos y la fiesta de Kevin baja cucarachas. Todo data-driven, sin tocar código.
         </p>
       </CardContent>
     </Card>
