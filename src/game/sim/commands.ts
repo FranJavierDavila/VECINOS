@@ -1,4 +1,4 @@
-import type { Command, Content, World } from '@/game/core/types';
+import type { Command, Content, RoomInstance, World } from '@/game/core/types';
 import { emit } from './events';
 import { applyEffects, applyEffect } from './effects';
 import { advanceMissions, completeMission, notify } from './missions';
@@ -38,6 +38,19 @@ function knockLine(world: World, content: Content, residentId: string): { line: 
   const fallback = content.rules.sim.knock.fallbackLines;
   const line = pool.length > 0 ? pool[Math.floor(nextRandom(world) * pool.length)]! : fallback[0]!;
   return { line, asleep: false };
+}
+
+/** Delta de parámetro de un mueble: a la estancia si el parámetro vive ahí, si no al bloque (con clamp del catálogo). */
+function applyFurnitureParam(world: World, content: Content, blockId: string, room: RoomInstance, param: string, delta: number): void {
+  const rdef = content.rooms[room.defId];
+  const pd = rdef?.params?.[param];
+  if (pd) {
+    const cur = Number(room.params[param] ?? pd.default);
+    room.params[param] = pd.type === 'number' ? Math.min(pd.max ?? Infinity, Math.max(pd.min ?? -Infinity, cur + delta)) : cur;
+    emit(world, 'param_changed', { block: blockId, param, value: room.params[param] });
+    return;
+  }
+  applyEffect(world, content, { op: 'setParam', target: blockId, param, delta });
 }
 
 function run(world: World, content: Content, cmd: Command): CommandResult {
@@ -137,6 +150,75 @@ function run(world: World, content: Content, cmd: Command): CommandResult {
         rel2.affinity += gain;
       }
       emit(world, 'knock_result', { resident: target.id, block: b.id, line, asleep, name: content.archetypes[target.archetype]?.name ?? target.id });
+      return ok();
+    }
+    case 'place_furniture': {
+      const cfg = content.rules.furniture;
+      const b = world.blocks[cmd.block];
+      const item = content.furniture[cmd.item];
+      if (!b || !item) return fail('unknown_target');
+      if (b.ownerId !== world.playerId) return fail('not_yours');
+      const room = b.rooms.find((r) => r.key === cmd.room);
+      if (!room) return fail('unknown_target');
+      if (room.access !== 'unlocked') return fail('room_locked');
+      if (room.furniture[cmd.slot]) return fail('slot_occupied');
+      const slot = content.rooms[room.defId]?.furnitureSlots?.find((s) => s.id === cmd.slot);
+      if (!slot || !item.slots.includes(slot.kind)) return fail('slot_mismatch');
+      if (player.wallet < item.price) {
+        emit(world, 'ui_toast', { text: cfg.errors['no_money'] ?? 'Sin fondos.', tone: 'bad' });
+        return fail('no_money');
+      }
+      player.wallet -= item.price;
+      room.furniture[cmd.slot] = item.id;
+      for (const p of item.params ?? []) applyFurnitureParam(world, content, b.id, room, p.param, p.delta);
+      emit(world, 'furniture_placed', { block: b.id, room: room.key, slot: cmd.slot, item: item.id, price: item.price, name: item.name, emoji: item.emoji ?? '\ud83d\udce6' });
+      emit(world, 'ui_toast', { text: `${item.emoji ?? '\ud83d\udce6'} ${item.name} colocado.`, tone: 'good' });
+      return ok();
+    }
+    case 'remove_furniture': {
+      const cfg = content.rules.furniture;
+      const b = world.blocks[cmd.block];
+      if (!b) return fail('unknown_target');
+      if (b.ownerId !== world.playerId) return fail('not_yours');
+      const room = b.rooms.find((r) => r.key === cmd.room);
+      if (!room) return fail('unknown_target');
+      const itemId = room.furniture[cmd.slot];
+      if (!itemId) return fail('slot_empty');
+      room.furniture[cmd.slot] = '';
+      const item = content.furniture[itemId];
+      if (item) {
+        for (const p of item.params ?? []) applyFurnitureParam(world, content, b.id, room, p.param, -p.delta);
+        const refund = Math.round(item.price * cfg.refundRatio);
+        player.wallet += refund;
+        emit(world, 'furniture_removed', { block: b.id, room: room.key, slot: cmd.slot, item: itemId, refund, name: item.name, emoji: item.emoji ?? '\ud83d\udce6' });
+        emit(world, 'ui_toast', { text: `${item.emoji ?? '\ud83d\udce6'} ${item.name} retirado (+${refund} \u20ac de vuelta).`, tone: 'info' });
+      }
+      return ok();
+    }
+    case 'renovate_room': {
+      const cfg = content.rules.furniture.roomUnlock;
+      const b = world.blocks[cmd.block];
+      if (!b) return fail('unknown_target');
+      if (b.ownerId !== world.playerId) return fail('not_yours');
+      const room = b.rooms.find((r) => r.key === cmd.room);
+      if (!room) return fail('unknown_target');
+      if (room.access === 'unlocked') return fail('room_open');
+      if (player.wallet < cfg.price) {
+        emit(world, 'ui_toast', { text: content.rules.furniture.errors['no_money'] ?? 'Sin fondos.', tone: 'bad' });
+        return fail('no_money');
+      }
+      player.wallet -= cfg.price;
+      room.access = 'unlocked';
+      emit(world, 'room_renovated', { block: b.id, room: room.key, price: cfg.price });
+      emit(world, 'ui_toast', { text: cfg.toast, tone: 'good' });
+      return ok();
+    }
+    case 'complete_minigame': {
+      // El estado del minijuego es presentación; el núcleo solo aplica las consecuencias del catálogo.
+      const def = content.minigames[cmd.id];
+      if (!def) return fail('unknown_target');
+      applyEffects(world, content, cmd.success ? def.onSuccess : def.onFail, {});
+      emit(world, 'minigame_finished', { minigame: def.id, success: cmd.success });
       return ok();
     }
   }

@@ -1,0 +1,150 @@
+[
+  {
+    "id": "mue_sofa",
+    "name": "Sofá con plástico (incluido)",
+    "description": "El plástico no se quita. Es tradición, no descuido.",
+    "emoji": "🛋️",
+    "price": 120,
+    "slots": ["salon_suelo"],
+    "params": [{ "param": "comfort", "delta": 12 }],
+    "view": { "color": "#b56576", "size": [1.5, 0.75, 0.8] }
+  },
+  {
+    "id": "mue_estanteria",
+    "name": "Estantería con libros REALES",
+    "description": "Leídos. Bueno, empezados. Bueno, olfateados.",
+    "emoji": "📚",
+    "price": 80,
+    "slots": ["salon_suelo"],
+    "params": [{ "param": "comfort", "delta": 5 }],
+    "view": { "color": "#a47148", "size": [0.85, 1.35, 0.3] }
+  },
+  {
+    "id": "mue_hifi",
+    "name": "Equipo HiFi \"El Tormenta\"",
+    "description": "Dos volúmenes: fiesta y FESTIVAL. El bajo hace su propio censo.",
+    "emoji": "📻",
+    "price": 220,
+    "slots": ["salon_suelo"],
+    "emits": { "noise": 0.5 },
+    "params": [{ "param": "comfort", "delta": 8 }],
+    "view": { "color": "#2b2d42", "size": [0.8, 0.7, 0.4] }
+  },
+  {
+    "id": "mue_tv",
+    "name": "Televisor de 85 pulgadas",
+    "description": "Cabe por la escalera. Con la buena voluntad de todos los vecinos.",
+    "emoji": "📺",
+    "price": 260,
+    "slots": ["salon_pared"],
+    "emits": { "noise": 0.25 },
+    "params": [{ "param": "comfort", "delta": 8 }],
+    "view": { "color": "#1d1d1d", "size": [1.5, 0.85, 0.12] }
+  },
+  {
+    "id": "mue_plantas",
+    "name": "Jardín vertical (con monstera)",
+    "description": "Absorbe olores y miradas curiosas. La monstera es la jefa.",
+    "emoji": "🪴",
+    "price": 90,
+    "slots": ["salon_pared"],
+    "emits": { "odors": -0.2 },
+    "params": [{ "param": "comfort", "delta": 6 }],
+    "view": { "color": "#6a994e", "size": [0.8, 1.0, 0.25] }
+  },
+  {
+    "id": "mue_router",
+    "name": "Router \"Cobertura Total 9000\"",
+    "description": "El wifi llega al portal. Y al edificio de enfrente. Legalidad: discutible. Comodidad: total.",
+    "emoji": "📶",
+    "price": 180,
+    "slots": ["salon_pared"],
+    "emits": { "wifi": 0.9 },
+    "view": { "color": "#06d6a0", "size": [0.4, 0.28, 0.15] }
+  },
+  {
+    "id": "mue_olla",
+    "name": "Olla de guiso perpetuo",
+    "description": "Nunca se apaga. El olor se cuela por el gaznate de la casa.",
+    "emoji": "🍲",
+    "price": 60,
+    "slots": ["salon_suelo"],
+    "emits": { "odors": 0.55 },
+    "params": [{ "param": "comfort", "delta": 6 }],
+    "view": { "color": "#9c6644", "size": [0.5, 0.4, 0.5] }
+  },
+  {
+    "id": "mue_cafetera",
+    "name": "Cafetera espresso industrial",
+    "description": "El despertar de la comunidad empieza en tu cocina.",
+    "emoji": "☕",
+    "price": 110,
+    "slots": ["salon_suelo"],
+    "emits": { "odors": 0.15 },
+    "params": [{ "param": "comfort", "delta": 10 }],
+    "view": { "color": "#cb997e", "size": [0.4, 0.5, 0.4] }
+  },
+  {
+    "id": "mue_cama",
+    "name": "Cama de matrimonio XL",
+    "description": "Matrimonio, individual y de visita. Entra casi todo.",
+    "emoji": "🛏️",
+    "price": 200,
+    "slots": ["dorm_suelo"],
+    "params": [{ "param": "comfort", "delta": 15 }],
+    "view": { "color": "#e0afa0", "size": [1.5, 0.6, 1.0] }
+  },
+  {
+    "id": "mue_bici",
+    "name": "Bici estática de moda",
+    "description": "Para pedalear mirando la pared. La pared no opina.",
+    "emoji": "🚲",
+    "price": 150,
+    "slots": ["dorm_suelo"],
+    "emits": { "noise": 0.3 },
+    "params": [{ "param": "comfort", "delta": 3 }],
+    "view": { "color": "#e63946", "size": [0.5, 1.0, 0.4] }
+  },
+  {
+    "id": "mue_difusor",
+    "name": "Difusor de lavanda industrial",
+    "description": "Neutraliza olores ajenos y propios. La lavanda es diplomática.",
+    "emoji": "🌸",
+    "price": 70,
+    "slots": ["dorm_mesa", "bano_suelo"],
+    "emits": { "odors": -0.25 },
+    "view": { "color": "#cdb4db", "size": [0.25, 0.3, 0.25] }
+  },
+  {
+    "id": "mue_acuario",
+    "name": "Acuario tropical (con Nemo 2)",
+    "description": "Precioso. Relajante. Hasta que gotea y conoces al 3B.",
+    "emoji": "🐠",
+    "price": 130,
+    "slots": ["dorm_mesa", "salon_suelo"],
+    "emits": { "water": 0.3, "odors": -0.05 },
+    "params": [{ "param": "comfort", "delta": 10 }],
+    "view": { "color": "#2ec4b6", "size": [0.7, 0.5, 0.4] }
+  },
+  {
+    "id": "mue_placas",
+    "name": "Placas acústicas (pack vecino-amicable)",
+    "description": "Tu reggaetón, en formato susurro. El aislamiento del bloque sube.",
+    "emoji": "🔇",
+    "price": 300,
+    "slots": ["salon_pared"],
+    "emits": { "noise": -0.1 },
+    "params": [{ "param": "soundproofing", "delta": 0.15 }],
+    "view": { "color": "#6c757d", "size": [1.2, 0.8, 0.08] }
+  },
+  {
+    "id": "mue_lampara",
+    "name": "Lámpara \"Aurora boreal\"",
+    "description": "Ilumina, adorna y deja pasar luz de vecino a las 3 AM.",
+    "emoji": "💡",
+    "price": 60,
+    "slots": ["dorm_mesa"],
+    "params": [{ "param": "comfort", "delta": 5 }],
+    "view": { "color": "#ffd166", "size": [0.3, 0.45, 0.3] }
+  }
+]

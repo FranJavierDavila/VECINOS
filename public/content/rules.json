@@ -73,7 +73,7 @@
     "brokenColor": "#c1666b",
     "lockColor": "#ffd166",
     "homeEdge": "#ffffff",
-    "channelGlow": { "noise": "#ff5900", "water": "#1a59cc" },
+    "channelGlow": { "noise": "#ff5900", "water": "#1a59cc", "odors": "#74c69d", "wifi": "#c77dff" },
     "actorFallbackColor": "#e8e6e1",
     "actorFallbackHeight": 1.3,
     "actorRadius": 0.28
@@ -83,6 +83,20 @@
     "block": "blk_p2_b",
     "noise": 0.9,
     "toast": "Fiesta en 2B. Observa el resplandor naranja del ruido (y compadece al 3B)."
+  },
+  "furniture": {
+    "refundRatio": 0.5,
+    "roomUnlock": { "price": 250, "toast": "Reforma hecha: paredes nuevas, olor a pintura y el albañil almorzando en tu cocina." },
+    "errors": {
+      "unknown_target": "Ni el mueble ni el piso aparecen en el catastro.",
+      "not_yours": "Ese piso no es tuyo. Decorar lo ajeno se llama 'okupar'.",
+      "room_locked": "Esa estancia está en obras. Primero la reforma.",
+      "room_open": "Esa estancia ya está reformada. Lo que pasa es que no se nota.",
+      "slot_occupied": "Ahí ya hay algo. Mueve eso primero.",
+      "slot_empty": "Ahí no hay nada que quitar. Ni polvo, técnicamente.",
+      "slot_mismatch": "Eso no entra ahí. La física es terca.",
+      "no_money": "Sin fondos. El mueble se queda en el catálogo (y en tus sueños)."
+    }
   },
   "labels": {
     "weather": { "sunny": "Soleado", "cloudy": "Nublado", "rain": "Lluvia", "storm": "Tormenta" }

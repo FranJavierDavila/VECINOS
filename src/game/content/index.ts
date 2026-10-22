@@ -2,8 +2,10 @@ import type { Content } from '@/game/core/types';
 import {
   blockListSchema,
   dialogListSchema,
+  furnitureListSchema,
   influenceListSchema,
   layoutListSchema,
+  minigameListSchema,
   missionListSchema,
   roomListSchema,
   rulesSchema,
@@ -22,7 +24,7 @@ export interface Issue {
  * Catálogos externos: viven en /public/content/*.json y se validan con Zod al cargar.
  * El código del juego no contiene NINGÚN dato de gameplay: solo lee este catálogo.
  */
-const FILES = ['rules', 'blocks', 'rooms', 'layouts', 'influences', 'archetypes', 'dialogs', 'missions', 'templates', 'scenarios'] as const;
+const FILES = ['rules', 'blocks', 'rooms', 'layouts', 'influences', 'archetypes', 'dialogs', 'missions', 'templates', 'scenarios', 'furniture', 'minigames'] as const;
 
 type Loaded = { [K in (typeof FILES)[number]]: unknown };
 
@@ -54,6 +56,8 @@ export async function loadContent(baseUrl: string = '/content/'): Promise<{ cont
     const missions = missionListSchema.parse(raw.missions);
     const templates = templateListSchema.parse(raw.templates);
     const scenarios = scenarioListSchema.parse(raw.scenarios);
+    const furniture = furnitureListSchema.parse(raw.furniture);
+    const minigames = minigameListSchema.parse(raw.minigames);
 
     const content: Content = {
       rules,
@@ -66,6 +70,8 @@ export async function loadContent(baseUrl: string = '/content/'): Promise<{ cont
       dialogs: indexById(dialogs),
       templates: indexById(templates),
       scenarios: indexById(scenarios),
+      furniture: indexById(furniture),
+      minigames: indexById(minigames),
     };
 
     const issues = validateContent(content);
@@ -96,6 +102,21 @@ export function validateContent(c: Content): Issue[] {
       const known = Object.values(c.blocks).some((b) => b.params?.[i.attenuatedBy!]);
       if (!known) err(`influences/${i.id}`, `attenuatedBy desconocido en bloques: ${i.attenuatedBy}`);
     }
+    if (i.onThreshold?.uiLog && !i.onThreshold.message) err(`influences/${i.id}`, 'uiLog sin message en onThreshold');
+  }
+
+  const channelIds = new Set(Object.values(c.influences).map((i) => i.channel));
+  const slotKinds = new Set(Object.values(c.rooms).flatMap((r) => (r.furnitureSlots ?? []).map((s) => s.kind)));
+  for (const f of Object.values(c.furniture)) {
+    if (f.slots.length === 0) err(`furniture/${f.id}`, 'un mueble necesita al menos una categoría de ranura');
+    for (const k of f.slots) if (!slotKinds.has(k)) err(`furniture/${f.id}`, `categoría de ranura desconocida: ${k}`);
+    for (const ch of Object.keys(f.emits ?? {})) if (!channelIds.has(ch)) err(`furniture/${f.id}`, `canal desconocido: ${ch}`);
+  }
+
+  for (const g of Object.values(c.minigames)) {
+    if (g.config.zones.length === 0) err(`minigames/${g.id}`, 'un timing_bar necesita al menos una zona');
+    for (const z of g.config.zones) if (z < 0 || z > 1) err(`minigames/${g.id}`, `zona fuera de rango (0..1): ${z}`);
+    if (g.config.zoneWidth <= 0 || g.config.zoneWidth > 1) err(`minigames/${g.id}`, `zoneWidth fuera de rango: ${g.config.zoneWidth}`);
   }
 
   for (const a of Object.values(c.archetypes)) {
@@ -110,6 +131,7 @@ export function validateContent(c: Content): Issue[] {
     for (const ch of m.choices ?? [])
       for (const e of ch.effects) {
         if (e.op === 'startMission' && !c.missions[e.id]) err(`missions/${m.id}`, `misión desconocida: ${e.id}`);
+        if (e.op === 'startMinigame' && !c.minigames[e.id]) err(`missions/${m.id}`, `minijuego desconocido: ${e.id}`);
         if (e.op === 'unlock' && e.resident) {
           const exists = Object.values(c.scenarios).some((s) => s.residents.some((r) => r.id === e.resident));
           if (!exists) err(`missions/${m.id}`, `residente desconocido: ${e.resident}`);

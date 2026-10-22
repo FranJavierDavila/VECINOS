@@ -21,6 +21,12 @@ export interface GameControllerApi {
   choose(choiceId: string): void;
   juntaVote(vote: 'yes' | 'no'): void;
   finaleClose(): void;
+  /** Editor de interiores: colocar, quitar y reformar estancias. */
+  placeFurniture(block: string, room: string, slot: string, item: string): void;
+  removeFurniture(block: string, room: string, slot: string): void;
+  renovateRoom(block: string, room: string): void;
+  /** Resultado de un minijuego (el modal lo llama al terminar). */
+  completeMinigame(id: string, success: boolean): void;
   save(): Promise<void>;
   load(): Promise<void>;
 }

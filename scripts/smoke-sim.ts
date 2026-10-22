@@ -44,4 +44,43 @@ console.log('Eventos acumulados:', evs.length);
 const types = [...new Set(evs.map((e) => e.type))];
 console.log('Tipos de evento vistos:', types.join(', '));
 console.log('Cartera jugador:', world.residents['res_player_01']!.wallet, '€');
+
+// ── v0.2: editor de interiores ──
+const home3c = world.blocks['blk_p3_c']!;
+const salon = home3c.rooms.find((r) => r.key === 'salon')!;
+console.log('Ranuras del salón:', Object.keys(salon.furniture).join(', '));
+const slotSuelo = 'salon_suelo_1';
+const slotPared = 'salon_pared_1';
+const wallet0 = world.residents['res_player_01']!.wallet;
+const r1 = dispatch(world, content, { type: 'place_furniture', block: 'blk_p3_c', room: 'salon', slot: slotPared, item: 'mue_router' });
+const r2 = dispatch(world, content, { type: 'place_furniture', block: 'blk_p3_c', room: 'salon', slot: slotSuelo, item: 'mue_olla' });
+const rBad = dispatch(world, content, { type: 'place_furniture', block: 'blk_p3_c', room: 'salon', slot: slotPared, item: 'mue_router' });
+const rMismatch = dispatch(world, content, { type: 'place_furniture', block: 'blk_p3_c', room: 'salon', slot: slotSuelo, item: 'mue_router' });
+console.log('place router:', r1.ok, '· place olla:', r2.ok, '· repetido rechazado:', !rBad.ok, '· ranura equivocada rechazada:', !rMismatch.ok, '· cartera:', world.residents['res_player_01']!.wallet, '(antes', wallet0 + ')');
+
+// Wifi y olores: tick hasta cruzar umbrales (wifi llega a vecinos, odors se quedan cerca)
+for (let i = 0; i < 40; i++) tick(world, content);
+const chanTypes = [...new Set(drainEvents(world).map((e) => e.type))];
+console.log('Canales activos:', Object.keys(world.channels).join(', '));
+console.log('Wifi en vecinos:', Object.keys(world.channels['wifi'] ?? {}).join(', ') || '(ninguno)');
+console.log('Eventos de umbral vistos:', chanTypes.filter((t) => t.includes('_complaint') || t === 'wifi_shared' || t === 'leak_detected').join(', ') || '(ninguno)');
+
+// Quitar mueble devuelve parte del precio
+const wallet1 = world.residents['res_player_01']!.wallet;
+const r3 = dispatch(world, content, { type: 'remove_furniture', block: 'blk_p3_c', room: 'salon', slot: slotPared });
+console.log('remove router:', r3.ok, '· reembolso aplicado:', world.residents['res_player_01']!.wallet > wallet1);
+
+// Reforma de estancia bloqueada + colocación en ella
+const dorm = home3c.rooms.find((r) => r.key === 'dormitorio')!;
+console.log('Dormitorio bloqueado:', dorm.access === 'locked');
+const r4 = dispatch(world, content, { type: 'renovate_room', block: 'blk_p3_c', room: 'dormitorio' });
+console.log('renovate_room:', r4.ok, '· acceso:', dorm.access, '· cartera:', world.residents['res_player_01']!.wallet);
+
+// ── v0.2: minijuegos (consecuencias data-driven) ──
+const hum0 = home3c.params['humidity'];
+dispatch(world, content, { type: 'complete_minigame', id: 'mg_desatascar', success: true });
+console.log('minijuego éxito → humedad:', hum0, '→', home3c.params['humidity']);
+dispatch(world, content, { type: 'complete_minigame', id: 'mg_desatascar', success: false });
+console.log('minijuego fallo → humedad:', home3c.params['humidity']);
+
 console.log('SMOKE OK');

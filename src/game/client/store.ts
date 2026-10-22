@@ -1,7 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
-import type { Weather } from '@/game/core/types';
+import type { Access, Weather } from '@/game/core/types';
 
 // ───────────────────────── Tipos de la interfaz ─────────────────────────
 
@@ -62,6 +62,46 @@ export interface ParamUi {
   value: string;
 }
 
+/** Mueble colocado en una ranura (foto para el editor de interiores). */
+export interface PlacedItemUi {
+  id: string;
+  name: string;
+  emoji: string;
+  color: string;
+}
+
+/** Ranura de amueblado con posición ya normalizada (porcentajes 0..100). */
+export interface SlotUi {
+  id: string;
+  kind: string;
+  left: number;
+  bottom: number;
+  item: PlacedItemUi | null;
+}
+
+export interface HomeRoomUi {
+  key: string;
+  label: string;
+  access: Access;
+  slots: SlotUi[];
+}
+
+/** Vivienda del jugador (o comprada) para el editor de interiores. */
+export interface HomeUi {
+  id: string;
+  label: string;
+  rooms: HomeRoomUi[];
+}
+
+/** Minijuego activo en pantalla (definición que llega del catálogo). */
+export interface MinigameState {
+  id: string;
+  name: string;
+  description: string;
+  emoji: string;
+  config: { rounds: number; cursorSpeed: number; zoneWidth: number; zones: number[]; accelPerRound: number; lives: number };
+}
+
 /** Foto del HUD que el bucle de juego manda a la interfaz (throttled). */
 export interface HudSnapshot {
   clock: { day: number; minute: number };
@@ -76,6 +116,8 @@ export interface HudSnapshot {
   prompt: string | null;
   params: ParamUi[];
   missions: UiMission[];
+  homes: HomeUi[];
+  furnitureConfig: { refundRatio: number; roomUnlockPrice: number };
 }
 
 interface GameState {
@@ -101,6 +143,7 @@ interface GameState {
   phone: PhoneState | null;
   choices: ChoiceState | null;
   junta: JuntaItemUi[] | null;
+  minigame: MinigameState | null;
   finale: string | null;
   engineError: boolean;
   saveState: 'idle' | 'saving' | 'saved' | 'error';
@@ -117,6 +160,7 @@ interface GameState {
   setPhone: (p: PhoneState | null) => void;
   setChoices: (c: ChoiceState | null) => void;
   setJunta: (items: JuntaItemUi[] | null) => void;
+  setMinigame: (m: MinigameState | null) => void;
   setFinale: (text: string | null) => void;
   setEngineError: (v: boolean) => void;
   setSaveState: (s: GameState['saveState'], at?: string) => void;
@@ -125,9 +169,9 @@ interface GameState {
 
 let nextId = 1;
 
-/** Modales abiertos = mundo congelado. La derivan phone/choices/junta/finale. */
-export function selectModalOpen(s: Pick<GameState, 'phone' | 'choices' | 'junta' | 'finale'>): boolean {
-  return s.phone !== null || s.choices !== null || s.junta !== null || s.finale !== null;
+/** Modales abiertos = mundo congelado. La derivan phone/choices/junta/minigame/finale. */
+export function selectModalOpen(s: Pick<GameState, 'phone' | 'choices' | 'junta' | 'minigame' | 'finale'>): boolean {
+  return s.phone !== null || s.choices !== null || s.junta !== null || s.minigame !== null || s.finale !== null;
 }
 
 export const useGameStore = create<GameState>((set) => ({
@@ -148,11 +192,14 @@ export const useGameStore = create<GameState>((set) => ({
   prompt: null,
   params: [],
   missions: [],
+  homes: [],
+  furnitureConfig: { refundRatio: 0.5, roomUnlockPrice: 250 },
   log: [],
   toasts: [],
   phone: null,
   choices: null,
   junta: null,
+  minigame: null,
   finale: null,
   engineError: false,
   saveState: 'idle',
@@ -178,6 +225,7 @@ export const useGameStore = create<GameState>((set) => ({
   setPhone: (p) => set({ phone: p }),
   setChoices: (c) => set({ choices: c }),
   setJunta: (items) => set({ junta: items }),
+  setMinigame: (m) => set({ minigame: m }),
   setFinale: (text) => set({ finale: text }),
   setEngineError: (v) => set({ engineError: v }),
   setSaveState: (saveState, at) => set({ saveState, savedAt: at ?? null }),
@@ -186,6 +234,7 @@ export const useGameStore = create<GameState>((set) => ({
       phone: null,
       choices: null,
       junta: null,
+      minigame: null,
       finale: null,
       toasts: [],
       log: [],

@@ -2,18 +2,42 @@
   {
     "id": "noise",
     "channel": "noise",
+    "label": "Ruido",
+    "emoji": "🔊",
     "spread": { "horizontal": 1.0, "up": 0.8, "down": 0.6, "diagonal": 0.3, "corridor": 0.5 },
     "attenuatedBy": "soundproofing",
     "decayPerTick": 0.1,
     "threshold": 0.35,
-    "onThreshold": { "emitEvent": "noise_complaint" }
+    "onThreshold": { "emitEvent": "noise_complaint", "uiLog": true, "tone": "bad", "message": "🔊 Ruido por encima del límite en {block}. Alguien aprieta los dientes." }
   },
   {
     "id": "water",
     "channel": "water",
+    "label": "Agua",
+    "emoji": "💧",
     "spread": { "down": 1.0 },
     "decayPerTick": 0.02,
     "threshold": 0.2,
-    "onThreshold": { "emitEvent": "leak_detected", "setParam": { "param": "humidity", "delta": 8 } }
+    "onThreshold": { "emitEvent": "leak_detected", "uiLog": true, "tone": "bad", "message": "💧 Goteo detectado en {block}. El cubo del salón hace ojitos.", "setParam": { "param": "humidity", "delta": 8 } }
+  },
+  {
+    "id": "odors",
+    "channel": "odors",
+    "label": "Olores",
+    "emoji": "🤢",
+    "spread": { "horizontal": 0.7, "up": 0.5, "down": 0.35, "diagonal": 0.25, "corridor": 0.4 },
+    "decayPerTick": 0.03,
+    "threshold": 0.3,
+    "onThreshold": { "emitEvent": "odor_complaint", "uiLog": true, "tone": "bad", "message": "🤢 Olores dudosos en {block}. Dolores ya tiene una teoría y tres testigos." }
+  },
+  {
+    "id": "wifi",
+    "channel": "wifi",
+    "label": "Wifi",
+    "emoji": "📶",
+    "spread": { "horizontal": 1.0, "up": 0.75, "down": 0.75, "diagonal": 0.4, "corridor": 0.8 },
+    "decayPerTick": 0.2,
+    "threshold": 0.5,
+    "onThreshold": { "emitEvent": "wifi_shared", "uiLog": true, "tone": "good", "message": "📶 Señal de wifi compartida en {block}. Alguien ahorra 50 € al mes y gana un amigo." }
   }
 ]

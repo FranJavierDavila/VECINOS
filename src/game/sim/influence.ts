@@ -66,6 +66,27 @@ export function emissionsFromActivities(world: World, content: Content): Emissio
   return out;
 }
 
+/**
+ * Emisiones persistentes del editor de interiores: cada mueble colocado emite desde su bloque.
+ * Valores negativos = absorbentes (reducen el canal en su propio bloque; los aplica `propagate`).
+ */
+export function emissionsFromFurniture(world: World, content: Content): Emissions {
+  const out: Emissions = {};
+  for (const b of Object.values(world.blocks)) {
+    for (const room of b.rooms) {
+      for (const itemId of Object.values(room.furniture ?? {})) {
+        const emits = content.furniture[itemId]?.emits;
+        if (!emits) continue;
+        for (const [channel, v] of Object.entries(emits)) {
+          const bucket = (out[channel] ??= {});
+          bucket[b.id] = (bucket[b.id] ?? 0) + v;
+        }
+      }
+    }
+  }
+  return out;
+}
+
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
 
 /**
@@ -82,7 +103,16 @@ export function propagate(world: World, content: Content, emissions: Emissions):
       if (state[id]! < 1e-6) delete state[id];
     }
     const em = emissions[rule.channel] ?? {};
+    // Absorción local: los muebles negativos reducen el nivel recibido en su propio bloque.
+    for (const absorber of Object.keys(em).sort()) {
+      const v = em[absorber]!;
+      if (v < 0 && state[absorber] !== undefined) {
+        state[absorber] = Math.max(0, state[absorber]! + v);
+        if (state[absorber]! < 1e-6) delete state[absorber];
+      }
+    }
     for (const emitter of Object.keys(em).sort()) {
+      if (em[emitter]! <= 0) continue;
       for (const n of nb.get(emitter) ?? []) {
         const factor = rule.spread[n.dir];
         if (!factor) continue;

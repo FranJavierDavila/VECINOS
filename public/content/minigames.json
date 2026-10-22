@@ -1,0 +1,51 @@
+[
+  {
+    "id": "mg_limpiar_cabina",
+    "name": "Fregatón profesional",
+    "description": "Bayeta, jabón y precisión suiza: detén el cursor en la zona limpia para borrar el mural.",
+    "emoji": "🧽",
+    "type": "timing_bar",
+    "config": { "rounds": 3, "cursorSpeed": 0.9, "zoneWidth": 0.24, "zones": [0.5], "accelPerRound": 0.15, "lives": 3 },
+    "onSuccess": [
+      { "op": "setParam", "target": "nucleo.cabin_graffiti", "value": 0 },
+      { "op": "toast", "text": "Cabina reluciente. El mural pasa al olvido (y al acta).", "tone": "good" }
+    ],
+    "onFail": [
+      { "op": "setParam", "target": "nucleo.cabin_graffiti", "delta": -10 },
+      { "op": "toast", "text": "Medio mural fuera. Pinturillas lo llama \"obra dialogada\".", "tone": "bad" }
+    ]
+  },
+  {
+    "id": "mg_desatascar",
+    "name": "Operación desatasco",
+    "description": "Dos vueltas de manivela en el momento justo. Tu techo (y el cubo del salón) lo agradecen.",
+    "emoji": "🔧",
+    "type": "timing_bar",
+    "config": { "rounds": 2, "cursorSpeed": 1.3, "zoneWidth": 0.2, "zones": [0.35, 0.7], "accelPerRound": 0.2, "lives": 3 },
+    "onSuccess": [
+      { "op": "setParam", "target": "blk_p3_c.humidity", "value": 8 },
+      { "op": "toast", "text": "Desatascado. El cubo del salón se jubila con honores.", "tone": "good" }
+    ],
+    "onFail": [
+      { "op": "setParam", "target": "blk_p3_c.humidity", "delta": 5 },
+      { "op": "toast", "text": "Peor. Ahora el goteo tiene ritmo de bachata.", "tone": "bad" }
+    ]
+  },
+  {
+    "id": "mg_trato_vecino",
+    "name": "Diplomacia de rellano",
+    "description": "Negociar con Kevin requiere pulso. Tres acuerdos en la zona verde y hay pacto.",
+    "emoji": "🤝",
+    "type": "timing_bar",
+    "config": { "rounds": 3, "cursorSpeed": 1.6, "zoneWidth": 0.18, "zones": [0.5], "accelPerRound": 0.25, "lives": 2 },
+    "onSuccess": [
+      { "op": "addRelation", "a": "player", "b": "fiestero", "affinity": 15 },
+      { "op": "grantFavor", "from": "fiestero", "count": 1 },
+      { "op": "toast", "text": "Pacto alcanzado: fiesta hasta las 00:30 y helado para el rellano. Kevin te respeta.", "tone": "good" }
+    ],
+    "onFail": [
+      { "op": "addRelation", "a": "player", "b": "fiestero", "affinity": -5 },
+      { "op": "toast", "text": "Kevin te ha enseñado el grupo de WhatsApp de la fiesta. Te has quedado. Es de los buenos.", "tone": "info" }
+    ]
+  }
+]

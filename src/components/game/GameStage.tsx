@@ -7,6 +7,7 @@ import { selectModalOpen, useGameStore } from '@/game/client/store';
 import { PhoneModal } from './PhoneModal';
 import { ChoicesModal } from './ChoicesModal';
 import { JuntaModal } from './JuntaModal';
+import { MinigameModal } from './MinigameModal';
 import { FinaleModal } from './FinaleModal';
 import { ToastStack } from './ToastStack';
 
@@ -96,6 +97,7 @@ export default function GameStage() {
       <PhoneModal onNext={() => getController()?.phoneNext()} />
       <ChoicesModal onChoose={(choiceId) => getController()?.choose(choiceId)} />
       <JuntaModal onVote={(vote) => getController()?.juntaVote(vote)} />
+      <MinigameModal />
       <FinaleModal onClose={() => getController()?.finaleClose()} />
       <ToastStack onDismiss={(id) => useGameStore.getState().dropToast(id)} />
     </div>

@@ -4,7 +4,7 @@ import type { AbstractEngine, Scene } from '@babylonjs/core';
 import type { Content, Input, World } from '@/game/core/types';
 import { blockLabel } from '@/game/core/types';
 import { loadContent } from '@/game/content';
-import { activeObjective, applyEffects, buildCirculation, createWorld, dispatch, drainEvents, tick, travelMinutes, visibleParams } from '@/game/sim';
+import { activeObjective, applyEffects, buildCirculation, createWorld, dispatch, drainEvents, migrateRooms, tick, travelMinutes, visibleParams } from '@/game/sim';
 import { PlayerLogic } from '@/game/player-logic';
 import { createEngine } from './engine';
 import { createBuilding } from './building';
@@ -188,6 +188,40 @@ class GameController {
     useGameStore.getState().setFinale(null);
   }
 
+  // ───────────────────────── Editor de interiores y minijuegos ─────────────────────────
+
+  placeFurniture(block: string, room: string, slot: string, item: string): void {
+    if (!this.world) return;
+    const r = dispatch(this.world, this.content, { type: 'place_furniture', block, room, slot, item });
+    if (!r.ok) this.furnitureFail(r.reason);
+    this.pump();
+  }
+
+  removeFurniture(block: string, room: string, slot: string): void {
+    if (!this.world) return;
+    const r = dispatch(this.world, this.content, { type: 'remove_furniture', block, room, slot });
+    if (!r.ok) this.furnitureFail(r.reason);
+    this.pump();
+  }
+
+  renovateRoom(block: string, room: string): void {
+    if (!this.world) return;
+    const r = dispatch(this.world, this.content, { type: 'renovate_room', block, room });
+    if (!r.ok) this.furnitureFail(r.reason);
+    this.pump();
+  }
+
+  completeMinigame(id: string, success: boolean): void {
+    if (!this.world) return;
+    dispatch(this.world, this.content, { type: 'complete_minigame', id, success });
+    this.pump();
+  }
+
+  private furnitureFail(reason: string | undefined): void {
+    const text = this.content.rules.furniture.errors[reason ?? ''] ?? 'Gestión inmobiliaria rechazada sin explicación. Como en la junta.';
+    useGameStore.getState().pushToast(text, 'bad');
+  }
+
   async save(): Promise<void> {
     if (!this.world) return;
     const store = useGameStore.getState();
@@ -242,6 +276,8 @@ class GameController {
     if (!this.world.entry) {
       this.world.entry = Object.values(this.world.blocks).find((b) => b.cell.floor === 0 && b.kind !== 'dwelling')?.id ?? Object.keys(this.world.blocks)[0]!;
     }
+    // Migración de estancias de guardados v0.1: params y ranuras de muebles según catálogo.
+    for (const b of Object.values(this.world.blocks)) migrateRooms(this.content, b.rooms);
     this.logic = new PlayerLogic(this.world, this.content);
 
     this.scene?.dispose();
@@ -386,11 +422,22 @@ class GameController {
         case 'block_for_sale':
           store.pushLog(`🪧 Cartel de "SE VENDE" en ${blockLabel(String(d.block))} (${String(d.price)} €)`, 'info');
           break;
-        case 'noise_complaint':
+        case 'noise_complaint': // texto data-driven: lo pinta el uiLog del catálogo (case mantenido por compatibilidad de eventos antiguos)
+          if (d.uiLog === true) break;
           store.pushLog(`🔊 Ruido por encima del límite en ${blockLabel(String(d.block))}. Alguien aprieta los dientes.`, 'bad');
           break;
         case 'leak_detected':
+          if (d.uiLog === true) break;
           store.pushLog(`💧 Goteo detectado en ${blockLabel(String(d.block))}. El cubo del salón hace ojitos.`, 'bad');
+          break;
+        case 'furniture_placed':
+          store.pushLog(`${String(d.emoji ?? '📦')} ${String(d.name)} colocado en ${blockLabel(String(d.block))} (${String(d.room)}).`, 'info');
+          break;
+        case 'furniture_removed':
+          store.pushLog(`${String(d.emoji ?? '📦')} ${String(d.name)} retirado de ${blockLabel(String(d.block))} (+${String(d.refund)} €).`, 'info');
+          break;
+        case 'room_renovated':
+          store.pushLog(`🧱 Reforma terminada en ${blockLabel(String(d.block))}. Hay estancia nueva que amueblar.`, 'good');
           break;
         case 'weather_changed':
           store.pushLog(`El cielo cambia: ${this.content.rules.labels.weather[String(d.state)] ?? String(d.state)}`, 'info');
@@ -415,9 +462,17 @@ class GameController {
             d.approved ? ('good' as Tone) : ('bad' as Tone),
           );
           break;
-        case 'minigame_requested':
-          store.pushToast('El minijuego llega en la próxima versión. Imagina que limpias ESPECTACULARMENTE bien.', 'info');
+        case 'minigame_requested': {
+          const def = this.content.minigames[String(d.minigame)];
+          if (!def) break;
+          store.setMinigame({ id: def.id, name: def.name, description: def.description, emoji: def.emoji ?? '🎮', config: { ...def.config } });
           break;
+        }
+        case 'minigame_finished': {
+          const name = this.content.minigames[String(d.minigame)]?.name ?? String(d.minigame);
+          store.pushLog(d.success ? `🎮 Minijuego superado: ${name}` : `🎮 Minijuego fallido: ${name}`, d.success ? 'good' : 'bad');
+          break;
+        }
         case 'ui_toast':
           store.pushToast(String(d.text), (d.tone as Tone | undefined) ?? 'info');
           break;
@@ -431,8 +486,13 @@ class GameController {
           }
           break;
         }
-        default:
+        default: {
+          // Umbral de canal con texto del catálogo (odors, wifi y futuros canales): totalmente data-driven.
+          if (d.uiLog === true && typeof d.message === 'string') {
+            store.pushLog(String(d.message).replace('{block}', blockLabel(String(d.block))), (d.tone as Tone | undefined) ?? 'info');
+          }
           break; // resident_moved, param_changed, activity_ended... demasiado ruido para el registro
+        }
       }
     }
   }
@@ -493,6 +553,34 @@ class GameController {
     return null;
   }
 
+  /** Viviendas del jugador para el editor de interiores (foto serializable, posiciones ya en %). */
+  private homesUi() {
+    const world = this.world!;
+    const cellH = this.content.rules.view.cellH;
+    return Object.values(world.blocks)
+      .filter((b) => b.kind === 'dwelling' && b.ownerId === world.playerId)
+      .sort((a, b) => a.id.localeCompare(b.id))
+      .map((b) => ({
+        id: b.id,
+        label: blockLabel(b.id),
+        rooms: b.rooms.map((room) => {
+          const rdef = this.content.rooms[room.defId];
+          const slots = (rdef?.furnitureSlots ?? []).map((s) => {
+            const itemId = room.furniture[s.id] ?? '';
+            const fdef = itemId ? this.content.furniture[itemId] : undefined;
+            return {
+              id: s.id,
+              kind: s.kind,
+              left: Math.min(92, Math.max(2, (s.pos[0] / Math.max(0.001, rdef?.size.w ?? 1)) * 100)),
+              bottom: Math.min(76, Math.max(0, (s.pos[1] / Math.max(0.001, cellH)) * 100)),
+              item: fdef ? { id: fdef.id, name: fdef.name, emoji: fdef.emoji ?? '📦', color: fdef.view.color } : null,
+            };
+          });
+          return { key: room.key, label: rdef?.label ?? room.key, access: room.access, slots };
+        }),
+      }));
+  }
+
   private syncHud(): void {
     const world = this.world;
     if (!world) return;
@@ -525,6 +613,8 @@ class GameController {
       prompt: this.promptText(),
       params,
       missions,
+      homes: this.homesUi(),
+      furnitureConfig: { refundRatio: this.content.rules.furniture.refundRatio, roomUnlockPrice: this.content.rules.furniture.roomUnlock.price },
     });
   }
 }

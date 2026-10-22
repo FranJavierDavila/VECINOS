@@ -59,6 +59,30 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
   homeWall.edgesWidth = 8;
   homeWall.edgesColor = Color4.FromHexString(v.homeEdge + 'ff');
 
+  // ── Mobiliario placeholder (greybox del editor de interiores): una caja por ranura de las viviendas. ──
+  // La geometría llega al pintar, desde furniture.view del catálogo: sustituible por arte final sin tocar esto.
+  const furnViews = new Map<string, { mesh: Mesh; mat: StandardMaterial; x: number; z: number; bottom: number; pos1: number }>();
+  for (const b of Object.values(world.blocks)) {
+    if (b.kind !== 'dwelling') continue;
+    const w = b.size.w * v.cellW - v.gapW;
+    const bottom = b.cell.floor * v.cellH;
+    const layoutId = content.blocks[b.defId]?.container?.layout;
+    const layoutRooms = layoutId ? content.layouts[layoutId]?.rooms ?? [] : [];
+    const bandW = w / Math.max(1, layoutRooms.length);
+    layoutRooms.forEach((layoutRoom, roomIdx) => {
+      const rdef = content.rooms[layoutRoom.defId];
+      const roomW = rdef?.size.w ?? 1;
+      (rdef?.furnitureSlots ?? []).forEach((slot, slotIdx) => {
+        const x = b.cell.col * v.cellW + roomIdx * bandW + (slot.pos[0] / Math.max(0.001, roomW)) * bandW;
+        const z = v.roomZ - v.depth / 2 + 0.35 + slotIdx * 0.32;
+        const fm = mat(`${b.id}_${layoutRoom.key}_${slot.id}_furn`);
+        const mesh = box(`${b.id}_${layoutRoom.key}_${slot.id}_furn`, 1, 1, 1, x, bottom + v.slab, z, fm);
+        mesh.setEnabled(false);
+        furnViews.set(`${b.id}:${layoutRoom.key}:${slot.id}`, { mesh, mat: fm, x, z, bottom, pos1: slot.pos[1] });
+      });
+    });
+  }
+
   function color(b: BlockInstance): Color3 {
     const base = Color3.FromHexString(content.blocks[b.defId]!.view?.color ?? '#cccccc');
     if (b.kind === 'dwelling' && b.access === 'locked') return Color3.FromHexString(v.lockedColor);
@@ -85,6 +109,22 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         const closed = b.kind === 'dwelling' && b.access === 'locked';
         view.front?.setEnabled(closed);
         view.lock?.setEnabled(closed);
+      }
+      // Muebles del editor de interiores: visibles/escala/color según furniture.view (catálogo).
+      for (const [key, fv] of furnViews) {
+        const [blockId, roomKey, slotId] = key.split(':');
+        const room = world.blocks[blockId ?? '']?.rooms.find((r) => r.key === roomKey);
+        const itemId = room?.furniture[slotId ?? ''] ?? '';
+        const fdef = itemId ? content.furniture[itemId] : undefined;
+        if (!fdef) {
+          fv.mesh.setEnabled(false);
+          continue;
+        }
+        const [iw, ih, idz] = fdef.view.size;
+        fv.mesh.setEnabled(true);
+        fv.mesh.scaling.set(iw, ih, idz);
+        fv.mesh.position.set(fv.x, fv.bottom + v.slab + v.wall + fv.pos1 + ih / 2, fv.z);
+        fv.mat.diffuseColor = Color3.FromHexString(fdef.view.color);
       }
     },
     /** Sacude el candado de una puerta cerrada. */

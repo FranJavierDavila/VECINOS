@@ -41,13 +41,32 @@ export const blockDefSchema = z.object({
   view: viewSchema,
 });
 
+export const furnitureSlotSchema = z.object({
+  id: z.string(),
+  kind: z.string(),
+  pos: z.tuple([z.number(), z.number()]),
+});
+
 export const roomDefSchema = z.object({
   id: z.string(),
   kind: z.literal('room'),
+  label: z.string().optional(),
   size: z.object({ w: z.number(), h: z.number() }),
   params: z.record(z.string(), paramDefSchema).optional(),
-  furnitureSlots: z.array(z.string()).optional(),
+  furnitureSlots: z.array(furnitureSlotSchema).optional(),
   view: viewSchema,
+});
+
+export const furnitureDefSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string(),
+  emoji: z.string().optional(),
+  price: z.number(),
+  slots: z.array(z.string()),
+  emits: z.record(z.string(), z.number()).optional(),
+  params: z.array(z.object({ param: z.string(), delta: z.number() })).optional(),
+  view: z.object({ color: z.string(), size: z.tuple([z.number(), z.number(), z.number()]) }),
 });
 
 export const layoutDefSchema = z.object({
@@ -58,12 +77,20 @@ export const layoutDefSchema = z.object({
 export const influenceRuleSchema = z.object({
   id: z.string(),
   channel: z.string(),
+  label: z.string().optional(),
+  emoji: z.string().optional(),
   spread: z.record(z.string(), z.number()),
   attenuatedBy: z.string().optional(),
   decayPerTick: z.number(),
   threshold: z.number(),
   onThreshold: z
-    .object({ emitEvent: z.string(), setParam: z.object({ param: z.string(), delta: z.number() }).optional() })
+    .object({
+      emitEvent: z.string(),
+      message: z.string().optional(),
+      tone: z.enum(['info', 'good', 'bad']).optional(),
+      uiLog: z.boolean().optional(),
+      setParam: z.object({ param: z.string(), delta: z.number() }).optional(),
+    })
     .optional(),
 });
 
@@ -125,6 +152,24 @@ const effectSchema: z.ZodType<Effect> = z.lazy(() =>
 );
 
 const effects = z.array(effectSchema);
+
+export const minigameDefSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string(),
+  emoji: z.string().optional(),
+  type: z.literal('timing_bar'),
+  config: z.object({
+    rounds: z.number(),
+    cursorSpeed: z.number(),
+    zoneWidth: z.number(),
+    zones: z.array(z.number()),
+    accelPerRound: z.number(),
+    lives: z.number(),
+  }),
+  onSuccess: effects,
+  onFail: effects,
+});
 
 export const archetypeDefSchema = z.object({
   id: z.string(),
@@ -304,6 +349,11 @@ export const rulesSchema = z.object({
     actorRadius: z.number(),
   }),
   demo: z.object({ resident: z.string(), block: z.string(), noise: z.number(), toast: z.string() }),
+  furniture: z.object({
+    refundRatio: z.number(),
+    roomUnlock: z.object({ price: z.number(), toast: z.string() }),
+    errors: z.record(z.string(), z.string()),
+  }),
   labels: z.object({ weather: z.record(z.string(), z.string()) }),
 });
 
@@ -311,6 +361,8 @@ export const rulesSchema = z.object({
 
 export const blockListSchema = z.array(blockDefSchema);
 export const roomListSchema = z.array(roomDefSchema);
+export const furnitureListSchema = z.array(furnitureDefSchema);
+export const minigameListSchema = z.array(minigameDefSchema);
 export const layoutListSchema = z.array(layoutDefSchema);
 export const influenceListSchema = z.array(influenceRuleSchema);
 export const archetypeListSchema = z.array(archetypeDefSchema);

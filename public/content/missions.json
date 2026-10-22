@@ -111,7 +111,6 @@
         "icon": "spray",
         "effects": [
           { "op": "startMinigame", "id": "mg_limpiar_cabina" },
-          { "op": "setParam", "target": "nucleo.cabin_graffiti", "value": 0 },
           { "op": "addRelation", "a": "player", "b": "kid", "affinity": 5 },
           { "op": "addFunds", "to": "player", "amount": 100 }
         ]
@@ -204,6 +203,13 @@
           { "op": "addRelation", "a": "player", "b": "cotilla", "affinity": -15 },
           { "op": "toast", "text": "Kevin responde con un aplauso desde el balcón. La cotilla responde con una carta. Largo. Muy largo.", "tone": "info" }
         ]
+      },
+      {
+        "id": "negociar",
+        "label": "Negociar con arte (minijuego)",
+        "hint": "Pulso firme, palabra tranquila",
+        "icon": "handshake",
+        "effects": [{ "op": "startMinigame", "id": "mg_trato_vecino" }]
       }
     ]
   },
@@ -261,6 +267,16 @@
           { "op": "setParam", "target": "blk_p3_c.humidity", "delta": -20 },
           { "op": "addFunds", "to": "player", "amount": 150 },
           { "op": "toast", "text": "El cubo del salón ya tiene nombre propio. Los invitados preguntan \"¿y esto?\". Tú encoges hombros.", "tone": "info" }
+        ]
+      },
+      {
+        "id": "desatascar",
+        "label": "Desatascarlo tú mismo (minijuego)",
+        "hint": "Manivela, precisión y cero vergüenza",
+        "icon": "wrench",
+        "effects": [
+          { "op": "startMinigame", "id": "mg_desatascar" },
+          { "op": "addFunds", "to": "player", "amount": 150 }
         ]
       }
     ]
@@ -324,5 +340,35 @@
       { "op": "addFunds", "to": "player", "amount": 300 },
       { "op": "finale", "text": "El Sr. Vulture ya mira la azotea \"con potencial\". El edificio respira... Continuará." }
     ]
+  },
+  {
+    "id": "m_salon_vacio",
+    "title": "El salón desnudo",
+    "description": "Dolores ha visto tu salón. Dolores opina. Dolores SIEMPRE opina.",
+    "trigger": { "all": [{ "mission": "m_bienvenida", "state": "done" }, { "dayMin": 2 }] },
+    "steps": [{ "id": "llamada", "type": "phone_call", "dialog": "dlg_decoracion", "hint": "La cotilla llama" }],
+    "choices": [
+      {
+        "id": "amueblar",
+        "label": "Amueblar con estilo (editor)",
+        "hint": "La comunidad te adelanta 150 € de \"fondo estético\"",
+        "icon": "sofa",
+        "effects": [
+          { "op": "addFunds", "to": "player", "amount": 150 },
+          { "op": "toast", "text": "Abre el panel «Mi piso» y amuebla. Dolores ya prepara su primera crítica decorativa.", "tone": "good" }
+        ]
+      },
+      {
+        "id": "minimalismo",
+        "label": "Minimalismo radical",
+        "hint": "\"Es diseño\", dices. Nadie te cree",
+        "icon": "clock",
+        "effects": [
+          { "op": "addReputation", "resident": "player", "amount": -5 },
+          { "op": "toast", "text": "Tu salón vacío ya tiene apodo en el edificio: \"la oficina del paro\".", "tone": "info" }
+        ]
+      }
+    ],
+    "onComplete": [{ "op": "revealParams", "tier": 2 }]
   }
 ]

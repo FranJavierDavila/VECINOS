@@ -47,5 +47,13 @@
       { "speaker": "Sr. Vulture", "text": "Buenos días. Fondo Buitre Inversiones. Compramos edificios \"con encanto\", reformamos y revendemos. Con gimnasio en la azotea." },
       { "speaker": "Sr. Vulture", "text": "Su comunidad me parece una oportunidad preciosa. De eso se trata: de oportunidades. Mías." }
     ]
+  },
+  {
+    "id": "dlg_decoracion",
+    "lines": [
+      { "speaker": "Dolores (2B)", "text": "Soy Dolores, del 1B. ¿Cómo has conseguido un piso SIN SOFÁ? ¿Sin cortinas? ¿Un CUADRO que no sea el contador de la luz?" },
+      { "speaker": "Dolores (2B)", "text": "Esto pasa por no tener cotilla cerca... perdón. Por no tener VECINA ATENTA. En el tablón hay un panel nuevo: «Mi piso». Hasta yo lo sé usar." },
+      { "speaker": "Dolores (2B)", "text": "Y si hueles algo raro a mediodía, no es un problema del edificio: es mi guiso. Un abrazo. Cuelgo, que se me quema." }
+    ]
   }
 ]

@@ -48,11 +48,61 @@ export interface BlockDef {
 export interface RoomDef {
   id: string;
   kind: 'room';
+  /** Nombre visible en la interfaz (catálogo). */
+  label?: string;
   size: { w: number; h: number };
   params?: Record<string, ParamDef>;
-  /** Hueco del futuro editor de interiores (v0.3). */
-  furnitureSlots?: string[];
+  /** Ranuras del editor de interiores: posición, categoría y qué cabe en cada una. */
+  furnitureSlots?: FurnitureSlotDef[];
   view: BlockView;
+}
+
+/** Vista placeholder de un mueble (greybox sustituible por arte final). Tamaño en metros [w, h, d]. */
+export interface FurnitureView {
+  color: string;
+  size: [number, number, number];
+}
+
+/** Mueble del editor de interiores: precio, ranuras compatibles, emisiones y efectos de parámetros. */
+export interface FurnitureDef {
+  id: string;
+  name: string;
+  description: string;
+  emoji?: string;
+  price: number;
+  /** Categorías de ranura compatibles (RoomDef.furnitureSlots[].kind). */
+  slots: string[];
+  /** Emisiones persistentes por canal. Valores negativos = absorben (p. ej. un difusor). */
+  emits?: Record<string, number>;
+  /** Deltas de parámetros aplicados al colocar (a la estancia si el parámetro vive ahí, si no al bloque). */
+  params?: { param: string; delta: number }[];
+  view: FurnitureView;
+}
+
+/** Minijuego tipo "barra de precisión": totalmente data-driven, el tipo vive en el catálogo. */
+export interface MinigameTimingBarConfig {
+  rounds: number;
+  /** Velocidad del cursor (pasadas completas por segundo). */
+  cursorSpeed: number;
+  /** Ancho de las zonas buenas (fracción de la barra 0..1). */
+  zoneWidth: number;
+  /** Centros de las zonas buenas (0..1). */
+  zones: number[];
+  /** Aceleración del cursor por ronda (multiplicador). */
+  accelPerRound: number;
+  /** Intentos fallidos permitidos. */
+  lives: number;
+}
+
+export interface MinigameDef {
+  id: string;
+  name: string;
+  description: string;
+  emoji?: string;
+  type: 'timing_bar';
+  config: MinigameTimingBarConfig;
+  onSuccess: Effect[];
+  onFail: Effect[];
 }
 
 export interface LayoutDef {
@@ -63,11 +113,29 @@ export interface LayoutDef {
 export interface InfluenceRule {
   id: string;
   channel: string;
+  /** Etiqueta y emoji para la interfaz (catálogo, no código). */
+  label?: string;
+  emoji?: string;
   spread: Partial<Record<Direction, number>>;
   attenuatedBy?: string;
   decayPerTick: number;
   threshold: number;
-  onThreshold?: { emitEvent: string; setParam?: { param: string; delta: number } };
+  onThreshold?: {
+    emitEvent: string;
+    /** Texto para el registro de la interfaz, con {block} como marcador. Si uiLog, la UI lo muestra. */
+    message?: string;
+    tone?: 'info' | 'good' | 'bad';
+    uiLog?: boolean;
+    setParam?: { param: string; delta: number };
+  };
+}
+
+/** Ranura de amueblado de una estancia (editor de interiores). Posición en unidades de estancia. */
+export interface FurnitureSlotDef {
+  id: string;
+  /** Categoría de ranura: los muebles declaran qué categorías encajan (furniture.slots). */
+  kind: string;
+  pos: [number, number];
 }
 
 /** Pistas de vista para el renderer: color, complemento y accesorio del personaje. */
@@ -226,6 +294,8 @@ export interface Content {
   dialogs: Record<string, DialogDef>;
   templates: Record<string, TemplateDef>;
   scenarios: Record<string, ScenarioDef>;
+  furniture: Record<string, FurnitureDef>;
+  minigames: Record<string, MinigameDef>;
 }
 
 // ───────────────────────── Reglas y ajustes (catálogo rules.json) ─────────────────────────
@@ -297,6 +367,14 @@ export interface Rules {
   };
   /** Datos del botón de demostración "Fiesta" (solo dev/debug, también en catálogo). */
   demo: { resident: string; block: string; noise: number; toast: string };
+  /** Reglas del editor de interiores (catálogo, cero números de gameplay en código). */
+  furniture: {
+    /** Parte del precio que se devuelve al quitar un mueble (0..1). */
+    refundRatio: number;
+    roomUnlock: { price: number; toast: string };
+    /** Textos de error de los comandos de muebles (razón → mensaje). */
+    errors: Record<string, string>;
+  };
   labels: { weather: Record<string, string> };
 }
 
@@ -306,6 +384,10 @@ export interface RoomInstance {
   key: string;
   defId: string;
   access: Access;
+  /** Parámetros propios de la estancia (p. ej. comfort). */
+  params: Record<string, ParamValue>;
+  /** Ranura → id de mueble ('' = vacía). */
+  furniture: Record<string, string>;
 }
 
 export interface BlockInstance {
@@ -407,7 +489,11 @@ export type Command =
   | { type: 'work' }
   | { type: 'buy_block'; block: string }
   | { type: 'junta_vote'; vote: Vote }
-  | { type: 'knock'; block: string };
+  | { type: 'knock'; block: string }
+  | { type: 'place_furniture'; block: string; room: string; slot: string; item: string }
+  | { type: 'remove_furniture'; block: string; room: string; slot: string }
+  | { type: 'renovate_room'; block: string; room: string }
+  | { type: 'complete_minigame'; id: string; success: boolean };
 
 export interface CommandResult {
   ok: boolean;

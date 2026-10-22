@@ -1,5 +1,5 @@
 import type { Content, World } from '@/game/core/types';
-import { propagate, emissionsFromActivities, type Emissions } from './influence';
+import { propagate, emissionsFromActivities, emissionsFromFurniture, type Emissions } from './influence';
 import { advanceMissions } from './missions';
 import { updateWeather } from './extra/weather';
 import { runAI } from './extra/ai';
@@ -13,7 +13,7 @@ function mergeEmissions(a: Emissions, b: Emissions): Emissions {
   return out;
 }
 
-/** Avanza un minuto de juego: clima → IA → emisiones → influencias → misiones → economía. */
+/** Avanza un minuto de juego: clima → IA → emisiones (actividades + muebles) → influencias → misiones → economía. */
 export function tick(world: World, content: Content, extraEmissions?: Emissions): void {
   world.tick += 1;
   world.clock.minute += 1;
@@ -23,7 +23,8 @@ export function tick(world: World, content: Content, extraEmissions?: Emissions)
   }
   updateWeather(world, content);
   runAI(world, content);
-  const emissions = extraEmissions ? mergeEmissions(emissionsFromActivities(world, content), extraEmissions) : emissionsFromActivities(world, content);
+  let emissions = mergeEmissions(emissionsFromActivities(world, content), emissionsFromFurniture(world, content));
+  if (extraEmissions) emissions = mergeEmissions(emissions, extraEmissions);
   propagate(world, content, emissions);
   economyTick(world, content);
   advanceMissions(world, content);
