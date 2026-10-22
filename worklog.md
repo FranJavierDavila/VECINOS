@@ -217,3 +217,21 @@ Stage Summary:
 - Respaldo 100% preparado en el lado sandbox: falta ÚNICAMENTE que el usuario cree el repo en GitHub y facilite URL + fine-grained PAT (con Contents: Read and write); con eso, primer push inmediato (sube historial completo incluida v0.3) y de ahí en adelante "mantener actualizado" = un comando o pedírmelo en el chat.
 - Artefactos: scripts/backup-github.sh, docs/BACKUP-GITHUB.md, commit cae0119.
 - Riesgo/limitación: no puedo crear la cuenta/repo ni autenticarme por mi cuenta; sin token no hay push. Ofrecida rotación y revocación del token como control de seguridad.
+---
+Task ID: 8
+Agent: main (Z.ai Code)
+Task: Conectar el sandbox a GitHub (repo FranJavierDavila/VECINOS) y ejecutar el primer push de respaldo
+
+Work Log:
+- El usuario facilitó un fine-grained PAT en el chat. Verificada la conectividad de salida del sandbox: github.com 200 OK; api.github.com sin auth devolvía 403 por rate-limit anónimo, con token responde 200.
+- Identificado el propietario vía GET /user → login FranJavierDavila (id 196038989). GET /user/repos con el token devolvió 4 repos con push habilitado; seleccionado FranJavierDavila/VECINOS (privado, default branch main) por nombre coincidente con el proyecto. NOTA de seguridad comunicada: el token alcanza también CrazyPP, archviz-api-v2 y AppMente → recomendado re-escopar a "Only select repositories" = VECINOS.
+- GET /commits del repo remoto devolvió 409 "Git Repository is empty" → repo vacío, sin riesgo de historiales en conflicto.
+- Configurado remote origin = https://FranJavierDavila:<PAT>@github.com/FranJavierDavila/VECINOS.git (token en .git/config del sandbox, tal y como se acordó; revocable desde GitHub en cualquier momento).
+- Ejecutado scripts/backup-github.sh → push inicial correcto: * [new branch] main -> main, tracking configurado. Sin commits nuevos pendientes en ese momento.
+- Verificación triple: (1) git ls-remote → HEAD remoto 26b57b4 == HEAD local; (2) GET /commits → 8 commits visibles, top = Task 7 y tooling de backup; (3) GET /git/trees?recursive=1 → 258 blobs, truncated=false, presentes los ficheros clave: public/content/*.json (minigames, influences...), src/components/game/InteriorEditorPanel.tsx y MinigameModal.tsx, docs/BACKUP-GITHUB.md, scripts/backup-github.sh, db/custom.db, upload/VECINOS.zip, prisma/schema.prisma, src/game/sim/influence.ts.
+- Este mismo entry de worklog se commitea y push-ea inmediatamente después de escribirlo como demostración del flujo "mantener actualizado" (Task ID 8 en el propio commit).
+
+Stage Summary:
+- Respaldo ACTIVO: todo el proyecto (código, contenido data-driven, partida guardada, docs, historial de 8 commits) está en github.com/FranJavierDavila/VECINOS (privado).
+- Mantenimiento: "sube los cambios a GitHub" en chat, o ./scripts/backup-github.sh [-m "mensaje"]. Rotación de token: git remote set-url origin https://<NUEVO>@github.com/FranJavierDavila/VECINOS.git.
+- Pendiente opcional para el usuario: re-escopar el PAT solo a VECINOS (ahora cubre 4 repos) y, si quiere vincular los commits a su perfil, configurar user.email con su email noreply de GitHub.
