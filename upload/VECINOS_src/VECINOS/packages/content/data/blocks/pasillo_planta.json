@@ -1,0 +1,12 @@
+{
+  "id": "pasillo_planta",
+  "kind": "common",
+  "layer": "corridor",
+  "size": { "w": 5, "h": 1 },
+  "traversable": true,
+  "params": {
+    "cleanliness": { "type": "number", "min": 0, "max": 100, "default": 70 },
+    "lighting": { "type": "number", "min": 0, "max": 100, "default": 90 }
+  },
+  "view": { "prefab": "prefabs/pasillo.glb", "color": "#d9c9a3" }
+}

@@ -1,0 +1,11 @@
+{
+  "id": "estancia_salon_cocina",
+  "kind": "room",
+  "size": { "w": 3, "h": 1 },
+  "params": {
+    "comfort": { "type": "number", "min": 0, "max": 100, "default": 50 },
+    "clutter": { "type": "number", "min": 0, "max": 100, "default": 20 }
+  },
+  "furnitureSlots": [],
+  "view": { "prefab": "prefabs/estancia_salon.glb" }
+}

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vecinos · vertical slice</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #1b1f2a; font-family: system-ui, sans-serif; color: #eceff4; }
+      #view { width: 100%; height: 100%; display: block; outline: none; }
+      #hud { position: absolute; top: 12px; left: 12px; width: 300px; max-height: calc(100% - 24px); overflow: auto; box-sizing: border-box;
+             padding: 12px 14px; border-radius: 10px; background: rgba(20, 22, 28, 0.86); }
+      #hud h1 { font-size: 15px; margin: 0 0 4px; }
+      #hud h2 { font-size: 12px; margin: 12px 0 5px; color: #9aa5b8; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+      #hud p { margin: 2px 0; font-size: 12px; color: #c9d1e0; }
+      #hud ul, #hud ol { margin: 0; padding-left: 18px; font-size: 12px; color: #c9d1e0; }
+      #hud li { margin: 2px 0; }
+      .row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+      button { font: inherit; font-size: 13px; color: #eceff4; background: #2f3647; border: 1px solid #454e66; border-radius: 6px; padding: 6px 11px; cursor: pointer; }
+      button:hover { background: #3a4359; }
+      button.active { background: #e76f51; border-color: #e76f51; color: #fff; }
+      #objective { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); padding: 8px 16px; border-radius: 999px; background: rgba(20,22,28,.86); font-size: 14px; white-space: nowrap; }
+      #objective[hidden], #prompt[hidden], #toast[hidden], #phone[hidden], #choices[hidden] { display: none; }
+      #prompt { position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%); padding: 8px 16px; border-radius: 8px; background: rgba(20,22,28,.9); font-size: 14px; }
+      #toast { position: absolute; top: 58px; left: 50%; transform: translateX(-50%); padding: 8px 14px; border-radius: 8px; background: #e76f51; color: #fff; font-size: 14px; }
+      #phone, #choices { position: absolute; bottom: 70px; left: 50%; transform: translateX(-50%); width: min(440px, calc(100% - 24px)); box-sizing: border-box;
+                         padding: 14px 16px; border-radius: 14px; background: rgba(20,22,28,.96); border: 1px solid #454e66; }
+      #phone header { font-size: 12px; color: #9aa5b8; text-transform: uppercase; letter-spacing: .04em; }
+      #phone-speaker { color: #ffd166; font-weight: 600; }
+      #phone-text { font-size: 15px; line-height: 1.4; margin: 8px 0 12px; }
+      #choices h3 { font-size: 14px; margin: 0 0 10px; }
+      #choices-list { display: flex; flex-direction: column; gap: 8px; }
+      #error { color: #ff8a8a; white-space: pre-wrap; font-size: 12px; }
+      details { margin-top: 12px; font-size: 12px; color: #9aa5b8; }
+    </style>
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+    <div id="objective" hidden></div>
+    <div id="toast" hidden></div>
+    <div id="prompt" hidden></div>
+    <section id="phone" hidden>
+      <header>Llamada de <span id="phone-speaker"></span></header>
+      <p id="phone-text"></p>
+      <button id="phone-next">Siguiente</button>
+    </section>
+    <section id="choices" hidden>
+      <h3 id="choices-title"></h3>
+      <div id="choices-list"></div>
+    </section>
+    <aside id="hud">
+      <h1>Vecinos · vertical slice</h1>
+      <p id="status">Cargando…</p>
+      <p id="travel"></p>
+      <p>A/D o ←/→ mover · W/S o ↑/↓ escalera · E puerta · Espacio diálogo</p>
+      <div class="row" id="cams">
+        <button data-cam="edificio">1 · Edificio</button>
+        <button data-cam="planta">2 · Planta</button>
+        <button data-cam="estancia">3 · Estancia</button>
+      </div>
+      <h2>Tu vivienda</h2>
+      <ul id="params"></ul>
+      <h2>Eventos</h2>
+      <ol id="events"></ol>
+      <details>
+        <summary>Depuración</summary>
+        <div class="row">
+          <button id="b-fiesta">Fiesta en el 2B</button>
+          <button id="b-tiempo">Pasar 10 min</button>
+        </div>
+      </details>
+      <div id="error"></div>
+    </aside>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

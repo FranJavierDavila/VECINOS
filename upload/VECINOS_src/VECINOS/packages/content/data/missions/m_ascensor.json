@@ -1,0 +1,19 @@
+{
+  "id": "m_ascensor",
+  "title": "El ascensor sigue roto",
+  "steps": [
+    { "id": "aviso", "type": "phone_call", "dialog": "dlg_ascensor" }
+  ],
+  "choices": [
+    {
+      "id": "convocar_junta",
+      "label": "Convocar una junta de vecinos",
+      "effects": [{ "op": "openJunta", "agenda": ["reparar_ascensor"] }]
+    }
+  ],
+  "onComplete": [
+    { "op": "setParam", "target": "nucleo.elevator_status", "value": "ok" },
+    { "op": "addFunds", "to": "community", "amount": -300 },
+    { "op": "revealParams", "tier": 2 }
+  ]
+}

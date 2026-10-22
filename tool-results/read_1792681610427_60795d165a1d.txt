@@ -1,0 +1,933 @@
+     1→{
+     2→  "name": "vecinos",
+     3→  "private": true,
+     4→  "version": "0.1.0",
+     5→  "type": "module",
+     6→  "workspaces": [
+     7→    "packages/*"
+     8→  ],
+     9→  "scripts": {
+    10→    "validate": "npm run validate -w @vecinos/content",
+    11→    "schemas": "npm run schemas -w @vecinos/content",
+    12→    "test": "npm test --workspaces --if-present",
+    13→    "typecheck": "npm run typecheck --workspaces --if-present",
+    14→    "dev": "npm run dev -w @vecinos/client",
+    15→    "build": "npm run build -w @vecinos/client"
+    16→  },
+    17→  "devDependencies": {
+    18→    "tsx": "^4.19.0",
+    19→    "typescript": "^5.6.0",
+    20→    "vite": "^6.0.0",
+    21→    "vitest": "^5.0.5"
+    22→  },
+    23→  "allowScripts": {
+    24→    "esbuild@0.28.2": true
+    25→  }
+    26→}
+    27→===SIM===
+    28→--- packages/sim/src/commands.ts
+    29→import type { Content } from '@vecinos/content';
+    30→import type { World } from './types';
+    31→import { emit } from './events';
+    32→import { applyEffects } from './effects';
+    33→import { advanceMissions, completeMission, notify } from './missions';
+    34→
+    35→export type Command =
+    36→  | { type: 'move'; resident: string; to: string }
+    37→  | { type: 'approach'; resident: string; block: string }
+    38→  | { type: 'answer_call'; mission: string }
+    39→  | { type: 'choose'; mission: string; choice: string };
+    40→
+    41→export interface CommandResult {
+    42→  ok: boolean;
+    43→  reason?: string;
+    44→}
+    45→
+    46→const ok = (): CommandResult => ({ ok: true });
+    47→const fail = (reason: string): CommandResult => ({ ok: false, reason });
+    48→
+    49→/**
+    50→ * Reglas de circulación: en la misma planta se pasa siempre por el pasillo (nunca de vivienda a vivienda ni
+    51→ * de vivienda a zona común sin salir); entre plantas solo de núcleo a núcleo contiguo (escalera o ascensor).
+    52→ */
+    53→export function canMove(world: World, content: Content, from: string | null, to: string): boolean {
+    54→  const b = world.blocks[to];
+    55→  if (!b) return false;
+    56→  const a = from ? world.blocks[from] : undefined;
+    57→  if (!a) return true;
+    58→  if (a.cell.floor === b.cell.floor) {
+    59→    if (a.layer === 'corridor' || b.layer === 'corridor') return true;
+    60→    return a.kind !== 'dwelling' && b.kind !== 'dwelling';
+    61→  }
+    62→  const stairs = (id: string) => !!content.blocks[world.blocks[id]!.defId]!.features?.stairs;
+    63→  return stairs(a.id) && stairs(b.id) && Math.abs(a.cell.floor - b.cell.floor) === 1 && a.cell.col === b.cell.col;
+    64→}
+    65→
+    66→function run(world: World, content: Content, cmd: Command): CommandResult {
+    67→  switch (cmd.type) {
+    68→    case 'move': {
+    69→      const r = world.residents[cmd.resident];
+    70→      const to = world.blocks[cmd.to];
+    71→      if (!r || !r.present) return fail('unknown_resident');
+    72→      if (!to) return fail('unknown_block');
+    73→      if (r.location === to.id) return ok();
+    74→      if (to.kind === 'dwelling' && to.access === 'locked') {
+    75→        emit(world, 'door_locked', { resident: r.id, block: to.id, reason: to.lockReason, price: to.availability?.price ?? null });
+    76→        return fail('locked');
+    77→      }
+    78→      if (!canMove(world, content, r.location, to.id)) {
+    79→        emit(world, 'move_rejected', { resident: r.id, from: r.location, to: to.id });
+    80→        return fail('unreachable');
+    81→      }
+    82→      const from = r.location;
+    83→      r.location = to.id;
+    84→      emit(world, 'block_entered', { resident: r.id, block: to.id, from });
+    85→      notify(world, content, { type: 'block_entered', resident: r.id, block: to.id });
+    86→      return ok();
+    87→    }
+    88→    case 'approach': {
+    89→      const r = world.residents[cmd.resident];
+    90→      const b = world.blocks[cmd.block];
+    91→      if (!r || !r.present || !b) return fail('unknown_target');
+    92→      if (b.kind !== 'dwelling') return fail('not_a_door');
+    93→      const here = r.location ? world.blocks[r.location] : undefined;
+    94→      if (!here || here.cell.floor !== b.cell.floor) return fail('not_on_floor');
+    95→      emit(world, 'door_approached', { resident: r.id, block: b.id });
+    96→      notify(world, content, { type: 'door_approached', resident: r.id, block: b.id });
+    97→      return ok();
+    98→    }
+    99→    case 'answer_call': {
+   100→      const m = world.missions.find((x) => x.id === cmd.mission && x.state === 'active');
+   101→      if (!m || content.missions.id]!.steps.step]?.type !== 'phone_call') return fail('no_call');
+   102→      emit(world, 'call_answered', { mission: m.id });
+   103→      notify(world, content, { type: 'call_answered', mission: m.id });
+   104→      return ok();
+   105→    }
+   106→    case 'choose': {
+   107→      const m = world.missions.find((x) => x.id === cmd.mission && x.state === 'awaiting_choice');
+   108→      const choice = m && content.missions.id]!.choices?.find((c) => c.id === cmd.choice);
+   109→      if (!m || !choice) return fail('no_choice');
+   110→      m.choice = choice.id;
+   111→      emit(world, 'choice_made', { mission: m.id, choice: choice.id });
+   112→      applyEffects(world, content, choice.effects, { roles: m.roles });
+   113→      completeMission(world, content, m);
+   114→      return ok();
+   115→    }
+   116→  }
+   117→}
+   118→
+   119→/** Punto de entrada único para las órdenes del jugador (o de la IA): valida, aplica y avanza las misiones. */
+   120→export function dispatch(world: World, content: Content, cmd: Command): CommandResult {
+   121→  const result = run(world, content, cmd);
+   122→  advanceMissions(world, content);
+   123→  return result;
+   124→}
+   125→--- packages/sim/src/effects.ts
+   126→import type { Content, Effect } from '@vecinos/content';
+   127→import type { BlockInstance, World } from './types';
+   128→import { emit } from './events';
+   129→import { instantiateRooms } from './rooms';
+   130→import { newMission } from './missions';
+   131→
+   132→export interface EffectContext {
+   133→  /** Roles de la misión en curso (p. ej. kid → res_nino_01). */
+   134→  roles?: Record<string, string>;
+   135→}
+   136→
+   137→/** Bloques a los que se refiere `ref`: id exacto, o todos los de un defId o un alignGroup. */
+   138→export function resolveBlocks(world: World, content: Content, ref: string): BlockInstance[] {
+   139→  const exact = world.blocks[ref];
+   140→  if (exact) return [exact];
+   141→  return Object.values(world.blocks).filter((b) => b.defId === ref || content.blocks[b.defId]?.alignGroup === ref);
+   142→}
+   143→
+   144→function resolveActor(world: World, ref: string, ctx: EffectContext): string | null {
+   145→  if (ref === 'player') return world.playerId;
+   146→  const role = ctx.roles?.[ref];
+   147→  if (role) return role;
+   148→  return world.residents[ref] ? ref : null;
+   149→}
+   150→
+   151→/** Único punto por el que misiones y decisiones modifican el mundo. */
+   152→export function applyEffect(world: World, content: Content, e: Effect, ctx: EffectContext = {}): void {
+   153→  switch (e.op) {
+   154→    case 'setParam': {
+   155→      const [ref, param] = e.param ? [e.target, e.param] : (e.target.split('.') as [string, string]);
+   156→      for (const b of resolveBlocks(world, content, ref)) {
+   157→        const pd = content.blocks[b.defId]!.params[param];
+   158→        if (!pd) continue;
+   159→        let next = e.value ?? (Number(b.params[param] ?? pd.default) + (e.delta ?? 0));
+   160→        if (pd.type === 'number' && typeof next === 'number') next = Math.min(pd.max ?? Infinity, Math.max(pd.min ?? -Infinity, next));
+   161→        b.params[param] = next;
+   162→        emit(world, 'param_changed', { block: b.id, param, value: next });
+   163→      }
+   164→      return;
+   165→    }
+   166→    case 'unlock': {
+   167→      const b = world.blocks[e.target];
+   168→      if (!b) return emit(world, 'effect_unresolved', { op: e.op, target: e.target });
+   169→      if (e.availability) {
+   170→        b.availability = e.availability;
+   171→        b.lockReason = 'for_sale';
+   172→        emit(world, 'block_for_sale', { block: b.id, price: e.availability.price });
+   173→      } else {
+   174→        const wasLocked = b.access === 'locked';
+   175→        b.access = 'unlocked';
+   176→        b.lockReason = null;
+   177→        b.availability = null;
+   178→        if (b.kind === 'dwelling' && b.rooms.length === 0) b.rooms = instantiateRooms(content, b.defId);
+   179→        if (wasLocked) emit(world, 'block_unlocked', { block: b.id });
+   180→      }
+   181→      b.occupancy = e.occupancy ?? (e.resident ? 'occupied' : b.occupancy);
+   182→      const r = e.resident ? world.residents[e.resident] : undefined;
+   183→      if (r) {
+   184→        r.present = true;
+   185→        r.location = b.id;
+   186→        b.ownerId ??= r.id;
+   187→        emit(world, 'neighbor_arrived', { resident: r.id, block: b.id, arrival: e.arrival ?? null });
+   188→      }
+   189→      return;
+   190→    }
+   191→    case 'addRelation': {
+   192→      const a = resolveActor(world, e.a, ctx);
+   193→      const b = resolveActor(world, e.b, ctx);
+   194→      const res = a ? world.residents[a] : undefined;
+   195→      if (!a || !b || !res) return emit(world, 'effect_unresolved', { op: e.op, a: e.a, b: e.b });
+   196→      let rel = res.relations.find((x) => x.with === b);
+   197→      if (!rel) res.relations.push((rel = { with: b, affinity: 0, trust: 0 }));
+   198→      rel.affinity += e.affinity ?? 0;
+   199→      rel.trust += e.trust ?? 0;
+   200→      return emit(world, 'relation_changed', { a, b, affinity: rel.affinity, trust: rel.trust });
+   201→    }
+   202→    case 'startMission': {
+   203→      if (world.missions.some((m) => m.id === e.id)) return;
+   204→      world.missions.push(newMission(e.id, world.tick + (e.delayMinutes ?? 0)));
+   205→      return emit(world, 'mission_started', { mission: e.id, startAtTick: world.tick + (e.delayMinutes ?? 0) });
+   206→    }
+   207→    case 'addFunds': {
+   208→      if (e.to === 'community') world.community.funds += e.amount;
+   209→      else {
+   210→        const id = resolveActor(world, e.to, ctx);
+   211→        if (!id) return emit(world, 'effect_unresolved', { op: e.op, to: e.to });
+   212→        world.residents[id]!.wallet += e.amount;
+   213→      }
+   214→      return emit(world, 'funds_changed', { to: e.to, amount: e.amount });
+   215→    }
+   216→    case 'revealParams': {
+   217→      if (e.tier) world.progress.revealedTier = Math.max(world.progress.revealedTier, e.tier);
+   218→      for (const p of e.params ?? []) {
+   219→        if (!world.progress.revealedParams.includes(p)) world.progress.revealedParams.push(p);
+   220→        world.progress.hiddenParams = world.progress.hiddenParams.filter((x) => x !== p);
+   221→      }
+   222→      return emit(world, 'params_revealed', { tier: e.tier ?? null, params: e.params ?? [] });
+   223→    }
+   224→    case 'hideParams': {
+   225→      for (const p of e.params ?? []) if (!world.progress.hiddenParams.includes(p)) world.progress.hiddenParams.push(p);
+   226→      if (e.tier) world.progress.revealedTier = Math.min(world.progress.revealedTier, e.tier - 1);
+   227→      return emit(world, 'params_hidden', { tier: e.tier ?? null, params: e.params ?? [] });
+   228→    }
+   229→    case 'grantFavor': {
+   230→      const from = resolveActor(world, e.from, ctx) ?? e.from;
+   231→      world.favors[from] = (world.favors[from] ?? 0) + e.count;
+   232→      return emit(world, 'favor_granted', { from, count: e.count });
+   233→    }
+   234→    // Estos efectos los consume la presentación o un sistema futuro; el núcleo solo avisa.
+   235→    case 'openJunta':
+   236→      return emit(world, 'junta_requested', { agenda: e.agenda });
+   237→    case 'startMinigame':
+   238→      return emit(world, 'minigame_requested', { minigame: e.id });
+   239→    default: {
+   240→      const never: never = e;
+   241→      return never;
+   242→    }
+   243→  }
+   244→}
+   245→
+   246→export function applyEffects(world: World, content: Content, effects: Effect[], ctx: EffectContext = {}): void {
+   247→  for (const e of effects) applyEffect(world, content, e, ctx);
+   248→}
+   249→--- packages/sim/src/events.ts
+   250→import type { GameEvent, World } from './types';
+   251→
+   252→export function emit(world: World, type: string, data: Record<string, unknown> = {}): void {
+   253→  world.events.push({ tick: world.tick, type, data });
+   254→}
+   255→
+   256→/** Devuelve y vacía la cola de eventos (la usa la presentación, el audio, las misiones...). */
+   257→export function drainEvents(world: World): GameEvent[] {
+   258→  return world.events.splice(0, world.events.length);
+   259→}
+   260→--- packages/sim/src/graph.ts
+   261→import type { Content } from '@vecinos/content';
+   262→import type { World } from './types';
+   263→
+   264→export const STAIRS_COST = 3;
+   265→export const ELEVATOR_COST = 1;
+   266→const WALK_COST = 1;
+   267→
+   268→export interface Graph {
+   269→  nodes: string[];
+   270→  edges: Map<string, Map<string, number>>;
+   271→}
+   272→
+   273→function link(g: Graph, a: string, b: string, cost: number) {
+   274→  for (const [x, y] of [[a, b], [b, a]] as const) {
+   275→    if (!g.edges.has(x)) g.edges.set(x, new Map());
+   276→    const prev = g.edges.get(x)!.get(y);
+   277→    g.edges.get(x)!.set(y, prev === undefined ? cost : Math.min(prev, cost));
+   278→  }
+   279→}
+   280→
+   281→const elevatorWorks = (world: World, content: Content, id: string) => {
+   282→  const b = world.blocks[id]!;
+   283→  return content.blocks[b.defId]!.features?.elevator === true && b.params.elevator_status === 'ok';
+   284→};
+   285→
+   286→/**
+   287→ * Grafo de circulación (nodos = bloques, aristas = minutos de viaje):
+   288→ * cada bloque de la capa principal se conecta con el pasillo de su planta; los núcleos se conectan
+   289→ * entre plantas contiguas por escalera (siempre) o por ascensor (solo si funciona en ambas plantas).
+   290→ */
+   291→export function buildCirculation(world: World, content: Content): Graph {
+   292→  const blocks = Object.values(world.blocks);
+   293→  const g: Graph = { nodes: blocks.map((b) => b.id), edges: new Map() };
+   294→  const corridors = blocks.filter((b) => b.layer === 'corridor' && content.blocks[b.defId]!.traversable);
+   295→  for (const c of corridors)
+   296→    for (const b of blocks) if (b.layer === 'main' && b.cell.floor === c.cell.floor) link(g, c.id, b.id, WALK_COST);
+   297→
+   298→  const cores = blocks.filter((b) => content.blocks[b.defId]!.features?.stairs).sort((a, b) => a.cell.floor - b.cell.floor);
+   299→  for (let i = 0; i + 1 < cores.length; i++) {
+   300→    const a = cores[i]!;
+   301→    const b = cores[i + 1]!;
+   302→    if (b.cell.floor !== a.cell.floor + 1 || b.cell.col !== a.cell.col) continue;
+   303→    const useElevator = elevatorWorks(world, content, a.id) && elevatorWorks(world, content, b.id);
+   304→    link(g, a.id, b.id, useElevator ? ELEVATOR_COST : STAIRS_COST);
+   305→  }
+   306→  return g;
+   307→}
+   308→
+   309→/** Minutos de juego para ir de un bloque a otro (Dijkstra); Infinity si no hay camino. */
+   310→export function travelMinutes(g: Graph, from: string, to: string): number {
+   311→  const dist = new Map<string, number>(g.nodes.map((n) => [n, Infinity]));
+   312→  dist.set(from, 0);
+   313→  const open = new Set(g.nodes);
+   314→  while (open.size) {
+   315→    let u: string | null = null;
+   316→    for (const n of open) if (u === null || dist.get(n)! < dist.get(u)!) u = n;
+   317→    if (u === null || dist.get(u) === Infinity) break;
+   318→    open.delete(u);
+   319→    if (u === to) break;
+   320→    for (const [v, w] of g.edges.get(u) ?? []) dist.set(v, Math.min(dist.get(v)!, dist.get(u)! + w));
+   321→  }
+   322→  return dist.get(to) ?? Infinity;
+   323→}
+   324→
+   325→/** Reglas de validación del edificio (apartado 6 del modelo de datos). Devuelve la lista de problemas. */
+   326→export function validateBuilding(world: World, content: Content): string[] {
+   327→  const issues: string[] = [];
+   328→  const blocks = Object.values(world.blocks);
+   329→  const cores = blocks.filter((b) => content.blocks[b.defId]!.alignGroup === 'nucleo');
+   330→  if (new Set(cores.map((b) => b.cell.col)).size > 1) issues.push('los núcleos no están alineados en la misma columna');
+   331→  for (const d of blocks.filter((b) => b.kind === 'dwelling'))
+   332→    if (!blocks.some((b) => b.layer === 'corridor' && b.cell.floor === d.cell.floor)) issues.push(`${d.id} no tiene pasillo en su planta`);
+   333→  const portal = blocks.find((b) => b.defId === 'portal');
+   334→  if (!portal) issues.push('el edificio no tiene portal');
+   335→  else {
+   336→    // Alcanzable por escalera aunque el ascensor esté roto: el coste solo importa para el tiempo de viaje.
+   337→    const g = buildCirculation(world, content);
+   338→    for (const c of blocks.filter((b) => b.layer === 'corridor'))
+   339→      if (!Number.isFinite(travelMinutes(g, portal.id, c.id))) issues.push(`${c.id} no es alcanzable desde el portal`);
+   340→  }
+   341→  return issues;
+   342→}
+   343→--- packages/sim/src/index.ts
+   344→export * from './types';
+   345→export * from './rng';
+   346→export * from './events';
+   347→export * from './world';
+   348→export * from './rooms';
+   349→export * from './missions';
+   350→export * from './commands';
+   351→export * from './effects';
+   352→export * from './graph';
+   353→export * from './influence';
+   354→export * from './tick';
+   355→export * from './selectors';
+   356→--- packages/sim/src/influence.ts
+   357→import type { Content, Direction } from '@vecinos/content';
+   358→import type { World } from './types';
+   359→import { emit } from './events';
+   360→import { applyEffect } from './effects';
+   361→
+   362→export type Emissions = Record<string, Record<string, number>>; // canal → bloque → intensidad
+   363→
+   364→interface Neighbor {
+   365→  id: string;
+   366→  dir: Direction;
+   367→}
+   368→
+   369→const DIR_ORDER: Direction[] = ['horizontal', 'up', 'down', 'diagonal'];
+   370→
+   371→/** Vecindad por adyacencia, vista desde cada bloque emisor (up = el vecino está encima). */
+   372→export function adjacency(world: World): Map<string, Neighbor[]> {
+   373→  const blocks = Object.values(world.blocks).sort((a, b) => a.id.localeCompare(b.id));
+   374→  const mains = blocks.filter((b) => b.layer === 'main');
+   375→  const cells = (b: (typeof blocks)[number]) => {
+   376→    const out: [number, number][] = [];
+   377→    for (let dc = 0; dc < b.size.w; dc++) for (let df = 0; df < b.size.h; df++) out.push([b.cell.col + dc, b.cell.floor + df]);
+   378→    return out;
+   379→  };
+   380→  const rel = (a: (typeof blocks)[number], b: (typeof blocks)[number]): Direction | null => {
+   381→    const found = new Set<Direction>();
+   382→    for (const [ca, fa] of cells(a))
+   383→      for (const [cb, fb] of cells(b)) {
+   384→        const dc = cb - ca;
+   385→        const df = fb - fa;
+   386→        if (df === 0 && Math.abs(dc) === 1) found.add('horizontal');
+   387→        else if (dc === 0 && df === 1) found.add('up');
+   388→        else if (dc === 0 && df === -1) found.add('down');
+   389→        else if (Math.abs(dc) === 1 && Math.abs(df) === 1) found.add('diagonal');
+   390→      }
+   391→    return DIR_ORDER.find((d) => found.has(d)) ?? null;
+   392→  };
+   393→
+   394→  const out = new Map<string, Neighbor[]>();
+   395→  for (const b of blocks) out.set(b.id, []);
+   396→  for (const a of mains)
+   397→    for (const b of mains) {
+   398→      if (a.id === b.id) continue;
+   399→      const dir = rel(a, b);
+   400→      if (dir) out.get(a.id)!.push({ id: b.id, dir });
+   401→    }
+   402→  for (const c of blocks.filter((b) => b.layer === 'corridor'))
+   403→    for (const m of mains.filter((b) => b.cell.floor === c.cell.floor)) {
+   404→      out.get(m.id)!.push({ id: c.id, dir: 'corridor' });
+   405→      out.get(c.id)!.push({ id: m.id, dir: 'corridor' });
+   406→    }
+   407→  return out;
+   408→}
+   409→
+   410→/** Emisiones de ruido, olores... de las actividades en curso de los residentes (en su vivienda). */
+   411→export function emissionsFromActivities(world: World, content: Content, active: { resident: string; activity: string }[]): Emissions {
+   412→  const out: Emissions = {};
+   413→  for (const { resident, activity } of active) {
+   414→    const r = world.residents[resident];
+   415→    const emits = r && content.archetypes[r.archetype]?.activities[activity]?.emits;
+   416→    if (!r || !r.present || !emits) continue;
+   417→    for (const [channel, v] of Object.entries(emits)) {
+   418→      const bucket = (out[channel] ??= {});
+   419→      bucket[r.home] = Math.max(bucket[r.home] ?? 0, v);
+   420→    }
+   421→  }
+   422→  return out;
+   423→}
+   424→
+   425→const round3 = (n: number) => Math.round(n * 1000) / 1000;
+   426→
+   427→/**
+   428→ * Un paso de propagación: cada canal decae, recibe las emisiones del tick (atenuadas por el receptor)
+   429→ * y dispara su evento al cruzar el umbral hacia arriba. Orden estable por id, así que es determinista.
+   430→ */
+   431→export function propagate(world: World, content: Content, emissions: Emissions): void {
+   432→  const nb = adjacency(world);
+   433→  for (const rule of Object.values(content.influences).sort((a, b) => a.id.localeCompare(b.id))) {
+   434→    const state = (world.channels[rule.channel] ??= {});
+   435→    const before = { ...state };
+   436→    for (const id of Object.keys(state)) {
+   437→      state[id] = state[id]! * (1 - rule.decayPerTick);
+   438→      if (state[id]! < 1e-6) delete state[id];
+   439→    }
+   440→    const em = emissions[rule.channel] ?? {};
+   441→    for (const emitter of Object.keys(em).sort()) {
+   442→      for (const n of nb.get(emitter) ?? []) {
+   443→        const factor = rule.spread[n.dir];
+   444→        if (!factor) continue;
+   445→        let att = 1;
+   446→        if (rule.attenuatedBy) {
+   447→          const p = world.blocks[n.id]!.params[rule.attenuatedBy];
+   448→          if (typeof p === 'number') att = 1 - Math.min(1, Math.max(0, p));
+   449→        }
+   450→        const value = em[emitter]! * factor * att;
+   451→        if (value > (state[n.id] ?? 0)) state[n.id] = value;
+   452→      }
+   453→    }
+   454→    if (!rule.onThreshold) continue;
+   455→    for (const id of Object.keys(state).sort()) {
+   456→      if ((before[id] ?? 0) >= rule.threshold || state[id]! < rule.threshold) continue;
+   457→      emit(world, rule.onThreshold.emitEvent, {
+   458→        block: id,
+   459→        channel: rule.channel,
+   460→        value: round3(state[id]!),
+   461→        occupied: world.blocks[id]!.occupancy === 'occupied',
+   462→      });
+   463→      const sp = rule.onThreshold.setParam;
+   464→      if (sp) applyEffect(world, content, { op: 'setParam', target: id, param: sp.param, delta: sp.delta });
+   465→    }
+   466→  }
+   467→}
+   468→--- packages/sim/src/missions.ts
+   469→import type { Condition, Content, MissionDef } from '@vecinos/content';
+   470→import type { ActiveMission, World } from './types';
+   471→import { emit } from './events';
+   472→import { applyEffects, resolveBlocks } from './effects';
+   473→
+   474→type Step = MissionDef['steps'][number];
+   475→const byId = <T extends { id: string }>(a: T, b: T) => a.id.localeCompare(b.id);
+   476→
+   477→export function newMission(id: string, startAtTick: number): ActiveMission {
+   478→  return { id, state: 'pending', startAtTick, step: 0, roles: {}, until: null, choice: null };
+   479→}
+   480→
+   481→/** Enlaza los roles de una misión con residentes presentes: por arquetipo y por parentesco (`parentOf`). */
+   482→export function bindRoles(world: World, def: MissionDef): { roles: Record<string, string>; complete: boolean } {
+   483→  const roles: Record<string, string> = {};
+   484→  const taken = new Set<string>();
+   485→  const present = Object.values(world.residents).filter((r) => r.present).sort(byId);
+   486→  const defs = Object.entries(def.roles ?? {});
+   487→  for (const [name, r] of defs) {
+   488→    if (!r.archetype) continue;
+   489→    const c = present.find((x) => x.archetype === r.archetype && !taken.has(x.id));
+   490→    if (c) {
+   491→      roles[name] = c.id;
+   492→      taken.add(c.id);
+   493→    }
+   494→  }
+   495→  for (const [name, r] of defs) {
+   496→    if (r.relation !== 'parentOf' || !r.of || !roles[r.of]) continue;
+   497→    const kid = roles[r.of]!;
+   498→    const p = present.find((x) => x.parentOf.includes(kid));
+   499→    if (p) roles[name] = p.id;
+   500→  }
+   501→  return { roles, complete: defs.every(([name]) => name in roles) };
+   502→}
+   503→
+   504→const resolveRef = (world: World, ref: string) => (ref === '$home' ? world.residents[world.playerId]!.home : ref);
+   505→const currentStep = (content: Content, m: ActiveMission): Step | undefined => content.missions.id]?.steps.step];
+   506→
+   507→export function conditionHolds(world: World, content: Content, c: Condition, roles: Record<string, string>): boolean {
+   508→  if ('param' in c) {
+   509→    const [ref, p] = c.param.split('.') as [string, string];
+   510→    const blocks = resolveBlocks(world, content, ref);
+   511→    return blocks.length > 0 && blocks.every((b) => b.params[p] === c.eq);
+   512→  }
+   513→  if ('role' in c) return c.exists === (c.role in roles);
+   514→  if ('mission' in c) {
+   515→    const m = world.missions.find((x) => x.id === c.mission);
+   516→    return c.state === 'done' ? m?.state === 'done' : m?.state === 'active' || m?.state === 'awaiting_choice';
+   517→  }
+   518→  const h, mm] = c.time.after.split(':').map(Number) as [number, number];
+   519→  return world.clock.minute >= hh * 60 + mm;
+   520→}
+   521→
+   522→function restoreLocations(world: World, m: ActiveMission) {
+   523→  for (const id of Object.values(m.roles)) {
+   524→    const r = world.residents[id];
+   525→    if (r && r.present && id !== world.playerId) r.location = r.home;
+   526→  }
+   527→}
+   528→
+   529→function enterStep(world: World, content: Content, m: ActiveMission) {
+   530→  const step = currentStep(content, m)!;
+   531→  const base = { mission: m.id, step: step.id, type: step.type };
+   532→  switch (step.type) {
+   533→    case 'phone_call':
+   534→      return emit(world, 'step_started', { ...base, dialog: step.dialog });
+   535→    case 'reach':
+   536→      return emit(world, 'step_started', { ...base, block: resolveRef(world, step.target.block) });
+   537→    case 'enter':
+   538→      return emit(world, 'step_started', { ...base, block: resolveRef(world, step.target) });
+   539→    case 'catch_in_act': {
+   540→      const kidId = m.roles[step.target];
+   541→      const kid = kidId ? world.residents[kidId] : undefined;
+   542→      const homeFloor = kid ? world.blocks[kid.home]?.cell.floor : undefined;
+   543→      const candidates = resolveBlocks(world, content, step.place.split('.')[0]!).sort(byId);
+   544→      const block = candidates.find((b) => b.cell.floor === homeFloor) ?? candidates[0];
+   545→      m.until = world.tick + step.windowMinutes;
+   546→      if (kid && block) kid.location = block.id;
+   547→      return emit(world, 'step_started', { ...base, resident: kidId ?? null, block: block?.id ?? null, untilTick: m.until });
+   548→    }
+   549→  }
+   550→}
+   551→
+   552→function activate(world: World, content: Content, m: ActiveMission) {
+   553→  const def = content.missions.id]!;
+   554→  m.roles = { ...bindRoles(world, def).roles, ...m.roles };
+   555→  m.state = 'active';
+   556→  m.step = 0;
+   557→  m.until = null;
+   558→  emit(world, 'mission_activated', { mission: m.id });
+   559→  enterStep(world, content, m);
+   560→}
+   561→
+   562→export function completeMission(world: World, content: Content, m: ActiveMission) {
+   563→  const def = content.missions.id]!;
+   564→  m.state = 'done';
+   565→  applyEffects(world, content, def.onComplete ?? [], { roles: m.roles });
+   566→  restoreLocations(world, m);
+   567→  emit(world, 'mission_completed', { mission: m.id });
+   568→}
+   569→
+   570→function failMission(world: World, m: ActiveMission, reason: string) {
+   571→  m.state = 'failed';
+   572→  restoreLocations(world, m);
+   573→  emit(world, 'mission_failed', { mission: m.id, reason });
+   574→}
+   575→
+   576→function completeStep(world: World, content: Content, m: ActiveMission) {
+   577→  const def = content.missions.id]!;
+   578→  emit(world, 'step_completed', { mission: m.id, step: def.steps.step]!.id });
+   579→  m.step += 1;
+   580→  m.until = null;
+   581→  if (m.step < def.steps.length) return enterStep(world, content, m);
+   582→  if (def.choices?.length) {
+   583→    m.state = 'awaiting_choice';
+   584→    return emit(world, 'choice_required', { mission: m.id, choices: def.choices.map((c) => ({ id: c.id, label: c.label })) });
+   585→  }
+   586→  completeMission(world, content, m);
+   587→}
+   588→
+   589→export type MissionSignal =
+   590→  | { type: 'door_approached' | 'block_entered'; resident: string; block: string }
+   591→  | { type: 'call_answered'; mission: string };
+   592→
+   593→/** Las órdenes del jugador avisan aquí: si encajan con el paso actual de una misión activa, el paso se completa. */
+   594→export function notify(world: World, content: Content, sig: MissionSignal) {
+   595→  for (const m of world.missions) {
+   596→    if (m.state !== 'active') continue;
+   597→    const step = currentStep(content, m);
+   598→    if (!step) continue;
+   599→    const byPlayer = sig.type !== 'call_answered' && sig.resident === world.playerId;
+   600→    let hit = false;
+   601→    switch (step.type) {
+   602→      case 'phone_call':
+   603→        hit = sig.type === 'call_answered' && sig.mission === m.id;
+   604→        break;
+   605→      case 'reach':
+   606→        hit = sig.type === 'door_approached' && byPlayer && sig.block === resolveRef(world, step.target.block);
+   607→        break;
+   608→      case 'enter':
+   609→        hit = sig.type === 'block_entered' && byPlayer && sig.block === resolveRef(world, step.target);
+   610→        break;
+   611→      case 'catch_in_act': {
+   612→        const kid = m.roles[step.target];
+   613→        hit = sig.type === 'block_entered' && byPlayer && !!kid && world.residents[kid]?.location === sig.block && (m.until === null || world.tick <= m.until);
+   614→        break;
+   615→      }
+   616→    }
+   617→    if (hit) completeStep(world, content, m);
+   618→  }
+   619→}
+   620→
+   621→function advanceOnce(world: World, content: Content): boolean {
+   622→  let changed = false;
+   623→  for (const m of world.missions) {
+   624→    if (m.state === 'pending' && world.tick >= m.startAtTick) {
+   625→      activate(world, content, m);
+   626→      changed = true;
+   627→    } else if (m.state === 'active') {
+   628→      const step = currentStep(content, m);
+   629→      if (step?.type === 'catch_in_act' && m.until !== null && world.tick > m.until) {
+   630→        failMission(world, m, 'timeout');
+   631→        changed = true;
+   632→      }
+   633→    }
+   634→  }
+   635→  for (const def of Object.values(content.missions).sort(byId)) {
+   636→    if (!def.trigger || world.missions.some((x) => x.id === def.id)) continue;
+   637→    const { roles, complete } = bindRoles(world, def);
+   638→    if (!complete) continue;
+   639→    const holds = 'all' in def.trigger ? def.trigger.all.every((c) => conditionHolds(world, content, c, roles)) : def.trigger.any.some((c) => conditionHolds(world, content, c, roles));
+   640→    if (!holds) continue;
+   641→    const m = newMission(def.id, world.tick);
+   642→    m.roles = roles;
+   643→    world.missions.push(m);
+   644→    activate(world, content, m);
+   645→    changed = true;
+   646→  }
+   647→  return changed;
+   648→}
+   649→
+   650→/** Activa misiones pendientes o con disparador cumplido y caduca las que se pasaron de plazo. */
+   651→export function advanceMissions(world: World, content: Content): void {
+   652→  for (let i = 0; i < 4; i++) if (!advanceOnce(world, content)) break;
+   653→}
+   654→--- packages/sim/src/rng.ts
+   655→import type { World } from './types';
+   656→
+   657→/** mulberry32 con el estado guardado en el mundo: misma semilla y mismas llamadas, mismos resultados. */
+   658→export function nextRandom(world: Pick<World, 'rngState'>): number {
+   659→  world.rngState = (world.rngState + 0x6d2b79f5) | 0;
+   660→  let t = world.rngState;
+   661→  t = Math.imul(t ^ (t >>> 15), t | 1);
+   662→  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+   663→  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+   664→}
+   665→--- packages/sim/src/rooms.ts
+   666→import type { Content } from '@vecinos/content';
+   667→import type { RoomInstance } from './types';
+   668→
+   669→export function instantiateRooms(content: Content, defId: string): RoomInstance[] {
+   670→  const layoutId = content.blocks[defId]?.container?.layout;
+   671→  const layout = layoutId ? content.layouts[layoutId] : undefined;
+   672→  return (layout?.rooms ?? []).map((r) => ({ key: r.key, defId: r.defId, access: r.startsUnlocked ? 'unlocked' : 'locked' }));
+   673→}
+   674→--- packages/sim/src/selectors.ts
+   675→import type { Content, ParamDef, ParamValue } from '@vecinos/content';
+   676→import type { World } from './types';
+   677→
+   678→export interface VisibleParam {
+   679→  name: string;
+   680→  value: ParamValue;
+   681→  def: ParamDef;
+   682→}
+   683→
+   684→export function playerHome(world: World): string {
+   685→  return world.residents[world.playerId]!.home;
+   686→}
+   687→
+   688→/**
+   689→ * Parámetros que el jugador ve de un bloque: los de nivel <= nivel revelado, más los revelados uno a uno,
+   690→ * menos los ocultados. La simulación calcula todos igualmente; esto solo afecta a la interfaz.
+   691→ * Un parámetro sin `tier` queda oculto hasta que se revele por nombre.
+   692→ */
+   693→export function visibleParams(world: World, content: Content, blockId: string): VisibleParam[] {
+   694→  const b = world.blocks[blockId];
+   695→  if (!b) return [];
+   696→  const def = content.blocks[b.defId]!;
+   697→  const p = world.progress;
+   698→  return Object.entries(def.params)
+   699→    .filter(([name, d]) => {
+   700→      if (p.hiddenParams.includes(name)) return false;
+   701→      return (d.tier !== undefined && d.tier <= p.revealedTier) || p.revealedParams.includes(name);
+   702→    })
+   703→    .map(([name, d]) => ({ name, value: b.params[name] ?? d.default, def: d }));
+   704→}
+   705→
+   706→export interface Objective {
+   707→  mission: string;
+   708→  title: string;
+   709→  state: 'active' | 'awaiting_choice';
+   710→  step: { id: string; type: string; block?: string; dialog?: string } | null;
+   711→  untilTick: number | null;
+   712→}
+   713→
+   714→/** Objetivo que se muestra al jugador: la primera misión en curso. */
+   715→export function activeObjective(world: World, content: Content): Objective | null {
+   716→  const m = world.missions.find((x) => x.state === 'active' || x.state === 'awaiting_choice');
+   717→  if (!m) return null;
+   718→  const def = content.missions.id]!;
+   719→  const s = m.state === 'active' ? def.steps.step] : undefined;
+   720→  const home = world.residents[world.playerId]!.home;
+   721→  const block = s?.type === 'reach' ? s.target.block : s?.type === 'enter' ? s.target : undefined;
+   722→  return {
+   723→    mission: m.id,
+   724→    title: def.title,
+   725→    state: m.state as 'active' | 'awaiting_choice',
+   726→    step: s ? { id: s.id, type: s.type, block: block === '$home' ? home : block, dialog: s.type === 'phone_call' ? s.dialog : undefined } : null,
+   727→    untilTick: m.until,
+   728→  };
+   729→}
+   730→--- packages/sim/src/tick.ts
+   731→import type { Content } from '@vecinos/content';
+   732→import type { World } from './types';
+   733→import { propagate, type Emissions } from './influence';
+   734→import { advanceMissions } from './missions';
+   735→
+   736→/** Avanza un minuto de juego. Las emisiones del tick las aportan las actividades de los residentes. */
+   737→export function tick(world: World, content: Content, emissions: Emissions = {}): void {
+   738→  world.tick += 1;
+   739→  world.clock.minute += 1;
+   740→  if (world.clock.minute >= 1440) {
+   741→    world.clock.minute = 0;
+   742→    world.clock.day += 1;
+   743→  }
+   744→  propagate(world, content, emissions);
+   745→  advanceMissions(world, content);
+   746→}
+   747→--- packages/sim/src/types.ts
+   748→import type { ParamValue } from '@vecinos/content';
+   749→
+   750→export type Access = 'locked' | 'unlocked';
+   751→export type Occupancy = 'vacant' | 'occupied' | 'under_works';
+   752→
+   753→export interface RoomInstance {
+   754→  key: string;
+   755→  defId: string;
+   756→  access: Access;
+   757→}
+   758→
+   759→export interface BlockInstance {
+   760→  id: string;
+   761→  defId: string;
+   762→  kind: 'common' | 'dwelling' | 'commercial' | 'infrastructure';
+   763→  layer: 'main' | 'corridor';
+   764→  cell: { col: number; floor: number };
+   765→  size: { w: number; h: number };
+   766→  access: Access;
+   767→  lockReason: string | null;
+   768→  occupancy: Occupancy;
+   769→  ownerId: string | null;
+   770→  availability: { mode: 'for_sale'; price: number } | null;
+   771→  params: Record<string, ParamValue>;
+   772→  rooms: RoomInstance[];
+   773→}
+   774→
+   775→export interface Relation {
+   776→  with: string;
+   777→  affinity: number;
+   778→  trust: number;
+   779→}
+   780→
+   781→export type Controller = { type: 'human'; playerId: string } | { type: 'ai'; profile: string } | { type: 'script' };
+   782→
+   783→export interface ResidentInstance {
+   784→  id: string;
+   785→  archetype: string;
+   786→  controller: Controller;
+   787→  home: string;
+   788→  present: boolean;
+   789→  /** Bloque en el que está ahora (null si aún no ha llegado al edificio). */
+   790→  location: string | null;
+   791→  parentOf: string[];
+   792→  wallet: number;
+   793→  reputation: number;
+   794→  relations: Relation[];
+   795→}
+   796→
+   797→export interface GameEvent {
+   798→  tick: number;
+   799→  type: string;
+   800→  data: Record<string, unknown>;
+   801→}
+   802→
+   803→export type MissionState = 'pending' | 'active' | 'awaiting_choice' | 'done' | 'failed';
+   804→
+   805→export interface ActiveMission {
+   806→  id: string;
+   807→  state: MissionState;
+   808→  startAtTick: number;
+   809→  /** Índice del paso actual. */
+   810→  step: number;
+   811→  /** Rol de la misión → id de residente (p. ej. kid → res_nino_01). */
+   812→  roles: Record<string, string>;
+   813→  /** Tick límite del paso actual, si tiene ventana de tiempo. */
+   814→  until: number | null;
+   815→  choice: string | null;
+   816→}
+   817→
+   818→/** Estado completo de una partida: es JSON puro, así que se guarda y se envía tal cual. */
+   819→export interface World {
+   820→  schemaVersion: 1;
+   821→  scenarioId: string;
+   822→  seed: number;
+   823→  rngState: number;
+   824→  tick: number;
+   825→  clock: { day: number; minute: number };
+   826→  playerId: string;
+   827→  community: { funds: number; presidentId: string | null };
+   828→  blocks: Record<string, BlockInstance>;
+   829→  residents: Record<string, ResidentInstance>;
+   830→  channels: Record<string, Record<string, number>>;
+   831→  progress: { revealedTier: number; revealedParams: string[]; hiddenParams: string[] };
+   832→  missions: ActiveMission[];
+   833→  favors: Record<string, number>;
+   834→  events: GameEvent[];
+   835→}
+   836→--- packages/sim/src/world.ts
+   837→import type { Content } from '@vecinos/content';
+   838→import { expandTemplate } from '@vecinos/content';
+   839→import type { BlockInstance, World } from './types';
+   840→import { nextRandom } from './rng';
+   841→import { instantiateRooms } from './rooms';
+   842→import { advanceMissions, newMission } from './missions';
+   843→
+   844→/** Crea una partida nueva a partir de un escenario. La vivienda del jugador se elige con la semilla. */
+   845→export function createWorld(content: Content, scenarioId: string, overrides: { seed?: number } = {}): World {
+   846→  const scenario = content.scenarios[scenarioId];
+   847→  if (!scenario) throw new Error(`Escenario desconocido: ${scenarioId}`);
+   848→  const template = content.templates[scenario.building.template]!;
+   849→  const seed = overrides.seed ?? scenario.world.seed;
+   850→
+   851→  const world: World = {
+   852→    schemaVersion: 1,
+   853→    scenarioId,
+   854→    seed,
+   855→    rngState: seed,
+   856→    tick: 0,
+   857→    clock: { ...scenario.world.clock },
+   858→    playerId: scenario.player.residentId,
+   859→    community: { ...scenario.building.community },
+   860→    blocks: {},
+   861→    residents: {},
+   862→    channels: {},
+   863→    progress: { revealedTier: scenario.progress.revealedTier, revealedParams: [], hiddenParams: [] },
+   864→    missions: [],
+   865→    favors: {},
+   866→    events: [],
+   867→  };
+   868→
+   869→  for (const b of expandTemplate(template, content.blocks)) {
+   870→    const def = content.blocks[b.defId]!;
+   871→    const params = Object.fromEntries(Object.entries(def.params).map(([k, p]) => [k, p.default]));
+   872→    Object.assign(params, scenario.building.stateByDef[b.defId]?.params ?? {});
+   873→    const dwelling = def.kind === 'dwelling';
+   874→    const inst: BlockInstance = {
+   875→      id: b.id,
+   876→      defId: b.defId,
+   877→      kind: def.kind,
+   878→      layer: b.layer,
+   879→      cell: b.cell,
+   880→      size: b.size,
+   881→      access: dwelling ? 'locked' : 'unlocked',
+   882→      lockReason: dwelling ? 'for_sale' : null,
+   883→      occupancy: 'vacant',
+   884→      ownerId: null,
+   885→      availability: null,
+   886→      params,
+   887→      rooms: [],
+   888→    };
+   889→    world.blocks[b.id] = inst;
+   890→  }
+   891→
+   892→  // Vecinos del escenario: existen, pero aún no han llegado.
+   893→  for (const r of scenario.residents) {
+   894→    world.residents[r.id] = {
+   895→      id: r.id,
+   896→      archetype: r.archetype,
+   897→      controller: r.controller,
+   898→      home: r.home,
+   899→      present: r.present,
+   900→      location: r.present ? r.home : null,
+   901→      parentOf: [...r.parentOf],
+   902→      wallet: r.wallet,
+   903→      reputation: r.reputation,
+   904→      relations: r.relations.map((x) => ({ ...x })),
+   905→    };
+   906→  }
+   907→
+   908→  // El jugador: su vivienda se elige al azar (con la semilla) entre las candidatas.
+   909→  const candidates = scenario.player.homeCandidates;
+   910→  const homeId = candidates[Math.floor(nextRandom(world) * candidates.length)]!;
+   911→  const home = world.blocksomeId]!;
+   912→  home.access = 'unlocked';
+   913→  home.lockReason = null;
+   914→  home.occupancy = 'occupied';
+   915→  home.ownerId = scenario.player.residentId;
+   916→  home.rooms = instantiateRooms(content, home.defId);
+   917→  world.residents[scenario.player.residentId] = {
+   918→    id: scenario.player.residentId,
+   919→    archetype: scenario.player.archetype,
+   920→    controller: { type: 'human', playerId: 'p1' },
+   921→    home: homeId,
+   922→    present: true,
+   923→    location: scenario.player.startBlock,
+   924→    parentOf: [],
+   925→    wallet: scenario.player.wallet,
+   926→    reputation: scenario.player.reputation,
+   927→    relations: [],
+   928→  };
+   929→
+   930→  for (const m of scenario.startMissions) world.missions.push(newMission(m, 0));
+   931→  advanceMissions(world, content); // el teléfono del tutorial empieza a sonar desde el primer tick
+   932→  return world;
+   933→}

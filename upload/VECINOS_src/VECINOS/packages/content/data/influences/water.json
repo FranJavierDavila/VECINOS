@@ -1,0 +1,9 @@
+{
+  "id": "water",
+  "channel": "water",
+  "spread": { "down": 1.0 },
+  "via": "shaft",
+  "decayPerTick": 0.02,
+  "threshold": 0.2,
+  "onThreshold": { "emitEvent": "leak_detected", "setParam": { "param": "humidity", "delta": 5 } }
+}

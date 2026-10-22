@@ -1,0 +1,8 @@
+{
+  "id": "dlg_bienvenida",
+  "lines": [
+    { "speaker": "Inmobiliaria", "text": "¡Enhorabuena! Ya tienes disponible tu nuevo piso. Es el único que no tiene candado." },
+    { "speaker": "Inmobiliaria", "text": "Un detalle sin importancia: el ascensor está estropeado. Esperamos que lo arreglen." },
+    { "speaker": "Inmobiliaria", "text": "Sube por las escaleras, llama a la puerta y entra. Y no preguntes por el ruido." }
+  ]
+}

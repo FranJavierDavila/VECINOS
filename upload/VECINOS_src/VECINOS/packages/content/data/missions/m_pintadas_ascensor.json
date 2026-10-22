@@ -1,0 +1,49 @@
+{
+  "id": "m_pintadas_ascensor",
+  "title": "Pintadas en el ascensor",
+  "roles": {
+    "kid": { "archetype": "nino_grafitero" },
+    "parent": { "relation": "parentOf", "of": "kid" }
+  },
+  "trigger": {
+    "all": [
+      { "param": "nucleo.elevator_status", "eq": "ok" },
+      { "role": "kid", "exists": true }
+    ]
+  },
+  "steps": [
+    { "id": "pillarlo", "type": "catch_in_act", "target": "kid", "place": "nucleo.cabin", "windowMinutes": 30 }
+  ],
+  "choices": [
+    {
+      "id": "chivarse",
+      "label": "Chivarte a sus padres",
+      "effects": [
+        { "op": "addRelation", "a": "player", "b": "parent", "affinity": 10 },
+        { "op": "addRelation", "a": "player", "b": "kid", "affinity": -20 },
+        { "op": "startMission", "id": "m_venganza_nino", "delayMinutes": 1440 }
+      ]
+    },
+    {
+      "id": "chantajear",
+      "label": "Chantajearle",
+      "effects": [
+        { "op": "addRelation", "a": "player", "b": "kid", "affinity": -5, "trust": 15 },
+        { "op": "grantFavor", "from": "kid", "count": 3 }
+      ]
+    },
+    {
+      "id": "limpiar",
+      "label": "Obligarle a limpiar",
+      "effects": [
+        { "op": "startMinigame", "id": "mg_limpiar_cabina" },
+        { "op": "setParam", "target": "nucleo.cabin_graffiti", "value": 0 }
+      ]
+    },
+    {
+      "id": "junta",
+      "label": "Llevarlo a la junta",
+      "effects": [{ "op": "openJunta", "agenda": ["reparar_cabina"] }]
+    }
+  ]
+}

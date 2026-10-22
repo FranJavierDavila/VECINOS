@@ -1,0 +1,11 @@
+{
+  "id": "fiestero",
+  "name": "El vecino fiestero",
+  "traits": { "sociability": 0.9, "tidiness": 0.2, "noisiness": 0.95, "generosity": 0.6 },
+  "needs": ["sleep", "social", "fun", "money"],
+  "activities": {
+    "party": { "emits": { "noise": 0.9 } },
+    "sleep_late": { "emits": {} }
+  },
+  "view": { "sprite": "chars/fiestero.png" }
+}

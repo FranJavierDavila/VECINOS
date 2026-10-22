@@ -1,0 +1,10 @@
+{
+  "id": "estancia_bano",
+  "kind": "room",
+  "size": { "w": 1, "h": 1 },
+  "params": {
+    "cleanliness": { "type": "number", "min": 0, "max": 100, "default": 60 }
+  },
+  "furnitureSlots": [],
+  "view": { "prefab": "prefabs/estancia_bano.glb" }
+}

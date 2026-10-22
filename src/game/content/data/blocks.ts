@@ -1,0 +1,70 @@
+import type { BlockDef } from '@/game/core/types';
+
+/** Catálogo de bloques. Los colores alimentan al renderer (prototipo sin .glb: vista "toy"). */
+export const BLOCK_DEFS: BlockDef[] = [
+  {
+    id: 'nucleo_comunicaciones',
+    kind: 'common',
+    layer: 'main',
+    size: { w: 1, h: 1 },
+    traversable: true,
+    alignGroup: 'nucleo',
+    features: { stairs: true, elevator: true },
+    params: {
+      elevator_status: { type: 'enum', values: ['ok', 'broken', 'under_repair'], default: 'ok', label: 'Ascensor' },
+      cabin_graffiti: { type: 'number', min: 0, max: 100, default: 0 },
+      condition: { type: 'number', min: 0, max: 100, default: 80, tier: 1, label: 'Estado del núcleo' },
+    },
+    view: { color: '#8d99ae' },
+  },
+  {
+    id: 'pasillo_planta',
+    kind: 'common',
+    layer: 'corridor',
+    size: { w: 5, h: 1 },
+    traversable: true,
+    params: {
+      cleanliness: { type: 'number', min: 0, max: 100, default: 70, tier: 1, label: 'Limpieza del pasillo' },
+      lighting: { type: 'number', min: 0, max: 100, default: 90 },
+    },
+    view: { color: '#d9c9a3' },
+  },
+  {
+    id: 'portal',
+    kind: 'common',
+    layer: 'main',
+    size: { w: 2, h: 1 },
+    traversable: true,
+    features: { mailboxes: true, noticeboard: true, bench: true },
+    params: {
+      condition: { type: 'number', min: 0, max: 100, default: 75, tier: 1, label: 'Estado del portal' },
+    },
+    view: { color: '#b08968' },
+  },
+  {
+    id: 'trasteros',
+    kind: 'common',
+    layer: 'main',
+    size: { w: 1, h: 1 },
+    traversable: false,
+    params: {
+      mystery: { type: 'number', min: 0, max: 100, default: 50 },
+    },
+    view: { color: '#9c6644' },
+  },
+  {
+    id: 'vivienda_estandar',
+    kind: 'dwelling',
+    layer: 'main',
+    size: { w: 1, h: 1 },
+    container: { childKind: 'room', layout: 'layout_vivienda_v1' },
+    params: {
+      style: { type: 'enum', values: ['moderno', 'clasico', 'retro', 'caotico', 'duplex'], default: 'clasico', tier: 2, label: 'Estilo' },
+      condition: { type: 'number', min: 0, max: 100, default: 70, tier: 1, label: 'Estado' },
+      soundproofing: { type: 'number', min: 0, max: 1, default: 0.4, tier: 1, label: 'Aislamiento' },
+      humidity: { type: 'number', min: 0, max: 100, default: 10, tier: 1, label: 'Humedad' },
+      rent: { type: 'number', min: 0, default: 40, tier: 2, label: 'Alquiler/día' },
+    },
+    view: { color: '#f4a261', altColor: '#e9c46a' },
+  },
+];

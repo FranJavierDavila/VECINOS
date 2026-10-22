@@ -1,0 +1,11 @@
+{
+  "id": "trasteros",
+  "kind": "common",
+  "layer": "main",
+  "size": { "w": 2, "h": 1 },
+  "traversable": true,
+  "params": {
+    "condition": { "type": "number", "min": 0, "max": 100, "default": 60 }
+  },
+  "view": { "prefab": "prefabs/trasteros.glb", "color": "#a3a3a3" }
+}

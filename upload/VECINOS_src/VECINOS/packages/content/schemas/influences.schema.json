@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "channel": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "spread": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "enum": [
+          "horizontal",
+          "up",
+          "down",
+          "diagonal",
+          "corridor"
+        ]
+      },
+      "additionalProperties": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      }
+    },
+    "attenuatedBy": {
+      "type": "string"
+    },
+    "via": {
+      "type": "string",
+      "const": "shaft"
+    },
+    "decayPerTick": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "threshold": {
+      "type": "number",
+      "minimum": 0
+    },
+    "onThreshold": {
+      "type": "object",
+      "properties": {
+        "emitEvent": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "setParam": {
+          "type": "object",
+          "properties": {
+            "param": {
+              "type": "string"
+            },
+            "delta": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "param",
+            "delta"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "emitEvent"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "id",
+    "channel",
+    "spread",
+    "decayPerTick",
+    "threshold"
+  ],
+  "additionalProperties": false
+}

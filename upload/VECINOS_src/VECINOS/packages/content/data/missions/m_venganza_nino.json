@@ -1,0 +1,7 @@
+{
+  "id": "m_venganza_nino",
+  "title": "La venganza del niño",
+  "steps": [
+    { "id": "aviso", "type": "phone_call", "dialog": "dlg_venganza" }
+  ]
+}

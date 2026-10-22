@@ -1,0 +1,11 @@
+{
+  "id": "cotilla",
+  "name": "La vecina cotilla",
+  "traits": { "gossip": 0.9, "sociability": 0.8, "tidiness": 0.5, "noisiness": 0.2, "generosity": 0.4 },
+  "needs": ["sleep", "social", "fun", "money"],
+  "activities": {
+    "watch_corridor": { "emits": {}, "gossipGain": 0.3 },
+    "tv_loud": { "emits": { "noise": 0.5 } }
+  },
+  "view": { "sprite": "chars/cotilla.png" }
+}

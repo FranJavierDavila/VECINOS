@@ -1,0 +1,10 @@
+{
+  "id": "estancia_dormitorio",
+  "kind": "room",
+  "size": { "w": 2, "h": 1 },
+  "params": {
+    "comfort": { "type": "number", "min": 0, "max": 100, "default": 50 }
+  },
+  "furnitureSlots": [],
+  "view": { "prefab": "prefabs/estancia_dormitorio.glb" }
+}

@@ -1,0 +1,10 @@
+{
+  "id": "nino_grafitero",
+  "name": "El hijo del vecino",
+  "traits": { "mischief": 0.9, "sociability": 0.6, "noisiness": 0.5 },
+  "needs": ["fun", "social"],
+  "activities": {
+    "paint_cabin": { "emits": {} }
+  },
+  "view": { "sprite": "chars/nino.png" }
+}

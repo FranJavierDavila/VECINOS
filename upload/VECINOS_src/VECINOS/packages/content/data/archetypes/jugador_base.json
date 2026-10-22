@@ -1,0 +1,8 @@
+{
+  "id": "jugador_base",
+  "name": "Vecino recién llegado",
+  "traits": { "sociability": 0.5, "tidiness": 0.5, "noisiness": 0.3 },
+  "needs": ["sleep", "social", "fun", "money"],
+  "activities": {},
+  "view": { "sprite": "chars/jugador.png" }
+}

@@ -1,0 +1,24 @@
+{
+  "id": "edificio_4x4_nucleo_central",
+  "grid": { "cols": 5, "floors": 5 },
+  "rows": [
+    { "floors": [0, 4], "blocks": [{ "col": 0, "defId": "pasillo_planta", "tag": "pasillo" }] },
+    { "floors": [0, 4], "blocks": [{ "col": 2, "defId": "nucleo_comunicaciones", "tag": "nucleo" }] },
+    {
+      "floors": [0, 0],
+      "blocks": [
+        { "col": 0, "defId": "portal", "tag": "portal" },
+        { "col": 3, "defId": "trasteros", "tag": "trasteros" }
+      ]
+    },
+    {
+      "floors": [1, 4],
+      "blocks": [
+        { "col": 0, "defId": "vivienda_estandar", "tag": "a" },
+        { "col": 1, "defId": "vivienda_estandar", "tag": "b" },
+        { "col": 3, "defId": "vivienda_estandar", "tag": "c" },
+        { "col": 4, "defId": "vivienda_estandar", "tag": "d" }
+      ]
+    }
+  ]
+}

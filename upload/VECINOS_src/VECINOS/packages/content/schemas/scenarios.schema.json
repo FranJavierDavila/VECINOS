@@ -1,0 +1,325 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "world": {
+      "type": "object",
+      "properties": {
+        "seed": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "clock": {
+          "type": "object",
+          "properties": {
+            "day": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "minute": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1439
+            }
+          },
+          "required": [
+            "day",
+            "minute"
+          ],
+          "additionalProperties": false
+        },
+        "timeScale": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "weather": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "sunny",
+                "cloudy",
+                "rain",
+                "storm"
+              ]
+            },
+            "nextChangeMinute": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "state",
+            "nextChangeMinute"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "seed",
+        "clock",
+        "timeScale",
+        "weather"
+      ],
+      "additionalProperties": false
+    },
+    "building": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "template": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "community": {
+          "type": "object",
+          "properties": {
+            "funds": {
+              "type": "number"
+            },
+            "presidentId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]*$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "funds",
+            "presidentId"
+          ],
+          "additionalProperties": false
+        },
+        "stateByDef": {
+          "default": {},
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "params": {
+                "default": {},
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": [
+                    "number",
+                    "string",
+                    "boolean"
+                  ]
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "id",
+        "template",
+        "community"
+      ],
+      "additionalProperties": false
+    },
+    "player": {
+      "type": "object",
+      "properties": {
+        "residentId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "archetype": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "startBlock": {
+          "type": "string"
+        },
+        "homeCandidates": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "wallet": {
+          "type": "number"
+        },
+        "reputation": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "residentId",
+        "archetype",
+        "startBlock",
+        "homeCandidates",
+        "wallet",
+        "reputation"
+      ],
+      "additionalProperties": false
+    },
+    "residents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "archetype": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "home": {
+            "type": "string"
+          },
+          "present": {
+            "type": "boolean"
+          },
+          "controller": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "ai"
+                  },
+                  "profile": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "profile"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "script"
+                  }
+                },
+                "required": [
+                  "type"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "wallet": {
+            "type": "number"
+          },
+          "reputation": {
+            "type": "number"
+          },
+          "parentOf": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*$"
+            }
+          },
+          "relations": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "with": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]*$"
+                },
+                "affinity": {
+                  "type": "number"
+                },
+                "trust": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "with",
+                "affinity",
+                "trust"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "archetype",
+          "home",
+          "present",
+          "controller",
+          "wallet",
+          "reputation"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "progress": {
+      "type": "object",
+      "properties": {
+        "revealedTier": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "revealedTier"
+      ],
+      "additionalProperties": false
+    },
+    "startMissions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]*$"
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "id",
+    "world",
+    "building",
+    "player",
+    "residents",
+    "progress",
+    "startMissions"
+  ],
+  "additionalProperties": false
+}

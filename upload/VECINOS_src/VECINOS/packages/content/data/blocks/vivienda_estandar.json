@@ -1,0 +1,24 @@
+{
+  "id": "vivienda_estandar",
+  "kind": "dwelling",
+  "layer": "main",
+  "size": { "w": 1, "h": 1 },
+  "container": { "childKind": "room", "layout": "layout_vivienda_v1" },
+  "slots": [
+    { "id": "door", "type": "door", "side": "front", "connectsTo": "corridor" },
+    { "id": "window", "type": "window", "side": "front" },
+    { "id": "wall_left", "type": "shared_wall", "side": "left" },
+    { "id": "wall_right", "type": "shared_wall", "side": "right" },
+    { "id": "floor", "type": "shared_slab", "side": "bottom" },
+    { "id": "ceiling", "type": "shared_slab", "side": "top" },
+    { "id": "pipe_shaft", "type": "shaft", "side": "back" }
+  ],
+  "params": {
+    "style": { "type": "enum", "values": ["moderno", "clasico", "retro", "caotico"], "default": "clasico", "tier": 2 },
+    "condition": { "type": "number", "min": 0, "max": 100, "default": 70, "tier": 1 },
+    "soundproofing": { "type": "number", "min": 0, "max": 1, "default": 0.4, "tier": 1 },
+    "humidity": { "type": "number", "min": 0, "max": 100, "default": 10, "tier": 1 },
+    "rent": { "type": "number", "min": 0, "default": 600, "tier": 2 }
+  },
+  "view": { "prefab": "prefabs/vivienda_estandar.glb", "lodFar": "sprites/ventana_luz.png", "color": "#f4a261" }
+}

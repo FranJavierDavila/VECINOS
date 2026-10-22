@@ -1,0 +1,43 @@
+{
+  "id": "m_bienvenida",
+  "title": "Bienvenido al edificio",
+  "steps": [
+    {
+      "id": "llamada",
+      "type": "phone_call",
+      "dialog": "dlg_bienvenida"
+    },
+    {
+      "id": "subir",
+      "type": "reach",
+      "target": {
+        "block": "$home",
+        "slot": "door"
+      }
+    },
+    {
+      "id": "entrar",
+      "type": "enter",
+      "target": "$home"
+    }
+  ],
+  "onComplete": [
+    {
+      "op": "startMission",
+      "id": "m_ascensor"
+    },
+    {
+      "op": "unlock",
+      "target": "blk_p1_b",
+      "occupancy": "occupied",
+      "resident": "res_cotilla_01",
+      "arrival": "mudanza"
+    },
+    {
+      "op": "unlock",
+      "target": "blk_p1_b",
+      "resident": "res_nino_01",
+      "arrival": "mudanza"
+    }
+  ]
+}

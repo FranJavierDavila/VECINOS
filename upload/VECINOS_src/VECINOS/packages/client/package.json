@@ -1,0 +1,20 @@
+{
+  "name": "@vecinos/client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@babylonjs/core": "^8.0.0",
+    "@vecinos/content": "*",
+    "@vecinos/sim": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0"
+  }
+}

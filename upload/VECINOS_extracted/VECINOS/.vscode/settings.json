@@ -1,0 +1,58 @@
+{
+  "json.schemas": [
+    {
+      "fileMatch": [
+        "packages/content/data/blocks/*.json"
+      ],
+      "url": "./packages/content/schemas/blocks.schema.json"
+    },
+    {
+      "fileMatch": [
+        "packages/content/data/rooms/*.json"
+      ],
+      "url": "./packages/content/schemas/rooms.schema.json"
+    },
+    {
+      "fileMatch": [
+        "packages/content/data/layouts/*.json"
+      ],
+      "url": "./packages/content/schemas/layouts.schema.json"
+    },
+    {
+      "fileMatch": [
+        "packages/content/data/influences/*.json"
+      ],
+      "url": "./packages/content/schemas/influences.schema.json"
+    },
+    {
+      "fileMatch": [
+        "packages/content/data/archetypes/*.json"
+      ],
+      "url": "./packages/content/schemas/archetypes.schema.json"
+    },
+    {
+      "fileMatch": [
+        "packages/content/data/missions/*.json"
+      ],
+      "url": "./packages/content/schemas/missions.schema.json"
+    },
+    {
+      "fileMatch": [
+        "packages/content/data/dialogs/*.json"
+      ],
+      "url": "./packages/content/schemas/dialogs.schema.json"
+    },
+    {
+      "fileMatch": [
+        "packages/content/data/templates/*.json"
+      ],
+      "url": "./packages/content/schemas/templates.schema.json"
+    },
+    {
+      "fileMatch": [
+        "packages/content/data/scenarios/*.json"
+      ],
+      "url": "./packages/content/schemas/scenarios.schema.json"
+    }
+  ]
+}
