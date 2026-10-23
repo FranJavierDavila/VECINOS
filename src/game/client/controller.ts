@@ -376,7 +376,8 @@ class GameController {
 
     const pos = this.logic.position();
     this.actors.update(dt, pos);
-    this.building.update(dt);
+    // LOD por distancia: solo con cámaras cercanas (planta/estancia); el plano general (edificio) muestra todo.
+    this.building.update(dt, useGameStore.getState().camMode === 'edificio' ? undefined : { x: pos.x, floor: pos.floor });
     this.rig.update(dt, pos);
     this.scene.render();
   };

@@ -368,6 +368,8 @@ export interface ScenarioDef {
   startMissions: string[];
   /** Overrides de dificultad de minijuegos para este escenario (QA/E2E). */
   minigameOverrides?: Record<string, MinigameOverrides>;
+  /** Ajustes de multijugador del escenario (invitados); si falta, usa rules.multiplayer. */
+  multiplayer?: { guestArchetype?: string; guestWallet?: number };
 }
 
 export interface Content {
@@ -391,9 +393,31 @@ export interface Content {
  * Hoja de balance y configuración de presentación. CERO números de gameplay en código:
  * todo lo tunable vive aquí y se recarga con el resto del contenido.
  */
+/** Nivel de LOD (nivel de detalle): a partir de `dist` (en metros del foco) se oculta lo marcado. */
+export interface LodLevel {
+  dist: number;
+  hide: ('edges' | 'glow' | 'panels')[];
+}
+
 export interface Rules {
   /** Escenario con el que arranca el juego por defecto. */
   startScenario: string;
+  /** Multijugador: creación de invitados y textos de la sesión (todo data-driven). */
+  multiplayer: {
+    /** Arquetipo con el que nace un jugador invitado. */
+    guestArchetype: string;
+    /** Cartera inicial de un invitado. */
+    guestWallet: number;
+    /** Máximo de jugadores humanos por sesión (incluido el anfitrión). */
+    maxPlayers: number;
+    /** Segundos reales por tick de juego en el servidor autoritativo. */
+    tickSecondsPerTick: number;
+    /** Aviso al unirse un invitado ({name} y {block} como marcadores). */
+    joinToast: string;
+    /** Aviso cuando un invitado se desconecta ({name}). */
+    leaveToast: string;
+    texts: { sessionFull: string; noVacant: string; remoteSaveDisabled: string };
+  };
   sim: {
     /** Ventana nocturna: si existe actividad "sleep", se impone durante esta ventana. */
     night: ScheduleWindow;
@@ -451,6 +475,8 @@ export interface Rules {
     actorFallbackColor: string;
     actorFallbackHeight: number;
     actorRadius: number;
+    /** Niveles de detalle por distancia (Vista: "prefab por bloque y LOD por distancia"). */
+    lod: { enabled: boolean; focus: 'player'; levels: LodLevel[] };
   };
   /** Datos del botón de demostración "Fiesta" (solo dev/debug, también en catálogo). */
   demo: { resident: string; block: string; noise: number; toast: string };
@@ -560,7 +586,9 @@ export interface ActiveMission {
 
 export interface JuntaState {
   agenda: JuntaItem[];
+  /** Votos registrados: IA y todos los humanos (multijugador) votan por su id de residente. */
   votes: Record<string, Vote>;
+  /** true cuando la votación ya se ha cerrado y resuelto. */
   playerVoted: boolean;
 }
 
@@ -588,19 +616,24 @@ export interface World {
 
 // ───────────────────────── Comandos ─────────────────────────
 
+/**
+ * Comandos del jugador (o de un jugador invitado en multijugador).
+ * `actor` identifica quién actúa: si falta, el núcleo usa world.playerId
+ * (partida en solitario, comportamiento idéntico al clásico).
+ */
 export type Command =
   | { type: 'move'; resident: string; to: string }
   | { type: 'approach'; resident: string; block: string }
-  | { type: 'answer_call'; mission: string }
-  | { type: 'choose'; mission: string; choice: string }
-  | { type: 'work' }
-  | { type: 'buy_block'; block: string }
-  | { type: 'junta_vote'; vote: Vote }
-  | { type: 'knock'; block: string }
-  | { type: 'place_furniture'; block: string; room: string; slot: string; item: string }
-  | { type: 'remove_furniture'; block: string; room: string; slot: string }
-  | { type: 'renovate_room'; block: string; room: string }
-  | { type: 'complete_minigame'; id: string; success: boolean };
+  | { type: 'answer_call'; mission: string; actor?: string }
+  | { type: 'choose'; mission: string; choice: string; actor?: string }
+  | { type: 'work'; actor?: string }
+  | { type: 'buy_block'; block: string; actor?: string }
+  | { type: 'junta_vote'; vote: Vote; actor?: string }
+  | { type: 'knock'; block: string; actor?: string }
+  | { type: 'place_furniture'; block: string; room: string; slot: string; item: string; actor?: string }
+  | { type: 'remove_furniture'; block: string; room: string; slot: string; actor?: string }
+  | { type: 'renovate_room'; block: string; room: string; actor?: string }
+  | { type: 'complete_minigame'; id: string; success: boolean; actor?: string };
 
 export interface CommandResult {
   ok: boolean;

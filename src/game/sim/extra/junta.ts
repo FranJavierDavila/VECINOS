@@ -20,10 +20,9 @@ export function castVotes(world: World, content: Content): void {
   emit(world, 'junta_votes', { votes: { ...world.junta.votes } });
 }
 
-/** Cierra la votación con el voto del jugador y ejecuta las propuestas aprobadas (si hay caja). */
-export function resolveJunta(world: World, content: Content, playerVote: Vote): void {
+/** Cierra la votación con los votos ya registrados (humanos) y ejecuta las propuestas aprobadas (si hay caja). */
+export function resolveJunta(world: World, content: Content): void {
   if (!world.junta) return;
-  world.junta.votes[world.playerId] = playerVote;
   world.junta.playerVoted = true;
   for (const item of world.junta.agenda) {
     let yes = 0;

@@ -20,6 +20,8 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
   const glow = Object.fromEntries(Object.entries(v.channelGlow).map(([k, hex]) => [k, Color3.FromHexString(hex)])) as Record<string, Color3>;
   const views = new Map<string, BlockView>();
   const shakes = new Map<string, number>();
+  /** Foco del LOD (posición del jugador): lo alimenta update() y lo consume paint(). */
+  let lastFocus: { x: number; floor: number } | null = null;
   const mat = (name: string) => new StandardMaterial(name, scene);
   const box = (name: string, w: number, h: number, d: number, x: number, y: number, z: number, m: StandardMaterial) => {
     const mesh = MeshBuilder.CreateBox(name, { width: w, height: h, depth: d }, scene);
@@ -137,7 +139,12 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     shake(blockId: string) {
       shakes.set(blockId, 0.4);
     },
-    update(dt: number) {
+    /**
+     * dt en segundos; `focus` es el punto de interés (posición del jugador) para el
+     * LOD por distancia (rules.view.lod). Se consume en el siguiente paint().
+     */
+    update(dt: number, focus?: { x: number; floor: number }) {
+      if (focus) lastFocus = focus;
       for (const [id, left] of shakes) {
         const view = views.get(id)!;
         const t = left - dt;

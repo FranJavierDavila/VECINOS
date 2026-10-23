@@ -6,6 +6,8 @@ import { newMission } from './missions';
 export interface EffectContext {
   /** Roles de la misión en curso (p. ej. kid → res_nino_01). */
   roles?: Record<string, string>;
+  /** Quién actúa en nombre del jugador ('player'): multijugador → residente del autor del comando. */
+  actor?: string;
 }
 
 /** Bloques a los que se refiere `ref`: id exacto, o todos los de un defId o un alignGroup. */
@@ -17,7 +19,7 @@ export function resolveBlocks(world: World, content: Content, ref: string) {
 
 /** Resuelve 'player', roles de misión, ids de residente o arquetipos ("fiestero" → res_fiestero_01). */
 export function resolveActor(world: World, ref: string, ctx: EffectContext): string | null {
-  if (ref === 'player') return world.playerId;
+  if (ref === 'player') return ctx.actor ?? world.playerId;
   const role = ctx.roles?.[ref];
   if (role) return role;
   if (world.residents[ref]) return ref;
@@ -67,7 +69,7 @@ export function applyEffect(world: World, content: Content, e: Effect, ctx: Effe
     }
     case 'buy': {
       const b = world.blocks[e.target];
-      const player = world.residents[world.playerId]!;
+      const player = world.residents[ctx.actor ?? world.playerId]!;
       if (!b || !b.availability) return emit(world, 'effect_unresolved', { op: e.op, target: e.target });
       if (player.wallet < e.price) {
         emit(world, 'ui_toast', { text: `Te faltan ${e.price - player.wallet} €. Trabajo hay en el portátil.`, tone: 'bad' });

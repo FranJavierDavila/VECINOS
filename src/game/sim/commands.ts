@@ -54,7 +54,8 @@ function applyFurnitureParam(world: World, content: Content, blockId: string, ro
 }
 
 function run(world: World, content: Content, cmd: Command): CommandResult {
-  const player = world.residents[world.playerId]!;
+  const actorId = 'actor' in cmd && typeof cmd.actor === 'string' && world.residents[cmd.actor] ? cmd.actor : world.playerId;
+  const player = world.residents[actorId]!;
   switch (cmd.type) {
     case 'move': {
       const r = world.residents[cmd.resident];
@@ -100,7 +101,7 @@ function run(world: World, content: Content, cmd: Command): CommandResult {
       if (!m || !choice) return fail('no_choice');
       m.choice = choice.id;
       emit(world, 'choice_made', { mission: m.id, choice: choice.id });
-      applyEffects(world, content, choice.effects, { roles: m.roles });
+      applyEffects(world, content, choice.effects, { roles: m.roles, actor: actorId });
       completeMission(world, content, m);
       return ok();
     }
@@ -120,13 +121,21 @@ function run(world: World, content: Content, cmd: Command): CommandResult {
     case 'buy_block': {
       const b = world.blocks[cmd.block];
       if (!b?.availability) return fail('not_for_sale');
-      applyEffect(world, content, { op: 'buy', target: b.id, price: b.availability.price });
+      applyEffect(world, content, { op: 'buy', target: b.id, price: b.availability.price }, { actor: actorId });
       return ok();
     }
     case 'junta_vote': {
       if (!world.junta) return fail('no_junta');
+      // Multijugador: cada humano registra su voto; la votación se cierra cuando han votado todos.
+      world.junta.votes[actorId] = cmd.vote;
+      const humans = Object.values(world.residents).filter((r) => r.controller.type === 'human' && r.present);
+      const pending = humans.filter((h) => !world.junta!.votes[h.id]);
+      if (pending.length > 0) {
+        emit(world, 'junta_vote_registered', { resident: actorId, pendingHumans: pending.length });
+        return ok();
+      }
       castVotes(world, content);
-      resolveJunta(world, content, cmd.vote);
+      resolveJunta(world, content);
       advanceMissions(world, content);
       return ok();
     }
@@ -217,7 +226,7 @@ function run(world: World, content: Content, cmd: Command): CommandResult {
       // El estado del minijuego es presentación; el núcleo solo aplica las consecuencias del catálogo.
       const def = content.minigames[cmd.id];
       if (!def) return fail('unknown_target');
-      applyEffects(world, content, cmd.success ? def.onSuccess : def.onFail, {});
+      applyEffects(world, content, cmd.success ? def.onSuccess : def.onFail, { actor: actorId });
       emit(world, 'minigame_finished', { minigame: def.id, success: cmd.success });
       return ok();
     }

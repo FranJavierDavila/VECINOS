@@ -343,6 +343,7 @@ export const scenarioDefSchema = z.object({
   ),
   progress: z.object({ revealedTier: z.number() }),
   startMissions: z.array(z.string()),
+  multiplayer: z.object({ guestArchetype: z.string().optional(), guestWallet: z.number().optional() }).optional(),
   minigameOverrides: z
     .record(
       z.string(),
@@ -370,6 +371,15 @@ export const scenarioDefSchema = z.object({
 
 export const rulesSchema = z.object({
   startScenario: z.string(),
+  multiplayer: z.object({
+    guestArchetype: z.string(),
+    guestWallet: z.number(),
+    maxPlayers: z.number(),
+    tickSecondsPerTick: z.number(),
+    joinToast: z.string(),
+    leaveToast: z.string(),
+    texts: z.object({ sessionFull: z.string(), noVacant: z.string(), remoteSaveDisabled: z.string() }),
+  }),
   sim: z.object({
     night: scheduleWindowSchema,
     aiHopTicks: z.number(),
@@ -428,6 +438,11 @@ export const rulesSchema = z.object({
     actorFallbackColor: z.string(),
     actorFallbackHeight: z.number(),
     actorRadius: z.number(),
+    lod: z.object({
+      enabled: z.boolean(),
+      focus: z.literal('player'),
+      levels: z.array(z.object({ dist: z.number(), hide: z.array(z.enum(['edges', 'glow', 'panels'])) })),
+    }),
   }),
   demo: z.object({ resident: z.string(), block: z.string(), noise: z.number(), toast: z.string() }),
   furniture: z.object({
