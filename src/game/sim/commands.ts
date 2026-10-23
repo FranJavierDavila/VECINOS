@@ -107,6 +107,8 @@ function run(world: World, content: Content, cmd: Command): CommandResult {
     }
     case 'work': {
       const cfg = content.rules.sim.work;
+      // El portátil vive en casa: el sim es la autoridad, también para clientes remotos.
+      if (player.location !== player.home) return fail('not_home');
       if (world.tick < (player.cooldowns['work'] ?? 0)) {
         emit(world, 'ui_toast', { text: cfg.toastCooldown, tone: 'info' });
         return fail('cooldown');
@@ -116,6 +118,16 @@ function run(world: World, content: Content, cmd: Command): CommandResult {
       player.needs['fun'] = Math.max(0, player.needs['fun'] - cfg.funCost);
       emit(world, 'work_done', { amount: cfg.pay });
       emit(world, 'ui_toast', { text: cfg.toastDone.replace('{amount}', String(cfg.pay)), tone: 'good' });
+      return ok();
+    }
+    case 'sleep': {
+      // Siesta en la propia cama: restaura necesidades según el catálogo (delta con tope 0..100).
+      const cfg = content.rules.sim.sleep;
+      if (player.location !== player.home) return fail('not_home');
+      for (const [need, delta] of Object.entries(cfg.restore)) {
+        player.needs[need] = Math.min(100, Math.max(0, (player.needs[need] ?? 0) + delta));
+      }
+      emit(world, 'ui_toast', { text: cfg.toastDone, tone: 'good' });
       return ok();
     }
     case 'buy_block': {

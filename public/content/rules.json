@@ -100,6 +100,14 @@
         "min": 0.05,
         "max": 0.95
       }
+    },
+    "sleep": {
+      "restore": {
+        "sleep": 100,
+        "fun": 5,
+        "social": 5
+      },
+      "toastDone": "😴 Siesta oficial en regla. Los problemas pueden hacer cola fuera."
     }
   },
   "view": {
@@ -116,7 +124,7 @@
     "itemRadius": 0.9,
     "corridorZ": -0.95,
     "roomZ": 0,
-    "depth": 1.4,
+    "depth": 2.8,
     "wall": 0.1,
     "gapW": 0.12,
     "gapH": 0.14,
@@ -176,7 +184,8 @@
           ]
         }
       ]
-    }
+    },
+    "commonDepth": 1.4
   },
   "demo": {
     "resident": "res_fiestero_01",
@@ -239,6 +248,30 @@
       "cloudy": "Nublado",
       "rain": "Lluvia",
       "storm": "Tormenta"
+    },
+    "elevator": {
+      "ok": "funciona",
+      "broken": "averiado"
+    }
+  },
+  "interact": {
+    "exit": "E · salir a la escalera",
+    "doorEnter": "E · entrar en {block}",
+    "doorLocked": "E · {block}: candado",
+    "greet": "E · saludar a {name}",
+    "laptop": "E · conectarse al portátil",
+    "bed": "E · echar una siesta",
+    "mailbox": {
+      "prompt": "E · revisar los buzones",
+      "lines": [
+        "📧 Buzones: propaganda del súper, una circular de la junta y un sobre con ventana que no es tuyo. Como siempre.",
+        "📧 Buzones: folletos de menús para llevar. El del kebab ya te busca por tu número de portal.",
+        "📧 Buzones: una carta del banco para el 4D (otra vez equivocada) y cero nada para ti. El cartero hace lo que puede."
+      ]
+    },
+    "noticeboard": {
+      "prompt": "E · leer el tablón de la comunidad",
+      "template": "📌 Tablón · Día {day} · Caja de la comunidad: {funds} € · Ascensor: {elevator} · Cielo: {weather}. La junta agradece su lectura."
     }
   }
 }

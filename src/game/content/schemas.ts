@@ -393,6 +393,7 @@ export const rulesSchema = z.object({
     }),
     work: z.object({ pay: z.number(), cooldownTicks: z.number(), funCost: z.number(), toastCooldown: z.string(), toastDone: z.string() }),
     knock: z.object({ affinityGain: z.number(), asleepLine: z.string(), fallbackLines: z.array(z.string()) }),
+    sleep: z.object({ restore: z.record(z.string(), z.number()), toastDone: z.string() }),
     weather: z.object({
       cycle: z.array(z.object({ state: z.enum(['sunny', 'cloudy', 'rain', 'storm']), weight: z.number() })),
       durationMinutes: z.object({ min: z.number(), max: z.number() }),
@@ -422,6 +423,7 @@ export const rulesSchema = z.object({
     corridorZ: z.number(),
     roomZ: z.number(),
     depth: z.number(),
+    commonDepth: z.number().default(1.4),
     wall: z.number(),
     gapW: z.number(),
     gapH: z.number(),
@@ -463,7 +465,17 @@ export const rulesSchema = z.object({
     labels: z.object({ interact: z.string(), camera: z.string(), move: z.string() }),
     hint: z.string(),
   }),
-  labels: z.object({ weather: z.record(z.string(), z.string()) }),
+  labels: z.object({ weather: z.record(z.string(), z.string()), elevator: z.record(z.string(), z.string()).default({ ok: 'funciona' }) }),
+  interact: z.object({
+    exit: z.string(),
+    doorEnter: z.string(),
+    doorLocked: z.string(),
+    greet: z.string(),
+    laptop: z.string(),
+    bed: z.string(),
+    mailbox: z.object({ prompt: z.string(), lines: z.array(z.string()).min(1) }),
+    noticeboard: z.object({ prompt: z.string(), template: z.string() }),
+  }),
 });
 
 // ───────────────────────── Catálogo de sonido (procedural, Web Audio) ─────────────────────────

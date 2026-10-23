@@ -5,7 +5,8 @@ export type InteractResult =
   | { type: 'none' }
   | { type: 'entered'; block: string }
   | { type: 'exited'; block: string }
-  | { type: 'locked'; block: string; reason: string | null; price: number | null };
+  | { type: 'locked'; block: string; reason: string | null; price: number | null }
+  | { type: 'used'; kind: 'laptop' | 'bed' | 'mailbox' | 'noticeboard' | 'resident' };
 
 /**
  * Firma de la vía de salida de comandos. En partida clásica el controlador devuelve el
@@ -183,8 +184,13 @@ export class PlayerLogic {
       if (!loc) continue;
       const myZone = this.mode === 'inside' ? this.insideBlock : this.zone().id;
       const theirZone = loc.kind === 'dwelling' ? (this.mode === 'inside' && this.insideBlock === loc.id ? loc.id : null) : loc.id;
-      if (!theirZone || theirZone !== myZone) continue;
-      if (Math.abs((loc.cell.col + loc.size.w / 2) * this.view.cellW - this.x) < this.view.nearRadius) return other.id;
+      // Circulación compartida: en pasillo, un vecino en el pasillo o el núcleo de ESTA planta
+      // está "a tu lado" aunque zone() te asigne el núcleo (capa main) y a él el pasillo.
+      const sharedCirculation = this.mode === 'corridor' && loc.cell.floor === this.floor && loc.kind !== 'dwelling';
+      if (theirZone !== myZone && !sharedCirculation) continue;
+      // En circulación, la referencia es el centro del bloque donde está (pasillo ancho → su centro).
+      const theirX = (loc.cell.col + loc.size.w / 2) * this.view.cellW;
+      if (Math.abs(theirX - this.x) < this.view.nearRadius) return other.id;
     }
     return null;
   }
@@ -207,10 +213,12 @@ export class PlayerLogic {
       }
       return { kind: 'door', blockId: this.insideBlock! };
     }
-    const neighbor = this.residentNearby();
-    if (neighbor) return { kind: 'resident', residentId: neighbor };
+    // Prioridad: puerta (acción habitual) → vecino → buzones → tablón. La tecla E y el
+    // prompt leen SIEMPRE el mismo objetivo, así lo que ves es lo que la E ejecuta.
     const door = this.doorInFront();
     if (door) return { kind: 'door', blockId: door.id };
+    const neighbor = this.residentNearby();
+    if (neighbor) return { kind: 'resident', residentId: neighbor };
     const z = this.zone();
     const [za, zz] = this.rangeOf(z);
     if (this.content.blocks[z.defId]!.features?.mailboxes && Math.abs(this.x - (za + 1.2)) < this.view.itemRadius) return { kind: 'mailbox' };
@@ -218,9 +226,25 @@ export class PlayerLogic {
     return null;
   }
 
-  /** Tecla de interacción: entrar por la puerta delante, salir si estás dentro, o usar el objeto cercano. */
+  /** Tecla de interacción: usa el objeto cercano (portátil/cama/buzón/tablón/vecino) o resuelve la puerta. */
   interact(): InteractResult {
     if (this.climb) return { type: 'none' };
+    const t = this.interactTarget();
+    if (t?.kind === 'laptop') {
+      this.exec({ type: 'work', actor: this.actorId });
+      return { type: 'used', kind: 'laptop' };
+    }
+    if (t?.kind === 'bed') {
+      this.exec({ type: 'sleep', actor: this.actorId });
+      return { type: 'used', kind: 'bed' };
+    }
+    if (t?.kind === 'mailbox') return { type: 'used', kind: 'mailbox' }; // lectura: texto del catálogo en la presentación
+    if (t?.kind === 'noticeboard') return { type: 'used', kind: 'noticeboard' };
+    if (t?.kind === 'resident') {
+      const other = this.world.residents[t.residentId]!;
+      if (other.location) this.exec({ type: 'knock', block: other.location, actor: this.actorId });
+      return { type: 'used', kind: 'resident' };
+    }
     if (this.mode === 'inside') {
       const home = this.insideBlock!;
       const corridorId = this.corridor().id;

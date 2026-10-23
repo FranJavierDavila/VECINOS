@@ -46,6 +46,11 @@ export function createActors(scene: Scene, world: World, content: Content) {
     const def = content.assets?.actors?.[archetype];
     if (def && content.assets) {
       void instantiateActorAsset(scene, def, content.assets.base, `${id}:${archetype}`).then((rig) => {
+        // La escena pudo morir mientras cargaba (restart/Cargar partida): no adjuntar nada viejo.
+        if (rig && scene.isDisposed) {
+          rig.dispose();
+          return;
+        }
         if (!rig) return; // fallback greybox permanente
         const cur = actors.get(id);
         if (!cur || cur.rig) {

@@ -434,3 +434,26 @@ Stage Summary:
 - Fase B completa: el edificio es data-driven al 100% — pasar de 5x5 a 9x8 con viviendas dobles costó 3 ficheros de contenido y CERO líneas de código/sim (la arquitectura agnóstica demostrada en la práctica).
 - Hallazgo para futuras fases: interactTarget() (portátil/cama/buzones/tablón) está declarado en PlayerLogic pero aún no está cableado a la tecla E (solo entra/sale); conectarlo es la QoL pendiente junto a la resincronización de vistas tras "Cargar partida" (v0.6-b).
 - Pendientes v0.6: Fase C (movimiento interior 2D + layouts 2D), Fase D (cutscenes de misión data-driven).
+
+---
+Task ID: 15
+Agent: main (Z.ai Code)
+Task: v0.6-b — tecla E universal (portátil/cama/buzones/tablón/vecino) + resync de vistas tras "Cargar partida" + viviendas 2× profundas
+
+Work Log:
+- E universal: interact() (player-logic.ts) ahora consume interactTarget() — la MISMA fuente para el prompt y la acción (cero divergencias): portátil → comando `work` (+120 € con cooldown del catálogo), cama → comando `sleep` NUEVO en el sim (restaura necesidades con delta 0..100 según rules.sim.sleep; funciona igual en remoto porque el servidor comparte el núcleo), vecino cercano → `knock` a su ubicación (línea del pool `say` del arquetipo + afinidad +2), buzones/tablón → lectura sin estado con textos del catálogo (rules.interact.mailbox.lines rotan por tick; tablón con plantilla {day}/{funds}/{elevator}/{weather} y datos vivos). Prioridad puerta-primero también en interactTarget() para que entrar en casa nunca la secuestre el saludo. prompts de puerta/salir movidos a rules.interact (data-driven total).
+- Bug preexistente aprovechado: knock_result no se pintaba en la UI (caía al default del switch) → case nuevo: toast «🗣️ Nombre: «línea»».
+- Guard honesto en `work` (primer caller real): el sim exige location === home (autoridad también para clientes remotos).
+- RESYNC tras Cargar partida — CAUSA RAÍZ ENCONTRADA: la caché de contenedores glTF (assets.ts) era global por URL, pero cada contenedor pertenece a la escena con la que se cargó; tras restart() (nueva escena), los modelos salían de caché y se instanciaban en la escena MUERTA → núcleo/vecinos sin arte tras load. Fix: caché por escena (WeakMap<Scene, Map>) + guardas scene.isDisposed en loadContainer/instantiate* y en los .then de building/actors (no tocar vistas de escenas viejas). Además restart() alinea la cámara con la posición del mundo restaurado (inside → estancia; en pasillo, preferencia salvo que fuera estancia → planta).
+- Viviendas 2× profundas: rules.view.depth 1.4 → 2.8 y NUEVO commonDepth 1.4 (comunes/núcleo sin cambio → el glTF del ascensor sigue a escala 1). building.ts: plano frontal fijo (frontZ = roomZ − commonDepth/2), el calado extra crece hacia +Z (el pasillo y el núcleo no quedan envueltos), mobiliario pegado al frente (fondo libre para Fase C), modelos glTF escalados con el calado de su tipo. Schemas/tipos actualizados (commonDepth con default para catálogos antiguos).
+- Fix de diseño detectado al probar el saludo: residentNearby() comparaba zone() (núcleo, capa main) con la location del vecino (pasillo) → nunca coincidían en la retícula 9 cols. Ahora la circulación compartida de la misma planta (pasillo↔núcleo) cuenta como "al lado" (mismo radio nearRadius; la puerta sigue teniendo prioridad).
+- E2E (agent-browser, todo verificado en vivo): buzones (prompt+toast catálogo), tablón (Día 1 · 500 € · averiado · Soleado), portátil (+120 €: 1000→1120), cama (sleep 77.7→100, fun/social +5, toast), saludo al Fiestero (toast con línea + afinidad +2), E correctamente bloqueada con modales abiertos (teléfono), entrar/salir 3C intacto.
+- Save/load a mitad de sesión: guardado en tick 87 (núcleo planta 2) → divergencia total (portal, otra cámara, +30 ticks) → Cargar: tick/posición/cartera exactos, prompt y cámara coherentes, escena viva, glTF del núcleo instanciado en la escena NUEVA (greybox desactivado), 113 clones glTF, actores on/off correctos, consola sin errores.
+- Profundidad medida: fondo 3C z=2.1 (calado 2.8 = 2×1.4), puerta z=−0.7 (plano frontal intacto), núcleo z=0, pasillo z=−0.95; sofá de prueba colocado en el salón (visible, x=12.36, z=−0.35, escala del catálogo). Pinturillas con rig glTF activo tras el load.
+- smoke-sim OK, smoke-junta OK, tsc 0 errores en src/, lint 0. Nota: el keydown del CLI headless no rellena ev.code (llega "" al controlador); en las pruebas se usaron KeyboardEvent sintéticos con code — el teclado real no está afectado.
+
+Stage Summary:
+- La tecla E es ya universal y honesta: el prompt SIEMPRE dice lo que la E va a hacer (misma fuente interactTarget), y los cinco objetivos (puerta, vecino, buzones, tablón, portátil, cama) están cableados con lógica de sim donde hay estado (work/sleep/knock) y lectura de catálogo donde no lo hay (buzón/tablón). Multijugador OK por diseño (mismos comandos en el núcleo compartido).
+- "Cargar partida" re-sincroniza de verdad (causa raíz de la caché glTF corregida + cámara alineada a la posición).
+- Viviendas 4.8 × 2.8 m listas para el mobiliario de Fase C; los comunes no cambian.
+- Pendientes v0.6: Fase C (movimiento interior 2D + layouts 2D con el fondo libre ya ganado), Fase D (cutscenes de misión data-driven). QoL futura: dormir podría saltar hasta las 08:00 (requiere avanzar ticks del reloj, con cuidado del spam de eventos).

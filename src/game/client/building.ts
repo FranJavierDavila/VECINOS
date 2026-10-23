@@ -48,6 +48,11 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
   const shakes = new Map<string, number>();
   /** Foco del LOD (posición del jugador): lo alimenta update() y lo consume paint(). */
   let lastFocus: { x: number; floor: number } | null = null;
+  // Plano frontal de las estancias: la cara de la puerta. Con viviendas del doble de calado
+  // (v0.6-b), el extra crece hacia el FONDO (+Z) para no envolver el pasillo ni al núcleo.
+  const frontZ = v.roomZ - v.commonDepth / 2;
+  /** Calado por bloque: viviendas 2× (mobiliario interior); bloques comunes, el de siempre. */
+  const depthOf = (b: BlockInstance): number => (b.kind === 'dwelling' ? v.depth : v.commonDepth);
   const mat = (name: string) => new StandardMaterial(name, scene);
   const box = (name: string, w: number, h: number, d: number, x: number, y: number, z: number, m: StandardMaterial) => {
     const mesh = MeshBuilder.CreateBox(name, { width: w, height: h, depth: d }, scene);
@@ -62,6 +67,8 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     const bottom = b.cell.floor * v.cellH;
     const w = b.size.w * v.cellW - v.gapW;
     const h = v.cellH - v.gapH;
+    const d = depthOf(b);
+    const cz = frontZ + d / 2;
     const view: BlockView = {
       greybox: [],
       mats: [m],
@@ -82,19 +89,19 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       view.greybox.push(box(b.id, b.size.w * v.cellW, v.slab * 2, 0.5, cx, bottom + v.slab, v.corridorZ, m));
     } else if (b.kind === 'dwelling') {
       const y = bottom + v.cellH / 2;
-      view.edgesMesh = box(`${b.id}_fondo`, w, h, v.wall, cx, y, v.roomZ + v.depth / 2, m);
+      view.edgesMesh = box(`${b.id}_fondo`, w, h, v.wall, cx, y, frontZ + d, m);
       view.greybox.push(
         view.edgesMesh,
-        box(`${b.id}_izq`, v.wall, h, v.depth, cx - w / 2, y, v.roomZ, m),
-        box(`${b.id}_der`, v.wall, h, v.depth, cx + w / 2, y, v.roomZ, m),
-        box(`${b.id}_suelo`, w, v.wall, v.depth, cx, bottom + v.slab + v.wall / 2, v.roomZ, m),
-        box(`${b.id}_techo`, w, v.wall, v.depth, cx, bottom + v.cellH - v.slab - v.wall / 2, v.roomZ, m),
+        box(`${b.id}_izq`, v.wall, h, d, cx - w / 2, y, cz, m),
+        box(`${b.id}_der`, v.wall, h, d, cx + w / 2, y, cz, m),
+        box(`${b.id}_suelo`, w, v.wall, d, cx, bottom + v.slab + v.wall / 2, cz, m),
+        box(`${b.id}_techo`, w, v.wall, d, cx, bottom + v.cellH - v.slab - v.wall / 2, cz, m),
       );
-      view.front = box(`${b.id}_puerta`, w, h, v.wall, cx, y, v.roomZ - v.depth / 2, m);
-      view.lock = box(`${b.id}_candado`, 0.3, 0.38, 0.12, cx, view.lockBase.y, v.roomZ - v.depth / 2 - 0.1, mat(`${b.id}_candado_mat`));
+      view.front = box(`${b.id}_puerta`, w, h, v.wall, cx, y, frontZ, m);
+      view.lock = box(`${b.id}_candado`, 0.3, 0.38, 0.12, cx, view.lockBase.y, frontZ - 0.1, mat(`${b.id}_candado_mat`));
       (view.lock.material as StandardMaterial).diffuseColor = Color3.FromHexString(v.lockColor);
     } else {
-      view.greybox.push(box(b.id, w, h, v.depth, cx, bottom + v.cellH / 2, v.roomZ, m));
+      view.greybox.push(box(b.id, w, h, d, cx, bottom + v.cellH / 2, cz, m));
     }
     views.set(b.id, view);
   }
@@ -108,6 +115,11 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       const entry = blockAssets[b.defId];
       if (!entry) continue;
       void instantiateBlockAsset(scene, entry, content.assets.base).then((model) => {
+        // La escena pudo morir mientras cargaba (restart/Cargar partida): no tocar vistas viejas.
+        if (model && scene.isDisposed) {
+          model.root.dispose(false, false);
+          return;
+        }
         if (!model) return; // fallback greybox permanente
         const view = views.get(b.id);
         if (!view || view.model) {
@@ -116,9 +128,11 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         }
         const w = b.size.w * v.cellW - v.gapW;
         const h = v.cellH - v.gapH;
+        const d = depthOf(b);
+        const cz = frontZ + d / 2;
         // El modelo se authora a dimensiones nominales con la base en y=0 y centrado en x/z.
-        model.root.scaling.set(w / entry.nominal.w, h / entry.nominal.h, v.depth / entry.nominal.d);
-        model.root.position.set((b.cell.col + b.size.w / 2) * v.cellW, b.cell.floor * v.cellH, v.roomZ);
+        model.root.scaling.set(w / entry.nominal.w, h / entry.nominal.h, d / entry.nominal.d);
+        model.root.position.set((b.cell.col + b.size.w / 2) * v.cellW, b.cell.floor * v.cellH, cz);
         view.model = model.root;
         view.mats = model.mats;
         view.baseEmissive = model.mats.map((mm) => new Color3(mm.emissiveColor.r, mm.emissiveColor.g, mm.emissiveColor.b));
@@ -157,7 +171,8 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       const roomW = rdef?.size.w ?? 1;
       (rdef?.furnitureSlots ?? []).forEach((slot, slotIdx) => {
         const x = b.cell.col * v.cellW + roomIdx * bandW + (slot.pos[0] / Math.max(0.001, roomW)) * bandW;
-        const z = v.roomZ - v.depth / 2 + 0.35 + slotIdx * 0.32;
+        // Cerca del plano frontal (con viviendas de calado doble queda todo el fondo libre para Fase C).
+        const z = frontZ + 0.35 + slotIdx * 0.32;
         const fm = mat(`${b.id}_${layoutRoom.key}_${slot.id}_furn`);
         const mesh = box(`${b.id}_${layoutRoom.key}_${slot.id}_furn`, 1, 1, 1, x, bottom + v.slab, z, fm);
         mesh.setEnabled(false);

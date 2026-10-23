@@ -178,13 +178,36 @@ class GameController {
     this.pump();
   }
 
-  /** Interacción (tecla E o botón virtual ✋): entrar, salir o usar el objeto cercano. */
+  /** Interacción (tecla E o botón virtual ✋): usar el objeto cercano, entrar o salir. */
   interact(): void {
     if (!this.logic) return;
     const r = this.logic.interact();
     if (r.type === 'entered') this.setCamMode('estancia');
     else if (r.type === 'exited') this.setCamMode('planta');
+    else if (r.type === 'used') this.presentInteraction(r.kind);
     this.pump();
+  }
+
+  /**
+   * Lecturas sin estado (buzón/tablón): texto del catálogo aquí; work/sleep/knock llegan como
+   * eventos del sim (ui_toast / knock_result) y no se tratan en esta vía.
+   */
+  private presentInteraction(kind: 'laptop' | 'bed' | 'mailbox' | 'noticeboard' | 'resident'): void {
+    if (!this.world) return;
+    const ic = this.content.rules.interact;
+    if (kind === 'mailbox') {
+      const lines = ic.mailbox.lines;
+      useGameStore.getState().pushToast(lines[this.world.tick % lines.length]!, 'info');
+    } else if (kind === 'noticeboard') {
+      const elevatorBlock = Object.values(this.world.blocks).find((b) => b.params.elevator_status !== undefined);
+      const status = String(elevatorBlock?.params.elevator_status ?? 'ok');
+      const text = ic.noticeboard.template
+        .replace('{day}', String(this.world.clock.day))
+        .replace('{funds}', String(this.world.community.funds))
+        .replace('{elevator}', this.content.rules.labels.elevator[status] ?? status)
+        .replace('{weather}', this.content.rules.labels.weather[this.world.weather.state] ?? this.world.weather.state);
+      useGameStore.getState().pushToast(text, 'info');
+    }
   }
 
   /** Editor: desplazarse a una vivienda del jugador (queda delante de su puerta). */
@@ -507,7 +530,14 @@ class GameController {
       view.cellW,
       view.cellH,
     );
-    this.rig.mode = useGameStore.getState().camMode;
+    // Re-sincronización de vista (v0.6-b): la cámara sigue la posición del mundo (restaurado o
+    // nuevo), no la preferencia anterior. Dentro de una vivienda → estancia; en pasillo, la
+    // preferencia salvo que fuera 'estancia' (ahí estás en el pasillo, no en una estancia).
+    const pos = this.logic.position();
+    const store = useGameStore.getState();
+    const wanted: CamMode = pos.mode === 'inside' ? 'estancia' : store.camMode === 'estancia' ? 'planta' : store.camMode;
+    this.rig.mode = wanted;
+    store.setCamMode(wanted);
 
     this.clockAcc = 0;
     this.keys.clear();
@@ -637,6 +667,9 @@ class GameController {
         case 'block_for_sale':
           store.pushLog(`🪧 Cartel de "SE VENDE" en ${blockLabel(String(d.block))} (${String(d.price)} €)`, 'info');
           break;
+        case 'knock_result':
+          store.pushToast(`🗣️ ${String(d.name)}: «${String(d.line)}»`, d.asleep ? 'info' : 'good');
+          break;
         case 'noise_complaint': // texto data-driven: lo pinta el uiLog del catálogo (case mantenido por compatibilidad de eventos antiguos)
           if (d.uiLog === true) break;
           store.pushLog(`🔊 Ruido por encima del límite en ${blockLabel(String(d.block))}. Alguien aprieta los dientes.`, 'bad');
@@ -765,11 +798,31 @@ class GameController {
     const logic = this.logic;
     const world = this.world;
     if (!logic || !world) return null;
-    const p = logic.position();
-    if (p.mode === 'inside') return 'E · salir a la escalera';
-    if (p.climbing) return null;
-    const door = logic.doorInFront();
-    if (door) return door.access === 'locked' ? `E · ${blockLabel(door.id)}: candado` : `E · entrar en ${blockLabel(door.id)}`;
+    if (logic.position().climbing) return null;
+    // El prompt es SIEMPRE el objetivo real de la tecla E (misma fuente, cero divergencias).
+    const t = logic.interactTarget();
+    if (t) {
+      const ic = this.content.rules.interact;
+      switch (t.kind) {
+        case 'door': {
+          const door = world.blocks[t.blockId]!;
+          if (logic.position().mode === 'inside') return ic.exit;
+          return door.access === 'locked'
+            ? ic.doorLocked.replace('{block}', blockLabel(door.id))
+            : ic.doorEnter.replace('{block}', blockLabel(door.id));
+        }
+        case 'resident':
+          return ic.greet.replace('{name}', this.nameOf(t.residentId));
+        case 'mailbox':
+          return ic.mailbox.prompt;
+        case 'noticeboard':
+          return ic.noticeboard.prompt;
+        case 'laptop':
+          return ic.laptop;
+        case 'bed':
+          return ic.bed;
+      }
+    }
     const zone = logic.zone();
     if (this.content.blocks[zone.defId]!.features?.stairs) {
       return world.blocks[zone.id]!.params.elevator_status === 'ok' ? 'W/S · ascensor' : 'W/S · escalera (el ascensor no funciona)';

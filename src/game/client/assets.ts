@@ -25,22 +25,29 @@ function ensureGlTFLoader(): Promise<void> {
   return loadersPromise;
 }
 
-/** Contenedores cargados por URL completa (uno por fichero; las instancias se clonan de él). */
-const containers = new Map<string, Promise<AssetContainer | null>>();
+/** Contenedores por ESCENA (WeakMap): tras restart/Cargar partida la escena cambia y cada
+ *  contenedor se instancia en la escena a la que pertenece; la caché vieja muere con su escena. */
+const containers = new WeakMap<Scene, Map<string, Promise<AssetContainer | null>>>();
 
 async function loadContainer(scene: Scene, url: string): Promise<AssetContainer | null> {
-  let p = containers.get(url);
+  let perScene = containers.get(scene);
+  if (!perScene) {
+    perScene = new Map();
+    containers.set(scene, perScene);
+  }
+  let p = perScene.get(url);
   if (!p) {
     p = (async () => {
       try {
         await ensureGlTFLoader();
+        if (scene.isDisposed) return null; // la escena murió mientras llegaba el plugin
         return await B().SceneLoader.LoadAssetContainerAsync(url, '', scene);
       } catch (e) {
         console.warn(`[assets] modelo no disponible (${url}); greybox como fallback.`, e);
         return null;
       }
     })();
-    containers.set(url, p);
+    perScene.set(url, p);
   }
   return p;
 }
@@ -64,7 +71,7 @@ export interface ActorRig {
 /** Instancia el modelo de un arquetipo para un residente concreto. null → greybox. */
 export async function instantiateActorAsset(scene: Scene, def: ActorAssetDef, base: string, id: string): Promise<ActorRig | null> {
   const c = await loadContainer(scene, base + def.model);
-  if (!c) return null;
+  if (!c || scene.isDisposed) return null;
   try {
     const inst = c.instantiateModelsToScene();
     const root = inst.rootNodes[0] as TransformNode | undefined;
@@ -138,7 +145,7 @@ function collectMats(root: TransformNode): BlockMat[] {
 /** Instancia el modelo de un tipo de bloque. null → greybox. */
 export async function instantiateBlockAsset(scene: Scene, def: BlockAssetDef, base: string): Promise<BlockModel | null> {
   const c = await loadContainer(scene, base + def.model);
-  if (!c) return null;
+  if (!c || scene.isDisposed) return null;
   try {
     const inst = c.instantiateModelsToScene();
     const root = inst.rootNodes[0] as TransformNode | undefined;

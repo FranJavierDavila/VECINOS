@@ -474,6 +474,8 @@ export interface Rules {
     };
     work: { pay: number; cooldownTicks: number; funCost: number; toastCooldown: string; toastDone: string };
     knock: { affinityGain: number; asleepLine: string; fallbackLines: string[] };
+    /** Siesta (comando `sleep`): necesidades restauradas (delta con tope 100) y su texto. */
+    sleep: { restore: Record<string, number>; toastDone: string };
     weather: { cycle: { state: Weather; weight: number }[]; durationMinutes: { min: number; max: number } };
     junta: {
       baseYes: number;
@@ -500,7 +502,10 @@ export interface Rules {
     itemRadius: number;
     corridorZ: number;
     roomZ: number;
+    /** Calado (profundidad en Z) de las viviendas: doblado en v0.6-b para mobiliario interior. */
     depth: number;
+    /** Calado de los bloques comunes (portal, núcleo, trasteros): mantiene el glTF del núcleo a escala 1. */
+    commonDepth: number;
     wall: number;
     gapW: number;
     gapH: number;
@@ -550,7 +555,18 @@ export interface Rules {
     /** Texto del aviso cuando se activan a mano en desktop. */
     hint: string;
   };
-  labels: { weather: Record<string, string> };
+  labels: { weather: Record<string, string>; elevator: Record<string, string> };
+  /** Interacción con la tecla E: prompts y lecturas (buzón/tablón) del catálogo, cero textos en código. */
+  interact: {
+    exit: string;
+    doorEnter: string;
+    doorLocked: string;
+    greet: string;
+    laptop: string;
+    bed: string;
+    mailbox: { prompt: string; lines: string[] };
+    noticeboard: { prompt: string; template: string };
+  };
 }
 
 // ───────────────────────── Instancias (estado) ─────────────────────────
@@ -669,6 +685,7 @@ export type Command =
   | { type: 'answer_call'; mission: string; actor?: string }
   | { type: 'choose'; mission: string; choice: string; actor?: string }
   | { type: 'work'; actor?: string }
+  | { type: 'sleep'; actor?: string }
   | { type: 'buy_block'; block: string; actor?: string }
   | { type: 'junta_vote'; vote: Vote; actor?: string }
   | { type: 'knock'; block: string; actor?: string }
