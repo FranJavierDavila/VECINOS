@@ -55,6 +55,13 @@ export interface PhoneState {
   isLast: boolean;
 }
 
+/** Teatro de cutscene (Fase D): qué subtítulo mostrar; speaker/text null = solo bandas de cine. */
+export interface CutsceneState {
+  id: string;
+  speaker: string | null;
+  text: string | null;
+}
+
 export interface ChoiceItem {
   id: string;
   label: string;
@@ -163,6 +170,7 @@ interface GameState {
   log: LogItem[];
   toasts: ToastItem[];
   phone: PhoneState | null;
+  cutscene: CutsceneState | null;
   choices: ChoiceState | null;
   junta: JuntaItemUi[] | null;
   minigame: MinigameState | null;
@@ -191,6 +199,7 @@ interface GameState {
   dropToast: (id: number) => void;
   pushLog: (text: string, tone?: Tone) => void;
   setPhone: (p: PhoneState | null) => void;
+  setCutscene: (c: CutsceneState | null) => void;
   setChoices: (c: ChoiceState | null) => void;
   setJunta: (items: JuntaItemUi[] | null) => void;
   setMinigame: (m: MinigameState | null) => void;
@@ -207,9 +216,9 @@ interface GameState {
 
 let nextId = 1;
 
-/** Modales abiertos = mundo congelado. La derivan phone/choices/junta/minigame/finale. */
-export function selectModalOpen(s: Pick<GameState, 'phone' | 'choices' | 'junta' | 'minigame' | 'finale'>): boolean {
-  return s.phone !== null || s.choices !== null || s.junta !== null || s.minigame !== null || s.finale !== null;
+/** Modales abiertos = mundo congelado. La derivan phone/choices/junta/minigame/finale y las cutscenes (Fase D). */
+export function selectModalOpen(s: Pick<GameState, 'phone' | 'choices' | 'junta' | 'minigame' | 'finale' | 'cutscene'>): boolean {
+  return s.phone !== null || s.choices !== null || s.junta !== null || s.minigame !== null || s.finale !== null || s.cutscene !== null;
 }
 
 export const useGameStore = create<GameState>((set) => ({
@@ -238,6 +247,7 @@ export const useGameStore = create<GameState>((set) => ({
   log: [],
   toasts: [],
   phone: null,
+  cutscene: null,
   choices: null,
   junta: null,
   minigame: null,
@@ -280,6 +290,7 @@ export const useGameStore = create<GameState>((set) => ({
       log: [...s.log.slice(-59), { id: nextId++, tick: s.clock.day * 1440 + s.clock.minute, text, tone }],
     })),
   setPhone: (p) => set({ phone: p }),
+  setCutscene: (cutscene) => set({ cutscene }),
   setChoices: (c) => set({ choices: c }),
   setJunta: (items) => set({ junta: items }),
   setMinigame: (m) => set({ minigame: m }),
@@ -300,6 +311,7 @@ export const useGameStore = create<GameState>((set) => ({
   resetUi: () =>
     set({
       phone: null,
+      cutscene: null,
       choices: null,
       junta: null,
       minigame: null,

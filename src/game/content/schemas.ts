@@ -336,6 +336,29 @@ export const missionDefSchema = z.object({
   onComplete: effects.optional(),
 });
 
+// ───────────────────────── Cutscenes (Fase D) ─────────────────────────
+
+/** Punto de escenario: bloque (literal o $home/$entry/$event.block) y punto dentro de él. */
+const cutsceneSpotSchema = z.object({ block: z.string().min(1), at: z.enum(['door', 'center']) });
+
+export const cutsceneDefSchema = z.object({
+  id: z.string(),
+  trigger: z.object({
+    on: z.enum(['neighbor_arrived', 'mission_activated', 'step_started', 'step_completed', 'mission_completed', 'mission_failed']),
+    mission: z.string().optional(),
+    step: z.string().optional(),
+  }),
+  beats: z.array(
+    z.discriminatedUnion('type', [
+      z.object({ type: z.literal('cam'), focus: z.union([z.literal('wide'), z.literal('player'), cutsceneSpotSchema]), viewH: z.number().positive().optional(), hold: z.number().positive().optional() }),
+      z.object({ type: z.literal('walk'), who: z.string().min(1), from: cutsceneSpotSchema.optional(), to: cutsceneSpotSchema, max: z.number().positive().optional() }),
+      z.object({ type: z.literal('line'), speaker: z.string().optional(), text: z.string().min(1), seconds: z.number().positive().optional() }),
+      z.object({ type: z.literal('wait'), seconds: z.number().positive() }),
+      z.object({ type: z.literal('sound'), id: z.string().min(1) }),
+    ]),
+  ),
+});
+
 export const templateDefSchema = z.object({
   id: z.string(),
   grid: z.object({ cols: z.number(), floors: z.number() }),
@@ -500,6 +523,12 @@ export const rulesSchema = z.object({
     }),
   }),
   demo: z.object({ resident: z.string(), block: z.string(), noise: z.number(), toast: z.string() }),
+  cutscene: z.object({
+    hold: z.number().positive(),
+    line: z.number().positive(),
+    walkMax: z.number().positive(),
+    focusViewH: z.number().positive(),
+  }),
   furniture: z.object({
     refundRatio: z.number(),
     roomUnlock: z.object({ price: z.number(), toast: z.string() }),
@@ -597,5 +626,6 @@ export const influenceListSchema = z.array(influenceRuleSchema);
 export const archetypeListSchema = z.array(archetypeDefSchema);
 export const dialogListSchema = z.array(dialogDefSchema);
 export const missionListSchema = z.array(missionDefSchema);
+export const cutsceneListSchema = z.array(cutsceneDefSchema);
 export const templateListSchema = z.array(templateDefSchema);
 export const scenarioListSchema = z.array(scenarioDefSchema);

@@ -21,6 +21,8 @@ export interface GameControllerApi {
   choose(choiceId: string): void;
   juntaVote(vote: 'yes' | 'no'): void;
   finaleClose(): void;
+  /** Cutscenes (Fase D): saltar la cinemática en curso (y las encadenadas en cola). */
+  cutsceneSkip(): void;
   /** Editor de interiores: colocar, quitar y reformar estancias. */
   placeFurniture(block: string, room: string, slot: string, item: string): void;
   removeFurniture(block: string, room: string, slot: string): void;

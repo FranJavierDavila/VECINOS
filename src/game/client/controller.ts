@@ -1,7 +1,7 @@
 'use client';
 
 import type { AbstractEngine, Scene } from '@babylonjs/core';
-import type { Command, Content, Input, MinigameDef, ScenarioDef, World } from '@/game/core/types';
+import type { Command, Content, CutsceneDef, GameEvent, Input, MinigameDef, ScenarioDef, World } from '@/game/core/types';
 import type { CommandResult } from '@/game/sim';
 import { blockLabel } from '@/game/core/types';
 import { loadContent } from '@/game/content';
@@ -11,6 +11,7 @@ import { createEngine } from './engine';
 import { createBuilding } from './building';
 import { createActors } from './actors';
 import { CameraRig, type CamMode } from './camera';
+import { CutscenePlayer, type CutsceneEventCtx } from './cutscene';
 import { B } from './babylon';
 import { eventSound, preloadSounds } from './audio';
 import { NetSession, type SessionStatePayload } from './net';
@@ -54,6 +55,10 @@ class GameController {
   private phoneLines: { speaker: string; text: string }[] = [];
   private phoneLine = 0;
 
+  // ── Cutscenes (Fase D): teatro data-driven sobre eventos del sim. ──
+  private cutscenePlayer: CutscenePlayer | null = null;
+  private cutsceneQueue: { def: CutsceneDef; ctx: CutsceneEventCtx }[] = [];
+
   // ── Multijugador (protocolo v1): el servidor autoritativo posee el mundo; este cliente lo refleja ──
   private net: NetSession | null = null;
   private myResidentId: string | null = null;
@@ -69,6 +74,7 @@ class GameController {
       // 1) Contenido externo + validación (los errores de referencias se avisan, no abortan).
       const { content, issues } = await loadContent();
       this._content = content;
+      this.cutscenePlayer = new CutscenePlayer(content);
       preloadSounds();
       useGameStore.setState({ touchHint: content.rules.touch.hint });
       if (issues.length > 0) {
@@ -104,6 +110,11 @@ class GameController {
   // ───────────────── Entrada (GameStage la conecta; los mandos virtuales se fusionan) ─────────────────
 
   onKeyDown(code: string): void {
+    // Cutscene en curso: E/Espacio/Enter/Escape saltan el espectáculo; nada más pasa.
+    if (this.cutscenePlayer?.active) {
+      if (code === 'KeyE' || code === 'Space' || code === 'Enter' || code === 'Escape') this.cutsceneSkip();
+      return;
+    }
     if (this.keys.has(code)) return;
     this.keys.add(code);
     const store = useGameStore.getState();
@@ -181,12 +192,23 @@ class GameController {
 
   /** Interacción (tecla E o botón virtual ✋): usar el objeto cercano, entrar o salir. */
   interact(): void {
+    // El ✋ táctil también salta la cutscene (es la única acción habilitada mientras dura).
+    if (this.cutscenePlayer?.active) {
+      this.cutsceneSkip();
+      return;
+    }
     if (!this.logic) return;
     const r = this.logic.interact();
     if (r.type === 'entered') this.setCamMode('estancia');
     else if (r.type === 'exited') this.setCamMode('planta');
     else if (r.type === 'used') this.presentInteraction(r.kind);
     this.pump();
+  }
+
+  /** Salta la cutscene en curso (y las encadenadas que quedaban en cola). */
+  cutsceneSkip(): void {
+    this.cutsceneQueue = [];
+    this.cutscenePlayer?.abort();
   }
 
   /**
@@ -500,6 +522,9 @@ class GameController {
   /** (Re)crea el mundo y la escena. Con `state` restaura una partida guardada. */
   private async restart(state?: World): Promise<void> {
     if (!this.engine || !this.canvas || !this._content) return;
+    // Ninguna cutscene sobrevive a un cambio de mundo: cola fuera y teatro desmontado.
+    this.cutsceneQueue = [];
+    this.cutscenePlayer?.abort();
     const { Color4, DirectionalLight, HemisphericLight, Scene, UniversalCamera, Vector3 } = B();
     const view = this.content.rules.view;
     useGameStore.getState().resetUi();
@@ -590,6 +615,11 @@ class GameController {
 
     const pos = this.logic.position();
     this.actors.update(dt, pos, this.actorId());
+    // Cutscene (Fase D): sus beats mueven cámara/actores DESPUÉS de los eventos y ANTES del render.
+    this.cutscenePlayer?.update(dt);
+    // Si la cutscene acaba y queda cola, encadena la siguiente aquí: no dependemos de que el sim
+    // genere otro evento para descolgar la siguiente (durante el teatro el sim está congelado).
+    if (this.cutsceneQueue.length > 0 && !this.cutscenePlayer?.active) this.pumpCutscene();
     // LOD por distancia: solo con cámaras cercanas (planta/estancia); el plano general (edificio) muestra todo.
     this.building.update(dt, useGameStore.getState().camMode === 'edificio' ? undefined : { x: pos.x, floor: pos.floor });
     this.rig.update(dt, pos);
@@ -755,7 +785,51 @@ class GameController {
           break; // resident_moved, param_changed, activity_ended... demasiado ruido para el registro
         }
       }
+      // Cutscenes (Fase D): después del reparto, ¿alguna quiere este evento como disparador?
+      this.maybeCutscene(e);
     }
+    this.pumpCutscene();
+  }
+
+  // ───────────────────────── Cutscenes (Fase D) ─────────────────────────
+
+  /** Si el evento encaja con el trigger de alguna cutscene del catálogo, se encola (máx. 3). */
+  private maybeCutscene(e: GameEvent): void {
+    const defs = Object.values(this.content.cutscenes);
+    if (defs.length === 0) return;
+    const d = e.data as Record<string, unknown>;
+    const hit = defs.find((c) => {
+      const t = c.trigger;
+      if (t.on !== e.type) return false;
+      if (t.mission !== undefined && t.mission !== String(d.mission ?? '')) return false;
+      if (t.step !== undefined && t.step !== String(d.step ?? '')) return false;
+      return true;
+    });
+    if (!hit) return;
+    if (this.cutsceneQueue.length >= 3) return; // nunca más de 3 esperando: el teatro no atravaca la partida
+    this.cutsceneQueue.push({
+      def: hit,
+      ctx: {
+        mission: typeof d.mission === 'string' ? d.mission : null,
+        resident: typeof d.resident === 'string' ? d.resident : null,
+        block: typeof d.block === 'string' ? d.block : null,
+      },
+    });
+  }
+
+  /** Lanza la siguiente cutscene en cola si no hay nada en pantalla (también un modal la pospone). */
+  private pumpCutscene(): void {
+    if (!this.cutscenePlayer || !this.world || !this.rig || !this.actors || !this.engine || !this.logic) return;
+    if (this.cutscenePlayer.active || this.cutsceneQueue.length === 0) return;
+    if (selectModalOpen(useGameStore.getState())) return; // no se roba la pantalla a un modal
+    const next = this.cutsceneQueue.shift()!;
+    this.cutscenePlayer.start(next.def, next.ctx, {
+      engine: this.engine,
+      rig: this.rig,
+      actors: this.actors.director,
+      world: this.world,
+      playerPos: () => this.logic!.position(),
+    });
   }
 
   // ───────────────────────── Teléfono ─────────────────────────

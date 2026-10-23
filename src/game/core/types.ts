@@ -353,6 +353,44 @@ export interface MissionDef {
   onComplete?: Effect[];
 }
 
+// ───────────────────────── Cutscenes (Fase D) ─────────────────────────
+
+/**
+ * Punto de escenario de una cutscene. `block` acepta ids literales y referencias
+ * (`$home`, `$entry`, `$event.block`); `at` elige el punto del bloque.
+ */
+export interface CutsceneSpot {
+  block: string;
+  at: 'door' | 'center';
+}
+
+/**
+ * Beat de cutscene: la unión mínima para teatralizar misiones. Todo lo temporal
+ * es opcional y cae a rules.cutscene (defaults del catálogo).
+ */
+export type CutsceneBeat =
+  /** Cámara: vuela al encuadre (edificio entero, jugador o bloque) y aguanta `hold` s. */
+  | { type: 'cam'; focus: 'wide' | 'player' | CutsceneSpot; viewH?: number; hold?: number }
+  /** Actor: se coloca en `from` (si hay) y anda hasta `to` por pozo/interior (nunca teletransporta). */
+  | { type: 'walk'; who: string; from?: CutsceneSpot; to: CutsceneSpot; max?: number }
+  /** Subtítulo cinematográfico con marcadores {resident} y {block}. */
+  | { type: 'line'; speaker?: string; text: string; seconds?: number }
+  /** Pausa teatral. */
+  | { type: 'wait'; seconds: number }
+  /** Sonido del catálogo procedural (sounds.json). */
+  | { type: 'sound'; id: string };
+
+/**
+ * Cutscene data-driven (Fase D): teatro de presentación sobre eventos del sim.
+ * El trigger filtra por tipo de evento y (opcional) misión/paso; el resto es secuencia
+ * de beats. Cero lógica de juego: al acabar, el mundo sigue exactamente igual.
+ */
+export interface CutsceneDef {
+  id: string;
+  trigger: { on: 'neighbor_arrived' | 'mission_activated' | 'step_started' | 'step_completed' | 'mission_completed' | 'mission_failed'; mission?: string; step?: string };
+  beats: CutsceneBeat[];
+}
+
 export interface TemplateRow {
   floors: [number, number];
   blocks: { col: number; defId: string; tag: string }[];
@@ -444,6 +482,8 @@ export interface Content {
   scenarios: Record<string, ScenarioDef>;
   furniture: Record<string, FurnitureDef>;
   minigames: Record<string, MinigameDef>;
+  /** Cutscenes de misión (Fase D): teatro de presentación data-driven. */
+  cutscenes: Record<string, CutsceneDef>;
   /** Manifiesto de arte final (opcional): modelos glTF por arquetipo/bloque con fallback greybox. */
   assets?: AssetsCatalog;
 }
@@ -553,6 +593,17 @@ export interface Rules {
     actorRadius: number;
     /** Niveles de detalle por distancia (Vista: "prefab por bloque y LOD por distancia"). */
     lod: { enabled: boolean; focus: 'player'; levels: LodLevel[] };
+  };
+  /** Defaults de las cutscenes de misión (Fase D): ritmos que no quieren repetirse en cada beat. */
+  cutscene: {
+    /** Segundos por defecto de aguante de un encuadre de cámara. */
+    hold: number;
+    /** Segundos por defecto de un subtítulo. */
+    line: number;
+    /** Tope de seguridad de un beat walk (nunca cuelga la partida). */
+    walkMax: number;
+    /** Alto de encuadre (m) por defecto al enfocar un bloque o al jugador. */
+    focusViewH: number;
   };
   /** Datos del botón de demostración "Fiesta" (solo dev/debug, también en catálogo). */
   demo: { resident: string; block: string; noise: number; toast: string };

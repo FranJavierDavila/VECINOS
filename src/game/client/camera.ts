@@ -5,9 +5,19 @@ import { B } from './babylon';
 export type CamMode = 'edificio' | 'planta' | 'estancia';
 const FOV = 0.55;
 
+/** Encuadre cinematográfico (cutscenes, Fase D): a dónde vuela la cámara y con qué alto de vista. */
+export interface CinematicFrame {
+  cx: number;
+  cy: number;
+  cz: number;
+  viewH: number;
+}
+
 /** Tres niveles de zoom (edificio, planta y estancia) con transición suave; en planta y estancia sigue al jugador. */
 export class CameraRig {
   mode: CamMode = 'edificio';
+  /** Mientras no es null (cutscene en curso), update() vuela hacia este encuadre en vez del modo. */
+  cinematic: CinematicFrame | null = null;
   private readonly pos: Vector3;
   private readonly look: Vector3;
 
@@ -34,7 +44,10 @@ export class CameraRig {
     let cx = width / 2;
     let cy = (this.floors * this.cellH) / 2;
     let cz = 0; // profundidad del punto de interés (solo estancia: sigue parcialmente al jugador)
-    if (this.mode === 'edificio') {
+    if (this.cinematic) {
+      // Cutscene (Fase D): el encuadre lo manda el director; mismo suavizado → transiciones de cine.
+      ({ cx, cy, cz, viewH } = this.cinematic);
+    } else if (this.mode === 'edificio') {
       viewH = Math.max(this.floors * this.cellH * 1.25, (width * 1.25) / aspect);
     } else {
       viewH = this.mode === 'planta' ? Math.max(this.cellH * 2.4, (width * 1.1) / aspect) : Math.max(this.cellH * 2.0, (this.cellW * 2.2) / aspect);
@@ -50,5 +63,33 @@ export class CameraRig {
     this.look.addInPlace(new Vector3(cx, cy, cz).subtract(this.look).scale(k));
     this.camera.position.copyFrom(this.pos);
     this.camera.setTarget(this.look);
+  }
+
+  // ── Encuadres para el director de cutscenes (Fase D) ──
+
+  /** Edificio entero: el mismo marco que el modo 'edificio'. */
+  wideFrame(): CinematicFrame {
+    const aspect = this.engine.getRenderWidth() / Math.max(1, this.engine.getRenderHeight());
+    const width = this.cols * this.cellW;
+    return {
+      cx: width / 2,
+      cy: (this.floors * this.cellH) / 2,
+      cz: 0,
+      viewH: Math.max(this.floors * this.cellH * 1.25, (width * 1.25) / aspect),
+    };
+  }
+
+  /** Un bloque: centro de su celda a la altura de su planta (viewH en metros). */
+  blockFrame(col: number, w: number, floor: number, viewH: number): CinematicFrame {
+    return { cx: (col + w / 2) * this.cellW, cy: (floor + 0.5) * this.cellH, cz: 0, viewH };
+  }
+
+  /** El jugador: misma regla de recorte horizontal que el modo 'planta'. */
+  playerFrame(p: PlayerPosition, viewH: number): CinematicFrame {
+    const aspect = this.engine.getRenderWidth() / Math.max(1, this.engine.getRenderHeight());
+    const width = this.cols * this.cellW;
+    const half = (viewH * aspect) / 2;
+    const cx = half * 2 >= width ? width / 2 : Math.min(width - half, Math.max(half, p.x));
+    return { cx, cy: (p.floor + 0.5) * this.cellH, cz: 0, viewH };
   }
 }

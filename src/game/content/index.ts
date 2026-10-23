@@ -1,6 +1,7 @@
 import type { AssetsCatalog, Content } from '@/game/core/types';
 import {
   blockListSchema,
+  cutsceneListSchema,
   dialogListSchema,
   furnitureListSchema,
   influenceListSchema,
@@ -25,7 +26,7 @@ export interface Issue {
  * Catálogos externos: viven en /public/content/*.json y se validan con Zod al cargar.
  * El código del juego no contiene NINGÚN dato de gameplay: solo lee este catálogo.
  */
-const FILES = ['rules', 'blocks', 'rooms', 'layouts', 'influences', 'archetypes', 'dialogs', 'missions', 'templates', 'scenarios', 'furniture', 'minigames'] as const;
+const FILES = ['rules', 'blocks', 'rooms', 'layouts', 'influences', 'archetypes', 'dialogs', 'missions', 'cutscenes', 'templates', 'scenarios', 'furniture', 'minigames'] as const;
 
 type Loaded = { [K in (typeof FILES)[number]]: unknown };
 
@@ -55,6 +56,7 @@ export async function loadContent(baseUrl: string = '/content/'): Promise<{ cont
     const archetypes = archetypeListSchema.parse(raw.archetypes);
     const dialogs = dialogListSchema.parse(raw.dialogs);
     const missions = missionListSchema.parse(raw.missions);
+    const cutscenes = cutsceneListSchema.parse(raw.cutscenes);
     const templates = templateListSchema.parse(raw.templates);
     const scenarios = scenarioListSchema.parse(raw.scenarios);
     const furniture = furnitureListSchema.parse(raw.furniture);
@@ -77,6 +79,7 @@ export async function loadContent(baseUrl: string = '/content/'): Promise<{ cont
       influences: indexById(influences),
       archetypes: indexById(archetypes),
       missions: indexById(missions),
+      cutscenes: indexById(cutscenes),
       dialogs: indexById(dialogs),
       templates: indexById(templates),
       scenarios: indexById(scenarios),
@@ -178,6 +181,17 @@ export function validateContent(c: Content): Issue[] {
           if (!exists) err(`missions/${m.id}`, `residente desconocido: ${e.resident}`);
         }
       }
+  }
+
+  // Cutscenes (Fase D): el trigger debe referir misión/paso existentes (los bloques/actores de
+  // los beats se resuelven en runtime y son indulgentes por diseño: beat saltado, no partida rota).
+  for (const cs of Object.values(c.cutscenes)) {
+    if (cs.beats.length === 0) err(`cutscenes/${cs.id}`, 'una cutscene necesita al menos un beat');
+    if (cs.trigger.mission && !c.missions[cs.trigger.mission]) err(`cutscenes/${cs.id}`, `misión desconocida en el trigger: ${cs.trigger.mission}`);
+    if (cs.trigger.step && cs.trigger.mission) {
+      const def = c.missions[cs.trigger.mission];
+      if (def && !def.steps.some((s) => s.id === cs.trigger.step)) err(`cutscenes/${cs.id}`, `paso desconocido en el trigger: ${cs.trigger.step}`);
+    }
   }
 
   for (const s of Object.values(c.scenarios)) {

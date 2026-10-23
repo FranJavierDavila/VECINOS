@@ -9,6 +9,7 @@ import { ChoicesModal } from './ChoicesModal';
 import { JuntaModal } from './JuntaModal';
 import { MinigameModal } from './MinigameModal';
 import { FinaleModal } from './FinaleModal';
+import { CutsceneOverlay } from './CutsceneOverlay';
 import { ToastStack } from './ToastStack';
 import { TouchControls } from './TouchControls';
 
@@ -96,6 +97,7 @@ export default function GameStage() {
       )}
 
       <PhoneModal onNext={() => getController()?.phoneNext()} />
+      <CutsceneOverlay />
       <ChoicesModal onChoose={(choiceId) => getController()?.choose(choiceId)} />
       <JuntaModal onVote={(vote) => getController()?.juntaVote(vote)} />
       <MinigameModal />

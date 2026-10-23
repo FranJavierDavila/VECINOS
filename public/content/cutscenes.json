@@ -1,0 +1,34 @@
+[
+ {
+  "id": "cut_mudanza",
+  "trigger": { "on": "neighbor_arrived" },
+  "beats": [
+   { "type": "sound", "id": "thud" },
+   { "type": "cam", "focus": "wide", "hold": 0.9 },
+   { "type": "cam", "focus": { "block": "$event.block", "at": "door" }, "hold": 0.5 },
+   { "type": "walk", "who": "$event.resident", "from": { "block": "$entry", "at": "door" }, "to": { "block": "$event.block", "at": "door" }, "max": 12 },
+   { "type": "line", "text": "Mudanza en {block}: {resident} sube con cajas, cacharros y opiniones.", "seconds": 3 },
+   { "type": "cam", "focus": "player", "hold": 0.6 }
+  ]
+ },
+ {
+  "id": "cut_pillarlo",
+  "trigger": { "on": "step_started", "mission": "m_pintadas_ascensor", "step": "pillarlo" },
+  "beats": [
+   { "type": "cam", "focus": { "block": "$event.block", "at": "door" }, "hold": 0.7 },
+   { "type": "walk", "who": "$event.resident", "to": { "block": "$event.block", "at": "door" }, "max": 8 },
+   { "type": "line", "speaker": "{resident}", "text": "¿Quién, yo? Esto es ARTE urbano. Que lo diga la junta.", "seconds": 3.2 },
+   { "type": "sound", "id": "thud" },
+   { "type": "cam", "focus": "player", "hold": 0.5 }
+  ]
+ },
+ {
+  "id": "cut_bienvenida",
+  "trigger": { "on": "mission_completed", "mission": "m_bienvenida" },
+  "beats": [
+   { "type": "cam", "focus": "wide", "hold": 1.1 },
+   { "type": "line", "text": "Tu piso, sus vecinos, su junta. El edificio es tuyo... más o menos.", "seconds": 3 },
+   { "type": "cam", "focus": "player", "hold": 0.6 }
+  ]
+ }
+]

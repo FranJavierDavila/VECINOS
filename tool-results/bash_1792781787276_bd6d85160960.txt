@@ -1,0 +1,221 @@
+562 /home/z/my-project/worklog.md
+- Sin desviaciones de contrato. Añadidos no rompedores: session:joined también al anfitrión al crear ("al que entra"), broadcastState inmediato tras create/join (snapshot del mundo al cliente y joinToast sin esperar al tick), session:error si set_speed inválida. Único matiz técnico documentado: el tsconfig del mini-servicio NO usa baseUrl (Bun combina baseUrl con paths y salía del repo); paths "@/*": ["../../src/*"] relativo al tsconfig funciona en Bun y en tsc raíz.
+---
+Task ID: 5-c
+Agent: general-purpose
+Task: LOD por distancia data-driven en building.ts (rules.view.lod)
+
+Work Log:
+- Leído worklog (Task 12/12-a), commit v0.5-prep (754a056), building.ts completo, types.ts (LodLevel + Rules['view']['lod']) y rules.json (view.lod: enabled true, focus 'player', niveles {dist 14, hide [edges]} y {dist 24, hide [edges, glow]}). Verificada la API de edges en @babylonjs/core 8.56.2: el renderingGroup (Rendering/renderingGroup.js:354) consulta `mesh._edgesRenderer.isEnabled` cada frame; en cambio enableEdgesRendering()/disableEdgesRendering() RECREAN/DISPONEN el EdgesRenderer (con recomputación de adyacencias) — el toggle correcto y barato por frame es `edgesRenderer.isEnabled`.
+- BlockView (interfaz local) extendido con lo mínimo: centerX + floor (métrica de distancia precalculada al crear), edgesMesh (ahora se captura la malla `_fondo` directamente al crear cada vivienda, eliminando el lookup frágil getMeshByName del loop de edges), baseEmissive (clone del emissive del material recién creado = lo que paint() deja cuando NO hay canales), glowForced y lodHiddenPanels (banderas de estado del LOD).
+- Refactor de paint() sin cambios de comportamiento: la lógica de emissive por canales y la visibilidad de panel/candado se extrajeron a applyEmissive(view, b) y applyPanels(view, b). La visibilidad efectiva de paneles pasa a ser (dwelling && access locked) && !lodHiddenPanels — el LOD nunca FUERZA paneles visibles en bloques desbloqueados: solo puede ocultar encima del estado que paint() ya gestiona.
+- applyLod(focus) (función interna, cero allocations steady-state: for-in sobre world.blocks, Map.get, aritmética simple y bucles indexados; sin new Color3/Object.values/iteradores en el camino caliente). Nivel efectivo = unión de los `hide` de TODOS los niveles con dist <= distBloque (hide acumulado; no exige supersets en el JSON). Métrica documentada en el docstring: dx = |centroX del bloque − focus.x| m, dy = |planta del bloque − focus.floor| × view.cellH m, dist = Math.hypot(dx, dy).
+- Flag 'edges' → `edgesMesh.edgesRenderer.isEnabled = !hideEdges` (escritura por frame idempotente; grosor/color viven en la malla y sobreviven al apagado). Flag 'glow' → mientras se oculta, emissiveColor = baseEmissive CADA frame (paint() pudo repintar canales en su tick y el LOD corre después, al final del frame); al soltarlo, UNA llamada a applyEmissive (mismo cálculo que paint) evita el frame de retardo. Flag 'panels' → solo gira lodHiddenPanels y en la transición llama applyPanels ya (sin esperar al próximo tick de paint, que reproducirá el mismo resultado).
+- update(dt, focus): applyLod(focus ?? null) SIEMPRE al final — con focus undefined (cámara 'edificio') o lod.enabled=false restaura el estado completo (edges on donde los hubiera, emissive al cálculo de paint, paneles según lock). El lastFocus del integrador se queda tal cual (el foco válido por frame es el parámetro de update; lastFocus sigue sin consumirse). Cero números nuevos en código: dists y flags salen de rules.view.lod.
+- Verificación: `bunx tsc --noEmit` → 0 errores en src/ (los de examples/, skills/ y upload/ son preexistentes e ignorados; además, tras v0.5-prep ya no aparecen los 3 errores src/ que citaba la Task 12-a: Prisma y controller.ts:630 están resueltos). `bun run lint` → exit 0, sin avisos. Dev server no arrancado (verificación visual E2E para el integrador); sin push; ningún otro fichero tocado salvo este worklog.
+
+Stage Summary:
+- El LOD por distancia ya funciona y es 100% data-driven y reversible: rules.view.lod.enabled lo apaga (applyLod restaura todo cada frame), el foco llega de controller.update (cámaras planta/estancia pasan {x, floor}; 'edificio' pasa undefined → estado completo), y añadir/ajustar niveles = editar rules.json (p. ej. { dist: 20, hide: ["panels"] }) sin tocar código: cada flag soportado ('edges', 'glow', 'panels') tiene vía de ocultación y de restauración simétrica.
+- Qué oculta cada flag: 'edges' apaga el EdgesRenderer de la pared del fondo destacada del bloque (toggle isEnabled, nunca dispose/recrear); 'glow' congela el emissive al color base (los resplandores de canales — fiesta, ruido, agua… — se apagan a lo lejos y paint() los recupera al volver); 'panels' oculta panel+candado de viviendas CERRADAS (respeta el estado lógico: un bloque desbloqueado nunca muestra panel, LOD o no LOD).
+- Métrica de distancia (documentada en applyLod): dist = Math.hypot(|centroX_bloque − x_jugador|, |planta_bloque − planta_jugador| × cellH) en metros. Con el catálogo actual: dist < 14 → todo; 14–24 → sin edges; ≥ 24 → sin edges ni glow.
+- Rendimiento: ~40 bloques por frame con aritmética simple y asignaciones de referencias; sin allocations en estado estacionario (solo en transiciones de umbral, para repintar emissive/paneles sin frame de retardo).
+---
+Task ID: 5-b
+Agent: main (Z.ai Code) — completado a mano tras cancelación del subagente
+Task: Cliente multijugador — NetSession + controller modo remoto + PlayerLogic multi-actor + MultiplayerPanel + actores dinámicos
+
+Work Log:
+- El subagente asignado a 5-b fue cancelado a mitad de trabajo; dejó completos y de calidad net.ts (transporte puro con ack timeout), el refactor de player-logic.ts (actorId + send + dedup de move + forceLocation), actors.ts dinámico (altas/bajas de cápsulas por update, isPlayer por playerResidentId) y el bloque mp de store.ts; una línea del constructor de PlayerLogic quedó corrupta por la interrupción y se reparó.
+- Completado a mano: controller.ts modo remoto (sendCommand como vía única, hostSession/joinSession/leaveSession, applyRemoteState con Object.assign in-situ preservando identidad del World + restart() al adoptar escenario, reconcile() contra la posición del servidor, sin ticks locales con net, save/load y skipTime/partyDemo deshabilitados con texto del catálogo, setSpeed remoto solo anfitrión), casos de evento junta_closed/junta_vote_registered, syncHud/homesUi por actor, bridge +3 métodos, MultiplayerPanel.tsx (Dialog shadcn: crear/unirse/código copiable/participantes/salir) y botón "Multijugador" en ControlsBar (solo usa bridge+store, nunca controller directo).
+- Depuración clave: el primer intento E2E daba timeout del ack porque el navegador apuntaba a :3000 (Next) en vez de la pasarela Caddy :81 — el handshake socket.io solo se reenvía con XTransformPort por Caddy (verificado con curl: :81 devuelve 0{sid}, :3000 devuelve HTML). En el preview real del usuario el origen ES la pasarela, por lo que el flujo funciona tal cual.
+- Falsa alarma descartada con prueba en vivo: los participantes "no se actualizaban" porque el invitado del script hacía process.exit y el leave broadcast reducía la lista a 1 antes de cada eval; con un invitado persistente (30s) el anfitrión muestra 2 participantes en tiempo real. Sonda bun independiente confirmó el servidor emitiendo session:participants correctamente.
+
+Stage Summary:
+- Multijugador co-op jugable: crear sesión desde el panel (o unirse con código), mundo del servidor reflejado en el cliente con reconciliación automática, movimiento/comandos autoritativos, invitados visibles como cápsulas en la escena, junta multi-humano esperando todos los votos. En remoto: sin ticks locales, sin guardar/cargar, velocidad solo para el anfitrión; salir vuelve al mundo en solitario (verificado).
+---
+Task ID: 5-qa
+Agent: main (Z.ai Code)
+Task: Integración v0.5 — E2E con agent-browser + invitado por socket, LOD verificado, commit y push
+
+Work Log:
+- tsc (src/) 0 errores · lint 0 · smoke-junta OK (junta multi-humano, compatibilidad 1 humano, buy_block por actor) · smoke-sim OK (canales, minijuegos, economía intactos).
+- E2E navegador (vía pasarela :81): tutorial solitario OK → crear sesión W6QP → invitado bun se une (res_guest_1, blk_p1_a) y su comando work se aplica en el servidor (cartera 300→420) → anfitrión ve 2 participantes en vivo → movimiento remoto del anfitrión verificado (x 2.4→7.1, portal→núcleo confirmado por el servidor, reconcile sin correcciones) → cápsula del invitado creada dinámicamente en la escena → leaveSession vuelve al mundo local limpio (reloj día 1 08:00).
+- LOD verificado 100% data-driven: se ajustó rules.json temporalmente (dist 6/9) y el mismo código apagó los edges del hogar a dist 9.84 y los reencendió a dist 0 en cámara planta; en cámara edificio el foco es undefined → todo completo. Restaurado a 14/24.
+- Regresión v0.4: /?scenario=qa carga con 6 overrides de minijuegos (win-path intacto). dev.log sin errores de runtime. Móvil 390px: botón Multijugador visible y dentro del viewport.
+- Capturas: tool-results/v05-1-arranque.png, v05-2-sesion-host.png, v05-3-host-2participantes.png, v05-4-lod-cerca.png, v05-5-movil.png.
+
+Stage Summary:
+- V0.5 completa y verificada E2E: el recuadro punteado "Servidor" del documento de arquitectura existe (mini-services/vecinos-server, puerto 3010, mismo núcleo sim reutilizado sin cambios), multijugador co-op 1 anfitrión + hasta 3 invitados con junta multi-humano, y el recuadro Vista queda cerrado con el LOD por distancia. Pendiente para v0.6: progresión del edificio (GDD), interfaz de plataforma (Electron/Steam), arte final.
+
+---
+Task ID: 6-a
+Agent: main (Z.ai Code)
+Task: v0.6 Fase A — pipeline de arte final (glTF data-driven) con piloto Pinturillas animado + bloque núcleo 3D
+
+Work Log:
+- Previo: token GitHub inválido (el PAT anterior murió); actualizado el remote con el PAT nuevo del usuario y verificado push (local adelantado 1 commit de tool-results, sincronizado).
+- Manifiesto data-driven: public/content/assets.json NUEVO (base "/assets/", actors por arquetipo con model/nominalHeight/animations/defaultAnimation/walkAnimation/activityAnimations, blocks por defId con model/nominal{w,h,d}/tintStrength). Carga OPCIONAL y tolerante en content/index.ts (si falta → greybox puro; si existe y es inválido → error sonoro) + validación de referencias en validateContent (arquetipos/bloques/animaciones/actividades desconocidas → issues). Schemas Zod: actorAssetSchema/blockAssetSchema/assetsCatalogSchema; Content.assets?: AssetsCatalog en types.ts.
+- Generador: scripts/gen-pilot-assets.ts (bun) escribe glTF 2.0 con buffer embebido base64 (sin .bin): (1) nino_grafitero.gltf — personaje por jerarquía de nodos SIN skinning (Root→hips→torso/headPivot→head+cap+visor, armL/armR con pivote en hombro + lata de spray, legL/legR con pivote en cadera + zapatos; 6 materiales, altura nominal 1.2 m, mira a +X) con 3 clips animados por canales de rotación/traslación: idle (2.4 s, balanceo), walk (0.8 s, zancada + rebote), spray (1.6 s, brazo derecho arriba ~163° con vaivén + mano izquierda en cadera + sway de cadera); (2) nucleo_comunicaciones.gltf — celda completa 2.4×2.6×1.4 (base y=0) con puertas metálicas del ascensor, marco, hueco oscuro, rótulo ámbar, tira de luz, cubierta y antena. Validación estructural post-generación (todos los nodos alcanzables desde la escena, canales de animación dentro de rango).
+- Loader: src/game/client/assets.ts NUEVO — ensureGlTFLoader (script CDN loaders, idempotente), caché de AssetContainer por URL, instantiateActorAsset (instantiateModelsToScene → root + clips lógicos con emparejamiento tolerante "Clone of idle" vía includes, play() idempotente, dispose de instancias), instantiateBlockAsset (materiales BlockMat estructurales {emissiveColor, diffuseColor?/albedoColor?} + baseColor capturado). FALLBACK GARANTIZADO: cualquier fallo (404/gltf inválido) → warn + null → el llamador sigue con cápsula/caja.
+- actors.ts: Actor {node: Mesh|TransformNode, pivotY (cápsula h/2 vs modelo 0.02), prevX, rig}; ensureActor crea cápsula placeholder y lanza la carga del modelo si el manifiesto declara el arquetipo (escala = view.height/nominalHeight; si el residente se fue antes de llegar el rig, dispose sin basura). En update: clip por actividad (activityAnimations[activity]) → walk si desplazamiento → idle por defecto; altas/bajas dinámicas con dispose de rigs.
+- building.ts: BlockView extendido (greybox[] estructural, mats[] multi-material, baseEmissive[], baseColor[], tintStrength 1 en greybox, model: TransformNode|null); modelos por defId cargados async por instancia, escalados a la celda real desde nominal y posicionados (base y=0); al llegar, se ocultan las cajas estructurales (panel/candado de viviendas siguen greybox); applyTint unifica greybox (color plano de estado) y modelos (mezcla base→estado según tintStrength); applyEmissive y LOD 'glow' operan sobre mats[] (PBR y Standard compatibles); edges/panel solo greybox (edgesMesh null en modelos).
+- Contenido del piloto: assets.json declara nino_grafitero (clips idle/walk/spray; activityAnimations paint_cabin→spray, roam→walk) y nucleo_comunicaciones (tintStrength 0.55). public/art-preview.html NUEVO: previsualizador permanente del pipeline (modelos + botones de clip + cámara orbital) — herramienta de Fase A para validar arte futuro sin arrancar el juego.
+- QA E2E (agent-browser): token nuevo OK; el juego carga con manifiesto (0 errores; sin warnings [assets] tras el fix de nombres de clips); flujo natural completo: tutorial (teléfono→3C→entrar) → mudanza de Dolores+Pinturillas → m_ascensor resuelta → m_pintadas_ascensor activa; ventanas 16-19h observadas en día 1-4: log "🎨 pinta arte en la cabina" repetido, cabin_graffiti llegó a 100, actividad roam (🛼 patrulla la escalera) y paint_cabin confirmadas por API de guardado; núcleo 3D visible en cámara edificio con tinte malva de avería (lerp base→brokenColor 0.55) y antena asomando sobre la cubierta; glow de canales y LOD intactos (código compartido con greybox).
+- Verificación visual determinista con /art-preview.html: los DOS modelos renderizan (kid blocky con gorra roja/visor, sudadera naranja, lata amarilla; núcleo con puertas metálicas, rótulo, tira de luz, cubierta, antena) y los 3 clips se ven correctamente (idle balanceo, walk zancada con brazos, spray brazo alzado con lata). Capturas v06-art-1/2/3.
+- HALLAZGOS (para siguientes tareas, no bloquean la Fase A): (1) el navegador headless del sandbox congela el rAF del juego en sesiones largas (canvas congelado verificado por diff de toDataURL) — gremlin del entorno, el sim sigue vivo (reloj/estado por DOM); (2) la vista (actores/cámara) no se re-sincroniza del todo tras "Cargar partida" a mitad de sesión (posible referencia de mundo antigua en vistas creadas antes del load) — a investigar en v0.6-b; el flujo natural y el reload funcionan.
+- Limpieza: actividad QA temporal qa_pinta (24/7) añadida y ELIMINADA de archetypes.json tras la verificación (diff restante: normalización numérica JSON). smoke-sim OK; tsc 0 errores en src/; lint 0.
+
+Stage Summary:
+- El juego acepta ARTE FINAL data-driven: un modelo glTF por arquetipo (con clips por actividad) y por tipo de bloque (con tintado de estado y glow), sin tocar sim ni lógica; añadir un vecino/bloque modelado = soltar el .gltf en public/assets + una entrada en assets.json. El greybox queda como fallback universal y el pipeline se valida visualmente en /art-preview.html.
+- Piloto entregado: Pinturillas animado (idle/walk/spray) que reproduce su animación de pintada al hacer paint_cabin en el ascensor, y el núcleo de comunicaciones 3D con puertas de ascensor.
+- Pendientes v0.6 siguientes: resincronización de vistas tras load, arte real (skinning/artistas), more blocks/actors, plantilla 8 plantas + viviendas dobles (Fase B).
+
+---
+Task ID: 14
+Agent: main (Z.ai Code)
+Task: v0.6 Fase B — plantilla del edificio con 8 plantas y viviendas del doble de ancho (100% contenido, cero código)
+
+Work Log:
+- Diseño: en lugar de dejar 2 viviendas/planta (rompía toda la narrativa con ids blk_pX_b/d y labels "2B/4D"), se ensancha la retícula a 9 columnas y las 4 viviendas por planta pasan de w=1 a w=2 → los ids blk_p{floor}_{a-d} y TODA la narrativa (misiones, diálogos, minijuegos, demo, scenarios) quedan intactos sin tocar ni un texto.
+- templates.json: nuevo template "edificio_9x8_nucleo_central" — grid {cols:9, floors:8}; pasillo [0,7], núcleo col 4 [0,7], portal+trasteros [0,0], viviendas [1,7] en cols 0/2/5/7 con tags a-d. scenarios.json: referencias al template renombradas (slice y qa).
+- blocks.json: vivienda_estandar size.w 1→2 (vivienda de 4,8 m) y pasillo_planta size.w 5→9 (cubre toda la retícula).
+- Verificado que NADA más necesitaba cambios: world.ts expande filas×plantas genérico; graph.ts encadena núcleos floor+1 solo; PlayerLogic.rangeOf usa size.w; cámara encuadra por cols/floors derivados de los bloques; building.ts dibuja por size.w (interior, muebles, panel/candado); blockLabel sigue formateando a-d; el nucleo glTF de Fase A sigue siendo 1×1.
+- Compatibilidad de guardados: el save serializa el World completo (bloques con su size) → una partida antigua carga el edificio antiguo tal cual; una nueva usa la plantilla nueva.
+
+Test (agent-browser, todo verificado en vivo):
+- Edificio 9x8 renderiza completo: 8 plantas, 4 viviendas dobles/planta, núcleo central con antena glTF, portal+trasteros en PB, tintado rojo del núcleo por ascensor averiado, candados en vacías, naranja de ocupadas, borde blanco del 3C.
+- Cámara edificio/planta/estancia enframan bien la retícula nueva; HUD "del portal a tu puerta: 13 min" (Dijkstra recalculado con escaleras).
+- Gameplay E2E: andar portal→núcleo, subir 3 plantas por escalera (prompt "W/S · escalera"), puerta 3C alcanzada → "Misión completada: Bienvenido al edificio", cadena disparó mudanza de Dolores+Pinturillas al 1B (avatares nuevos en vivo), teléfono del administrador → elección → junta de vecinos con votación IA ("Rechazado (6 sí / 1 no)": fondos 500 € < obra 800 €, comportamiento preexistente del sim).
+- Entrar/salir del 3C con interior ancho visible en cámara estancia; guardar + cargar respeta edificio y estado; escenario ?scenario=qa arranca limpio.
+- Consola del navegador sin errores; dev.log sin errores; bun run lint limpio.
+
+Stage Summary:
+- Fase B completa: el edificio es data-driven al 100% — pasar de 5x5 a 9x8 con viviendas dobles costó 3 ficheros de contenido y CERO líneas de código/sim (la arquitectura agnóstica demostrada en la práctica).
+- Hallazgo para futuras fases: interactTarget() (portátil/cama/buzones/tablón) está declarado en PlayerLogic pero aún no está cableado a la tecla E (solo entra/sale); conectarlo es la QoL pendiente junto a la resincronización de vistas tras "Cargar partida" (v0.6-b).
+- Pendientes v0.6: Fase C (movimiento interior 2D + layouts 2D), Fase D (cutscenes de misión data-driven).
+
+---
+Task ID: 15
+Agent: main (Z.ai Code)
+Task: v0.6-b — tecla E universal (portátil/cama/buzones/tablón/vecino) + resync de vistas tras "Cargar partida" + viviendas 2× profundas
+
+Work Log:
+- E universal: interact() (player-logic.ts) ahora consume interactTarget() — la MISMA fuente para el prompt y la acción (cero divergencias): portátil → comando `work` (+120 € con cooldown del catálogo), cama → comando `sleep` NUEVO en el sim (restaura necesidades con delta 0..100 según rules.sim.sleep; funciona igual en remoto porque el servidor comparte el núcleo), vecino cercano → `knock` a su ubicación (línea del pool `say` del arquetipo + afinidad +2), buzones/tablón → lectura sin estado con textos del catálogo (rules.interact.mailbox.lines rotan por tick; tablón con plantilla {day}/{funds}/{elevator}/{weather} y datos vivos). Prioridad puerta-primero también en interactTarget() para que entrar en casa nunca la secuestre el saludo. prompts de puerta/salir movidos a rules.interact (data-driven total).
+- Bug preexistente aprovechado: knock_result no se pintaba en la UI (caía al default del switch) → case nuevo: toast «🗣️ Nombre: «línea»».
+- Guard honesto en `work` (primer caller real): el sim exige location === home (autoridad también para clientes remotos).
+- RESYNC tras Cargar partida — CAUSA RAÍZ ENCONTRADA: la caché de contenedores glTF (assets.ts) era global por URL, pero cada contenedor pertenece a la escena con la que se cargó; tras restart() (nueva escena), los modelos salían de caché y se instanciaban en la escena MUERTA → núcleo/vecinos sin arte tras load. Fix: caché por escena (WeakMap<Scene, Map>) + guardas scene.isDisposed en loadContainer/instantiate* y en los .then de building/actors (no tocar vistas de escenas viejas). Además restart() alinea la cámara con la posición del mundo restaurado (inside → estancia; en pasillo, preferencia salvo que fuera estancia → planta).
+- Viviendas 2× profundas: rules.view.depth 1.4 → 2.8 y NUEVO commonDepth 1.4 (comunes/núcleo sin cambio → el glTF del ascensor sigue a escala 1). building.ts: plano frontal fijo (frontZ = roomZ − commonDepth/2), el calado extra crece hacia +Z (el pasillo y el núcleo no quedan envueltos), mobiliario pegado al frente (fondo libre para Fase C), modelos glTF escalados con el calado de su tipo. Schemas/tipos actualizados (commonDepth con default para catálogos antiguos).
+- Fix de diseño detectado al probar el saludo: residentNearby() comparaba zone() (núcleo, capa main) con la location del vecino (pasillo) → nunca coincidían en la retícula 9 cols. Ahora la circulación compartida de la misma planta (pasillo↔núcleo) cuenta como "al lado" (mismo radio nearRadius; la puerta sigue teniendo prioridad).
+- E2E (agent-browser, todo verificado en vivo): buzones (prompt+toast catálogo), tablón (Día 1 · 500 € · averiado · Soleado), portátil (+120 €: 1000→1120), cama (sleep 77.7→100, fun/social +5, toast), saludo al Fiestero (toast con línea + afinidad +2), E correctamente bloqueada con modales abiertos (teléfono), entrar/salir 3C intacto.
+- Save/load a mitad de sesión: guardado en tick 87 (núcleo planta 2) → divergencia total (portal, otra cámara, +30 ticks) → Cargar: tick/posición/cartera exactos, prompt y cámara coherentes, escena viva, glTF del núcleo instanciado en la escena NUEVA (greybox desactivado), 113 clones glTF, actores on/off correctos, consola sin errores.
+- Profundidad medida: fondo 3C z=2.1 (calado 2.8 = 2×1.4), puerta z=−0.7 (plano frontal intacto), núcleo z=0, pasillo z=−0.95; sofá de prueba colocado en el salón (visible, x=12.36, z=−0.35, escala del catálogo). Pinturillas con rig glTF activo tras el load.
+- smoke-sim OK, smoke-junta OK, tsc 0 errores en src/, lint 0. Nota: el keydown del CLI headless no rellena ev.code (llega "" al controlador); en las pruebas se usaron KeyboardEvent sintéticos con code — el teclado real no está afectado.
+
+Stage Summary:
+- La tecla E es ya universal y honesta: el prompt SIEMPRE dice lo que la E va a hacer (misma fuente interactTarget), y los cinco objetivos (puerta, vecino, buzones, tablón, portátil, cama) están cableados con lógica de sim donde hay estado (work/sleep/knock) y lectura de catálogo donde no lo hay (buzón/tablón). Multijugador OK por diseño (mismos comandos en el núcleo compartido).
+- "Cargar partida" re-sincroniza de verdad (causa raíz de la caché glTF corregida + cámara alineada a la posición).
+- Viviendas 4.8 × 2.8 m listas para el mobiliario de Fase C; los comunes no cambian.
+- Pendientes v0.6: Fase C (movimiento interior 2D + layouts 2D con el fondo libre ya ganado), Fase D (cutscenes de misión data-driven). QoL futura: dormir podría saltar hasta las 08:00 (requiere avanzar ticks del reloj, con cuidado del spam de eventos).
+
+---
+Task ID: 16
+Agent: main (Z.ai Code)
+Task: v0.6-c — escaleras como bloque independiente del ascensor (pozos verticales data-driven)
+
+Work Log:
+- Diseño (petición del diseñador): el núcleo dejaba de ser ascensor+escalera a la vez; separación en dos pozos independientes insertables en cualquier columna. La particularidad pedida (planta 0 no baja, última no sube) EMERGE de la regla de encadenado floor+1: no hay aristas hacia plantas inexistentes + guard to<0/to>topFloor en startClimb. Cero código especial.
+- blocks.json: nucleo_comunicaciones features {stairs:true, elevator:true} → {elevator:true} SOLO (subir por la cabina del ascensor ya no es cosa); NUEVO bloque escaleras_planta (common/main, w1, traversable, features {stairs:true}, param condition tier-1, color salvia #a3b18a); pasillo_planta w 9→10.
+- templates.json: retícula 10 columnas; escalera en la col 9 (extremo opuesto al portal) floors [0,7] → ids blk_p{0..7}_escalera. Ids de viviendas a-d y toda la narrativa intactos.
+- graph.ts: regla de encadenado generalizada — cualquier bloque con features.stairs o features.elevator se encadena por columna contigua: arista escalera SIEMPRE (STAIRS_COST 3), arista ascensor SOLO si elevator_status ok en ambas plantas (ELEVATOR_COST 1); link() toma el mínimo, así los bloques mixtos (ambos features) conservan el comportamiento antiguo. Habilita N pozos verticales por template.
+- commands.ts canMove: vertical exige misma columna y adyacencia 1; acepta par con stairs (siempre) o par con elevator (ambos ok). Núcleo averiado = aislado en vertical (honesto: no se trepa por el hueco del ascensor).
+- player-logic.ts: core() → elevatorBlock(); startClimb rewritten — el gesto W/S depende del pozo donde estás: ascensor operativo → elevatorSeconds; bloque con escalera → stairsSeconds; núcleo averiado sin escalera → NINGÚN gesto.
+- controller.ts promptText data-driven: rules.interact NUEVOS strings stairs/elevator/elevatorBroken ("W/S · escalera", "W/S · ascensor", "Ascensor averiado · la escalera, al fondo del pasillo"). Schemas + types + rules.json actualizados.
+- ai.ts: NUEVO destino de actividad 'stairs' (stairsOf por features) para que los arquetipo patrullen la escalera real; types/schemas at: +'stairs'. archetypes.json: roam del nino (🛼 de Pinturillas, no del Fiestero como creía) apunta a 'stairs'.
+- HelpCard: texto de W/S actualizado ("en la escalera o en el ascensor").
+- NUEVO scripts/qa-pozos.ts: regresión determinista de pozos contra contenido real (16 checks).
+- Compatibilidad: partidas antiguas (sin bloques de escalera en su mundo) con el ascensor roto quedarían sin vía vertical → conviene partida nueva tras esta versión (nota para el diseñador).
+
+Test (agent-browser + bun, todo verificado en vivo):
+- Edificio 10 cols renderiza: núcleo central teñido de avería (brokenColor), escalera salvia en el extremo derecho, HUD "del portal a tu puerta: 13 min" (Dijkstra con escalera).
+- Núcleo averiado: prompt "Ascensor averiado · la escalera, al fondo del pasillo"; W NO mueve (save API: location blk_p0_nucleo).
+- Escalera: prompt "W/S · escalera"; S en planta 0 NO baja (blk_p0_escalera); 3×W sube a blk_p3_escalera (canMove acepta el par); puerta 3C alcanzada → E entra → m_bienvenida done + mudanza disparada (Dolores+Pinturillas al 1B).
+- Reparación (pagar 800 €): prompt "W/S · ascensor"; viaje del portal 13→7 min; W sube a blk_p4_nucleo (par elevator ok). Pinturillas en vivo: con el ascensor reparado llegó desde la calle hasta blk_p1_pasillo y graffiti 60 (4 pintadas) durante los saltos de reloj.
+- qa-pozos.ts 16/16 OK: ruta IA averiado = portal→pasillo→escalera×4→pasillo (sin núcleo), 13/7 min, canMove 4 casos, aristas p0 (solo pasillo+escalera1) y p7 (solo pasillo+escalera6), Pinturillas at:'stairs' patrulla blk_p1_escalera con roam activo (80 ticks reales del sim).
+- smoke-sim OK, smoke-junta OK, tsc 0 errores en src/, lint 0, contenido JSON válido, consola del navegador sin errores, reload limpio. Nota: gremlin conocido del sandbox (rAF headless se congela en sesiones largas) limitó los saltos de reloj en la segunda mitad — lo que quedó pendiente en vivo se cubrió de forma determinista con qa-pozos.ts.
+
+Stage Summary:
+- El edificio tiene pozos verticales independientes y data-driven: escalera (siempre transitable, 3 min/planta, en la columna que diga el template) y ascensor (1 min/planta, solo operativo). La avería del ascensor ya no es cosmética: duele (caminar al otro pozo) y se mide (13 vs 7 min). La IA re-enruta sola por Dijkstra y las actividades pueden apuntar a 'stairs'.
+- Añadir otra escalera/ascensor en cualquier columna = una línea en templates.json; bloques mixtos (ascensor con escalera de emergencia) siguen soportados por el mismo graph.ts.
+- Pendientes v0.6: Fase C (movimiento interior 2D + layouts), Fase D (cutscenes de misión data-driven). Idea anotada: arte glTF para el bloque de escalera cuando haya arte real.
+
+---
+Task ID: 17
+Agent: main (Z.ai Code)
+Task: v0.6-d — rellenar los huecos de la planta 0 (garaje + local comercial + lavandería comunal, 100% contenido)
+
+Work Log:
+- Causa raíz de los huecos (pregunta del diseñador): createWorld() solo materializa los bloques DECLARADOS en templates.json y building.ts solo dibuja bloques existentes; la fila de planta 0 declaraba portal(w2, cols 0-1) + trasteros(col 3), y las filas compartidas añadían núcleo(col 4) y escalera(col 9) → cols 2 y 5-8 sin declarar = huecos visuales (se veía la tira del pasillo detrás). Herencia del ensanche: el original de 5 columnas llenaba 4/5 del suelo; Fase B (9 cols) y v0.6-c (10 cols, escalera) solo añadieron viviendas en plantas 1-7 y nadie rellenó la calle.
+- Impacto real: CERO en sim/circulación (el pasillo w=10 cubre toda la planta y todo bloque main se enlaza a él); era puro diseño/narrativa.
+- Solución data-driven (cero código): blocks.json +3 defs — garaje (infrastructure, w1, no transitable, #6d6875), local_comercial (commercial, w2 transitable, terracota #e07a5f), lavanderia_comunal (common, w2 transitable, verde #84a59d), todos con param condition tier-1. templates.json: fila planta 0 = portal(0) · garaje(2) · trasteros(3) · local(5) · lavanderia(7). Kinds 'commercial'/'infrastructure' verificados: todos los checks de kind en el código son binarios (===/'!==' 'dwelling') → se comportan como comunes (acceso libre, calado commonDepth, zona()).
+- Verificado: qa-pozos 16/16 OK (los checks de aristas usan allow-lists defensivos; las nuevas aristas pasillo→X no cambian rutas), smoke-sim OK, smoke-junta OK, tsc 0 errores en src/, lint 0. E2E navegador: el mundo vivo tiene los 8 bloques de planta 0 (escalera·garaje·lavanderia·local·nucleo·pasillo·portal·trasteros) y el render muestra la fachada completa sin huecos (captura v06d-4-edificio-completo.png); HUD intacto ("del portal a tu puerta: 13 min", "Ascensor fuera de servicio").
+- Nota de compatibilidad: las partidas guardadas conservan SU edificio (el save serializa el mundo); la planta 0 rellena aparece en partidas nuevas o tras "Nueva partida".
+
+Stage Summary:
+- La planta 0 cuenta una historia completa: portal · garaje · trasteros · núcleo · bar (local comercial) · lavandería comunal · escalera. Tres tipos de bloque nuevos insertables en cualquier columna de cualquier template: una línea de JSON cada uno.
+- Ganchos futuros data-driven: el bar y la lavandería pueden recibir features/params/actividades de la IA sin tocar código (ya son bloques del grafo y del render).
+
+---
+Task ID: 18
+Agent: main (Z.ai Code)
+Task: v0.7 Fase C — movimiento interior 2D + layouts de estancias (100% data-driven)
+
+Work Log:
+- DATOS: layouts.json v2 — cada estancia declara rect {x,z,w,d} en metros LOCALES a la vivienda (0,0 = esquina frontal-izquierda; x desde pared izquierda, z desde el plano frontal de la puerta) + doorways {a,b,axis,at,width} (huecos en tabiques). layout_vivienda_v1: salón 2.3×2.8 (izquierda, full depth), dormitorio 2.5×1.6 (frente-derecha), baño 2.5×1.2 (fondo-derecha); 2 huecos de 0.9 m en el tabique x=2.3 (z=0.8 dormitorio, z=2.1 baño). rooms.json: furnitureSlots con pos [x,z] local a estancia + y opcional (muebles de pared, ej. TV y=1.7) + NUEVO interactables por estancia (portátil salón [0.4,0.55], cama dormitorio [1.75,0.8]).
+- SCHEMAS/TYPES: furnitureSlotSchema +y?; roomDefSchema +interactables ({kind laptop|bed, pos}); layoutDefSchema +rect/doorways (opcionales → catálogos antiguos siguen válidos); rules.view laptopOffset/bedOffset @deprecated y eliminados de rules.json (sustituidos por datos de estancia); PlayerPosition +z.
+- PLAYER-LOGIC: z pública; geometryOf/roomAt/walkable (rects locales → world x − borde; si punto sin rect → estancia más cercana por centro); update inside 2D con deslizamiento por eje (A/D = x, W/S = z con roomSpeed; colisión: misma estancia libre, otra estancia solo por doorway y abierta); landInside (z=0.45; si la puerta cae en estancia cerrada → aterriza en el centro de la abierta); interactTarget dentro de casa = interactables 2D de la estancia actual (radio itemRadius) → si no, puerta; E sale (z reset); forceLocation/teleportTo respetan z. Fallback 1D intacto para layouts sin rects. FIX en el propio desarrollo: roomAt/walkable comparan x LOCAL (los rects son locales) — detectado antes de probar.
+- BUILDING: interior 2D por vivienda con layout: suelo tintado por estancia (alpha 0.32, color del catálogo / lockedColor si cerrada), tabiques automáticos entre pares de estancias que comparten borde (eje inferido por geometría; doorways recortan el hueco centrado en `at`), tabiques que corren según X a media altura (no tapan la vista), tapa del hueco visible mientras alguna de las dos estancias esté cerrada (paint() la enciende al reformar); mobiliario colocado en su rect (pos [x,z] + y de anclaje) con fallback de bandas si no hay rects; paint() repinta suelos y tapas según access.
+- ACTORS: jugador dentro de casa sigue (x, frontZ + z) — 2D real; vecinos en su vivienda cerca del frente (su z no se sincroniza). CÁMARA estancia: se asoma al fondo (look z = p.z·0.45, tope 1.2).
+- QA: scripts/qa-interior.ts NUEVO (22 checks caja negra vía PlayerLogic: aterrizaje en abierta, tabique bloquea cerradas, reforma abre hueco, portátil/cama por posición 2D, work +120/sleep 100, salida al pasillo, clamps de profundidad, fallback 1D). 22/22 OK.
+- E2E navegador: entrar en 3C (aterriza en salón porque la puerta cae en el dormitorio cerrado), W camina al fondo (z 0.45→2.45), D bloqueado por tabique, renovateRoom('bano') → D cruza por el hueco (x 13.15→16.01), cámara sigue la profundidad, cama detectada y sleep OK (toast catálogo), E sale al pasillo (planta), save+load con el mundo nuevo íntegros (8 bloques p0, tick exacto), móvil 390 px correcto. qa-pozos 16/16, smoke-sim, smoke-junta OK; tsc 0 en src/; lint 0; consola sin errores (solo warning preexistente de aria-describedby en DialogContent).
+- Compatibilidad: el save no cambia (World intacto); layouts/rooms viejos sin rects caen al 1D; los slot ids no cambian → guardados con muebles siguen pintando.
+
+Stage Summary:
+- Fase C completa: las viviendas son ahora espacios 2D transitables — estancias con tabiques y puertas del catálogo, reformas que abren huecos reales, portátil y cama en SU estancia por proximidad 2D, y todo declarado en JSON (añadir una estancia = un rect + su doorway, cero código). El sim sigue sin saber nada de geometría: rooms siguen siendo instancias (access/furniture/params).
+- Base lista para Fase D (cutscenes de misión data-driven) y para el arte final de interiores (los rects son el plano del prefab).
+
+---
+Task ID: 19
+Agent: main (Z.ai Code)
+Task: v0.7.1 — QoL de presentación: pasillos salientes, candado honesto y locomoción NPC interpolada
+
+Work Log:
+- BUG 1 (reporte del diseñador): "E en casa cerrada → la cámara se acerca y el personaje desaparece". Causa raíz: GameController.sendCommand() devolvía void SIEMPRE, así que PlayerLogic.exec() recibía null y el guard `if (res && !res.ok)` de interact() no saltaba nunca → landInside() se ejecutaba aunque el sim rechazara el move (door_locked) → cámara 'estancia' + cápsula deslizándose detrás del panel cerrado opaco (invisible). FIX: sendCommand devuelve el CommandResult del dispatch en clásico; en remoto (resultado diferido), pre-chequeo `door.access === 'locked'` en PlayerLogic.interact — nadie entra en una casa cerrada por ninguna vía.
+- BUG 2: pasillo con calado 0.5 HARDCODED en building.ts y línea de marcha pegada a fachada (corridorZ -0.95). FIX data-driven: rules.view nuevos corridorDepth (1.3), corridorRail (0.32) y corridorZ (-1.3); building.ts dibuja la tira del pasillo con el borde trasero a ras de fachada y saliente hacia la calle, más barandilla baja en el borde exterior (0 = sin barandilla). Schemas + types + rules.json. Sitio de sobra para que los personajes se crucen o charlen (corrala).
+- BUG 3: "el niño se teletransporta". Tres causas: suavizado exponencial (embestida inicial = salto visual), animación walk decidida por el OBJETIVO (no por el movimiento real) y la IA saltando de bloque cada 2 ticks (incluidos cambios de planta que cruzaban el edificio en diagonal). FIX en actors.ts: locomoción de vecinos por COLA DE TRAMOS — el actor agota su ruta antes de capturar el destino nuevo; tramos horizontales con tope de crucero (rules.view.npcWalkSpeed = 2.2 m/s) y llegada suave (0.35 + dist*2.5); cambio de planta = andar al pozo más cercano (features stairs/elevator, data-driven) → subir al ritmo del catálogo (cellH/stairsSeconds o cellH/elevatorSeconds si la cabina funciona) → salir al destino. Snap solo para estados imposibles (> ancho del mundo o > 1.6 plantas). Animación por velocidad REAL del nodo: walk mientras se avanza, clip de actividad parado (spray), idle por defecto.
+- Regresión determinista nueva en qa-interior.ts (4 checks): E en puerta cerrada → {type:'locked'}, modo corridor intacto, sim sin mover, sigue delante de la misma puerta.
+- E2E navegador: candado = sin zoom de cámara (planta→planta), toasts "3A: puerta con candado", jugador en pasillo; entrar en casa propia SIGUE funcionando (estancia + inside + sim sincronizado); telemetría del rig de Pinturillas muestreada a 120-150 ms: velocidad máx 1.98 m/s (tope 2.2), subida de planta interpolada EN el pozo (x estable 10.77, y 0.16→2.6), trayectoria continua sin saltos; screenshots planta/edificio/móvil 390px OK; consola sin errores.
+
+Stage Summary:
+- Las tres quejas del diseñador resueltas: (1) el candado es honesto en clásico y remoto — la cámara no entra donde el sim no deja; (2) el pasillo es un corredor exterior saliente con barandilla, dimensionado por JSON; (3) los vecinos SE MOVEN: crucero del catálogo, frenada natural, viajes por el pozo visibles y clip de animación ligado al movimiento real. Cero cambios en sim/ (solo presentación + un return que faltaba).
+- Ganchos: npcWalkSpeed/corridorDepth/corridorRail ajustables por contenido; el mismo modelo de tramos servirá para las cutscenes de Fase D.
+
+---
+Task ID: 20
+Agent: main (Z.ai Code)
+Task: v0.7.2 Fase C "interiores vivos" — los vecinos habitan sus viviendas en 2D (anclas por actividad + deambulación + rutas por huecos)
+
+Work Log:
+- Nuevo módulo compartido src/game/interior.ts (capa soporte, sin Babylon/DOM): layoutGeometryOf, roomAt, walkable, doorwayPoint, roomRoute (BFS sin entrar en estancias cerradas), interiorRoute (waypoints por el centro de cada hueco; los rects son convexos → tramos rectos dentro de estancia siempre válidos), anchorInRoom (interactables primero —cama/portátil—, luego anchors libres), interiorTarget (ancla de la actividad → fallback deambulación determinista por estancias abiertas con hash01 FNV) y hash01 (reproducible, sin RNG global).
+- FUENTE ÚNICA: PlayerLogic delega su geometría (geometryOf/roomAt/walkable) en interior.ts — jugador y vecinos comparten exactamente la misma verdad del catálogo (antes duplicada).
+- Datos (100% contenido): rooms.json + anchors por estancia (salón: tv [1.15,0.75], stove [1.95,0.4], amp [2.05,2.35]; dormitorio: desk [0.55,0.9]); archetypes.json + anchor en actividades: sleep→'bed' (11 arquetipos), tv_loud→'tv', cocina_guiso/quema_guiso→'stove', study_music→'desk', bateria→'amp'; rules.view + npcWanderSeconds (8).
+- Schemas/tipos: roomDefSchema.anchors (kind libre — NO son interactables del jugador, la E ni las ve), activities.anchor, view.npcWanderSeconds.
+- actors.ts: la rama NPC en vivienda ya no se planta en frontZ+0.6 — calcula objetivo interior y construye la ruta COMPLETA en la captura: pozo (si hay cambio de planta) → entrada por la puerta (x acotado al ancho, z 0.45) → centro de cada hueco cruzado → ancla/punto de deambulación; sin ruta legal cae al frente (nunca atraviesa tabiques). Antichurn: el objetivo interior se REFRESCA con cadencia npcWanderSeconds (guardado en el actor: wanderT/wanderLap/targetLocal/lastLoc) — las actividades con chance que parpadean tick a tick (parpadeo preexistente del sim) ya NO arrastran al vecino por la casa; y al cambiar de bloque se resetea el objetivo interior.
+- BUG de Cargar partida detectado en el E2E: PlayerLogic arrancaba SIEMPRE en modo corridor aunque el guardado tuviera al residente DENTRO de una vivienda → el primer sync() lo sacaba al pasillo solo. Fix: si el bloque inicial es dwelling, landInside en el constructor (vuelve a funcionar la resincronización de cámara a 'estancia' de v0.6-b).
+- QA (qa-interior.ts): +20 checks del módulo interior (geometría/accesos vivos, teselación, walkable con cerradas, doorwayPoints exactos, roomRoute/interiorRoute null con destino cerrado y ruta por hueco tras reformar, ancla cama con dormitorio cerrado→salón y abierto→(4.05,0.8), ancla tv, deambulación determinista, hash01, ancla inexistente→abiertas). 46/46 OK.
+- E2E navegador (agent-browser): 8:02 presidente/okupa/musico DENTRO de sus viviendas (z>−0.7) deambulando (posiciones cambian entre muestras), jubilada en su silla del pasillo (z −1.3); noche 23:30 → los 4 duermen DENTRO (fallback salón, dormitorios sin reformar); batería del músico → camina al ancla amp EXACTA (18.85, 1.65) y se queda (parpadeo del chance amortiguado: en ticks idle no se mueve); vista planta muestra vecinos en el corte interior de cada piso; jugador 2D intacto (W z 0.45→2.45, D bloqueado en el tabique x 14.28); save+load DENTRO de casa conserva modo/cámara; móvil 390 px OK; consola sin errores (solo warning preexistente aria-describedby).
+- Regresión: qa-pozos 16/16, smoke-sim, smoke-junta OK; tsc 0 errores en src/ y mini-services; lint 0. Compatibilidad: saves intactos (World sin cambios; anchor/anchors/npcWanderSeconds solo lectura de presentación; catálogos antiguos sin anchors → deambulación).
+
+Stage Summary:
+- Fase C cerrada de verdad: la casa ya no es un decorado — cada vecino VIVE la planta de SU vivienda declarada en layouts/rooms: duerme en su cama (o en el sofá si el dormitorio está sin reformar), cocina en el fogón, ve la tele, estudia en el escritorio, y entre actividad y actividad se mueve por los huecos reales de su piso, nunca a través de tabiques ni estancias cerradas.
+- Añadir vida = datos: una actividad con `anchor: "kind"` + un `anchors` en la estancia; nuevo tipo de vivienda = otro layout con rects/doorways y TODO lo anterior funciona sin tocar código.
+- Extra: fix de Cargar partida dentro de la vivienda (constructor de PlayerLogic ahora aterriza) y módulo interior compartido como base para Fase D (cutscenes pueden reutilizar interiorRoute/anclas).
