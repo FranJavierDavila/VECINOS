@@ -2,6 +2,7 @@
 
 import type { AbstractEngine, Scene } from '@babylonjs/core';
 import type { Command, Content, Input, MinigameDef, ScenarioDef, World } from '@/game/core/types';
+import type { CommandResult } from '@/game/sim';
 import { blockLabel } from '@/game/core/types';
 import { loadContent } from '@/game/content';
 import { activeObjective, applyEffects, buildCirculation, createWorld, dispatch, drainEvents, migrateRooms, tick, travelMinutes, visibleParams } from '@/game/sim';
@@ -224,15 +225,18 @@ class GameController {
     return this.myResidentId ?? this.world?.playerId ?? '';
   }
 
-  /** Vía única de comandos: remoto → servidor autoritativo; clásico → dispatch local. */
-  private sendCommand(cmd: Command): void {
+  /** Vía única de comandos: remoto → servidor autoritativo; clásico → dispatch local.
+   *  En clásico DEVUELVE el CommandResult del sim (PlayerLogic lo usa para saber si un move
+   *  fue rechazado, p. ej. puerta con candado — sin esto la presentación "entraba" igual). */
+  private sendCommand(cmd: Command): CommandResult | void {
     if (this.net) {
       this.net.command(cmd);
       return;
     }
     if (!this.world) return;
-    dispatch(this.world, this.content, cmd);
+    const r = dispatch(this.world, this.content, cmd);
     this.pump();
+    return r;
   }
 
   /** Crea una partida compartida (este cliente queda como anfitrión). */

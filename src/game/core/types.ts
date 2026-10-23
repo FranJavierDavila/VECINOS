@@ -518,6 +518,12 @@ export interface Rules {
     bedOffset?: number;
     itemRadius: number;
     corridorZ: number;
+    /** Calado del pasillo exterior (tiras transitables): saliente hacia la calle. */
+    corridorDepth: number;
+    /** Altura de la barandilla del pasillo (0 = sin barandilla). */
+    corridorRail: number;
+    /** Velocidad de crucero de los vecinos (IA) en m/s: la interpolación nunca "teletransporta". */
+    npcWalkSpeed: number;
     roomZ: number;
     /** Calado (profundidad en Z) de las viviendas: doblado en v0.6-b para mobiliario interior. */
     depth: number;

@@ -372,7 +372,11 @@ export class PlayerLogic {
     const door = this.doorInFront();
     if (!door) return { type: 'none' };
     const res = this.exec({ type: 'move', resident: this.actorId, to: door.id });
-    if (res && !res.ok) return { type: 'locked', block: door.id, reason: door.lockReason, price: door.availability?.price ?? null };
+    // Rechazo = candado. En clásico lo dice el sim (res.ok false); en remoto el resultado llega
+    // después (res null), así que el candado visible de la puerta manda: NADIE entra aquí.
+    if (res ? !res.ok : door.access === 'locked') {
+      return { type: 'locked', block: door.id, reason: door.lockReason, price: door.availability?.price ?? null };
+    }
     this.lastMoveTarget = door.id; // ya está en vuelo este move
     this.landInside(door);
     return { type: 'entered', block: door.id };

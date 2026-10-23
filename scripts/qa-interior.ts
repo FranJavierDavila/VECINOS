@@ -93,5 +93,20 @@ const xBefore = logic.position().x;
 for (let i = 0; i < 120; i++) logic.update(1 / 60, { left: false, right: false, up: true, down: false });
 check('fallback 1D: W/S no mueve profundidad', close(logic.position().z, 0.45) && close(logic.position().x, xBefore), `z=${logic.position().z.toFixed(2)}`);
 
+// ── Candado (regresión v0.7.1): E delante de una puerta cerrada NO entra ni cambia de modo.
+// El sim rechaza el move (door_locked) y la presentación se entera: {type:'locked'} + corridor.
+const savedLayouts = JSON.parse(JSON.stringify(content.layouts)) as typeof content.layouts;
+content.layouts['layout_vivienda_v1'] = savedLayouts['layout_vivienda_v1']!; // restaurar rects eliminados arriba
+const logic2 = new PlayerLogic(world, content);
+const lockedBlock = Object.values(world.blocks).find((b) => b.kind === 'dwelling' && b.access === 'locked' && b.cell.floor === 3)!;
+logic2.teleportTo(lockedBlock.id);
+check('delante de puerta cerrada', logic2.interactTarget()?.kind === 'door' && world.blocks[lockedBlock.id]!.access === 'locked', lockedBlock.id);
+const rejected = logic2.interact();
+check('E en puerta cerrada → locked (no entered)', rejected.type === 'locked', JSON.stringify(rejected));
+check('el jugador NO entra: modo corridor', logic2.position().mode === 'corridor' && logic2.position().insideBlock === null);
+check('el sim tampoco movió al residente', world.residents[world.playerId]!.location !== lockedBlock.id, world.residents[world.playerId]!.location ?? 'null');
+const inFront = logic2.interactTarget();
+check('sigue delante de la misma puerta', inFront?.kind === 'door' && inFront.blockId === lockedBlock.id);
+
 console.log(fails === 0 ? '\nQA INTERIOR OK' : `\nQA INTERIOR: ${fails} FALLOS`);
 process.exit(fails === 0 ? 0 : 1);

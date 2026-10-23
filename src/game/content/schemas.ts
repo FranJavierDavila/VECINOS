@@ -458,6 +458,12 @@ export const rulesSchema = z.object({
     bedOffset: z.number().optional(),
     itemRadius: z.number(),
     corridorZ: z.number(),
+    /** Calado del pasillo exterior (tiras transitables): saliente hacia la calle. */
+    corridorDepth: z.number().default(0.5),
+    /** Altura de la barandilla del pasillo (0 = sin barandilla). */
+    corridorRail: z.number().default(0),
+    /** Velocidad de crucero de los vecinos (IA) en m/s: la interpolación nunca "teletransporta". */
+    npcWalkSpeed: z.number().default(2.2),
     roomZ: z.number(),
     depth: z.number(),
     commonDepth: z.number().default(1.4),

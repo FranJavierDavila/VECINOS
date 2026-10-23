@@ -96,7 +96,16 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       lodHiddenPanels: false,
     };
     if (b.layer === 'corridor') {
-      view.greybox.push(box(b.id, b.size.w * v.cellW, v.slab * 2, 0.5, cx, bottom + v.slab, v.corridorZ, m));
+      // Pasillo exterior (data-driven): tira transitable saliente hacia la calle, con el borde
+      // trasero a ras de fachada (frontZ) y barandilla baja en el borde exterior — sitio de
+      // sobra para que los personajes se crucen o charlen sin bailar el vacío.
+      const d = v.corridorDepth;
+      view.greybox.push(box(b.id, b.size.w * v.cellW, v.slab * 2, d, cx, bottom + v.slab, frontZ - d / 2, m));
+      if (v.corridorRail > 0) {
+        view.greybox.push(
+          box(`${b.id}_barandilla`, b.size.w * v.cellW, v.corridorRail, v.wall, cx, bottom + v.slab * 2 + v.corridorRail / 2, frontZ - d, m),
+        );
+      }
     } else if (b.kind === 'dwelling') {
       const y = bottom + v.cellH / 2;
       view.edgesMesh = box(`${b.id}_fondo`, w, h, v.wall, cx, y, frontZ + d, m);

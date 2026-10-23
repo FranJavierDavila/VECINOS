@@ -523,3 +523,19 @@ Work Log:
 Stage Summary:
 - Fase C completa: las viviendas son ahora espacios 2D transitables — estancias con tabiques y puertas del catálogo, reformas que abren huecos reales, portátil y cama en SU estancia por proximidad 2D, y todo declarado en JSON (añadir una estancia = un rect + su doorway, cero código). El sim sigue sin saber nada de geometría: rooms siguen siendo instancias (access/furniture/params).
 - Base lista para Fase D (cutscenes de misión data-driven) y para el arte final de interiores (los rects son el plano del prefab).
+
+---
+Task ID: 19
+Agent: main (Z.ai Code)
+Task: v0.7.1 — QoL de presentación: pasillos salientes, candado honesto y locomoción NPC interpolada
+
+Work Log:
+- BUG 1 (reporte del diseñador): "E en casa cerrada → la cámara se acerca y el personaje desaparece". Causa raíz: GameController.sendCommand() devolvía void SIEMPRE, así que PlayerLogic.exec() recibía null y el guard `if (res && !res.ok)` de interact() no saltaba nunca → landInside() se ejecutaba aunque el sim rechazara el move (door_locked) → cámara 'estancia' + cápsula deslizándose detrás del panel cerrado opaco (invisible). FIX: sendCommand devuelve el CommandResult del dispatch en clásico; en remoto (resultado diferido), pre-chequeo `door.access === 'locked'` en PlayerLogic.interact — nadie entra en una casa cerrada por ninguna vía.
+- BUG 2: pasillo con calado 0.5 HARDCODED en building.ts y línea de marcha pegada a fachada (corridorZ -0.95). FIX data-driven: rules.view nuevos corridorDepth (1.3), corridorRail (0.32) y corridorZ (-1.3); building.ts dibuja la tira del pasillo con el borde trasero a ras de fachada y saliente hacia la calle, más barandilla baja en el borde exterior (0 = sin barandilla). Schemas + types + rules.json. Sitio de sobra para que los personajes se crucen o charlen (corrala).
+- BUG 3: "el niño se teletransporta". Tres causas: suavizado exponencial (embestida inicial = salto visual), animación walk decidida por el OBJETIVO (no por el movimiento real) y la IA saltando de bloque cada 2 ticks (incluidos cambios de planta que cruzaban el edificio en diagonal). FIX en actors.ts: locomoción de vecinos por COLA DE TRAMOS — el actor agota su ruta antes de capturar el destino nuevo; tramos horizontales con tope de crucero (rules.view.npcWalkSpeed = 2.2 m/s) y llegada suave (0.35 + dist*2.5); cambio de planta = andar al pozo más cercano (features stairs/elevator, data-driven) → subir al ritmo del catálogo (cellH/stairsSeconds o cellH/elevatorSeconds si la cabina funciona) → salir al destino. Snap solo para estados imposibles (> ancho del mundo o > 1.6 plantas). Animación por velocidad REAL del nodo: walk mientras se avanza, clip de actividad parado (spray), idle por defecto.
+- Regresión determinista nueva en qa-interior.ts (4 checks): E en puerta cerrada → {type:'locked'}, modo corridor intacto, sim sin mover, sigue delante de la misma puerta.
+- E2E navegador: candado = sin zoom de cámara (planta→planta), toasts "3A: puerta con candado", jugador en pasillo; entrar en casa propia SIGUE funcionando (estancia + inside + sim sincronizado); telemetría del rig de Pinturillas muestreada a 120-150 ms: velocidad máx 1.98 m/s (tope 2.2), subida de planta interpolada EN el pozo (x estable 10.77, y 0.16→2.6), trayectoria continua sin saltos; screenshots planta/edificio/móvil 390px OK; consola sin errores.
+
+Stage Summary:
+- Las tres quejas del diseñador resueltas: (1) el candado es honesto en clásico y remoto — la cámara no entra donde el sim no deja; (2) el pasillo es un corredor exterior saliente con barandilla, dimensionado por JSON; (3) los vecinos SE MOVEN: crucero del catálogo, frenada natural, viajes por el pozo visibles y clip de animación ligado al movimiento real. Cero cambios en sim/ (solo presentación + un return que faltaba).
+- Ganchos: npcWalkSpeed/corridorDepth/corridorRail ajustables por contenido; el mismo modelo de tramos servirá para las cutscenes de Fase D.

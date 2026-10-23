@@ -1,5 +1,5 @@
 import type { Mesh, Scene, TransformNode } from '@babylonjs/core';
-import type { Content, PlayerPosition, World } from '@/game/core/types';
+import type { BlockInstance, Content, PlayerPosition, World } from '@/game/core/types';
 import { B } from './babylon';
 import { instantiateActorAsset, type ActorRig } from './assets';
 
@@ -12,8 +12,9 @@ interface Actor {
   height: number;
   /** Offset Y del pivote: cápsula centrada (+h/2) o modelo con pies en el origen (+margen). */
   pivotY: number;
-  /** X previa para detectar si camina (elige clip walk/idle). */
-  prevX: number;
+  /** Cola de tramos en curso: el actor la agota ANTES de capturar el destino del mundo de nuevo
+   *  (ir al pozo → subir → salir: un salto del sim se ve como un viaje, nunca un teletransporte). */
+  path: { x: number; y: number; z: number }[];
   /** Rig del arte final (null mientras carga o si hay fallback greybox). */
   rig: ActorRig | null;
 }
@@ -42,7 +43,7 @@ export function createActors(scene: Scene, world: World, content: Content) {
     m.emissiveColor = m.diffuseColor.scale(0.25);
     mesh.material = m;
     mesh.isPickable = false;
-    const a: Actor = { node: mesh, height, pivotY: height / 2, prevX: 0, rig: null };
+    const a: Actor = { node: mesh, height, pivotY: height / 2, path: [], rig: null };
     actors.set(id, a);
 
     // Arte final (opcional): modelo glTF del manifiesto; cualquier fallo → cápsula.
@@ -72,6 +73,12 @@ export function createActors(scene: Scene, world: World, content: Content) {
   };
 
   const goal = new Vector3();
+  /** Pozos verticales del mundo (features stairs/elevator): para rutear los cambios de planta. */
+  const shafts = Object.values(world.blocks).filter((b) => {
+    const f = content.blocks[b.defId]!.features;
+    return !!f && (f.stairs === true || f.elevator === true);
+  });
+  const shaftXOf = (b: BlockInstance): number => (b.cell.col + b.size.w / 2) * v.cellW;
 
   return {
     /** playerResidentId identifica al residente del jugador local (multijugador: puede ser un invitado). */
@@ -94,16 +101,25 @@ export function createActors(scene: Scene, world: World, content: Content) {
 
       const k = 1 - Math.exp(-dt * 10);
       const frontZ = frontZOf(v.roomZ, v.commonDepth);
+      // Ritmos del catálogo (rules.view): crucero de vecinos y subida por pozo.
+      const npcSpeed = v.npcWalkSpeed;
+      const width = Math.max(...Object.values(world.blocks).map((b) => (b.cell.col + b.size.w) * v.cellW));
       for (const [id, a] of actors) {
         const r = world.residents[id]!;
         const isPlayer = id === playerResidentId;
         a.node.setEnabled(isPlayer || (r.present && r.location !== null));
         if (!a.node.isEnabled()) continue;
+        const node = a.node.position;
+        const prevX = node.x;
+        const prevY = node.y;
+        const prevZ = node.z;
         if (isPlayer) {
           const inside = player.mode === 'inside';
           // Dentro de la vivienda el actor sigue la posición 2D (x + profundidad z del layout).
           const z = inside ? frontZ + Math.min(Math.max(player.z, 0), v.depth) : v.corridorZ;
           goal.set(player.x, player.floor * v.cellH + (inside ? 0.12 : 0.14) + a.pivotY, z);
+          if (node.lengthSquared() === 0) node.copyFrom(goal);
+          node.addInPlace(goal.subtract(node).scale(Math.min(1, k * 2)));
         } else {
           const b = world.blocks[r.location!]!;
           const home = world.blocks[r.home]!;
@@ -111,17 +127,63 @@ export function createActors(scene: Scene, world: World, content: Content) {
           const x = b.layer === 'corridor' ? (home.cell.col + 0.5) * v.cellW : (b.cell.col + b.size.w / 2) * v.cellW;
           // Vecinos dentro de su vivienda: cerca del frente (su profundidad exacta no se sincroniza).
           goal.set(x, b.cell.floor * v.cellH + 0.14 + a.pivotY, inRoom ? frontZ + 0.6 : v.corridorZ);
+          // ── Locomoción interpolada (nada de teletransportes): el destino del sim se recorre a
+          // velocidad de crucero del catálogo, tramo a tramo. Los saltos del sim (IA cada aiHopTicks)
+          // se encolan: el actor agota su ruta (pozo incluido) y SOLO THEN captura el destino nuevo.
+          if (node.lengthSquared() === 0) node.copyFrom(goal);
+          const dh = Math.hypot(goal.x - node.x, goal.z - node.z);
+          const dy = Math.abs(goal.y - node.y);
+          if (dh > width + 2 || dy > v.cellH * 1.6) {
+            // Estado imposible (aparición/carga/reconciliación): sin teatro.
+            node.copyFrom(goal);
+            a.path = [];
+          } else if (a.path.length === 0) {
+            // Captura: sin cambio de planta → tramo directo. Con cambio → pozo más cercano:
+            // andar hasta él (saliendo de la vivienda si hace falta), subir y salir al destino.
+            if (dy > 0.05) {
+              const here = shafts
+                .filter((s) => s.cell.floor === b.cell.floor)
+                .sort((s1, s2) => Math.abs(shaftXOf(s1) - node.x) - Math.abs(shaftXOf(s2) - node.x))[0];
+              if (here && Math.abs(shaftXOf(here) - node.x) > 0.3) {
+                a.path.push({ x: shaftXOf(here), y: node.y, z: v.corridorZ });
+              }
+              if (here) {
+                a.path.push({ x: shaftXOf(here), y: goal.y, z: v.corridorZ });
+              }
+            }
+            a.path.push({ x: goal.x, y: goal.y, z: goal.z });
+          }
+          if (a.path.length > 0) {
+            const w = a.path[0]!;
+            const wdh = Math.hypot(w.x - node.x, w.z - node.z);
+            const wdy = w.y - node.y;
+            if (Math.abs(wdy) > 0.02 && wdh < 0.3) {
+              // Tramo VERTICAL en el pozo: ritmo del catálogo (ascensor operativo → cabina).
+              const shaftHere = shafts
+                .filter((s) => s.cell.floor === b.cell.floor && Math.abs(shaftXOf(s) - node.x) < 0.3)
+                .sort((s1, s2) => Math.abs(shaftXOf(s1) - node.x) - Math.abs(shaftXOf(s2) - node.x))[0];
+              const feat = shaftHere ? content.blocks[shaftHere.defId]!.features : undefined;
+              const rate = feat?.elevator && shaftHere!.params.elevator_status === 'ok' ? v.cellH / v.elevatorSeconds : v.cellH / v.stairsSeconds;
+              node.y += Math.sign(wdy) * Math.min(Math.abs(wdy), rate * dt);
+            } else if (wdh > 0.001) {
+              // Tramo horizontal: crucero con llegada suave (frena al acercarse, nunca sobrepasa).
+              const step = Math.min(npcSpeed * dt, (0.35 + wdh * 2.5) * dt, wdh);
+              const t = step / wdh;
+              node.x += (w.x - node.x) * t;
+              node.z += (w.z - node.z) * t;
+            }
+            // Tramo terminado → siguiente tramo de la ruta.
+            if (Math.hypot(w.x - node.x, w.z - node.z) < 0.06 && Math.abs(w.y - node.y) < 0.03) a.path.shift();
+          }
         }
-        if (a.node.position.lengthSquared() === 0) a.node.position.copyFrom(goal);
-        a.node.position.addInPlace(goal.subtract(a.node.position).scale(isPlayer ? Math.min(1, k * 2) : k));
 
-        // Animación (solo rigs): clip por actividad → walk si se mueve → idle por defecto.
+        // Animación (solo rigs) por velocidad REAL del nodo: andar mientras se avanza (aunque
+        // el destino cambie), clip de actividad parado (ej. spray), idle por defecto.
         if (a.rig) {
-          const moved = Math.abs(goal.x - a.prevX) > 0.01;
-          a.prevX = goal.x;
+          const speed = Math.hypot(node.x - prevX, node.y - prevY, node.z - prevZ) / Math.max(1e-4, dt);
           const def = content.assets?.actors?.[r.archetype];
           const activityClip = def?.activityAnimations?.[r.activity ?? ''] ?? null;
-          a.rig.play(activityClip ?? (moved ? (def?.walkAnimation ?? null) : null));
+          a.rig.play(speed > 0.3 ? (def?.walkAnimation ?? activityClip) : activityClip);
         }
       }
     },
