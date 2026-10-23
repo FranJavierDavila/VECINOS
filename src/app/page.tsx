@@ -19,7 +19,7 @@ export default function Home() {
       <header className="border-b">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
           <h1 className="text-xl font-extrabold tracking-tight">VECINOS</h1>
-          <span className="rounded-full border border-amber-500/30 bg-amber-500/15 px-2.5 py-0.5 text-xs font-semibold text-amber-600">vertical slice 0.4</span>
+          <span className="rounded-full border border-amber-500/30 bg-amber-500/15 px-2.5 py-0.5 text-xs font-semibold text-amber-600">v1.0 · arte glTF completo</span>
           <p className="text-sm text-muted-foreground">Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.</p>
         </div>
       </header>

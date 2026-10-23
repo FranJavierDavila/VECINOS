@@ -623,3 +623,19 @@ Stage Summary:
 - Fase E cerrada al 100% de catálogo: los 11 arquetipos tienen cuerpo, ropa, complemento y clip de firma por actividad, y los 9 tipos de bloque tienen fachada — todo declarado en assets.json, sustituible por .glb de artista sin tocar una línea. El greybox ya no existe en juego salvo el corte interior de las viviendas (decisión de estilo: así se ven los vecinos vivir).
 - Hallazgo de arquitectura: el asset seam ya estaba bien, pero la convención de ejes glTF→Babylon estaba indocumentada y silenciosamente volteaba las fachadas desde v0.6. Ahora está en el motor compartido; cualquier futuro modelo generado o externo sigue una sola regla (frente = +Z en glTF).
 - Siguientes naturales: pulido Steam (opciones, gamepad, localización, empaquetado) o más contenido F; los dos cuelgan de una base visual ya definitiva.
+
+---
+Task ID: 24
+Agent: main (Z.ai Code)
+Task: v1.0.1 — Verificación post-Fase E completa + actualización de insignia de versión
+
+Work Log:
+- Reanudada la sesión tras el corte de contexto: comprobado que Task 23 (v1.0, Fase E completa) ya estaba commiteada y verificada (11/11 arquetipos, 9/9 bloques, fix ejes glTF, QA completo).
+- Verificado estado del repo: main == origin/main (sin commits pendientes de push) → backup v1.0 confirmado en GitHub.
+- Dev server sano (compila limpio, HTTP 200) y verificación en navegador (agent-browser): fachada con marcos en las 28 viviendas, El Rincón (cristalera+toldo), garaje, trasteros, lavandería con 3 lavadoras, actores glTF visibles en portal/viviendas, paseo saliente limpio, consola sin errores.
+- Encontrado único resto: la insignia de cabecera seguía en "vertical slice 0.4" (etiqueta dura de la primera iteración). Actualizada en src/app/page.tsx → "v1.0 · arte glTF completo" (solo presentación, cero sim).
+- Lint 0; recarga en navegador confirma la insignia nueva y arranque limpio de partida.
+
+Stage Summary:
+- Fase E completa queda CERRADA y doblemente verificada (QA v1.0 + re-verificación en vivo v1.0.1). Backup sincronizado con GitHub.
+- Siguientes naturales: pulido Steam (opciones, gamepad, LOD/performance, localización, empaquetado) o más contenido F (más misiones/arquetipos/canales) — ambos sobre base visual definitiva.
