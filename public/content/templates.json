@@ -15,7 +15,10 @@
         "floors": [0, 0],
         "blocks": [
           { "col": 0, "defId": "portal", "tag": "portal" },
-          { "col": 3, "defId": "trasteros", "tag": "trasteros" }
+          { "col": 2, "defId": "garaje", "tag": "garaje" },
+          { "col": 3, "defId": "trasteros", "tag": "trasteros" },
+          { "col": 5, "defId": "local_comercial", "tag": "local" },
+          { "col": 7, "defId": "lavanderia_comunal", "tag": "lavanderia" }
         ]
       },
       {

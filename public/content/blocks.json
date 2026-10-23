@@ -62,6 +62,39 @@
     "view": { "color": "#9c6644" }
   },
   {
+    "id": "garaje",
+    "kind": "infrastructure",
+    "layer": "main",
+    "size": { "w": 1, "h": 1 },
+    "traversable": false,
+    "params": {
+      "condition": { "type": "number", "min": 0, "max": 100, "default": 65, "tier": 1, "label": "Estado del garaje" }
+    },
+    "view": { "color": "#6d6875" }
+  },
+  {
+    "id": "local_comercial",
+    "kind": "commercial",
+    "layer": "main",
+    "size": { "w": 2, "h": 1 },
+    "traversable": true,
+    "params": {
+      "condition": { "type": "number", "min": 0, "max": 100, "default": 75, "tier": 1, "label": "Estado del local" }
+    },
+    "view": { "color": "#e07a5f" }
+  },
+  {
+    "id": "lavanderia_comunal",
+    "kind": "common",
+    "layer": "main",
+    "size": { "w": 2, "h": 1 },
+    "traversable": true,
+    "params": {
+      "condition": { "type": "number", "min": 0, "max": 100, "default": 70, "tier": 1, "label": "Estado de la lavandería" }
+    },
+    "view": { "color": "#84a59d" }
+  },
+  {
     "id": "vivienda_estandar",
     "kind": "dwelling",
     "layer": "main",

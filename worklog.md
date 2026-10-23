@@ -488,3 +488,19 @@ Stage Summary:
 - El edificio tiene pozos verticales independientes y data-driven: escalera (siempre transitable, 3 min/planta, en la columna que diga el template) y ascensor (1 min/planta, solo operativo). La avería del ascensor ya no es cosmética: duele (caminar al otro pozo) y se mide (13 vs 7 min). La IA re-enruta sola por Dijkstra y las actividades pueden apuntar a 'stairs'.
 - Añadir otra escalera/ascensor en cualquier columna = una línea en templates.json; bloques mixtos (ascensor con escalera de emergencia) siguen soportados por el mismo graph.ts.
 - Pendientes v0.6: Fase C (movimiento interior 2D + layouts), Fase D (cutscenes de misión data-driven). Idea anotada: arte glTF para el bloque de escalera cuando haya arte real.
+
+---
+Task ID: 17
+Agent: main (Z.ai Code)
+Task: v0.6-d — rellenar los huecos de la planta 0 (garaje + local comercial + lavandería comunal, 100% contenido)
+
+Work Log:
+- Causa raíz de los huecos (pregunta del diseñador): createWorld() solo materializa los bloques DECLARADOS en templates.json y building.ts solo dibuja bloques existentes; la fila de planta 0 declaraba portal(w2, cols 0-1) + trasteros(col 3), y las filas compartidas añadían núcleo(col 4) y escalera(col 9) → cols 2 y 5-8 sin declarar = huecos visuales (se veía la tira del pasillo detrás). Herencia del ensanche: el original de 5 columnas llenaba 4/5 del suelo; Fase B (9 cols) y v0.6-c (10 cols, escalera) solo añadieron viviendas en plantas 1-7 y nadie rellenó la calle.
+- Impacto real: CERO en sim/circulación (el pasillo w=10 cubre toda la planta y todo bloque main se enlaza a él); era puro diseño/narrativa.
+- Solución data-driven (cero código): blocks.json +3 defs — garaje (infrastructure, w1, no transitable, #6d6875), local_comercial (commercial, w2 transitable, terracota #e07a5f), lavanderia_comunal (common, w2 transitable, verde #84a59d), todos con param condition tier-1. templates.json: fila planta 0 = portal(0) · garaje(2) · trasteros(3) · local(5) · lavanderia(7). Kinds 'commercial'/'infrastructure' verificados: todos los checks de kind en el código son binarios (===/'!==' 'dwelling') → se comportan como comunes (acceso libre, calado commonDepth, zona()).
+- Verificado: qa-pozos 16/16 OK (los checks de aristas usan allow-lists defensivos; las nuevas aristas pasillo→X no cambian rutas), smoke-sim OK, smoke-junta OK, tsc 0 errores en src/, lint 0. E2E navegador: el mundo vivo tiene los 8 bloques de planta 0 (escalera·garaje·lavanderia·local·nucleo·pasillo·portal·trasteros) y el render muestra la fachada completa sin huecos (captura v06d-4-edificio-completo.png); HUD intacto ("del portal a tu puerta: 13 min", "Ascensor fuera de servicio").
+- Nota de compatibilidad: las partidas guardadas conservan SU edificio (el save serializa el mundo); la planta 0 rellena aparece en partidas nuevas o tras "Nueva partida".
+
+Stage Summary:
+- La planta 0 cuenta una historia completa: portal · garaje · trasteros · núcleo · bar (local comercial) · lavandería comunal · escalera. Tres tipos de bloque nuevos insertables en cualquier columna de cualquier template: una línea de JSON cada uno.
+- Ganchos futuros data-driven: el bar y la lavandería pueden recibir features/params/actividades de la IA sin tocar código (ya son bloques del grafo y del render).
