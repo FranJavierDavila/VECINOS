@@ -288,3 +288,36 @@ Stage Summary:
 - Data-driven 100%: deadzone, tamaños del stick y emojis/etiquetas salen de rules.touch; añadir/ajustar mandos = editar rules.json. Las únicas constantes de código son estructurales (ciclo de cámara edificio→planta→estancia del contrato, clave de persistencia 'vecinos.touch' ya escrita por store.setTouchControls, y defaults defensivos de arranque). rules.touch.hint no se renderiza aquí: es el texto del toggle de la barra (lo pintará quien monte el conmutador).
 - Decisiones: deadzone comparado sobre el valor NORMALIZADO del recorrido (es 0..1, dx en px no lo es); restauración de preferencia '1' guardada además de la auto-detección de primera visita (si no, la persistencia del store nunca tendría efecto al recargar); thumb movido imperativamente (sin re-render por frame); 🎥 delega en controller.setCamMode con fallback al store.
 - Nota para el integrador: bridge.setTouchInput ya está tipado pero GameController aún no lo implementa (error tsc preexistente en controller.ts:630, junto a visitHome); hasta que el controlador lo sume, los mandos se ven y los botones ✋/🎥 funcionan, pero el stick no mueve al personaje. Guard de modal duplica la política del teclado (onKeyDown de controller).
+---
+Task ID: 11
+Agent: main (Z.ai Code)
+Task: RECUPERACIÓN DE DESASTRE — el sandbox se reconstruyó con plantilla fresca; restauración íntegra desde GitHub
+
+Work Log:
+- Detectado al arrancar: git local reiniciado a un "Initial commit" nuevo, worklog.md y TODO el código del juego ausentes (src/game/, componentes, public/content, scripts/, docs/), solo quedaban db/custom.db y upload/ del snapshot. Causa: rebuild del sandbox.
+- El respaldo de las Tasks 7-10 demostró su valor: token aún válido (API 200), remote re-creado con el PAT, git fetch + git reset --hard origin/main (d327f78) restauró 11 commits y 258 ficheros al 100%. .env y Caddyfile del nuevo sandbox preservados (eran idénticos a los commiteados).
+- Re-configurada identidad git (FranJavierDavila <trabajosen3d@gmail.com>) y prisma generate (cliente desincronizado tras el rebuild). bun install + dev server OK.
+
+Stage Summary:
+- Proyecto restaurado íntegro desde GitHub en minutos, sin pérdida de datos: la inversión en el respaldo pagó su primera prima.
+- Lección operativa: tras CUALQUIER rebuild del sandbox, primer paso = git remote -v; si no hay remote, recuperar de GitHub antes de tocar nada.
+
+---
+Task ID: 12
+Agent: main (Z.ai Code) + frontend-styling-expert (12-a)
+Task: Vertical slice 0.4 — controles táctiles, audio procedural, multi-vivienda destacada, win-path E2E automatizable y vecinos nuevos (100% data-driven)
+
+Work Log:
+- Contratos (12-prep): types.ts (Rules.touch, MinigameOverrides, ScenarioDef.minigameOverrides), schemas.ts (rulesSchema.touch, minigameOverrides record, soundsCatalogSchema + SoundsCatalog), rules.json +touch (deadzone 0.35, stick 124/52, labels ✋🎥Mover, hint), public/content/sounds.json NUEVO (16 sonidos tone/noise/seq + 16 mapeos evento→claves, masterGain 0.4).
+- 12-a (subagente): TouchControls.tsx — stick virtual con pointer capture y deadzone del catálogo, pulgar imperativo (0 re-renders/frame), botones ✋ interact y 🎥 ciclo de cámara, visibilidad auto (pointer:coarse) con persistencia localStorage, entrada ignorada con modales abiertos.
+- Audio (12-b): src/game/client/audio.ts NUEVO — Web Audio procedural (osciladores + ruido filtrado), catálogo validado con Zod, desbloqueo autoplay en primer gesto, mute persistido ('vecinos.muted'), eventSound(type, subtype) con claves "type:subtype" y fallback, nunca lanza. Hooks: controller.handleEvents llama eventSound por evento; MinigameModal reproduce mg_hit/mg_miss/jingle_win/jingle_lose. ControlsBar: botones "Sonido" (Volume2/VolumeX) y "Táctil" (Hand) con toast del hint del catálogo; store: touchVisible/soundMuted/touchHint.
+- Multi-vivienda (12-c): building.ts pinta borde blanco (homeEdge) en TODAS las viviendas ownerId==player (doble grosor en la actual); PlayerLogic.teleportTo recorre el camino legal del grafo con nextStepTowards hop a hop; controller.visitHome + bridge; InteriorEditorPanel con botón "Ir" (Footprints) junto al selector de viviendas.
+- QA/win-path (12-content): scenarios.json +escenario "qa" (copia de slice, seed 777, stateByDef nucleo qa_mode=1, minigameOverrides fáciles para los 6 minijuegos: cursorSpeed 0.12, zonas 0.62, 9 vidas, timeouts 60s, targets con vida 30s, memory_pairs 99 vidas); missions.json +m_qa_1..4 (cadena por parámetro qa_mode, teléfono dlg_qa → elección startMinigame) +m_okupa (Nando, 2A en venta) +m_bateria (Rita, 4D); dialogs.json +dlg_qa/dlg_okupa/dlg_musico; archetypes.json +okupa (reforma_creativa, noise 0.5) +musico (bateria 20-22h, noise 0.75); controller acepta ?scenario= por URL y fusiona overrides numéricos en minigame_requested (solo config, nunca efectos).
+- BUG PREEXISTENTE corregido en sim/graph.ts: nextStepTowards calculaba el siguiente salto con una condición errónea (dist(to)===dist(v)+w(from,v)) que solo acertaba con caminos de 1 arista → los caminos multi-salto devolvían null. Afectaba a la IA de vecinos y bloqueaba el teleport. Fix: Dijkstra inverso desde `to` + vecino que minimiza w+distTo(v). Smoke hop-a-hop: portal→pasillo3 en 6 saltos legales.
+- Verificación: tsc 0 errores en src/ (tras prisma generate), lint 0, SMOKE OK (m_qa_1 NO se activa en slice: gate por qa_mode funciona; canales, minijuegos y economía intactos). E2E agent-browser: (1) escenario qa completo — 4 minijuegos GANADOS en navegador: timing_bar (2 rondas con cursor lento), tap_sequence (Simón resuelto leyendo flashes), reflex_targets (2 objetivos), memory_pairs (solucionador con memoria de identidades, inmune a remounts; "🎮 Minijuego superado: Buzones revueltos"); nota: 2 fallos de tooling durante el camino (CDP timeout en eval largo → el JS seguía en página; nodos DOM obsoletos tras re-render → solucionadores finales leen el DOM por índice en cada paso). (2) táctil: botón Táctil → stick 124px con aria del catálogo; pointer sintéticos mueven al jugador derecha/izquierda (x 2.4→6.15→2.59); ✋ entra en 3C (cámara estancia); (3) audio: toggle Sonido/Silencio persiste; (4) multi-vivienda: visitHome coloca delante del 3C (location blk_p3_pasillo tras 6 saltos legales) y ✋ entra; (5) junta IA vota (6 sí/1 no), misiones encadenan, móvil 390px con footer natural y mandos visibles (capturas v04-*). 
+- Commits: 8a3ce4a (v0.4 núcleo) + fix graph + este worklog; push a GitHub tras cada uno.
+
+Stage Summary:
+- V0.4 jugable y verificada: móvil jugable con stick+botones data-driven, audio procedural sin assets (añadir un sonido = editar sounds.json), multi-vivienda destacada en 3D + botón Ir, y escenario QA (?scenario=qa) que permite GANAR los 4 tipos de minijuego en E2E automatizado — el pendiente de la v0.3 queda cerrado.
+- Extra de valor: bug de pathfinding multi-salto corregido (la IA de vecinos ahora sabe ir a cualquier bloque del grafo).
+- Pendientes futuros: controles de cámara gestos (pinch), audio por actividad específica (emisor→sonido), más misiones okupa/bateria en acción E2E (dayMin 2), arte final.

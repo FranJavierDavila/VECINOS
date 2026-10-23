@@ -65,19 +65,27 @@ export function travelMinutes(g: Graph, from: string, to: string): number {
 export function nextStepTowards(world: World, content: Content, from: string, to: string): string | null {
   if (from === to) return null;
   const g = buildCirculation(world, content);
-  const dist = new Map<string, number>(g.nodes.map((n) => [n, Infinity]));
-  dist.set(from, 0);
+  // Dijkstra desde `to` (el grafo es no dirigido): distTo[n] = coste mínimo n → to.
+  const distTo = new Map<string, number>(g.nodes.map((n) => [n, Infinity]));
+  distTo.set(to, 0);
   const open = new Set(g.nodes);
   while (open.size) {
     let u: string | null = null;
-    for (const n of open) if (u === null || dist.get(n)! < dist.get(u)!) u = n;
-    if (u === null || dist.get(u) === Infinity) break;
+    for (const n of open) if (u === null || distTo.get(n)! < distTo.get(u)!) u = n;
+    if (u === null || distTo.get(u)! === Infinity) break;
     open.delete(u);
-    if (u === to) break;
-    for (const [v, w] of g.edges.get(u) ?? []) dist.set(v, Math.min(dist.get(v)!, dist.get(u)! + w));
+    for (const [v, w] of g.edges.get(u) ?? []) distTo.set(v, Math.min(distTo.get(v)!, distTo.get(u)! + w));
   }
-  if (dist.get(to) === Infinity) return null;
+  if (distTo.get(from) === Infinity) return null;
+  // El siguiente salto es el vecino que minimiza w(from→v) + distTo(v).
   let best: string | null = null;
-  for (const [v, w] of g.edges.get(from) ?? []) if (dist.get(to)! === dist.get(v)! + w) if (best === null || v.localeCompare(best) < 0) best = v;
+  let bestCost = Infinity;
+  for (const [v, w] of g.edges.get(from) ?? []) {
+    const cost = w + distTo.get(v)!;
+    if (cost < bestCost) {
+      bestCost = cost;
+      best = v;
+    }
+  }
   return best;
 }

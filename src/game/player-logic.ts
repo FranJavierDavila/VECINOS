@@ -1,5 +1,5 @@
 import type { BlockInstance, Content, Input, InteractTarget, PlayerPosition, World } from '@/game/core/types';
-import { dispatch } from '@/game/sim';
+import { dispatch, nextStepTowards } from '@/game/sim';
 
 export type InteractResult =
   | { type: 'none' }
@@ -196,17 +196,25 @@ export class PlayerLogic {
   /**
    * Colocación directa junto a la puerta de un bloque (QoL del editor multi-vivienda).
    * No desbloquea nada: si la puerta está cerrada, el jugador simplemente se planta delante.
+   * La posición del sim se sincroniza recorriendo el camino legal del grafo de circulación
+   * (mismo recorrido que andar: portal → núcleo → planta), sin teletransportes prohibidos.
    */
   teleportTo(blockId: string): boolean {
     const target = this.world.blocks[blockId];
     if (!target || this.climb) return false;
-    const [a, z] = this.rangeOf(target);
     this.mode = 'corridor';
     this.insideBlock = null;
     this.approached = null;
     this.floor = target.cell.floor;
+    const [a, z] = this.rangeOf(target);
     this.x = (a + z) / 2;
-    this.sync();
+    for (let guard = 0; guard < 24; guard++) {
+      const zone = this.zone();
+      if (zone.id === this.location) break;
+      const next = nextStepTowards(this.world, this.content, this.location ?? zone.id, zone.id);
+      if (!next) break;
+      dispatch(this.world, this.content, { type: 'move', resident: this.world.playerId, to: next });
+    }
     return true;
   }
 }
