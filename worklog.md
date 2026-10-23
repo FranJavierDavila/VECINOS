@@ -457,3 +457,34 @@ Stage Summary:
 - "Cargar partida" re-sincroniza de verdad (causa raíz de la caché glTF corregida + cámara alineada a la posición).
 - Viviendas 4.8 × 2.8 m listas para el mobiliario de Fase C; los comunes no cambian.
 - Pendientes v0.6: Fase C (movimiento interior 2D + layouts 2D con el fondo libre ya ganado), Fase D (cutscenes de misión data-driven). QoL futura: dormir podría saltar hasta las 08:00 (requiere avanzar ticks del reloj, con cuidado del spam de eventos).
+
+---
+Task ID: 16
+Agent: main (Z.ai Code)
+Task: v0.6-c — escaleras como bloque independiente del ascensor (pozos verticales data-driven)
+
+Work Log:
+- Diseño (petición del diseñador): el núcleo dejaba de ser ascensor+escalera a la vez; separación en dos pozos independientes insertables en cualquier columna. La particularidad pedida (planta 0 no baja, última no sube) EMERGE de la regla de encadenado floor+1: no hay aristas hacia plantas inexistentes + guard to<0/to>topFloor en startClimb. Cero código especial.
+- blocks.json: nucleo_comunicaciones features {stairs:true, elevator:true} → {elevator:true} SOLO (subir por la cabina del ascensor ya no es cosa); NUEVO bloque escaleras_planta (common/main, w1, traversable, features {stairs:true}, param condition tier-1, color salvia #a3b18a); pasillo_planta w 9→10.
+- templates.json: retícula 10 columnas; escalera en la col 9 (extremo opuesto al portal) floors [0,7] → ids blk_p{0..7}_escalera. Ids de viviendas a-d y toda la narrativa intactos.
+- graph.ts: regla de encadenado generalizada — cualquier bloque con features.stairs o features.elevator se encadena por columna contigua: arista escalera SIEMPRE (STAIRS_COST 3), arista ascensor SOLO si elevator_status ok en ambas plantas (ELEVATOR_COST 1); link() toma el mínimo, así los bloques mixtos (ambos features) conservan el comportamiento antiguo. Habilita N pozos verticales por template.
+- commands.ts canMove: vertical exige misma columna y adyacencia 1; acepta par con stairs (siempre) o par con elevator (ambos ok). Núcleo averiado = aislado en vertical (honesto: no se trepa por el hueco del ascensor).
+- player-logic.ts: core() → elevatorBlock(); startClimb rewritten — el gesto W/S depende del pozo donde estás: ascensor operativo → elevatorSeconds; bloque con escalera → stairsSeconds; núcleo averiado sin escalera → NINGÚN gesto.
+- controller.ts promptText data-driven: rules.interact NUEVOS strings stairs/elevator/elevatorBroken ("W/S · escalera", "W/S · ascensor", "Ascensor averiado · la escalera, al fondo del pasillo"). Schemas + types + rules.json actualizados.
+- ai.ts: NUEVO destino de actividad 'stairs' (stairsOf por features) para que los arquetipo patrullen la escalera real; types/schemas at: +'stairs'. archetypes.json: roam del nino (🛼 de Pinturillas, no del Fiestero como creía) apunta a 'stairs'.
+- HelpCard: texto de W/S actualizado ("en la escalera o en el ascensor").
+- NUEVO scripts/qa-pozos.ts: regresión determinista de pozos contra contenido real (16 checks).
+- Compatibilidad: partidas antiguas (sin bloques de escalera en su mundo) con el ascensor roto quedarían sin vía vertical → conviene partida nueva tras esta versión (nota para el diseñador).
+
+Test (agent-browser + bun, todo verificado en vivo):
+- Edificio 10 cols renderiza: núcleo central teñido de avería (brokenColor), escalera salvia en el extremo derecho, HUD "del portal a tu puerta: 13 min" (Dijkstra con escalera).
+- Núcleo averiado: prompt "Ascensor averiado · la escalera, al fondo del pasillo"; W NO mueve (save API: location blk_p0_nucleo).
+- Escalera: prompt "W/S · escalera"; S en planta 0 NO baja (blk_p0_escalera); 3×W sube a blk_p3_escalera (canMove acepta el par); puerta 3C alcanzada → E entra → m_bienvenida done + mudanza disparada (Dolores+Pinturillas al 1B).
+- Reparación (pagar 800 €): prompt "W/S · ascensor"; viaje del portal 13→7 min; W sube a blk_p4_nucleo (par elevator ok). Pinturillas en vivo: con el ascensor reparado llegó desde la calle hasta blk_p1_pasillo y graffiti 60 (4 pintadas) durante los saltos de reloj.
+- qa-pozos.ts 16/16 OK: ruta IA averiado = portal→pasillo→escalera×4→pasillo (sin núcleo), 13/7 min, canMove 4 casos, aristas p0 (solo pasillo+escalera1) y p7 (solo pasillo+escalera6), Pinturillas at:'stairs' patrulla blk_p1_escalera con roam activo (80 ticks reales del sim).
+- smoke-sim OK, smoke-junta OK, tsc 0 errores en src/, lint 0, contenido JSON válido, consola del navegador sin errores, reload limpio. Nota: gremlin conocido del sandbox (rAF headless se congela en sesiones largas) limitó los saltos de reloj en la segunda mitad — lo que quedó pendiente en vivo se cubrió de forma determinista con qa-pozos.ts.
+
+Stage Summary:
+- El edificio tiene pozos verticales independientes y data-driven: escalera (siempre transitable, 3 min/planta, en la columna que diga el template) y ascensor (1 min/planta, solo operativo). La avería del ascensor ya no es cosmética: duele (caminar al otro pozo) y se mide (13 vs 7 min). La IA re-enruta sola por Dijkstra y las actividades pueden apuntar a 'stairs'.
+- Añadir otra escalera/ascensor en cualquier columna = una línea en templates.json; bloques mixtos (ascensor con escalera de emergencia) siguen soportados por el mismo graph.ts.
+- Pendientes v0.6: Fase C (movimiento interior 2D + layouts), Fase D (cutscenes de misión data-driven). Idea anotada: arte glTF para el bloque de escalera cuando haya arte real.

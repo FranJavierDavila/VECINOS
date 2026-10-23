@@ -24,8 +24,13 @@ const elevatorWorks = (world: World, content: Content, id: string) => {
 
 /**
  * Grafo de circulación (nodos = bloques, aristas = minutos de viaje):
- * cada bloque de la capa principal se conecta con el pasillo de su planta; los núcleos se conectan
- * entre plantas contiguas por escalera (siempre) o por ascensor (solo si funciona en ambas plantas).
+ * cada bloque de la capa principal se conecta con el pasillo de su planta; los bloques con
+ * features.stairs o features.elevator se encadenan por columna entre plantas contiguas:
+ * la escalera siempre (coste STAIRS_COST) y el ascensor solo si funciona en ambas plantas
+ * (coste ELEVATOR_COST). Un bloque puede tener ambos (escalera de emergencia del ascensor)
+ * o solo uno: la escalera y el ascensor son pozos independientes, en la columna que diga el template.
+ * De la regla emerge que la escalera de la planta 0 no baja (no hay planta -1) y la de la
+ * última no sube: simplemente no existen esas aristas.
  */
 export function buildCirculation(world: World, content: Content): Graph {
   const blocks = Object.values(world.blocks);
@@ -34,13 +39,18 @@ export function buildCirculation(world: World, content: Content): Graph {
   for (const c of corridors)
     for (const b of blocks) if (b.layer === 'main' && b.cell.floor === c.cell.floor) link(g, c.id, b.id, WALK_COST);
 
-  const cores = blocks.filter((b) => content.blocks[b.defId]!.features?.stairs).sort((a, b) => a.cell.floor - b.cell.floor);
-  for (let i = 0; i + 1 < cores.length; i++) {
-    const a = cores[i]!;
-    const b = cores[i + 1]!;
-    if (b.cell.floor !== a.cell.floor + 1 || b.cell.col !== a.cell.col) continue;
-    const useElevator = elevatorWorks(world, content, a.id) && elevatorWorks(world, content, b.id);
-    link(g, a.id, b.id, useElevator ? ELEVATOR_COST : STAIRS_COST);
+  const shafts = blocks.filter((b) => {
+    const f = content.blocks[b.defId]!.features;
+    return !!f && (f.stairs === true || f.elevator === true);
+  });
+  for (const a of shafts) {
+    const b = shafts.find((x) => x.cell.col === a.cell.col && x.cell.floor === a.cell.floor + 1);
+    if (!b) continue;
+    const fa = content.blocks[a.defId]!.features!;
+    const fb = content.blocks[b.defId]!.features!;
+    if (fa.stairs && fb.stairs) link(g, a.id, b.id, STAIRS_COST);
+    if (fa.elevator && fb.elevator && elevatorWorks(world, content, a.id) && elevatorWorks(world, content, b.id))
+      link(g, a.id, b.id, ELEVATOR_COST);
   }
   return g;
 }

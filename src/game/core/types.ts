@@ -245,7 +245,7 @@ export interface ScheduleWindow {
 export interface ActivityDef {
   /** Etiqueta para el registro de la interfaz (con emoji si procede). */
   label?: string;
-  at?: 'home' | 'corridor' | 'core' | 'out';
+  at?: 'home' | 'corridor' | 'core' | 'stairs' | 'out';
   say?: string[];
   emits?: Record<string, number>;
   schedule?: ScheduleWindow[];
@@ -564,6 +564,9 @@ export interface Rules {
     greet: string;
     laptop: string;
     bed: string;
+    stairs: string;
+    elevator: string;
+    elevatorBroken: string;
     mailbox: { prompt: string; lines: string[] };
     noticeboard: { prompt: string; template: string };
   };

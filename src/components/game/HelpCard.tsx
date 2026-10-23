@@ -5,7 +5,7 @@ import { Keyboard } from 'lucide-react';
 
 const CONTROLS: { keys: string[]; text: string }[] = [
   { keys: ['A', 'D', '←', '→'], text: 'Moverte por la planta' },
-  { keys: ['W', 'S', '↑', '↓'], text: 'Escalera o ascensor (en el núcleo)' },
+  { keys: ['W', 'S', '↑', '↓'], text: 'Subir y bajar: en la escalera o en el ascensor' },
   { keys: ['E'], text: 'Entrar, salir y usar cosas cercanas' },
   { keys: ['1', '2', '3'], text: 'Cámara: edificio / planta / estancia' },
   { keys: ['Espacio'], text: 'Avanzar los diálogos del teléfono' },

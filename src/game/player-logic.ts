@@ -86,8 +86,8 @@ export class PlayerLogic {
     return this.onFloor(f).find((b) => b.layer === 'corridor')!;
   }
 
-  private core(f: number): BlockInstance | undefined {
-    return this.onFloor(f).find((b) => this.content.blocks[b.defId]!.features?.stairs);
+  private elevatorBlock(f: number): BlockInstance | undefined {
+    return this.onFloor(f).find((b) => this.content.blocks[b.defId]!.features?.elevator);
   }
 
   /** Bloque bajo los pies del jugador (zona común) o, si no, el pasillo. */
@@ -112,7 +112,7 @@ export class PlayerLogic {
   }
 
   private elevatorWorks(a: number, b: number) {
-    const ok = (f: number) => this.core(f)?.params.elevator_status === 'ok';
+    const ok = (f: number) => this.elevatorBlock(f)?.params.elevator_status === 'ok';
     return ok(a) && ok(b);
   }
 
@@ -138,13 +138,23 @@ export class PlayerLogic {
     this.exec({ type: 'move', resident: this.actorId, to: z.id });
   }
 
+  /**
+   * Subir/bajar depende del pozo en el que estés: en un bloque con ascensor operativo el viaje
+   * es elevatorSeconds; en un bloque con escalera, stairsSeconds. Un núcleo averiado (solo
+   * features.elevator) no da gesto ninguno: hay que ir a la escalera. Si un bloque tuviera
+   * ambos features, manda el ascensor y la escalera queda de emergencia.
+   */
   private startClimb(delta: 1 | -1) {
     const to = this.floor + delta;
-    const core = this.core(this.floor);
-    if (to < 0 || to > this.topFloor || !core || this.zone().id !== core.id) return;
-    const [a, z] = this.rangeOf(core);
-    this.x = (a + z) / 2;
-    this.climb = { from: this.floor, to, t: 0, duration: this.elevatorWorks(this.floor, to) ? this.view.elevatorSeconds : this.view.stairsSeconds };
+    if (to < 0 || to > this.topFloor) return; // planta 0 no baja; última no sube
+    const z = this.zone();
+    const feat = this.content.blocks[z.defId]!.features;
+    if (!feat) return;
+    const ride = feat.elevator === true && this.elevatorWorks(this.floor, to);
+    if (!ride && feat.stairs !== true) return;
+    const [a, zz] = this.rangeOf(z);
+    this.x = (a + zz) / 2;
+    this.climb = { from: this.floor, to, t: 0, duration: ride ? this.view.elevatorSeconds : this.view.stairsSeconds };
   }
 
   update(dt: number, input: Input) {

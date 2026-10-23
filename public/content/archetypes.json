@@ -463,7 +463,7 @@
     ]
    },
    "roam": {
-    "at": "core",
+    "at": "stairs",
     "label": "🛼 patrulla la escalera",
     "say": [
      "La escalera es mi circuito de karts. En modo andando."

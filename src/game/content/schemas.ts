@@ -247,7 +247,7 @@ export const archetypeDefSchema = z.object({
     z.string(),
     z.object({
       label: z.string().optional(),
-      at: z.enum(['home', 'corridor', 'core', 'out']).optional(),
+      at: z.enum(['home', 'corridor', 'core', 'stairs', 'out']).optional(),
       say: z.array(z.string()).optional(),
       emits: z.record(z.string(), z.number()).optional(),
       schedule: z.array(scheduleWindowSchema).optional(),
@@ -473,6 +473,9 @@ export const rulesSchema = z.object({
     greet: z.string(),
     laptop: z.string(),
     bed: z.string(),
+    stairs: z.string(),
+    elevator: z.string(),
+    elevatorBroken: z.string(),
     mailbox: z.object({ prompt: z.string(), lines: z.array(z.string()).min(1) }),
     noticeboard: z.object({ prompt: z.string(), template: z.string() }),
   }),

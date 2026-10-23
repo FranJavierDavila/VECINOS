@@ -824,8 +824,14 @@ class GameController {
       }
     }
     const zone = logic.zone();
-    if (this.content.blocks[zone.defId]!.features?.stairs) {
-      return world.blocks[zone.id]!.params.elevator_status === 'ok' ? 'W/S · ascensor' : 'W/S · escalera (el ascensor no funciona)';
+    const feat = this.content.blocks[zone.defId]!.features;
+    if (feat?.stairs || feat?.elevator) {
+      const ic = this.content.rules.interact;
+      // Lo que dice el prompt es lo que W/S hace aquí: ascensor operativo manda; si no hay
+      // ascensor utilizable pero sí escalera, escalera; núcleo averiado sin escalera = aviso.
+      if (feat.elevator && world.blocks[zone.id]!.params.elevator_status === 'ok') return ic.elevator;
+      if (feat.stairs) return ic.stairs;
+      return ic.elevatorBroken;
     }
     return null;
   }

@@ -14,8 +14,9 @@ const ok = (): CommandResult => ({ ok: true });
 const fail = (reason: string): CommandResult => ({ ok: false, reason });
 
 /**
- * Reglas de circulación: en la misma planta se pasa siempre por el pasillo; entre plantas
- * solo de núcleo a núcleo contiguo (escalera o ascensor).
+ * Reglas de circulación: en la misma planta se pasa siempre por el pasillo; entre plantas solo
+ * por pozos verticales contiguos y en la misma columna: escalera (features.stairs, siempre) o
+ * ascensor (features.elevator, solo si funciona en ambas plantas).
  */
 export function canMove(world: World, content: Content, from: string | null, to: string): boolean {
   const b = world.blocks[to];
@@ -26,8 +27,12 @@ export function canMove(world: World, content: Content, from: string | null, to:
     if (a.layer === 'corridor' || b.layer === 'corridor') return true;
     return a.kind !== 'dwelling' && b.kind !== 'dwelling';
   }
-  const stairs = (id: string) => !!content.blocks[world.blocks[id]!.defId]!.features?.stairs;
-  return stairs(a.id) && stairs(b.id) && Math.abs(a.cell.floor - b.cell.floor) === 1 && a.cell.col === b.cell.col;
+  if (Math.abs(a.cell.floor - b.cell.floor) !== 1 || a.cell.col !== b.cell.col) return false;
+  const fa = content.blocks[a.defId]!.features;
+  const fb = content.blocks[b.defId]!.features;
+  if (fa?.stairs && fb?.stairs) return true;
+  if (fa?.elevator && fb?.elevator) return a.params.elevator_status === 'ok' && b.params.elevator_status === 'ok';
+  return false;
 }
 
 function knockLine(world: World, content: Content, residentId: string): { line: string; asleep: boolean } {

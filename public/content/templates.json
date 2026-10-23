@@ -1,10 +1,16 @@
 [
   {
     "id": "edificio_9x8_nucleo_central",
-    "grid": { "cols": 9, "floors": 8 },
+    "grid": { "cols": 10, "floors": 8 },
     "rows": [
       { "floors": [0, 7], "blocks": [{ "col": 0, "defId": "pasillo_planta", "tag": "pasillo" }] },
-      { "floors": [0, 7], "blocks": [{ "col": 4, "defId": "nucleo_comunicaciones", "tag": "nucleo" }] },
+      {
+        "floors": [0, 7],
+        "blocks": [
+          { "col": 4, "defId": "nucleo_comunicaciones", "tag": "nucleo" },
+          { "col": 9, "defId": "escaleras_planta", "tag": "escalera" }
+        ]
+      },
       {
         "floors": [0, 0],
         "blocks": [

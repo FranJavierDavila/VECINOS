@@ -29,7 +29,7 @@ function windowActive(w: ScheduleWindow, minute: number, day: number): boolean {
 }
 
 /** Decide la actividad deseada del residente: primera actividad cuyo schedule encaje (orden del catálogo). */
-function desire(world: World, content: Content, r: ResidentInstance): [string | null, 'home' | 'corridor' | 'core' | 'out'] {
+function desire(world: World, content: Content, r: ResidentInstance): [string | null, 'home' | 'corridor' | 'core' | 'stairs' | 'out'] {
   const acts = content.archetypes[r.archetype]?.activities ?? {};
   const { night } = content.rules.sim;
   const minute = world.clock.minute;
@@ -54,6 +54,9 @@ function corridorOf(world: World, floor: number): string | null {
 function coreOf(world: World, floor: number): string | null {
   return Object.values(world.blocks).find((b) => b.layer === 'main' && b.cell.floor === floor && !!b.params.elevator_status)?.id ?? null;
 }
+function stairsOf(world: World, content: Content, floor: number): string | null {
+  return Object.values(world.blocks).find((b) => b.cell.floor === floor && content.blocks[b.defId]!.features?.stairs === true)?.id ?? null;
+}
 
 function setActivity(world: World, content: Content, r: ResidentInstance, activity: string | null) {
   if (r.activity === activity) return;
@@ -73,7 +76,7 @@ export function runAI(world: World, content: Content): void {
     if (r.controller.type === 'human' || !r.present) continue;
 
     const [activity, where] = desire(world, content, r);
-    const targetBlock = where === 'home' ? r.home : where === 'corridor' ? corridorOf(world, world.blocks[r.home]!.cell.floor) : where === 'core' ? coreOf(world, world.blocks[r.home]!.cell.floor) : null;
+    const targetBlock = where === 'home' ? r.home : where === 'corridor' ? corridorOf(world, world.blocks[r.home]!.cell.floor) : where === 'core' ? coreOf(world, world.blocks[r.home]!.cell.floor) : where === 'stairs' ? stairsOf(world, content, world.blocks[r.home]!.cell.floor) : null;
 
     if (where === 'out') {
       if (r.location !== null) {

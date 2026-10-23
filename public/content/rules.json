@@ -261,6 +261,9 @@
     "greet": "E · saludar a {name}",
     "laptop": "E · conectarse al portátil",
     "bed": "E · echar una siesta",
+    "stairs": "W/S · escalera",
+    "elevator": "W/S · ascensor",
+    "elevatorBroken": "Ascensor averiado · la escalera, al fondo del pasillo",
     "mailbox": {
       "prompt": "E · revisar los buzones",
       "lines": [
