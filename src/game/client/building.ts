@@ -1,9 +1,21 @@
-import type { Color3, Mesh, Scene, StandardMaterial } from '@babylonjs/core';
+import type { Color3, Color4, Mesh, Scene, StandardMaterial, TransformNode } from '@babylonjs/core';
 import type { BlockInstance, Content, World } from '@/game/core/types';
 import { B } from './babylon';
+import { instantiateBlockAsset, type BlockMat } from './assets';
 
 interface BlockView {
-  mat: StandardMaterial;
+  /** Cajas greybox estructurales (se ocultan cuando llega el modelo glTF; panel/candado NO van aquí). */
+  greybox: Mesh[];
+  /** Materiales que reciben glow de canales y tintado de estado (1 en greybox, N en modelos). */
+  mats: BlockMat[];
+  /** Emissive base por material (lo que paint() deja sin canales); lo usa el LOD 'glow'. */
+  baseEmissive: Color3[];
+  /** Color base por material (view.color en greybox; albedo capturado en modelos). */
+  baseColor: Color3[];
+  /** Fuerza del tintado de estado: 1 = color plano (greybox), 0..1 = mezcla sobre el arte (modelos). */
+  tintStrength: number;
+  /** Raíz del modelo glTF si este bloque ya lo lleva (null = greybox). */
+  model: TransformNode | null;
   front: Mesh | null; // panel que cierra la vivienda mientras tiene candado
   lock: Mesh | null;
   lockBase: { x: number; y: number };
@@ -15,8 +27,6 @@ interface BlockView {
   /** Pared del fondo de la vivienda (la única malla que puede llevar edgesRendering) o null;
    *  el EdgesRenderer activo solo existe en las paredes destacadas del jugador. */
   edgesMesh: Mesh | null;
-  /** Emissive que paint() deja cuando no hay canales activos, capturado del material al crearlo. */
-  baseEmissive: Color3;
   /** true mientras el LOD fuerza baseEmissive (al soltarlo se repinta el cálculo de paint una vez). */
   glowForced: boolean;
   /** true mientras el LOD oculta panel+candado; la visibilidad efectiva es la de paint() && !esto. */
@@ -24,8 +34,10 @@ interface BlockView {
 }
 
 /**
- * Una caja por bloque (placeholder greybox del futuro prefab). TODA la geometría y los colores
- * salen de content.rules.view + block.view: sustituir el greybox por arte final no toca este código.
+ * Una caja por bloque (placeholder greybox del futuro prefab) y, si el manifiesto de assets
+ * (Content.assets.blocks) declara un modelo glTF para el tipo de bloque, el modelo en su lugar
+ * (con la caja oculta). TODA la geometría y los colores salen de content.rules.view +
+ * block.view + assets: sustituir el greybox por arte final no toca este código.
  * Las viviendas se dibujan en corte, sin pared frontal; bloqueadas, con panel y candado.
  */
 export function createBuilding(scene: Scene, world: World, content: Content) {
@@ -51,33 +63,71 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     const w = b.size.w * v.cellW - v.gapW;
     const h = v.cellH - v.gapH;
     const view: BlockView = {
-      mat: m,
+      greybox: [],
+      mats: [m],
+      baseEmissive: [m.emissiveColor.clone()],
+      baseColor: [Color3.FromHexString(content.blocks[b.defId]!.view?.color ?? '#cccccc')],
+      tintStrength: 1,
+      model: null,
       front: null,
       lock: null,
       lockBase: { x: cx, y: bottom + v.cellH / 2 - 0.2 },
       centerX: cx,
       floor: b.cell.floor,
       edgesMesh: null,
-      baseEmissive: m.emissiveColor.clone(),
       glowForced: false,
       lodHiddenPanels: false,
     };
     if (b.layer === 'corridor') {
-      box(b.id, b.size.w * v.cellW, v.slab * 2, 0.5, cx, bottom + v.slab, v.corridorZ, m);
+      view.greybox.push(box(b.id, b.size.w * v.cellW, v.slab * 2, 0.5, cx, bottom + v.slab, v.corridorZ, m));
     } else if (b.kind === 'dwelling') {
       const y = bottom + v.cellH / 2;
       view.edgesMesh = box(`${b.id}_fondo`, w, h, v.wall, cx, y, v.roomZ + v.depth / 2, m);
-      box(`${b.id}_izq`, v.wall, h, v.depth, cx - w / 2, y, v.roomZ, m);
-      box(`${b.id}_der`, v.wall, h, v.depth, cx + w / 2, y, v.roomZ, m);
-      box(`${b.id}_suelo`, w, v.wall, v.depth, cx, bottom + v.slab + v.wall / 2, v.roomZ, m);
-      box(`${b.id}_techo`, w, v.wall, v.depth, cx, bottom + v.cellH - v.slab - v.wall / 2, v.roomZ, m);
+      view.greybox.push(
+        view.edgesMesh,
+        box(`${b.id}_izq`, v.wall, h, v.depth, cx - w / 2, y, v.roomZ, m),
+        box(`${b.id}_der`, v.wall, h, v.depth, cx + w / 2, y, v.roomZ, m),
+        box(`${b.id}_suelo`, w, v.wall, v.depth, cx, bottom + v.slab + v.wall / 2, v.roomZ, m),
+        box(`${b.id}_techo`, w, v.wall, v.depth, cx, bottom + v.cellH - v.slab - v.wall / 2, v.roomZ, m),
+      );
       view.front = box(`${b.id}_puerta`, w, h, v.wall, cx, y, v.roomZ - v.depth / 2, m);
       view.lock = box(`${b.id}_candado`, 0.3, 0.38, 0.12, cx, view.lockBase.y, v.roomZ - v.depth / 2 - 0.1, mat(`${b.id}_candado_mat`));
       (view.lock.material as StandardMaterial).diffuseColor = Color3.FromHexString(v.lockColor);
     } else {
-      box(b.id, w, h, v.depth, cx, bottom + v.cellH / 2, v.roomZ, m);
+      view.greybox.push(box(b.id, w, h, v.depth, cx, bottom + v.cellH / 2, v.roomZ, m));
     }
     views.set(b.id, view);
+  }
+
+  // ── Arte final (opcional): modelo glTF por TIPO de bloque (manifiesto assets.blocks). ──
+  // Cada instancia se clona del contenedor cacheado y escala a la celda real; si carga, la
+  // caja greybox estructural se oculta (el panel/candado de viviendas sigue siendo greybox).
+  const blockAssets = content.assets?.blocks;
+  if (blockAssets && content.assets) {
+    for (const b of Object.values(world.blocks)) {
+      const entry = blockAssets[b.defId];
+      if (!entry) continue;
+      void instantiateBlockAsset(scene, entry, content.assets.base).then((model) => {
+        if (!model) return; // fallback greybox permanente
+        const view = views.get(b.id);
+        if (!view || view.model) {
+          model.root.dispose(false, false); // bloque ya servido: no dejar instancias sueltas
+          return;
+        }
+        const w = b.size.w * v.cellW - v.gapW;
+        const h = v.cellH - v.gapH;
+        // El modelo se authora a dimensiones nominales con la base en y=0 y centrado en x/z.
+        model.root.scaling.set(w / entry.nominal.w, h / entry.nominal.h, v.depth / entry.nominal.d);
+        model.root.position.set((b.cell.col + b.size.w / 2) * v.cellW, b.cell.floor * v.cellH, v.roomZ);
+        view.model = model.root;
+        view.mats = model.mats;
+        view.baseEmissive = model.mats.map((mm) => new Color3(mm.emissiveColor.r, mm.emissiveColor.g, mm.emissiveColor.b));
+        view.baseColor = model.baseColor.map((c) => new Color3(c.r, c.g, c.b));
+        view.tintStrength = entry.tintStrength ?? 0.6;
+        view.edgesMesh = null; // el modelo no lleva EdgesRenderer (no hay pared destacada greybox)
+        for (const mesh of view.greybox) mesh.setEnabled(false);
+      });
+    }
   }
 
   // ── Multi-vivienda destacada: borde blanco en la pared del fondo de TODAS las viviendas del jugador ──
@@ -124,6 +174,14 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     return base;
   }
 
+  /** Color de ESTADO (null = sin estado especial). El greybox lo pinta plano; los modelos lo mezclan. */
+  function stateTint(b: BlockInstance): Color3 | null {
+    if (b.kind === 'dwelling' && b.access === 'locked') return Color3.FromHexString(v.lockedColor);
+    if (b.kind === 'dwelling' && b.occupancy !== 'occupied') return Color3.Lerp(Color3.FromHexString(content.blocks[b.defId]!.view?.color ?? '#cccccc'), Color3.White(), v.vacantTint);
+    if (b.params.elevator_status !== undefined && b.params.elevator_status !== 'ok') return Color3.FromHexString(v.brokenColor);
+    return null;
+  }
+
   /** Emissive del bloque: canales de influencia → emissive según color del canal en el catálogo. Se acumulan. */
   function applyEmissive(view: BlockView, b: BlockInstance) {
     let e = new Color3(0, 0, 0);
@@ -134,7 +192,20 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       if (!g) continue;
       e = e.add(g.scale(Math.min(1, level)));
     }
-    view.mat.emissiveColor = e;
+    for (const m of view.mats) m.emissiveColor = e;
+  }
+
+  /** Color difuso/albedo por material: greybox plano (tintStrength 1) o mezcla sobre el arte. */
+  function applyTint(view: BlockView, b: BlockInstance) {
+    const state = color(b);
+    const override = stateTint(b);
+    for (let i = 0; i < view.mats.length; i++) {
+      const m = view.mats[i]!;
+      const base = view.baseColor[i]!;
+      const c = view.tintStrength >= 1 ? state : override ? Color3.Lerp(base, override, view.tintStrength) : base;
+      if (m.diffuseColor) m.diffuseColor = c;
+      else if (m.albedoColor) m.albedoColor = c;
+    }
   }
 
   /** Visibilidad efectiva de panel y candado: paint() la fija por el acceso y el LOD puede ocultarlos encima. */
@@ -181,13 +252,13 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       // 'edges': interruptor nativo barato — el renderingGroup consulta edgesRenderer.isEnabled cada
       // frame, así que nunca se destruye ni recrea el EdgesRenderer (disable/enableEdgesRendering sí
       // lo harían: el primero lo dispone y el segundo recomputaría las aristas). El grosor/color
-      // viven en la malla y sobreviven al apagado.
+      // viven en la malla y sobreviven al apagado. Los modelos glTF no tienen edges (edgesMesh null).
       if (view.edgesMesh?.edgesRenderer) view.edgesMesh.edgesRenderer.isEnabled = !hideEdges;
       // 'glow': pisa el emissive CADA frame (paint() pudo repintar los canales este tick); al soltarlo,
       // una única llamada repinta el cálculo de paint para no esperar al próximo tick.
       if (hideGlow) {
         view.glowForced = true;
-        view.mat.emissiveColor = view.baseEmissive;
+        for (let i = 0; i < view.mats.length; i++) view.mats[i]!.emissiveColor = view.baseEmissive[i]!;
       } else if (view.glowForced) {
         view.glowForced = false;
         applyEmissive(view, b);
@@ -205,7 +276,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     paint() {
       for (const b of Object.values(world.blocks)) {
         const view = views.get(b.id)!;
-        view.mat.diffuseColor = color(b);
+        applyTint(view, b);
         applyEmissive(view, b);
         applyPanels(view, b);
       }

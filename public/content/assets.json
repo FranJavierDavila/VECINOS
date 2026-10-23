@@ -1,0 +1,20 @@
+{
+  "base": "/assets/",
+  "actors": {
+    "nino_grafitero": {
+      "model": "actors/nino_grafitero.gltf",
+      "nominalHeight": 1.2,
+      "animations": { "idle": "idle", "walk": "walk", "spray": "spray" },
+      "defaultAnimation": "idle",
+      "walkAnimation": "walk",
+      "activityAnimations": { "paint_cabin": "spray", "roam": "walk" }
+    }
+  },
+  "blocks": {
+    "nucleo_comunicaciones": {
+      "model": "blocks/nucleo_comunicaciones.gltf",
+      "nominal": { "w": 2.4, "h": 2.6, "d": 1.4 },
+      "tintStrength": 0.55
+    }
+  }
+}

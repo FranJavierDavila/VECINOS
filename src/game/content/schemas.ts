@@ -493,6 +493,31 @@ export const soundsCatalogSchema = z.object({
 
 export type SoundsCatalog = z.infer<typeof soundsCatalogSchema>;
 
+// ───────────────────────── Manifiesto de assets (arte final sustituible, opcional) ─────────────────────────
+
+export const actorAssetSchema = z.object({
+  model: z.string().min(1),
+  nominalHeight: z.number().positive(),
+  animations: z.record(z.string(), z.string()).optional(),
+  defaultAnimation: z.string().optional(),
+  walkAnimation: z.string().optional(),
+  activityAnimations: z.record(z.string(), z.string()).optional(),
+});
+
+export const blockAssetSchema = z.object({
+  model: z.string().min(1),
+  nominal: z.object({ w: z.number().positive(), h: z.number().positive(), d: z.number().positive() }),
+  tintStrength: z.number().min(0).max(1).optional(),
+});
+
+export const assetsCatalogSchema = z.object({
+  base: z.string().min(1),
+  actors: z.record(z.string(), actorAssetSchema).optional(),
+  blocks: z.record(z.string(), blockAssetSchema).optional(),
+});
+
+export type AssetsCatalogParsed = z.infer<typeof assetsCatalogSchema>;
+
 // ───────────────────────── Listas (los ficheros JSON son arrays; el Content las indexa) ─────────────────────────
 
 export const blockListSchema = z.array(blockDefSchema);

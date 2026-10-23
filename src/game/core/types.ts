@@ -372,6 +372,46 @@ export interface ScenarioDef {
   multiplayer?: { guestArchetype?: string; guestWallet?: number };
 }
 
+// ───────────────────── Manifiesto de assets (arte final) ─────────────────────
+
+/**
+ * Entrada de modelo 3D para un arquetipo (personaje). Fichero glTF 2.0 con clips de
+ * animación por nombre. El greybox (cápsula) es el fallback cuando no hay entrada o falla la carga.
+ */
+export interface ActorAssetDef {
+  /** Ruta del fichero relativa al `base` del manifiesto (.gltf/.glb). */
+  model: string;
+  /** Altura nominal con la que se authoró el modelo (metros). El runtime escala a ArchetypeView.height. */
+  nominalHeight: number;
+  /** Clips de animación del fichero, por nombre lógico → nombre del clip en el fichero. */
+  animations?: Record<string, string>;
+  /** Clip lógico por defecto cuando el residente no hace nada visible (normalmente "idle"). */
+  defaultAnimation?: string;
+  /** Clip lógico mientras el residente se desplaza (normalmente "walk"). */
+  walkAnimation?: string;
+  /** Clip lógico por actividad del arquetipo (p. ej. paint_cabin → "spray"). */
+  activityAnimations?: Record<string, string>;
+}
+
+/** Entrada de modelo 3D para un tipo de bloque. El runtime lo escala a las dimensiones reales de la celda. */
+export interface BlockAssetDef {
+  model: string;
+  /** Dimensiones nominales del modelo (metros): el modelo se authora a este tamaño y se escala a la celda. */
+  nominal: { w: number; h: number; d: number };
+  /** 0..1: cuánto se tiñe el modelo con el color de estado (roto/cerrado/vacío) en paint(). */
+  tintStrength?: number;
+}
+
+/** Manifiesto del arte final (public/content/assets.json). Opcional: sin él, greybox puro. */
+export interface AssetsCatalog {
+  /** Base de las rutas de modelos (p. ej. "/assets/"). */
+  base: string;
+  /** Modelos por arquetipo. */
+  actors?: Record<string, ActorAssetDef>;
+  /** Modelos por definición de bloque. */
+  blocks?: Record<string, BlockAssetDef>;
+}
+
 export interface Content {
   rules: Rules;
   blocks: Record<string, BlockDef>;
@@ -385,6 +425,8 @@ export interface Content {
   scenarios: Record<string, ScenarioDef>;
   furniture: Record<string, FurnitureDef>;
   minigames: Record<string, MinigameDef>;
+  /** Manifiesto de arte final (opcional): modelos glTF por arquetipo/bloque con fallback greybox. */
+  assets?: AssetsCatalog;
 }
 
 // ───────────────────────── Reglas y ajustes (catálogo rules.json) ─────────────────────────

@@ -491,7 +491,7 @@
   "traits": {
    "gossip": 0.1,
    "sociability": 0.5,
-   "tidiness": 1.0,
+   "tidiness": 1,
    "noisiness": 0.1,
    "generosity": 0.05
   },
@@ -662,7 +662,7 @@
    "fun",
    "money"
   ],
-  "voteBias": 0.0,
+  "voteBias": 0,
   "activities": {
    "idle": {
     "at": "home"

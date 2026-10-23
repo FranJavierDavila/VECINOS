@@ -1,4 +1,4 @@
-import type { Content } from '@/game/core/types';
+import type { AssetsCatalog, Content } from '@/game/core/types';
 import {
   blockListSchema,
   dialogListSchema,
@@ -12,6 +12,7 @@ import {
   archetypeListSchema,
   scenarioListSchema,
   templateListSchema,
+  assetsCatalogSchema,
 } from './schemas';
 
 export interface Issue {
@@ -59,6 +60,15 @@ export async function loadContent(baseUrl: string = '/content/'): Promise<{ cont
     const furniture = furnitureListSchema.parse(raw.furniture);
     const minigames = minigameListSchema.parse(raw.minigames);
 
+    // Manifiesto de arte final (OPCIONAL): si no existe, greybox puro. Si existe y es inválido, error sonoro.
+    let assets: AssetsCatalog | undefined;
+    try {
+      const res = await fetch(`${baseUrl}assets.json`);
+      if (res.ok) assets = assetsCatalogSchema.parse(await res.json());
+    } catch (e) {
+      throw new Error(`assets.json (manifiesto de arte final) inválido: ${e instanceof Error ? e.message : String(e)}`);
+    }
+
     const content: Content = {
       rules,
       blocks: indexById(blocks),
@@ -72,6 +82,7 @@ export async function loadContent(baseUrl: string = '/content/'): Promise<{ cont
       scenarios: indexById(scenarios),
       furniture: indexById(furniture),
       minigames: indexById(minigames),
+      assets,
     };
 
     const issues = validateContent(content);
@@ -174,6 +185,21 @@ export function validateContent(c: Content): Issue[] {
     if (!c.archetypes[s.player.archetype]) err(`scenarios/${s.id}`, `arquetipo del jugador desconocido: ${s.player.archetype}`);
     for (const r of s.residents) if (!c.archetypes[r.archetype]) err(`scenarios/${s.id}`, `arquetipo desconocido: ${r.archetype}`);
     for (const m of s.startMissions) if (!c.missions[m]) err(`scenarios/${s.id}`, `misión inicial desconocida: ${m}`);
+  }
+
+  // Manifiesto de assets: claves que deben existir y animaciones/actividades bien referenciadas.
+  if (c.assets) {
+    for (const [id, def] of Object.entries(c.assets.actors ?? {})) {
+      const arch = c.archetypes[id];
+      if (!arch) err(`assets/actors/${id}`, `arquetipo desconocido: ${id}`);
+      const anims = def.animations ?? {};
+      for (const key of [def.defaultAnimation, def.walkAnimation, ...Object.values(def.activityAnimations ?? {})])
+        if (key && !anims[key]) err(`assets/actors/${id}`, `animación lógica sin clip declarado: ${key}`);
+      for (const act of Object.keys(def.activityAnimations ?? {}))
+        if (arch && !(act in arch.activities)) err(`assets/actors/${id}`, `actividad desconocida en el arquetipo: ${act}`);
+    }
+    for (const id of Object.keys(c.assets.blocks ?? {}))
+      if (!c.blocks[id]) err(`assets/blocks/${id}`, `definición de bloque desconocida: ${id}`);
   }
 
   return issues;
