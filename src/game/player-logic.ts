@@ -192,4 +192,21 @@ export class PlayerLogic {
     this.insideBlock = door.id;
     return { type: 'entered', block: door.id };
   }
+
+  /**
+   * Colocación directa junto a la puerta de un bloque (QoL del editor multi-vivienda).
+   * No desbloquea nada: si la puerta está cerrada, el jugador simplemente se planta delante.
+   */
+  teleportTo(blockId: string): boolean {
+    const target = this.world.blocks[blockId];
+    if (!target || this.climb) return false;
+    const [a, z] = this.rangeOf(target);
+    this.mode = 'corridor';
+    this.insideBlock = null;
+    this.approached = null;
+    this.floor = target.cell.floor;
+    this.x = (a + z) / 2;
+    this.sync();
+    return true;
+  }
 }

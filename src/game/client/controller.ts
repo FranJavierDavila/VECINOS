@@ -1,7 +1,7 @@
 'use client';
 
 import type { AbstractEngine, Scene } from '@babylonjs/core';
-import type { Content, Input, World } from '@/game/core/types';
+import type { Content, Input, MinigameDef, ScenarioDef, World } from '@/game/core/types';
 import { blockLabel } from '@/game/core/types';
 import { loadContent } from '@/game/content';
 import { activeObjective, applyEffects, buildCirculation, createWorld, dispatch, drainEvents, migrateRooms, tick, travelMinutes, visibleParams } from '@/game/sim';
@@ -11,6 +11,7 @@ import { createBuilding } from './building';
 import { createActors } from './actors';
 import { CameraRig, type CamMode } from './camera';
 import { B } from './babylon';
+import { eventSound, preloadSounds } from './audio';
 import { setController } from './bridge';
 import { selectModalOpen, useGameStore, type Speed, type Tone } from './store';
 
@@ -39,6 +40,10 @@ class GameController {
   }
 
   private keys = new Set<string>();
+  /** Direcciones mantenidas por los mandos virtuales (se combinan con el teclado). */
+  private touch: Input = { left: false, right: false, up: false, down: false };
+  /** Overrides de minijuegos del escenario activo (QA/E2E). */
+  private scenarioOverrides: NonNullable<ScenarioDef['minigameOverrides']> = {};
   private clockAcc = 0;
   private lastHudSync = 0;
   private initializing = false;
@@ -56,6 +61,8 @@ class GameController {
       // 1) Contenido externo + validación (los errores de referencias se avisan, no abortan).
       const { content, issues } = await loadContent();
       this._content = content;
+      preloadSounds();
+      useGameStore.setState({ touchHint: content.rules.touch.hint });
       if (issues.length > 0) {
         useGameStore.getState().pushToast(`Contenido inválido: ${issues.length} errores de validación`, 'bad');
       }
@@ -84,7 +91,7 @@ class GameController {
     this.scene = null;
   }
 
-  // ───────────────────────── Entrada (GameStage la conecta) ─────────────────────────
+  // ───────────────── Entrada (GameStage la conecta; los mandos virtuales se fusionan) ─────────────────
 
   onKeyDown(code: string): void {
     if (this.keys.has(code)) return;
@@ -103,9 +110,18 @@ class GameController {
     this.keys.delete(code);
   }
 
+  setTouchInput(v: Partial<Input>): void {
+    this.touch = { ...this.touch, ...v };
+  }
+
   private readInput(): Input {
     const held = (...codes: string[]) => codes.some((c) => this.keys.has(c));
-    return { left: held('KeyA', 'ArrowLeft'), right: held('KeyD', 'ArrowRight'), up: held('KeyW', 'ArrowUp'), down: held('KeyS', 'ArrowDown') };
+    return {
+      left: held('KeyA', 'ArrowLeft') || this.touch.left,
+      right: held('KeyD', 'ArrowRight') || this.touch.right,
+      up: held('KeyW', 'ArrowUp') || this.touch.up,
+      down: held('KeyS', 'ArrowDown') || this.touch.down,
+    };
   }
 
   // ───────────────────────── Acciones de la interfaz ─────────────────────────
@@ -142,12 +158,19 @@ class GameController {
     this.pump();
   }
 
-  /** Tecla E: entrar, salir o usar el objeto cercano. El feedback visual lo ponen los eventos del sim. */
-  private interact(): void {
+  /** Interacción (tecla E o botón virtual ✋): entrar, salir o usar el objeto cercano. */
+  interact(): void {
     if (!this.logic) return;
     const r = this.logic.interact();
     if (r.type === 'entered') this.setCamMode('estancia');
     else if (r.type === 'exited') this.setCamMode('planta');
+    this.pump();
+  }
+
+  /** Editor: desplazarse a una vivienda del jugador (queda delante de su puerta). */
+  visitHome(blockId: string): void {
+    if (!this.logic || !this.logic.teleportTo(blockId)) return;
+    this.setCamMode('planta');
     this.pump();
   }
 
@@ -264,6 +287,15 @@ class GameController {
 
   // ───────────────────────── Ciclo de vida del mundo ─────────────────────────
 
+  /** Escenario activo: parámetro ?scenario= (QA/E2E) o el que marca el catálogo. */
+  private activeScenarioId(): string {
+    try {
+      return new URLSearchParams(window.location.search).get('scenario') ?? this.content.rules.startScenario;
+    } catch {
+      return this.content.rules.startScenario;
+    }
+  }
+
   /** (Re)crea el mundo y la escena. Con `state` restaura una partida guardada. */
   private async restart(state?: World): Promise<void> {
     if (!this.engine || !this.canvas || !this._content) return;
@@ -271,7 +303,8 @@ class GameController {
     const view = this.content.rules.view;
     useGameStore.getState().resetUi();
 
-    this.world = state ?? createWorld(this.content, this.content.rules.startScenario);
+    this.world = state ?? createWorld(this.content, this.activeScenarioId());
+    this.scenarioOverrides = this.content.scenarios[this.world.scenarioId ?? '']?.minigameOverrides ?? {};
     // Guardados antiguos sin `entry`: la entrada es la zona común de planta baja.
     if (!this.world.entry) {
       this.world.entry = Object.values(this.world.blocks).find((b) => b.cell.floor === 0 && b.kind !== 'dwelling')?.id ?? Object.keys(this.world.blocks)[0]!;
@@ -382,6 +415,7 @@ class GameController {
     const store = useGameStore.getState();
     for (const e of drainEvents(this.world)) {
       const d = e.data as Record<string, unknown>;
+      eventSound(e.type, typeof d.type === 'string' ? d.type : undefined);
       switch (e.type) {
         case 'step_started':
           if (d.type === 'phone_call') this.openPhone(String(d.mission), String(d.dialog));
@@ -465,7 +499,10 @@ class GameController {
         case 'minigame_requested': {
           const def = this.content.minigames[String(d.minigame)];
           if (!def) break;
-          store.setMinigame({ ...def, emoji: def.emoji ?? '🎮', instruction: def.instruction ?? null });
+          // Overrides numéricos del escenario activo (QA/E2E): solo config, nunca efectos ni textos.
+          const ov = this.scenarioOverrides[def.id];
+          const effective = ov ? ({ ...def, config: { ...def.config, ...ov } } as MinigameDef) : def;
+          store.setMinigame({ ...effective, emoji: effective.emoji ?? '🎮', instruction: effective.instruction ?? null });
           break;
         }
         case 'minigame_finished': {

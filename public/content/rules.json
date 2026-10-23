@@ -117,6 +117,12 @@
       "memory_pairs": "Voltea fichas y encuentra todas las parejas."
     }
   },
+  "touch": {
+    "deadzone": 0.35,
+    "stick": { "base": 124, "thumb": 52 },
+    "labels": { "interact": "✋", "camera": "🎥", "move": "Mover" },
+    "hint": "Mandos virtuales activados. El pulgar también tiene derecho a techo."
+  },
   "labels": {
     "weather": { "sunny": "Soleado", "cloudy": "Nublado", "rain": "Lluvia", "storm": "Tormenta" }
   }

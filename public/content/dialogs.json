@@ -1,80 +1,188 @@
 [
-  {
-    "id": "dlg_bienvenida",
-    "lines": [
-      { "speaker": "Inmobiliaria Molina & Hijos", "text": "¡Enhorabuena por su compra! Piso luminoso, tranquilo y sin historial... oficialmente." },
-      { "speaker": "Inmobiliaria Molina & Hijos", "text": "Tres apuntes sin importancia: el ascensor está estropeado, la comunidad decide TODO en junta, y si oye taladros los domingos, no son suyos." },
-      { "speaker": "Inmobiliaria Molina & Hijos", "text": "Suba, salude a su puerta y entre. El resto lo pone el barrio." }
-    ]
-  },
-  {
-    "id": "dlg_ascensor",
-    "lines": [
-      { "speaker": "Administrador de fincas", "text": "Lo del ascensor: toca junta de vecinos. Como la luz del rellano. Como la fuente del patio. Como TODO en este edificio." },
-      { "speaker": "Administrador de fincas", "text": "Aviso legal: la junta puede durar más que las obras." }
-    ]
-  },
-  {
-    "id": "dlg_kevin_aviso",
-    "lines": [
-      { "speaker": "Kevin (al teléfono)", "text": "¡Buenas! Kevin, el nuevo del 2B. Me mudo esta tarde. Aviso: mi música tiene dos volúmenes, fiesta y FESTIVAL." },
-      { "speaker": "Kevin (al teléfono)", "text": "Si es usted de dormir temprano, le recomiendo tapones. O venir. Hay helado para todos." }
-    ]
-  },
-  {
-    "id": "dlg_inmobiliaria_piso",
-    "lines": [
-      { "speaker": "Inmobiliaria Molina & Hijos", "text": "Le han puesto precio al 3D: la puerta de al lado de la suya. 3.200 €. \"Oportunidad\", la llamamos nosotros." },
-      { "speaker": "Inmobiliaria Molina & Hijos", "text": "Si une los dos pisos, avise a un albañil... y a la cotilla, para el estreno." }
-    ]
-  },
-  {
-    "id": "dlg_venganza",
-    "lines": [
-      { "speaker": "Pinturillas (1B)", "text": "Esto no se queda así. Purpurina. POR TODO EL PASILLO. Ni la junta podrá salvarte." }
-    ]
-  },
-  {
-    "id": "dlg_laia",
-    "lines": [
-      { "speaker": "Laia (4A, nueva)", "text": "¡Hola! Soy Laia, la del 4A. Me acaban de dar las llaves y el wifi no va. ¿El password es \"derrama2026\"? Porque lo he probado." },
-      { "speaker": "Laia (4A, nueva)", "text": "Prometo estudiar de noche. Bueno, estudiar. El volumen lo pone Mozart. En techno. Más o menos." }
-    ]
-  },
-  {
-    "id": "dlg_buitre",
-    "lines": [
-      { "speaker": "Sr. Vulture", "text": "Buenos días. Fondo Buitre Inversiones. Compramos edificios \"con encanto\", reformamos y revendemos. Con gimnasio en la azotea." },
-      { "speaker": "Sr. Vulture", "text": "Su comunidad me parece una oportunidad preciosa. De eso se trata: de oportunidades. Mías." }
-    ]
-  },
-  {
-    "id": "dlg_decoracion",
-    "lines": [
-      { "speaker": "Dolores (2B)", "text": "Soy Dolores, del 1B. ¿Cómo has conseguido un piso SIN SOFÁ? ¿Sin cortinas? ¿Un CUADRO que no sea el contador de la luz?" },
-      { "speaker": "Dolores (2B)", "text": "Esto pasa por no tener cotilla cerca... perdón. Por no tener VECINA ATENTA. En el tablón hay un panel nuevo: «Mi piso». Hasta yo lo sé usar." },
-      { "speaker": "Dolores (2B)", "text": "Y si hueles algo raro a mediodía, no es un problema del edificio: es mi guiso. Un abrazo. Cuelgo, que se me quema." }
-    ]
-  },
-  {
-    "id": "dlg_plagas",
-    "lines": [
-      { "speaker": "Dolores (1B)", "text": "CUCARACHAS. En MI cocina. Y no, no son mías: yo limpio. Son de la fiesta de arriba, vienen con el hambre de la mañana siguiente." },
-      { "speaker": "Dolores (1B)", "text": "O lo arreglas tú, o subo yo. Y cuando subo yo, habla todo el edificio. Tienes hasta las cinco." }
-    ]
-  },
-  {
-    "id": "dlg_humo",
-    "lines": [
-      { "speaker": "Kevin (2B)", "text": "Vecino. El detector de humo del rellano NO PARA DE PITAR desde el guiso quemado de la planta primera. Mi resaca tiene voz nueva." },
-      { "speaker": "Kevin (2B)", "text": "Dicen que bajando las palancas del cuadro en el orden correcto se apaga. Dicen. Yo solo sé de altavoces." }
-    ]
-  },
-  {
-    "id": "dlg_correos",
-    "lines": [
-      { "speaker": "Don Ramón (presidente)", "text": "El cartero ha mezclado la correspondencia del edificio. TODA. Hay un sobre del banco en el buzón del 4D. Y una carta de amor en el mío. No es de mi mujer." },
-      { "speaker": "Don Ramón (presidente)", "text": "La junta sugiere (bueno, sugiero) que alguien con pulso y memoria lo ordene. Hoy. Antes de que Dolores \"ayude\"." }
-    ]
-  }
+ {
+  "id": "dlg_bienvenida",
+  "lines": [
+   {
+    "speaker": "Inmobiliaria Molina & Hijos",
+    "text": "¡Enhorabuena por su compra! Piso luminoso, tranquilo y sin historial... oficialmente."
+   },
+   {
+    "speaker": "Inmobiliaria Molina & Hijos",
+    "text": "Tres apuntes sin importancia: el ascensor está estropeado, la comunidad decide TODO en junta, y si oye taladros los domingos, no son suyos."
+   },
+   {
+    "speaker": "Inmobiliaria Molina & Hijos",
+    "text": "Suba, salude a su puerta y entre. El resto lo pone el barrio."
+   }
+  ]
+ },
+ {
+  "id": "dlg_ascensor",
+  "lines": [
+   {
+    "speaker": "Administrador de fincas",
+    "text": "Lo del ascensor: toca junta de vecinos. Como la luz del rellano. Como la fuente del patio. Como TODO en este edificio."
+   },
+   {
+    "speaker": "Administrador de fincas",
+    "text": "Aviso legal: la junta puede durar más que las obras."
+   }
+  ]
+ },
+ {
+  "id": "dlg_kevin_aviso",
+  "lines": [
+   {
+    "speaker": "Kevin (al teléfono)",
+    "text": "¡Buenas! Kevin, el nuevo del 2B. Me mudo esta tarde. Aviso: mi música tiene dos volúmenes, fiesta y FESTIVAL."
+   },
+   {
+    "speaker": "Kevin (al teléfono)",
+    "text": "Si es usted de dormir temprano, le recomiendo tapones. O venir. Hay helado para todos."
+   }
+  ]
+ },
+ {
+  "id": "dlg_inmobiliaria_piso",
+  "lines": [
+   {
+    "speaker": "Inmobiliaria Molina & Hijos",
+    "text": "Le han puesto precio al 3D: la puerta de al lado de la suya. 3.200 €. \"Oportunidad\", la llamamos nosotros."
+   },
+   {
+    "speaker": "Inmobiliaria Molina & Hijos",
+    "text": "Si une los dos pisos, avise a un albañil... y a la cotilla, para el estreno."
+   }
+  ]
+ },
+ {
+  "id": "dlg_venganza",
+  "lines": [
+   {
+    "speaker": "Pinturillas (1B)",
+    "text": "Esto no se queda así. Purpurina. POR TODO EL PASILLO. Ni la junta podrá salvarte."
+   }
+  ]
+ },
+ {
+  "id": "dlg_laia",
+  "lines": [
+   {
+    "speaker": "Laia (4A, nueva)",
+    "text": "¡Hola! Soy Laia, la del 4A. Me acaban de dar las llaves y el wifi no va. ¿El password es \"derrama2026\"? Porque lo he probado."
+   },
+   {
+    "speaker": "Laia (4A, nueva)",
+    "text": "Prometo estudiar de noche. Bueno, estudiar. El volumen lo pone Mozart. En techno. Más o menos."
+   }
+  ]
+ },
+ {
+  "id": "dlg_buitre",
+  "lines": [
+   {
+    "speaker": "Sr. Vulture",
+    "text": "Buenos días. Fondo Buitre Inversiones. Compramos edificios \"con encanto\", reformamos y revendemos. Con gimnasio en la azotea."
+   },
+   {
+    "speaker": "Sr. Vulture",
+    "text": "Su comunidad me parece una oportunidad preciosa. De eso se trata: de oportunidades. Mías."
+   }
+  ]
+ },
+ {
+  "id": "dlg_decoracion",
+  "lines": [
+   {
+    "speaker": "Dolores (2B)",
+    "text": "Soy Dolores, del 1B. ¿Cómo has conseguido un piso SIN SOFÁ? ¿Sin cortinas? ¿Un CUADRO que no sea el contador de la luz?"
+   },
+   {
+    "speaker": "Dolores (2B)",
+    "text": "Esto pasa por no tener cotilla cerca... perdón. Por no tener VECINA ATENTA. En el tablón hay un panel nuevo: «Mi piso». Hasta yo lo sé usar."
+   },
+   {
+    "speaker": "Dolores (2B)",
+    "text": "Y si hueles algo raro a mediodía, no es un problema del edificio: es mi guiso. Un abrazo. Cuelgo, que se me quema."
+   }
+  ]
+ },
+ {
+  "id": "dlg_plagas",
+  "lines": [
+   {
+    "speaker": "Dolores (1B)",
+    "text": "CUCARACHAS. En MI cocina. Y no, no son mías: yo limpio. Son de la fiesta de arriba, vienen con el hambre de la mañana siguiente."
+   },
+   {
+    "speaker": "Dolores (1B)",
+    "text": "O lo arreglas tú, o subo yo. Y cuando subo yo, habla todo el edificio. Tienes hasta las cinco."
+   }
+  ]
+ },
+ {
+  "id": "dlg_humo",
+  "lines": [
+   {
+    "speaker": "Kevin (2B)",
+    "text": "Vecino. El detector de humo del rellano NO PARA DE PITAR desde el guiso quemado de la planta primera. Mi resaca tiene voz nueva."
+   },
+   {
+    "speaker": "Kevin (2B)",
+    "text": "Dicen que bajando las palancas del cuadro en el orden correcto se apaga. Dicen. Yo solo sé de altavoces."
+   }
+  ]
+ },
+ {
+  "id": "dlg_correos",
+  "lines": [
+   {
+    "speaker": "Don Ramón (presidente)",
+    "text": "El cartero ha mezclado la correspondencia del edificio. TODA. Hay un sobre del banco en el buzón del 4D. Y una carta de amor en el mío. No es de mi mujer."
+   },
+   {
+    "speaker": "Don Ramón (presidente)",
+    "text": "La junta sugiere (bueno, sugiero) que alguien con pulso y memoria lo ordene. Hoy. Antes de que Dolores \"ayude\"."
+   }
+  ]
+ },
+ {
+  "id": "dlg_qa",
+  "lines": [
+   {
+    "speaker": "Laboratorio Vecinal de QA",
+    "text": "Vecino, la junta ha aprobado (por unanimidad y sin leer) un circuito de cuatro pruebas técnicas."
+   },
+   {
+    "speaker": "Laboratorio Vecinal de QA",
+    "text": "Son minijuegos en modo fácil. Hasta el presidente lleva el cronómetro. Elija prueba y a lucirse."
+   }
+  ]
+ },
+ {
+  "id": "dlg_okupa",
+  "lines": [
+   {
+    "speaker": "Nando, el Okupa",
+    "text": "Buenas. Vivo en el 2A desde marzo. Técnicamente el piso está en venta, pero yo digo que la venta está en mí."
+   },
+   {
+    "speaker": "Nando, el Okupa",
+    "text": "No pido mucho: luz, agua y que no llamen mucho a la puerta. ¿Lo arreglamos como vecinos civilizados?"
+   }
+  ]
+ },
+ {
+  "id": "dlg_musico",
+  "lines": [
+   {
+    "speaker": "Rita, la Batería",
+    "text": "¡Vecino! ¿Has oído el redoble? Es el redoble del destino. Y de las paredes finas."
+   },
+   {
+    "speaker": "Rita, la Batería",
+    "text": "Ensayo de 8 a 10. Se puede negociar: horario, espuma, o que apadrines mi disco. Tú decides."
+   }
+  ]
+ }
 ]

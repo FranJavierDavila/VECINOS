@@ -10,6 +10,7 @@ import { JuntaModal } from './JuntaModal';
 import { MinigameModal } from './MinigameModal';
 import { FinaleModal } from './FinaleModal';
 import { ToastStack } from './ToastStack';
+import { TouchControls } from './TouchControls';
 
 /**
  * Lienzo Babylon con overlays: aviso contextual, modales y toasts. Conecta el teclado.
@@ -100,6 +101,7 @@ export default function GameStage() {
       <MinigameModal />
       <FinaleModal onClose={() => getController()?.finaleClose()} />
       <ToastStack onDismiss={(id) => useGameStore.getState().dropToast(id)} />
+      <TouchControls />
     </div>
   );
 }

@@ -1,0 +1,160 @@
+'use client';
+
+/**
+ * Motor de sonido procedural (Web Audio, cero ficheros de audio).
+ * El catálogo vive en /content/sounds.json (sonidos sintetizados + mapa eventos→claves),
+ * validado con soundsCatalogSchema. Si el catálogo falla o el navegador no da AudioContext,
+ * el juego sigue funcionando en silencio: el audio nunca rompe la partida.
+ */
+
+import { soundsCatalogSchema, type SoundsCatalog } from '@/game/content/schemas';
+
+const MUTE_KEY = 'vecinos.muted';
+
+// Los tipos se derivan del esquema Zod: única fuente de verdad (los defaults ya vienen resueltos).
+type SoundSpec = SoundsCatalog['sounds'][string];
+type ToneStep = Extract<SoundSpec, { kind: 'seq' }>['steps'][number];
+type NoiseSpec = Extract<SoundSpec, { kind: 'noise' }>;
+
+let ctx: AudioContext | null = null;
+let master: GainNode | null = null;
+let catalog: SoundsCatalog | null = null;
+let loading: Promise<void> | null = null;
+let muted = false;
+
+try {
+  muted = localStorage.getItem(MUTE_KEY) === '1';
+} catch {
+  /* sin almacenamiento: parte sin silenciar */
+}
+
+/** Desbloquea el AudioContext con el primer gesto del usuario (política de autoplay). */
+function ensureCtx(): AudioContext | null {
+  if (typeof window === 'undefined') return null;
+  if (!ctx) {
+    const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctor) return null;
+    try {
+      ctx = new Ctor();
+      master = ctx.createGain();
+      master.gain.value = catalog ? catalog.masterGain : 0.4;
+      master.connect(ctx.destination);
+    } catch {
+      ctx = null;
+      return null;
+    }
+    const unlock = () => void ctx?.resume().catch(() => undefined);
+    window.addEventListener('pointerdown', unlock, { passive: true });
+    window.addEventListener('keydown', unlock);
+  }
+  return ctx;
+}
+
+async function loadCatalog(): Promise<void> {
+  if (catalog || loading) return;
+  loading = (async () => {
+    try {
+      const res = await fetch('/content/sounds.json');
+      const parsed = soundsCatalogSchema.safeParse(await res.json());
+      if (parsed.success) {
+        catalog = parsed.data;
+        if (master && ctx) master.gain.value = muted ? 0 : catalog.masterGain;
+      } else {
+        console.warn('sounds.json inválido: el juego corre sin sonido', parsed.error.issues.slice(0, 3));
+      }
+    } catch {
+      /* sin catálogo: silencio funcional */
+    }
+  })();
+  return loading;
+}
+
+function tone(step: ToneStep, when: number): void {
+  if (!ctx || !master) return;
+  const osc = ctx.createOscillator();
+  const g = ctx.createGain();
+  osc.type = step.wave;
+  const t0 = when;
+  const t1 = t0 + step.durMs / 1000;
+  osc.frequency.setValueAtTime(Math.max(20, step.freq), t0);
+  if (step.freqEnd !== undefined) osc.frequency.exponentialRampToValueAtTime(Math.max(20, step.freqEnd), t1);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.linearRampToValueAtTime(Math.max(0.0001, step.gain), t0 + Math.min(step.attackMs, step.durMs) / 1000);
+  g.gain.exponentialRampToValueAtTime(0.0001, t1);
+  osc.connect(g).connect(master);
+  osc.start(t0);
+  osc.stop(t1 + 0.02);
+}
+
+function noise(spec: NoiseSpec, when: number): void {
+  if (!ctx || !master) return;
+  const len = Math.max(1, Math.floor((ctx.sampleRate * spec.durMs) / 1000));
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = spec.filterHz;
+  const g = ctx.createGain();
+  const t0 = when;
+  const t1 = t0 + spec.durMs / 1000;
+  g.gain.setValueAtTime(Math.max(0.0001, spec.gain), t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t1);
+  src.connect(filter).connect(g).connect(master);
+  src.start(t0);
+  src.stop(t1 + 0.02);
+}
+
+function playSpec(spec: SoundSpec): void {
+  const c = ensureCtx();
+  if (!c || muted) return;
+  const base = c.currentTime + 0.01;
+  if (spec.kind === 'tone') tone(spec, base + spec.atMs / 1000);
+  else if (spec.kind === 'noise') noise(spec, base + spec.atMs / 1000);
+  else for (const step of spec.steps) tone(step, base + step.atMs / 1000);
+}
+
+/** Reproduce una clave del catálogo (uso directo de la UI: acierto/fallo de minijuego, clics). */
+export function playSound(key: string): void {
+  if (muted || !catalog) {
+    void loadCatalog().then(() => {
+      const spec = catalog?.sounds[key];
+      if (spec) playSpec(spec);
+    });
+    return;
+  }
+  const spec = catalog.sounds[key];
+  if (spec) playSpec(spec);
+}
+
+/** Sonido por evento del sim: busca "type:subtype" y cae a "type". Nunca lanza. */
+export function eventSound(type: string, subtype?: string): void {
+  const play = () => {
+    if (!catalog) return;
+    const keys = (subtype !== undefined ? catalog.events[`${type}:${subtype}`] : undefined) ?? catalog.events[type];
+    if (keys) for (const k of keys) playSpec(catalog.sounds[k] ?? { kind: 'tone', wave: 'sine', freq: 440, durMs: 1, gain: 0, attackMs: 1, atMs: 0 });
+  };
+  if (catalog) play();
+  else void loadCatalog().then(play);
+}
+
+export function isMuted(): boolean {
+  return muted;
+}
+
+export function setMuted(v: boolean): void {
+  muted = v;
+  try {
+    localStorage.setItem(MUTE_KEY, v ? '1' : '0');
+  } catch {
+    /* preferencia solo en sesión */
+  }
+  if (master && ctx) master.gain.value = v ? 0 : catalog?.masterGain ?? 0.4;
+}
+
+/** Precarga temprana del catálogo (el controller la llama al inicializar). */
+export function preloadSounds(): void {
+  void loadCatalog();
+}

@@ -143,6 +143,30 @@ export interface MinigameMemoryPairsConfig {
 
 export type MinigameType = 'timing_bar' | 'tap_sequence' | 'reflex_targets' | 'memory_pairs';
 
+/**
+ * Overrides numéricos de configuración de minijuegos, por escenario (QA/E2E: facilitar
+ * el win-path sin tocar el catálogo de producción). Solo campos numéricos comunes;
+ * los emojis/zonas/textos siguen saliendo del catálogo.
+ */
+export interface MinigameOverrides {
+  cursorSpeed?: number;
+  zoneWidth?: number;
+  rounds?: number;
+  lives?: number;
+  accelPerRound?: number;
+  inputTimeoutMs?: number;
+  showMs?: number;
+  gapMs?: number;
+  sequenceStart?: number;
+  sequenceGrow?: number;
+  targets?: number;
+  spawnIntervalMs?: number;
+  targetLifeMs?: number;
+  radiusPct?: number;
+  missesAllowed?: number;
+  decoyChance?: number;
+}
+
 export type MinigameConfig =
   | MinigameTimingBarConfig
   | MinigameTapSequenceConfig
@@ -342,6 +366,8 @@ export interface ScenarioDef {
   residents: ScenarioResidentDef[];
   progress: { revealedTier: number };
   startMissions: string[];
+  /** Overrides de dificultad de minijuegos para este escenario (QA/E2E). */
+  minigameOverrides?: Record<string, MinigameOverrides>;
 }
 
 export interface Content {
@@ -444,6 +470,17 @@ export interface Rules {
     failLines: string[];
     /** Instrucción por defecto por tipo de minijuego (la def.instruction del catálogo tiene prioridad). */
     introByType: Partial<Record<MinigameType, string>>;
+  };
+  /** Controles táctiles (catálogo; el componente virtual lee de aquí, cero constantes en código). */
+  touch: {
+    /** Radio muerto del stick como fracción de su recorrido (0..1). */
+    deadzone: number;
+    /** Tamaños del pad en píxeles (base y pulgar). */
+    stick: { base: number; thumb: number };
+    /** Etiquetas/emojis de los botones virtuales. */
+    labels: { interact: string; camera: string; move: string };
+    /** Texto del aviso cuando se activan a mano en desktop. */
+    hint: string;
   };
   labels: { weather: Record<string, string> };
 }

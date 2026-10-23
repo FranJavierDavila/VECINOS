@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react';
-import { Loader2, Lock, Plus, Sofa, Trash2 } from 'lucide-react';
+import { Footprints, Loader2, Lock, Plus, Sofa, Trash2 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -617,25 +617,37 @@ export function InteriorEditorPanel() {
           {catalog && home && (
             <div className="flex flex-col gap-3">
               {homes.length > 1 && (
-                <Select
-                  value={home.id}
-                  onValueChange={(id) => {
-                    setHomeId(id);
-                    setRoomKey(null);
-                    setSelected(null);
-                  }}
-                >
-                  <SelectTrigger className="w-full sm:w-56" aria-label="Elegir vivienda">
-                    <SelectValue placeholder="Elige vivienda" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {homes.map((h) => (
-                      <SelectItem key={h.id} value={h.id}>
-                        {h.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={home.id}
+                    onValueChange={(id) => {
+                      setHomeId(id);
+                      setRoomKey(null);
+                      setSelected(null);
+                    }}
+                  >
+                    <SelectTrigger className="w-full sm:w-56" aria-label="Elegir vivienda">
+                      <SelectValue placeholder="Elige vivienda" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {homes.map((h) => (
+                        <SelectItem key={h.id} value={h.id}>
+                          {h.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => getController()?.visitHome(home.id)}
+                    title={`Colócate delante de la puerta de ${home.label}`}
+                    aria-label={`Ir a ${home.label}`}
+                  >
+                    <Footprints aria-hidden />
+                    Ir
+                  </Button>
+                </div>
               )}
 
               <Tabs

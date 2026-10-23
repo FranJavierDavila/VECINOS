@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { loadContent } from '@/game/content';
+import { playSound } from '@/game/client/audio';
 import { getController } from '@/game/client/bridge';
 import { useGameStore } from '@/game/client/store';
 import type { MinigameState } from '@/game/client/store';
@@ -134,6 +135,7 @@ function useMinigameFinish(onFinish?: (success: boolean) => void) {
     (success: boolean) => {
       if (doneRef.current) return;
       doneRef.current = true;
+      playSound(success ? 'jingle_win' : 'jingle_lose');
       if (onFinish) {
         onFinish(success);
         return;
@@ -295,7 +297,7 @@ function TimingBarRunner({ name, description, emoji, config, instruction, texts,
         setMsg(texts.winLine);
         finish(true);
       } else {
-        setMsg(texts.hitLine);
+        playSound('mg_hit'); setMsg(texts.hitLine);
       }
     } else {
       livesRef.current -= 1;
@@ -304,7 +306,7 @@ function TimingBarRunner({ name, description, emoji, config, instruction, texts,
         setMsg(texts.loseLine);
         finish(false);
       } else {
-        setMsg(pickLine(texts.failLines));
+        playSound('mg_miss'); setMsg(pickLine(texts.failLines));
       }
     }
   }, [rounds, zoneWidth, zones, texts, doneRef, finish]);
@@ -451,7 +453,7 @@ function TapSequenceRunner({ name, description, emoji, config, instruction, text
       finish(false);
       return;
     }
-    setMsg(pickLine(texts.failLines));
+    playSound('mg_miss'); setMsg(pickLine(texts.failLines));
     setProgress(0);
     setPhase('showing');
   }, [texts, doneRef, finish]);
@@ -531,7 +533,7 @@ function TapSequenceRunner({ name, description, emoji, config, instruction, text
         finish(true);
         return;
       }
-      setMsg(texts.hitLine);
+      playSound('mg_hit'); setMsg(texts.hitLine);
       setRound(round + 1);
       setSequence(makeSequence(round + 1));
       setProgress(0);
@@ -717,7 +719,7 @@ function ReflexTargetsRunner({ name, description, emoji, config, instruction, te
           setMsg(texts.loseLine);
           finish(false);
         } else {
-          setMsg(pickLine(texts.failLines));
+          playSound('mg_miss'); setMsg(pickLine(texts.failLines));
         }
         return;
       }
@@ -728,7 +730,7 @@ function ReflexTargetsRunner({ name, description, emoji, config, instruction, te
         setMsg(texts.winLine);
         finish(true);
       } else {
-        setMsg(texts.hitLine);
+        playSound('mg_hit'); setMsg(texts.hitLine);
       }
     },
     [targetGoal, texts, commit, finish, doneRef],
@@ -857,7 +859,7 @@ function MemoryPairsRunner({ name, description, emoji, config, instruction, text
           setMsg(texts.winLine);
           finish(true);
         } else {
-          setMsg(texts.hitLine);
+          playSound('mg_hit'); setMsg(texts.hitLine);
         }
         return;
       }
@@ -874,7 +876,7 @@ function MemoryPairsRunner({ name, description, emoji, config, instruction, text
           setMsg(texts.loseLine);
           finish(false);
         } else {
-          setMsg(pickLine(texts.failLines));
+          playSound('mg_miss'); setMsg(pickLine(texts.failLines));
         }
       }, 700);
     },

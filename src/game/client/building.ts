@@ -53,11 +53,17 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     views.set(b.id, view);
   }
 
+  // ── Multi-vivienda destacada: borde blanco en la pared del fondo de TODAS las viviendas del jugador ──
+  // (la actual del jugador además recibe el doble de grosor; el criterio es el ownerId, no el catálogo).
   const homeId = world.residents[world.playerId]!.home;
-  const homeWall = scene.getMeshByName(`${homeId}_fondo`)!;
-  homeWall.enableEdgesRendering();
-  homeWall.edgesWidth = 8;
-  homeWall.edgesColor = Color4.FromHexString(v.homeEdge + 'ff');
+  for (const b of Object.values(world.blocks)) {
+    if (b.kind !== 'dwelling' || b.ownerId !== world.playerId) continue;
+    const wall = scene.getMeshByName(`${b.id}_fondo`);
+    if (!wall) continue;
+    wall.enableEdgesRendering();
+    wall.edgesWidth = b.id === homeId ? 14 : 8;
+    wall.edgesColor = Color4.FromHexString(v.homeEdge + 'ff');
+  }
 
   // ── Mobiliario placeholder (greybox del editor de interiores): una caja por ranura de las viviendas. ──
   // La geometría llega al pintar, desde furniture.view del catálogo: sustituible por arte final sin tocar esto.

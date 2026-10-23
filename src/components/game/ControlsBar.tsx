@@ -12,6 +12,9 @@ import {
   Pause,
   Play,
   Save,
+  Hand,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -20,6 +23,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useGameStore } from '@/game/client/store';
 import type { CamMode, Speed } from '@/game/client/store';
 import { cn } from '@/lib/utils';
+import { isMuted, setMuted } from '@/game/client/audio';
 
 interface ControlsBarProps {
   onTogglePause: () => void;
@@ -58,6 +62,10 @@ export function ControlsBar({
   const camMode = useGameStore((s) => s.camMode);
   const saveState = useGameStore((s) => s.saveState);
   const savedAt = useGameStore((s) => s.savedAt);
+  const touchVisible = useGameStore((s) => s.touchVisible);
+  const setTouchControls = useGameStore((s) => s.setTouchControls);
+  const muted = useGameStore((s) => s.soundMuted);
+  const setSoundMuted = useGameStore((s) => s.setSoundMuted);
 
   return (
     <Card className="gap-2 py-3">
@@ -189,6 +197,41 @@ export function ControlsBar({
         >
           <FolderOpen aria-hidden />
           Cargar
+        </Button>
+
+        {/* Mandos táctiles */}
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            setTouchControls(!touchVisible);
+            if (!touchVisible) {
+              const hint = useGameStore.getState().touchHint;
+              if (hint) useGameStore.getState().pushToast(hint, 'info');
+            }
+          }}
+          disabled={!ready}
+          aria-pressed={touchVisible}
+          aria-label={touchVisible ? 'Ocultar mandos táctiles' : 'Mostrar mandos táctiles'}
+        >
+          <Hand aria-hidden />
+          Táctil
+        </Button>
+
+        {/* Sonido */}
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            const v = !muted;
+            setSoundMuted(v);
+            setMuted(v);
+          }}
+          aria-pressed={muted}
+          aria-label={muted ? 'Activar sonido' : 'Silenciar'}
+        >
+          {muted ? <VolumeX aria-hidden /> : <Volume2 aria-hidden />}
+          {muted ? 'Silencio' : 'Sonido'}
         </Button>
       </CardContent>
     </Card>

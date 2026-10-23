@@ -1,523 +1,1530 @@
 [
-  {
-    "id": "m_bienvenida",
-    "title": "Bienvenido al edificio",
-    "description": "La inmobiliaria te espera al teléfono. Después: tu puerta. Tu nuevo reino (de 65 m²).",
-    "steps": [
-      { "id": "llamada", "type": "phone_call", "dialog": "dlg_bienvenida", "hint": "Atiende el teléfono" },
-      { "id": "subir", "type": "reach", "target": { "block": "$home", "slot": "door" }, "hint": "Llega a la puerta de tu piso (3C)" },
-      { "id": "entrar", "type": "enter", "target": "$home", "hint": "Entra en tu piso (E)" }
-    ],
-    "onComplete": [
-      { "op": "addFunds", "to": "player", "amount": 200 },
-      { "op": "unlock", "target": "blk_p1_b", "occupancy": "occupied", "resident": "res_cotilla_01", "arrival": "mudanza" },
-      { "op": "unlock", "target": "blk_p1_b", "resident": "res_nino_01", "arrival": "mudanza" },
-      { "op": "toast", "text": "Mudanza en 1B: Dolores la Cotilla y su hijo Pinturillas. El edificio ya no es lo que era. Era mejor.", "tone": "info" }
+ {
+  "id": "m_bienvenida",
+  "title": "Bienvenido al edificio",
+  "description": "La inmobiliaria te espera al teléfono. Después: tu puerta. Tu nuevo reino (de 65 m²).",
+  "steps": [
+   {
+    "id": "llamada",
+    "type": "phone_call",
+    "dialog": "dlg_bienvenida",
+    "hint": "Atiende el teléfono"
+   },
+   {
+    "id": "subir",
+    "type": "reach",
+    "target": {
+     "block": "$home",
+     "slot": "door"
+    },
+    "hint": "Llega a la puerta de tu piso (3C)"
+   },
+   {
+    "id": "entrar",
+    "type": "enter",
+    "target": "$home",
+    "hint": "Entra en tu piso (E)"
+   }
+  ],
+  "onComplete": [
+   {
+    "op": "addFunds",
+    "to": "player",
+    "amount": 200
+   },
+   {
+    "op": "unlock",
+    "target": "blk_p1_b",
+    "occupancy": "occupied",
+    "resident": "res_cotilla_01",
+    "arrival": "mudanza"
+   },
+   {
+    "op": "unlock",
+    "target": "blk_p1_b",
+    "resident": "res_nino_01",
+    "arrival": "mudanza"
+   },
+   {
+    "op": "toast",
+    "text": "Mudanza en 1B: Dolores la Cotilla y su hijo Pinturillas. El edificio ya no es lo que era. Era mejor.",
+    "tone": "info"
+   }
+  ]
+ },
+ {
+  "id": "m_ascensor",
+  "title": "El ascensor, esa reliquia",
+  "description": "Roto desde antes de que llegaras. La solución, como todo en este edificio, pasa por la junta.",
+  "trigger": {
+   "all": [
+    {
+     "mission": "m_bienvenida",
+     "state": "done"
+    }
+   ]
+  },
+  "steps": [
+   {
+    "id": "aviso",
+    "type": "phone_call",
+    "dialog": "dlg_ascensor",
+    "hint": "El administrador llama"
+   }
+  ],
+  "choices": [
+   {
+    "id": "convocar_junta",
+    "label": "Convocar una junta de vecinos",
+    "hint": "Democracia pura: votos, suspensos y derramas",
+    "icon": "vote",
+    "effects": [
+     {
+      "op": "openJunta",
+      "agenda": [
+       {
+        "id": "reparar_ascensor",
+        "title": "Reparar el ascensor",
+        "description": "Un técnico, dos horas y menos historias que en la junta. 800 € de fondos.",
+        "cost": 800,
+        "effects": [
+         {
+          "op": "setParam",
+          "target": "nucleo.elevator_status",
+          "value": "ok"
+         },
+         {
+          "op": "setParam",
+          "target": "nucleo.condition",
+          "delta": 20
+         },
+         {
+          "op": "addReputation",
+          "resident": "player",
+          "amount": 5
+         },
+         {
+          "op": "toast",
+          "text": "¡Ascensor reparado! El portazo de satisfacción se oye en 4D.",
+          "tone": "good"
+         }
+        ]
+       }
+      ]
+     }
     ]
-  },
-  {
-    "id": "m_ascensor",
-    "title": "El ascensor, esa reliquia",
-    "description": "Roto desde antes de que llegaras. La solución, como todo en este edificio, pasa por la junta.",
-    "trigger": { "all": [{ "mission": "m_bienvenida", "state": "done" }] },
-    "steps": [{ "id": "aviso", "type": "phone_call", "dialog": "dlg_ascensor", "hint": "El administrador llama" }],
-    "choices": [
-      {
-        "id": "convocar_junta",
-        "label": "Convocar una junta de vecinos",
-        "hint": "Democracia pura: votos, suspensos y derramas",
-        "icon": "vote",
-        "effects": [
-          {
-            "op": "openJunta",
-            "agenda": [
-              {
-                "id": "reparar_ascensor",
-                "title": "Reparar el ascensor",
-                "description": "Un técnico, dos horas y menos historias que en la junta. 800 € de fondos.",
-                "cost": 800,
-                "effects": [
-                  { "op": "setParam", "target": "nucleo.elevator_status", "value": "ok" },
-                  { "op": "setParam", "target": "nucleo.condition", "delta": 20 },
-                  { "op": "addReputation", "resident": "player", "amount": 5 },
-                  { "op": "toast", "text": "¡Ascensor reparado! El portazo de satisfacción se oye en 4D.", "tone": "good" }
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      {
-        "id": "pagar_de_bolsillo",
-        "label": "Pagarlo tú (800 €)",
-        "hint": "El héroe anónimo. El presidente te lo contará a todos, eso sí",
-        "icon": "coins",
-        "effects": [
-          { "op": "addFunds", "to": "player", "amount": -800 },
-          { "op": "setParam", "target": "nucleo.elevator_status", "value": "ok" },
-          { "op": "addRelation", "a": "player", "b": "presidente", "affinity": 15 },
-          { "op": "addFunds", "to": "player", "amount": 150 },
-          { "op": "toast", "text": "Ascensor reparado de tu bolsillo. Don Ramón te llama \"el vecino ejemplar\". Con intención de pedirte más.", "tone": "good" }
-        ]
-      },
-      {
-        "id": "bajar_andando",
-        "label": "Que baje quien tenga prisa",
-        "hint": "Los muslos también son un ascensor",
-        "icon": "stairs",
-        "effects": [
-          { "op": "addFunds", "to": "player", "amount": 150 },
-          { "op": "toast", "text": "Escala natural para todos. La jubilada del 4C te ha guardado un comentario cariñoso.", "tone": "info" }
-        ]
-      }
-    ],
-    "onComplete": [{ "op": "addFunds", "to": "player", "amount": 100 }]
-  },
-  {
-    "id": "m_pintadas_ascensor",
-    "title": "Pintadas en el ascensor",
-    "description": "La cabina amanece con un mural neón. El autorretrato del artista lo delata: es Pinturillas.",
-    "roles": { "kid": { "archetype": "nino_grafitero" }, "parent": { "relation": "parentOf", "of": "kid" } },
-    "trigger": { "all": [{ "mission": "m_ascensor", "state": "done" }, { "role": "kid", "exists": true }] },
-    "steps": [{ "id": "pillarlo", "type": "catch_in_act", "target": "kid", "place": "nucleo.cabin", "windowMinutes": 90, "hint": "Pilla al artista in fraganti (1ª planta)" }],
-    "choices": [
-      {
-        "id": "chivarse",
-        "label": "Chivarte a su madre",
-        "hint": "Dolores agradece la información. El niño no",
-        "icon": "megaphone",
-        "effects": [
-          { "op": "addRelation", "a": "player", "b": "parent", "affinity": 10 },
-          { "op": "addRelation", "a": "player", "b": "kid", "affinity": -20 },
-          { "op": "startMission", "id": "m_venganza_nino", "delayMinutes": 720 },
-          { "op": "addFunds", "to": "player", "amount": 100 }
-        ]
-      },
-      {
-        "id": "chantajear",
-        "label": "Chantajearle",
-        "hint": "Tres favores. Sin preguntas. Bien guardados",
-        "icon": "handshake",
-        "effects": [
-          { "op": "addRelation", "a": "player", "b": "kid", "affinity": -5, "trust": 15 },
-          { "op": "grantFavor", "from": "kid", "count": 3 },
-          { "op": "addFunds", "to": "player", "amount": 100 }
-        ]
-      },
-      {
-        "id": "limpiar",
-        "label": "Que la limpie él (minijuego)",
-        "hint": "Bayeta, jabón y un poquito de karma",
-        "icon": "spray",
-        "effects": [
-          { "op": "startMinigame", "id": "mg_limpiar_cabina" },
-          { "op": "addRelation", "a": "player", "b": "kid", "affinity": 5 },
-          { "op": "addFunds", "to": "player", "amount": 100 }
-        ]
-      },
-      {
-        "id": "junta",
-        "label": "Llevarlo a la junta",
-        "hint": "Porque TODO se arregla en la junta",
-        "icon": "vote",
-        "effects": [
-          {
-            "op": "openJunta",
-            "agenda": [
-              {
-                "id": "reparar_cabina",
-                "title": "Limpieza y pintura de la cabina",
-                "description": "El mural es \"arte\", dice su madre. La cabina, \"un denuncio\", dice el presidente. 200 €.",
-                "cost": 200,
-                "effects": [
-                  { "op": "setParam", "target": "nucleo.cabin_graffiti", "value": 0 },
-                  { "op": "addRelation", "a": "player", "b": "presidente", "affinity": 10 },
-                  { "op": "toast", "text": "Cabina impecable. En el acta figura como \"restauración de patrimonio comunitario\".", "tone": "good" }
-                ]
-              }
-            ]
-          },
-          { "op": "addFunds", "to": "player", "amount": 100 }
-        ]
-      }
+   },
+   {
+    "id": "pagar_de_bolsillo",
+    "label": "Pagarlo tú (800 €)",
+    "hint": "El héroe anónimo. El presidente te lo contará a todos, eso sí",
+    "icon": "coins",
+    "effects": [
+     {
+      "op": "addFunds",
+      "to": "player",
+      "amount": -800
+     },
+     {
+      "op": "setParam",
+      "target": "nucleo.elevator_status",
+      "value": "ok"
+     },
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "presidente",
+      "affinity": 15
+     },
+     {
+      "op": "addFunds",
+      "to": "player",
+      "amount": 150
+     },
+     {
+      "op": "toast",
+      "text": "Ascensor reparado de tu bolsillo. Don Ramón te llama \"el vecino ejemplar\". Con intención de pedirte más.",
+      "tone": "good"
+     }
     ]
-  },
-  {
-    "id": "m_venganza_nino",
-    "title": "La venganza de Pinturillas",
-    "description": "Purpurina. En el pasillo. En tu puerta. En tu ALMA.",
-    "steps": [{ "id": "aviso", "type": "phone_call", "dialog": "dlg_venganza", "hint": "Mensaje de Pinturillas" }],
-    "onComplete": [
-      { "op": "setParam", "target": "pasillo.cleanliness", "delta": -30 },
-      { "op": "toast", "text": "El pasillo brilla... de purpurina. La limpieza comunitaria baja de moraleja.", "tone": "bad" }
+   },
+   {
+    "id": "bajar_andando",
+    "label": "Que baje quien tenga prisa",
+    "hint": "Los muslos también son un ascensor",
+    "icon": "stairs",
+    "effects": [
+     {
+      "op": "addFunds",
+      "to": "player",
+      "amount": 150
+     },
+     {
+      "op": "toast",
+      "text": "Escala natural para todos. La jubilada del 4C te ha guardado un comentario cariñoso.",
+      "tone": "info"
+     }
     ]
+   }
+  ],
+  "onComplete": [
+   {
+    "op": "addFunds",
+    "to": "player",
+    "amount": 100
+   }
+  ]
+ },
+ {
+  "id": "m_pintadas_ascensor",
+  "title": "Pintadas en el ascensor",
+  "description": "La cabina amanece con un mural neón. El autorretrato del artista lo delata: es Pinturillas.",
+  "roles": {
+   "kid": {
+    "archetype": "nino_grafitero"
+   },
+   "parent": {
+    "relation": "parentOf",
+    "of": "kid"
+   }
   },
-  {
-    "id": "m_fiesta_de_kevin",
-    "title": "La fiesta del 2B",
-    "description": "Las 21:30. El bajo suena. El edificio tiembla. Tu sueño, se va.",
-    "trigger": { "all": [{ "mission": "m_ascensor", "state": "done" }, { "time": { "after": "21:30" } }] },
-    "steps": [{ "id": "hablar", "type": "reach", "target": { "block": "blk_p2_b", "slot": "door" }, "hint": "Ve a la puerta del 2B" }],
-    "choices": [
-      {
-        "id": "unirse",
-        "label": "Unirse a la fiesta",
-        "hint": "No puedes vencerlos... pero hay helado",
-        "icon": "party",
-        "effects": [
-          { "op": "addRelation", "a": "player", "b": "fiestero", "affinity": 15 },
-          { "op": "grantFavor", "from": "fiestero", "count": 1 },
-          { "op": "toast", "text": "Amaneces en el sofá del 2B con un sombrero de fiesta y tres amistades nuevas. Vale la pena. ¿Vale la pena?", "tone": "good" }
-        ]
-      },
-      {
-        "id": "pedir_silencio",
-        "label": "Pedir silencio (amablemente)",
-        "hint": "Aviso: puede desquiciar al vecindario",
-        "icon": "volume-off",
-        "effects": [
-          { "op": "addRelation", "a": "player", "b": "fiestero", "affinity": -5, "trust": 5 },
-          { "op": "addReputation", "resident": "player", "amount": 5 },
-          { "op": "toast", "text": "Kevin baja el volumen a \"FESTIVAL (lite)\". Ganaste. Más o menos.", "tone": "info" }
-        ]
-      },
-      {
-        "id": "llamar_policia",
-        "label": "Llamar a la policía",
-        "hint": "Escalada total: el barrio entero lo sabrá",
-        "icon": "siren",
-        "effects": [
-          { "op": "addRelation", "a": "player", "b": "fiestero", "affinity": -25 },
-          { "op": "addRelation", "a": "player", "b": "cotilla", "affinity": 5 },
-          { "op": "addReputation", "resident": "player", "amount": -10 },
-          { "op": "toast", "text": "Silencio total en 2B. Y en el portal, un rumor con tu nombre. La cotilla ya está redactando.", "tone": "bad" }
-        ]
-      },
-      {
-        "id": "venganza_musical",
-        "label": "Contraataque: música a tope",
-        "hint": "A las 3:00. Con reggaetón del 2009",
-        "icon": "volume-up",
-        "effects": [
-          { "op": "addRelation", "a": "player", "b": "fiestero", "affinity": 10 },
-          { "op": "addRelation", "a": "player", "b": "cotilla", "affinity": -15 },
-          { "op": "toast", "text": "Kevin responde con un aplauso desde el balcón. La cotilla responde con una carta. Largo. Muy largo.", "tone": "info" }
-        ]
-      },
-      {
-        "id": "negociar",
-        "label": "Negociar con arte (minijuego)",
-        "hint": "Pulso firme, palabra tranquila",
-        "icon": "handshake",
-        "effects": [{ "op": "startMinigame", "id": "mg_trato_vecino" }]
-      }
+  "trigger": {
+   "all": [
+    {
+     "mission": "m_ascensor",
+     "state": "done"
+    },
+    {
+     "role": "kid",
+     "exists": true
+    }
+   ]
+  },
+  "steps": [
+   {
+    "id": "pillarlo",
+    "type": "catch_in_act",
+    "target": "kid",
+    "place": "nucleo.cabin",
+    "windowMinutes": 90,
+    "hint": "Pilla al artista in fraganti (1ª planta)"
+   }
+  ],
+  "choices": [
+   {
+    "id": "chivarse",
+    "label": "Chivarte a su madre",
+    "hint": "Dolores agradece la información. El niño no",
+    "icon": "megaphone",
+    "effects": [
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "parent",
+      "affinity": 10
+     },
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "kid",
+      "affinity": -20
+     },
+     {
+      "op": "startMission",
+      "id": "m_venganza_nino",
+      "delayMinutes": 720
+     },
+     {
+      "op": "addFunds",
+      "to": "player",
+      "amount": 100
+     }
     ]
-  },
-  {
-    "id": "m_goteo",
-    "title": "Gota a gota (4C → 3C)",
-    "description": "La lavadora de Esperanza hace \"su vida\". El techo de tu salón también empieza a hacer la suya.",
-    "trigger": { "all": [{ "param": "blk_p3_c.humidity", "gte": 20 }] },
-    "steps": [{ "id": "avisar", "type": "reach", "target": { "block": "blk_p4_c", "slot": "door" }, "hint": "Sube a avisar a Esperanza (4C)" }],
-    "choices": [
-      {
-        "id": "pagar_arreglo",
-        "label": "Pagar el arreglo (250 €)",
-        "hint": "Caro, pero tu techo vuelve a ser techo",
-        "icon": "wrench",
-        "effects": [
-          { "op": "addFunds", "to": "player", "amount": -250 },
-          { "op": "addRelation", "a": "player", "b": "jubilada", "affinity": 20 },
-          { "op": "setParam", "target": "blk_p3_c.humidity", "value": 8 },
-          { "op": "addFunds", "to": "player", "amount": 150 },
-          { "op": "toast", "text": "Esperanza te invita a un bizcocho \"de agradecimiento\". Duro. Pero bizcocho al fin.", "tone": "good" }
-        ]
-      },
-      {
-        "id": "junta_fondo",
-        "label": "Pedir derrama en junta",
-        "hint": "Que pague la comunidad. Que empiece el espectáculo",
-        "icon": "vote",
-        "effects": [
-          {
-            "op": "openJunta",
-            "agenda": [
-              {
-                "id": "fondo_reparaciones",
-                "title": "Fondo de reparaciones urgente",
-                "description": "Bajante, lavadora y \"una humedad que no es normal, dice el del 3C\". 400 € de caja.",
-                "cost": 400,
-                "effects": [
-                  { "op": "setParam", "target": "blk_p3_c.humidity", "value": 8 },
-                  { "op": "setParam", "target": "nucleo.condition", "delta": 15 },
-                  { "op": "toast", "text": "Techo seco, caja más flaca y un acta con tres páginas de discusión sobre \"qué es urgente\".", "tone": "good" }
-                ]
-              }
-            ]
-          },
-          { "op": "addFunds", "to": "player", "amount": 150 }
-        ]
-      },
-      {
-        "id": "cubo_del_salon",
-        "label": "Un cubo, fe y dos toallas",
-        "hint": "Humedad -20. Dignidad -100",
-        "icon": "bucket",
-        "effects": [
-          { "op": "setParam", "target": "blk_p3_c.humidity", "delta": -20 },
-          { "op": "addFunds", "to": "player", "amount": 150 },
-          { "op": "toast", "text": "El cubo del salón ya tiene nombre propio. Los invitados preguntan \"¿y esto?\". Tú encoges hombros.", "tone": "info" }
-        ]
-      },
-      {
-        "id": "desatascar",
-        "label": "Desatascarlo tú mismo (minijuego)",
-        "hint": "Manivela, precisión y cero vergüenza",
-        "icon": "wrench",
-        "effects": [
-          { "op": "startMinigame", "id": "mg_desatascar" },
-          { "op": "addFunds", "to": "player", "amount": 150 }
-        ]
-      }
+   },
+   {
+    "id": "chantajear",
+    "label": "Chantajearle",
+    "hint": "Tres favores. Sin preguntas. Bien guardados",
+    "icon": "handshake",
+    "effects": [
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "kid",
+      "affinity": -5,
+      "trust": 15
+     },
+     {
+      "op": "grantFavor",
+      "from": "kid",
+      "count": 3
+     },
+     {
+      "op": "addFunds",
+      "to": "player",
+      "amount": 100
+     }
     ]
-  },
-  {
-    "id": "m_piso_al_lado",
-    "title": "El piso de al lado (3D)",
-    "description": "La puerta de al lado está en venta. Misma puerta, mismos muros, infinitas posibilidades.",
-    "trigger": { "all": [{ "mission": "m_fiesta_de_kevin", "state": "done" }, { "time": { "after": "10:00" } }] },
-    "steps": [
-      { "id": "llamada", "type": "phone_call", "dialog": "dlg_inmobiliaria_piso", "hint": "La inmobiliaria llama" },
-      { "id": "verlo", "type": "reach", "target": { "block": "blk_p3_d", "slot": "door" }, "hint": "Pasa por la puerta del 3D" }
-    ],
-    "onComplete": [{ "op": "unlock", "target": "blk_p3_d", "availability": { "mode": "for_sale", "price": 2400 } }],
-    "choices": [
-      {
-        "id": "comprar_unir",
-        "label": "Comprar y unir (2.400 € + reforma 1.200 €)",
-        "hint": "Dúplex improvisado. El albañil dice \"fácil\". Miente, pero barato",
-        "icon": "home",
-        "effects": [
-          { "op": "buy", "target": "blk_p3_d", "price": 2400 },
-          { "op": "addFunds", "to": "player", "amount": -1200 },
-          { "op": "setParam", "target": "blk_p3_d.style", "value": "duplex" },
-          { "op": "setParam", "target": "blk_p3_d.condition", "value": 90 },
-          { "op": "setParam", "target": "blk_p3_d.soundproofing", "value": 0.9 },
-          { "op": "addFunds", "to": "player", "amount": 200 },
-          { "op": "toast", "text": "¡DÚPLEX! Derribar el tabique fue hermoso. Encontrar el cable de la luz del 3C, menos.", "tone": "good" }
-        ]
-      },
-      {
-        "id": "comprar_alquilar",
-        "label": "Comprar y alquilar (2.400 €)",
-        "hint": "Rentabilidad diaria... y un inquilino nuevo",
-        "icon": "key",
-        "effects": [
-          { "op": "buy", "target": "blk_p3_d", "price": 2400 },
-          { "op": "unlock", "target": "blk_p3_d", "occupancy": "occupied", "resident": "res_inquilino_01", "arrival": "mudanza" },
-          { "op": "addFunds", "to": "player", "amount": 200 },
-          { "op": "toast", "text": "Mateo, el erasmus, ya pregunta por el wifi. Empieza el alquiler: 40 €/día. Y las historias también.", "tone": "good" }
-        ]
-      },
-      {
-        "id": "no_por_ahora",
-        "label": "Dejarlo para otro día",
-        "hint": "La oportunidad sigue en el cartel. Por ahora",
-        "icon": "clock",
-        "effects": [{ "op": "toast", "text": "El cartel de \"SE VENDE\" del 3D se queda. Como las ideas que no llega el martes.", "tone": "info" }]
-      }
+   },
+   {
+    "id": "limpiar",
+    "label": "Que la limpie él (minijuego)",
+    "hint": "Bayeta, jabón y un poquito de karma",
+    "icon": "spray",
+    "effects": [
+     {
+      "op": "startMinigame",
+      "id": "mg_limpiar_cabina"
+     },
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "kid",
+      "affinity": 5
+     },
+     {
+      "op": "addFunds",
+      "to": "player",
+      "amount": 100
+     }
     ]
-  },
-  {
-    "id": "m_llegada_buitre",
-    "title": "Ha llegado el Fondo Buitre",
-    "description": "Un traje gris mira el edificio desde la acera. Mide, calcula, sonríe. Mal asunto.",
-    "trigger": { "all": [{ "mission": "m_piso_al_lado", "state": "done" }, { "time": { "after": "09:00" } }] },
-    "steps": [{ "id": "llamada", "type": "phone_call", "dialog": "dlg_buitre", "hint": "Número desconocido llama" }],
-    "onComplete": [
-      { "op": "unlock", "target": "blk_p4_b", "occupancy": "occupied", "resident": "res_buitre_01", "arrival": "mudanza" },
-      { "op": "addReputation", "resident": "player", "amount": 5 },
-      { "op": "addFunds", "to": "player", "amount": 300 },
-      { "op": "finale", "text": "El Sr. Vulture ya mira la azotea \"con potencial\". El edificio respira... Continuará." }
+   },
+   {
+    "id": "junta",
+    "label": "Llevarlo a la junta",
+    "hint": "Porque TODO se arregla en la junta",
+    "icon": "vote",
+    "effects": [
+     {
+      "op": "openJunta",
+      "agenda": [
+       {
+        "id": "reparar_cabina",
+        "title": "Limpieza y pintura de la cabina",
+        "description": "El mural es \"arte\", dice su madre. La cabina, \"un denuncio\", dice el presidente. 200 €.",
+        "cost": 200,
+        "effects": [
+         {
+          "op": "setParam",
+          "target": "nucleo.cabin_graffiti",
+          "value": 0
+         },
+         {
+          "op": "addRelation",
+          "a": "player",
+          "b": "presidente",
+          "affinity": 10
+         },
+         {
+          "op": "toast",
+          "text": "Cabina impecable. En el acta figura como \"restauración de patrimonio comunitario\".",
+          "tone": "good"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "op": "addFunds",
+      "to": "player",
+      "amount": 100
+     }
     ]
+   }
+  ]
+ },
+ {
+  "id": "m_venganza_nino",
+  "title": "La venganza de Pinturillas",
+  "description": "Purpurina. En el pasillo. En tu puerta. En tu ALMA.",
+  "steps": [
+   {
+    "id": "aviso",
+    "type": "phone_call",
+    "dialog": "dlg_venganza",
+    "hint": "Mensaje de Pinturillas"
+   }
+  ],
+  "onComplete": [
+   {
+    "op": "setParam",
+    "target": "pasillo.cleanliness",
+    "delta": -30
+   },
+   {
+    "op": "toast",
+    "text": "El pasillo brilla... de purpurina. La limpieza comunitaria baja de moraleja.",
+    "tone": "bad"
+   }
+  ]
+ },
+ {
+  "id": "m_fiesta_de_kevin",
+  "title": "La fiesta del 2B",
+  "description": "Las 21:30. El bajo suena. El edificio tiembla. Tu sueño, se va.",
+  "trigger": {
+   "all": [
+    {
+     "mission": "m_ascensor",
+     "state": "done"
+    },
+    {
+     "time": {
+      "after": "21:30"
+     }
+    }
+   ]
   },
-  {
-    "id": "m_salon_vacio",
-    "title": "El salón desnudo",
-    "description": "Dolores ha visto tu salón. Dolores opina. Dolores SIEMPRE opina.",
-    "trigger": { "all": [{ "mission": "m_bienvenida", "state": "done" }, { "dayMin": 2 }] },
-    "steps": [{ "id": "llamada", "type": "phone_call", "dialog": "dlg_decoracion", "hint": "La cotilla llama" }],
-    "choices": [
-      {
-        "id": "amueblar",
-        "label": "Amueblar con estilo (editor)",
-        "hint": "La comunidad te adelanta 150 € de \"fondo estético\"",
-        "icon": "sofa",
-        "effects": [
-          { "op": "addFunds", "to": "player", "amount": 150 },
-          { "op": "toast", "text": "Abre el panel «Mi piso» y amuebla. Dolores ya prepara su primera crítica decorativa.", "tone": "good" }
-        ]
-      },
-      {
-        "id": "minimalismo",
-        "label": "Minimalismo radical",
-        "hint": "\"Es diseño\", dices. Nadie te cree",
-        "icon": "clock",
-        "effects": [
-          { "op": "addReputation", "resident": "player", "amount": -5 },
-          { "op": "toast", "text": "Tu salón vacío ya tiene apodo en el edificio: \"la oficina del paro\".", "tone": "info" }
-        ]
-      }
-    ],
-    "onComplete": [{ "op": "revealParams", "tier": 2 }]
-  },
-  {
-    "id": "m_plagas_1b",
-    "title": "Plaga en el 1B",
-    "description": "Las cucarachas del afterparty del 2B han bajado a la cocina de Dolores. La diplomacia no funciona con bichos.",
-    "trigger": { "all": [{ "mission": "m_bienvenida", "state": "done" }, { "param": "blk_p1_b.plague", "gte": 20 }] },
-    "steps": [{ "id": "aviso", "type": "phone_call", "dialog": "dlg_plagas", "hint": "Dolores llama. Y no está para bromas" }],
-    "choices": [
-      {
-        "id": "fumigar",
-        "label": "Fumigar tú mismo (minijuego)",
-        "hint": "Reflejos de acero y una zapatilla de marca",
-        "icon": "spray",
-        "effects": [
-          { "op": "startMinigame", "id": "mg_fumigar" },
-          { "op": "addRelation", "a": "player", "b": "cotilla", "affinity": 5 }
-        ]
-      },
-      {
-        "id": "derrama_fumigacion",
-        "label": "Derrama: fumigación profesional",
-        "hint": "Que pague la comunidad. Y empiece el espectáculo",
-        "icon": "vote",
-        "effects": [
-          {
-            "op": "openJunta",
-            "agenda": [
-              {
-                "id": "fumigacion_comunitaria",
-                "title": "Fumigación integral del edificio",
-                "description": "Un profesional, dos horas y un coche con un insecto gigante pintado. 350 € de caja.",
-                "cost": 350,
-                "effects": [
-                  { "op": "setParam", "target": "vivienda_estandar", "param": "plague", "value": 0 },
-                  { "op": "addReputation", "resident": "player", "amount": 5 },
-                  { "op": "toast", "text": "Edificio fumigado. Las cucarachas se mudan al edificio de al lado. Con referencias y todo.", "tone": "good" }
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      {
-        "id": "culpar_kevin",
-        "label": "Echarle la culpa al 2B",
-        "hint": "Técnicamente es verdad. Técnicamente no arregla nada",
-        "icon": "megaphone",
-        "effects": [
-          { "op": "addRelation", "a": "player", "b": "cotilla", "affinity": 10 },
-          { "op": "addRelation", "a": "player", "b": "fiestero", "affinity": -15 },
-          { "op": "addReputation", "resident": "player", "amount": -5 },
-          { "op": "toast", "text": "Dolores ya llama al timbre del 2B con la zapatilla en ristre. La paz vecinal, suspendida.", "tone": "bad" }
-        ]
-      }
+  "steps": [
+   {
+    "id": "hablar",
+    "type": "reach",
+    "target": {
+     "block": "blk_p2_b",
+     "slot": "door"
+    },
+    "hint": "Ve a la puerta del 2B"
+   }
+  ],
+  "choices": [
+   {
+    "id": "unirse",
+    "label": "Unirse a la fiesta",
+    "hint": "No puedes vencerlos... pero hay helado",
+    "icon": "party",
+    "effects": [
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "fiestero",
+      "affinity": 15
+     },
+     {
+      "op": "grantFavor",
+      "from": "fiestero",
+      "count": 1
+     },
+     {
+      "op": "toast",
+      "text": "Amaneces en el sofá del 2B con un sombrero de fiesta y tres amistades nuevas. Vale la pena. ¿Vale la pena?",
+      "tone": "good"
+     }
     ]
-  },
-  {
-    "id": "m_humo_detector",
-    "title": "El detector que no calla",
-    "description": "El guiso quemado de Dolores ha activado el detector del rellano. Pita. PITA. Desde las tres.",
-    "trigger": { "all": [{ "mission": "m_bienvenida", "state": "done" }, { "param": "blk_p2_b.soot", "gte": 10 }] },
-    "steps": [{ "id": "aviso", "type": "phone_call", "dialog": "dlg_humo", "hint": "Kevin llama (con el detector de fondo)" }],
-    "choices": [
-      {
-        "id": "fusibles",
-        "label": "Apagarlo en el cuadro (minijuego)",
-        "hint": "Baja las palancas en el orden correcto",
-        "icon": "wrench",
-        "effects": [
-          { "op": "startMinigame", "id": "mg_fusibles" },
-          { "op": "addRelation", "a": "player", "b": "fiestero", "affinity": 5 }
-        ]
-      },
-      {
-        "id": "ventilar",
-        "label": "Ventilar el rellano con Kevin",
-        "hint": "Dos puertas abiertas y un ventilador prestado",
-        "icon": "wind",
-        "effects": [
-          { "op": "addRelation", "a": "player", "b": "fiestero", "affinity": 10 },
-          { "op": "setParam", "target": "blk_p2_b.soot", "delta": -5 },
-          { "op": "addReputation", "resident": "player", "amount": 3 },
-          { "op": "toast", "text": "Detector silenciado a lo bruto: una toalla y cinta aislante. Solución de vecinos, patentada.", "tone": "info" }
-        ]
-      },
-      {
-        "id": "junta_detectores",
-        "label": "Junta: detectores nuevos",
-        "hint": "El acta durará más que el pitido",
-        "icon": "vote",
-        "effects": [
-          {
-            "op": "openJunta",
-            "agenda": [
-              {
-                "id": "detectores_nuevos",
-                "title": "Detectores de humo nuevos (y mudos)",
-                "description": "Modelo \"Silencio 3000\". 300 € de caja. El de ahora se apaga con toalla.",
-                "cost": 300,
-                "effects": [
-                  { "op": "setParam", "target": "vivienda_estandar", "param": "soot", "value": 0 },
-                  { "op": "setParam", "target": "nucleo", "param": "condition", "delta": 10 },
-                  { "op": "toast", "text": "Detectores instalados. Silencio. Y un acta de 6 páginas sobre \"qué es humo\".", "tone": "good" }
-                ]
-              }
-            ]
-          }
-        ]
-      }
+   },
+   {
+    "id": "pedir_silencio",
+    "label": "Pedir silencio (amablemente)",
+    "hint": "Aviso: puede desquiciar al vecindario",
+    "icon": "volume-off",
+    "effects": [
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "fiestero",
+      "affinity": -5,
+      "trust": 5
+     },
+     {
+      "op": "addReputation",
+      "resident": "player",
+      "amount": 5
+     },
+     {
+      "op": "toast",
+      "text": "Kevin baja el volumen a \"FESTIVAL (lite)\". Ganaste. Más o menos.",
+      "tone": "info"
+     }
     ]
-  },
-  {
-    "id": "m_correos",
-    "title": "Buzones revueltos",
-    "description": "El cartero ha mezclado TODA la correspondencia del edificio. Hay cartas en peligro (y una nómina).",
-    "trigger": { "all": [{ "mission": "m_bienvenida", "state": "done" }, { "dayMin": 3 }] },
-    "steps": [{ "id": "aviso", "type": "phone_call", "dialog": "dlg_correos", "hint": "El presidente llama" }],
-    "choices": [
-      {
-        "id": "ordenar",
-        "label": "Ordenarlo tú (minijuego)",
-        "hint": "Memoria de elefante, pulso de cartero",
-        "icon": "mailbox",
-        "effects": [{ "op": "startMinigame", "id": "mg_buzones" }]
-      },
-      {
-        "id": "pagar_profesional",
-        "label": "Pagar a un profesional (150 €)",
-        "hint": "Hay gente para todo. Y facturas",
-        "icon": "coins",
-        "effects": [
-          { "op": "addFunds", "to": "player", "amount": -150 },
-          { "op": "addFunds", "to": "player", "amount": 100 },
-          { "op": "addReputation", "resident": "player", "amount": 3 },
-          { "op": "toast", "text": "El 'gestor documental vecinal' lo deja impecable. Cobrando 150 €. Buen trabajo si puedes conseguirlo.", "tone": "info" }
-        ]
-      },
-      {
-        "id": "caos",
-        "label": "Que cada vecino busque el suyo",
-        "hint": "Darwinismo postal",
-        "icon": "clock",
-        "effects": [
-          { "op": "addReputation", "resident": "player", "amount": -10 },
-          { "op": "addRelation", "a": "player", "b": "presidente", "affinity": -10 },
-          { "op": "toast", "text": "Caos postal. Dolores ha encontrado UNA carta: la tuya. La está leyendo \"por si acaso\".", "tone": "bad" }
-        ]
-      }
+   },
+   {
+    "id": "llamar_policia",
+    "label": "Llamar a la policía",
+    "hint": "Escalada total: el barrio entero lo sabrá",
+    "icon": "siren",
+    "effects": [
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "fiestero",
+      "affinity": -25
+     },
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "cotilla",
+      "affinity": 5
+     },
+     {
+      "op": "addReputation",
+      "resident": "player",
+      "amount": -10
+     },
+     {
+      "op": "toast",
+      "text": "Silencio total en 2B. Y en el portal, un rumor con tu nombre. La cotilla ya está redactando.",
+      "tone": "bad"
+     }
     ]
-  }
+   },
+   {
+    "id": "venganza_musical",
+    "label": "Contraataque: música a tope",
+    "hint": "A las 3:00. Con reggaetón del 2009",
+    "icon": "volume-up",
+    "effects": [
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "fiestero",
+      "affinity": 10
+     },
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "cotilla",
+      "affinity": -15
+     },
+     {
+      "op": "toast",
+      "text": "Kevin responde con un aplauso desde el balcón. La cotilla responde con una carta. Largo. Muy largo.",
+      "tone": "info"
+     }
+    ]
+   },
+   {
+    "id": "negociar",
+    "label": "Negociar con arte (minijuego)",
+    "hint": "Pulso firme, palabra tranquila",
+    "icon": "handshake",
+    "effects": [
+     {
+      "op": "startMinigame",
+      "id": "mg_trato_vecino"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "m_goteo",
+  "title": "Gota a gota (4C → 3C)",
+  "description": "La lavadora de Esperanza hace \"su vida\". El techo de tu salón también empieza a hacer la suya.",
+  "trigger": {
+   "all": [
+    {
+     "param": "blk_p3_c.humidity",
+     "gte": 20
+    }
+   ]
+  },
+  "steps": [
+   {
+    "id": "avisar",
+    "type": "reach",
+    "target": {
+     "block": "blk_p4_c",
+     "slot": "door"
+    },
+    "hint": "Sube a avisar a Esperanza (4C)"
+   }
+  ],
+  "choices": [
+   {
+    "id": "pagar_arreglo",
+    "label": "Pagar el arreglo (250 €)",
+    "hint": "Caro, pero tu techo vuelve a ser techo",
+    "icon": "wrench",
+    "effects": [
+     {
+      "op": "addFunds",
+      "to": "player",
+      "amount": -250
+     },
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "jubilada",
+      "affinity": 20
+     },
+     {
+      "op": "setParam",
+      "target": "blk_p3_c.humidity",
+      "value": 8
+     },
+     {
+      "op": "addFunds",
+      "to": "player",
+      "amount": 150
+     },
+     {
+      "op": "toast",
+      "text": "Esperanza te invita a un bizcocho \"de agradecimiento\". Duro. Pero bizcocho al fin.",
+      "tone": "good"
+     }
+    ]
+   },
+   {
+    "id": "junta_fondo",
+    "label": "Pedir derrama en junta",
+    "hint": "Que pague la comunidad. Que empiece el espectáculo",
+    "icon": "vote",
+    "effects": [
+     {
+      "op": "openJunta",
+      "agenda": [
+       {
+        "id": "fondo_reparaciones",
+        "title": "Fondo de reparaciones urgente",
+        "description": "Bajante, lavadora y \"una humedad que no es normal, dice el del 3C\". 400 € de caja.",
+        "cost": 400,
+        "effects": [
+         {
+          "op": "setParam",
+          "target": "blk_p3_c.humidity",
+          "value": 8
+         },
+         {
+          "op": "setParam",
+          "target": "nucleo.condition",
+          "delta": 15
+         },
+         {
+          "op": "toast",
+          "text": "Techo seco, caja más flaca y un acta con tres páginas de discusión sobre \"qué es urgente\".",
+          "tone": "good"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "op": "addFunds",
+      "to": "player",
+      "amount": 150
+     }
+    ]
+   },
+   {
+    "id": "cubo_del_salon",
+    "label": "Un cubo, fe y dos toallas",
+    "hint": "Humedad -20. Dignidad -100",
+    "icon": "bucket",
+    "effects": [
+     {
+      "op": "setParam",
+      "target": "blk_p3_c.humidity",
+      "delta": -20
+     },
+     {
+      "op": "addFunds",
+      "to": "player",
+      "amount": 150
+     },
+     {
+      "op": "toast",
+      "text": "El cubo del salón ya tiene nombre propio. Los invitados preguntan \"¿y esto?\". Tú encoges hombros.",
+      "tone": "info"
+     }
+    ]
+   },
+   {
+    "id": "desatascar",
+    "label": "Desatascarlo tú mismo (minijuego)",
+    "hint": "Manivela, precisión y cero vergüenza",
+    "icon": "wrench",
+    "effects": [
+     {
+      "op": "startMinigame",
+      "id": "mg_desatascar"
+     },
+     {
+      "op": "addFunds",
+      "to": "player",
+      "amount": 150
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "m_piso_al_lado",
+  "title": "El piso de al lado (3D)",
+  "description": "La puerta de al lado está en venta. Misma puerta, mismos muros, infinitas posibilidades.",
+  "trigger": {
+   "all": [
+    {
+     "mission": "m_fiesta_de_kevin",
+     "state": "done"
+    },
+    {
+     "time": {
+      "after": "10:00"
+     }
+    }
+   ]
+  },
+  "steps": [
+   {
+    "id": "llamada",
+    "type": "phone_call",
+    "dialog": "dlg_inmobiliaria_piso",
+    "hint": "La inmobiliaria llama"
+   },
+   {
+    "id": "verlo",
+    "type": "reach",
+    "target": {
+     "block": "blk_p3_d",
+     "slot": "door"
+    },
+    "hint": "Pasa por la puerta del 3D"
+   }
+  ],
+  "onComplete": [
+   {
+    "op": "unlock",
+    "target": "blk_p3_d",
+    "availability": {
+     "mode": "for_sale",
+     "price": 2400
+    }
+   }
+  ],
+  "choices": [
+   {
+    "id": "comprar_unir",
+    "label": "Comprar y unir (2.400 € + reforma 1.200 €)",
+    "hint": "Dúplex improvisado. El albañil dice \"fácil\". Miente, pero barato",
+    "icon": "home",
+    "effects": [
+     {
+      "op": "buy",
+      "target": "blk_p3_d",
+      "price": 2400
+     },
+     {
+      "op": "addFunds",
+      "to": "player",
+      "amount": -1200
+     },
+     {
+      "op": "setParam",
+      "target": "blk_p3_d.style",
+      "value": "duplex"
+     },
+     {
+      "op": "setParam",
+      "target": "blk_p3_d.condition",
+      "value": 90
+     },
+     {
+      "op": "setParam",
+      "target": "blk_p3_d.soundproofing",
+      "value": 0.9
+     },
+     {
+      "op": "addFunds",
+      "to": "player",
+      "amount": 200
+     },
+     {
+      "op": "toast",
+      "text": "¡DÚPLEX! Derribar el tabique fue hermoso. Encontrar el cable de la luz del 3C, menos.",
+      "tone": "good"
+     }
+    ]
+   },
+   {
+    "id": "comprar_alquilar",
+    "label": "Comprar y alquilar (2.400 €)",
+    "hint": "Rentabilidad diaria... y un inquilino nuevo",
+    "icon": "key",
+    "effects": [
+     {
+      "op": "buy",
+      "target": "blk_p3_d",
+      "price": 2400
+     },
+     {
+      "op": "unlock",
+      "target": "blk_p3_d",
+      "occupancy": "occupied",
+      "resident": "res_inquilino_01",
+      "arrival": "mudanza"
+     },
+     {
+      "op": "addFunds",
+      "to": "player",
+      "amount": 200
+     },
+     {
+      "op": "toast",
+      "text": "Mateo, el erasmus, ya pregunta por el wifi. Empieza el alquiler: 40 €/día. Y las historias también.",
+      "tone": "good"
+     }
+    ]
+   },
+   {
+    "id": "no_por_ahora",
+    "label": "Dejarlo para otro día",
+    "hint": "La oportunidad sigue en el cartel. Por ahora",
+    "icon": "clock",
+    "effects": [
+     {
+      "op": "toast",
+      "text": "El cartel de \"SE VENDE\" del 3D se queda. Como las ideas que no llega el martes.",
+      "tone": "info"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "m_llegada_buitre",
+  "title": "Ha llegado el Fondo Buitre",
+  "description": "Un traje gris mira el edificio desde la acera. Mide, calcula, sonríe. Mal asunto.",
+  "trigger": {
+   "all": [
+    {
+     "mission": "m_piso_al_lado",
+     "state": "done"
+    },
+    {
+     "time": {
+      "after": "09:00"
+     }
+    }
+   ]
+  },
+  "steps": [
+   {
+    "id": "llamada",
+    "type": "phone_call",
+    "dialog": "dlg_buitre",
+    "hint": "Número desconocido llama"
+   }
+  ],
+  "onComplete": [
+   {
+    "op": "unlock",
+    "target": "blk_p4_b",
+    "occupancy": "occupied",
+    "resident": "res_buitre_01",
+    "arrival": "mudanza"
+   },
+   {
+    "op": "addReputation",
+    "resident": "player",
+    "amount": 5
+   },
+   {
+    "op": "addFunds",
+    "to": "player",
+    "amount": 300
+   },
+   {
+    "op": "finale",
+    "text": "El Sr. Vulture ya mira la azotea \"con potencial\". El edificio respira... Continuará."
+   }
+  ]
+ },
+ {
+  "id": "m_salon_vacio",
+  "title": "El salón desnudo",
+  "description": "Dolores ha visto tu salón. Dolores opina. Dolores SIEMPRE opina.",
+  "trigger": {
+   "all": [
+    {
+     "mission": "m_bienvenida",
+     "state": "done"
+    },
+    {
+     "dayMin": 2
+    }
+   ]
+  },
+  "steps": [
+   {
+    "id": "llamada",
+    "type": "phone_call",
+    "dialog": "dlg_decoracion",
+    "hint": "La cotilla llama"
+   }
+  ],
+  "choices": [
+   {
+    "id": "amueblar",
+    "label": "Amueblar con estilo (editor)",
+    "hint": "La comunidad te adelanta 150 € de \"fondo estético\"",
+    "icon": "sofa",
+    "effects": [
+     {
+      "op": "addFunds",
+      "to": "player",
+      "amount": 150
+     },
+     {
+      "op": "toast",
+      "text": "Abre el panel «Mi piso» y amuebla. Dolores ya prepara su primera crítica decorativa.",
+      "tone": "good"
+     }
+    ]
+   },
+   {
+    "id": "minimalismo",
+    "label": "Minimalismo radical",
+    "hint": "\"Es diseño\", dices. Nadie te cree",
+    "icon": "clock",
+    "effects": [
+     {
+      "op": "addReputation",
+      "resident": "player",
+      "amount": -5
+     },
+     {
+      "op": "toast",
+      "text": "Tu salón vacío ya tiene apodo en el edificio: \"la oficina del paro\".",
+      "tone": "info"
+     }
+    ]
+   }
+  ],
+  "onComplete": [
+   {
+    "op": "revealParams",
+    "tier": 2
+   }
+  ]
+ },
+ {
+  "id": "m_plagas_1b",
+  "title": "Plaga en el 1B",
+  "description": "Las cucarachas del afterparty del 2B han bajado a la cocina de Dolores. La diplomacia no funciona con bichos.",
+  "trigger": {
+   "all": [
+    {
+     "mission": "m_bienvenida",
+     "state": "done"
+    },
+    {
+     "param": "blk_p1_b.plague",
+     "gte": 20
+    }
+   ]
+  },
+  "steps": [
+   {
+    "id": "aviso",
+    "type": "phone_call",
+    "dialog": "dlg_plagas",
+    "hint": "Dolores llama. Y no está para bromas"
+   }
+  ],
+  "choices": [
+   {
+    "id": "fumigar",
+    "label": "Fumigar tú mismo (minijuego)",
+    "hint": "Reflejos de acero y una zapatilla de marca",
+    "icon": "spray",
+    "effects": [
+     {
+      "op": "startMinigame",
+      "id": "mg_fumigar"
+     },
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "cotilla",
+      "affinity": 5
+     }
+    ]
+   },
+   {
+    "id": "derrama_fumigacion",
+    "label": "Derrama: fumigación profesional",
+    "hint": "Que pague la comunidad. Y empiece el espectáculo",
+    "icon": "vote",
+    "effects": [
+     {
+      "op": "openJunta",
+      "agenda": [
+       {
+        "id": "fumigacion_comunitaria",
+        "title": "Fumigación integral del edificio",
+        "description": "Un profesional, dos horas y un coche con un insecto gigante pintado. 350 € de caja.",
+        "cost": 350,
+        "effects": [
+         {
+          "op": "setParam",
+          "target": "vivienda_estandar",
+          "param": "plague",
+          "value": 0
+         },
+         {
+          "op": "addReputation",
+          "resident": "player",
+          "amount": 5
+         },
+         {
+          "op": "toast",
+          "text": "Edificio fumigado. Las cucarachas se mudan al edificio de al lado. Con referencias y todo.",
+          "tone": "good"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "id": "culpar_kevin",
+    "label": "Echarle la culpa al 2B",
+    "hint": "Técnicamente es verdad. Técnicamente no arregla nada",
+    "icon": "megaphone",
+    "effects": [
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "cotilla",
+      "affinity": 10
+     },
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "fiestero",
+      "affinity": -15
+     },
+     {
+      "op": "addReputation",
+      "resident": "player",
+      "amount": -5
+     },
+     {
+      "op": "toast",
+      "text": "Dolores ya llama al timbre del 2B con la zapatilla en ristre. La paz vecinal, suspendida.",
+      "tone": "bad"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "m_humo_detector",
+  "title": "El detector que no calla",
+  "description": "El guiso quemado de Dolores ha activado el detector del rellano. Pita. PITA. Desde las tres.",
+  "trigger": {
+   "all": [
+    {
+     "mission": "m_bienvenida",
+     "state": "done"
+    },
+    {
+     "param": "blk_p2_b.soot",
+     "gte": 10
+    }
+   ]
+  },
+  "steps": [
+   {
+    "id": "aviso",
+    "type": "phone_call",
+    "dialog": "dlg_humo",
+    "hint": "Kevin llama (con el detector de fondo)"
+   }
+  ],
+  "choices": [
+   {
+    "id": "fusibles",
+    "label": "Apagarlo en el cuadro (minijuego)",
+    "hint": "Baja las palancas en el orden correcto",
+    "icon": "wrench",
+    "effects": [
+     {
+      "op": "startMinigame",
+      "id": "mg_fusibles"
+     },
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "fiestero",
+      "affinity": 5
+     }
+    ]
+   },
+   {
+    "id": "ventilar",
+    "label": "Ventilar el rellano con Kevin",
+    "hint": "Dos puertas abiertas y un ventilador prestado",
+    "icon": "wind",
+    "effects": [
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "fiestero",
+      "affinity": 10
+     },
+     {
+      "op": "setParam",
+      "target": "blk_p2_b.soot",
+      "delta": -5
+     },
+     {
+      "op": "addReputation",
+      "resident": "player",
+      "amount": 3
+     },
+     {
+      "op": "toast",
+      "text": "Detector silenciado a lo bruto: una toalla y cinta aislante. Solución de vecinos, patentada.",
+      "tone": "info"
+     }
+    ]
+   },
+   {
+    "id": "junta_detectores",
+    "label": "Junta: detectores nuevos",
+    "hint": "El acta durará más que el pitido",
+    "icon": "vote",
+    "effects": [
+     {
+      "op": "openJunta",
+      "agenda": [
+       {
+        "id": "detectores_nuevos",
+        "title": "Detectores de humo nuevos (y mudos)",
+        "description": "Modelo \"Silencio 3000\". 300 € de caja. El de ahora se apaga con toalla.",
+        "cost": 300,
+        "effects": [
+         {
+          "op": "setParam",
+          "target": "vivienda_estandar",
+          "param": "soot",
+          "value": 0
+         },
+         {
+          "op": "setParam",
+          "target": "nucleo",
+          "param": "condition",
+          "delta": 10
+         },
+         {
+          "op": "toast",
+          "text": "Detectores instalados. Silencio. Y un acta de 6 páginas sobre \"qué es humo\".",
+          "tone": "good"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "m_correos",
+  "title": "Buzones revueltos",
+  "description": "El cartero ha mezclado TODA la correspondencia del edificio. Hay cartas en peligro (y una nómina).",
+  "trigger": {
+   "all": [
+    {
+     "mission": "m_bienvenida",
+     "state": "done"
+    },
+    {
+     "dayMin": 3
+    }
+   ]
+  },
+  "steps": [
+   {
+    "id": "aviso",
+    "type": "phone_call",
+    "dialog": "dlg_correos",
+    "hint": "El presidente llama"
+   }
+  ],
+  "choices": [
+   {
+    "id": "ordenar",
+    "label": "Ordenarlo tú (minijuego)",
+    "hint": "Memoria de elefante, pulso de cartero",
+    "icon": "mailbox",
+    "effects": [
+     {
+      "op": "startMinigame",
+      "id": "mg_buzones"
+     }
+    ]
+   },
+   {
+    "id": "pagar_profesional",
+    "label": "Pagar a un profesional (150 €)",
+    "hint": "Hay gente para todo. Y facturas",
+    "icon": "coins",
+    "effects": [
+     {
+      "op": "addFunds",
+      "to": "player",
+      "amount": -150
+     },
+     {
+      "op": "addFunds",
+      "to": "player",
+      "amount": 100
+     },
+     {
+      "op": "addReputation",
+      "resident": "player",
+      "amount": 3
+     },
+     {
+      "op": "toast",
+      "text": "El 'gestor documental vecinal' lo deja impecable. Cobrando 150 €. Buen trabajo si puedes conseguirlo.",
+      "tone": "info"
+     }
+    ]
+   },
+   {
+    "id": "caos",
+    "label": "Que cada vecino busque el suyo",
+    "hint": "Darwinismo postal",
+    "icon": "clock",
+    "effects": [
+     {
+      "op": "addReputation",
+      "resident": "player",
+      "amount": -10
+     },
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "presidente",
+      "affinity": -10
+     },
+     {
+      "op": "toast",
+      "text": "Caos postal. Dolores ha encontrado UNA carta: la tuya. La está leyendo \"por si acaso\".",
+      "tone": "bad"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "m_qa_1",
+  "title": "QA: barra de precisión",
+  "description": "Prueba técnica 1/4: la barra. En modo fácil, hasta el bolígrafo del presidente acierta.",
+  "trigger": {
+   "all": [
+    {
+     "param": "blk_p0_nucleo.qa_mode",
+     "gte": 1
+    }
+   ]
+  },
+  "steps": [
+   {
+    "id": "aviso",
+    "type": "phone_call",
+    "dialog": "dlg_qa",
+    "hint": "Teléfono del laboratorio"
+   }
+  ],
+  "choices": [
+   {
+    "id": "jugar",
+    "label": "Hacer la prueba",
+    "hint": "Barra de precisión, modo fácil",
+    "icon": "game",
+    "effects": [
+     {
+      "op": "startMinigame",
+      "id": "mg_limpiar_cabina"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "m_qa_2",
+  "title": "QA: secuencia de palancas",
+  "description": "Prueba técnica 2/4: memoria de secuencia. Sin prisas: el timeout es de Sánchez Mayor.",
+  "trigger": {
+   "all": [
+    {
+     "mission": "m_qa_1",
+     "state": "done"
+    }
+   ]
+  },
+  "steps": [
+   {
+    "id": "aviso",
+    "type": "phone_call",
+    "dialog": "dlg_qa",
+    "hint": "Prueba 2 de 4"
+   }
+  ],
+  "choices": [
+   {
+    "id": "jugar",
+    "label": "Hacer la prueba",
+    "hint": "Simón de palancas, modo fácil",
+    "icon": "game",
+    "effects": [
+     {
+      "op": "startMinigame",
+      "id": "mg_fusibles"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "m_qa_3",
+  "title": "QA: reflejos",
+  "description": "Prueba técnica 3/4: reflejos. Los objetivos se quedan a vivir en el tablero.",
+  "trigger": {
+   "all": [
+    {
+     "mission": "m_qa_2",
+     "state": "done"
+    }
+   ]
+  },
+  "steps": [
+   {
+    "id": "aviso",
+    "type": "phone_call",
+    "dialog": "dlg_qa",
+    "hint": "Prueba 3 de 4"
+   }
+  ],
+  "choices": [
+   {
+    "id": "jugar",
+    "label": "Hacer la prueba",
+    "hint": "Reflejos, modo fácil y sin señuelos",
+    "icon": "game",
+    "effects": [
+     {
+      "op": "startMinigame",
+      "id": "mg_fumigar"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "m_qa_4",
+  "title": "QA: parejas",
+  "description": "Prueba técnica 4/4: memoria de parejas. Con 99 vidas, hasta el trastero aprueba.",
+  "trigger": {
+   "all": [
+    {
+     "mission": "m_qa_3",
+     "state": "done"
+    }
+   ]
+  },
+  "steps": [
+   {
+    "id": "aviso",
+    "type": "phone_call",
+    "dialog": "dlg_qa",
+    "hint": "Prueba final"
+   }
+  ],
+  "choices": [
+   {
+    "id": "jugar",
+    "label": "Hacer la prueba",
+    "hint": "Parejas, modo muy fácil",
+    "icon": "game",
+    "effects": [
+     {
+      "op": "startMinigame",
+      "id": "mg_buzones"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "m_okupa",
+  "title": "El piso vendido... que ya está habitado",
+  "description": "El 2A está en cartel de SE VENDE. Problema: dentro hay vida, muebles y un taladro con opiniones.",
+  "trigger": {
+   "all": [
+    {
+     "mission": "m_bienvenida",
+     "state": "done"
+    },
+    {
+     "dayMin": 2
+    }
+   ]
+  },
+  "steps": [
+   {
+    "id": "aviso",
+    "type": "phone_call",
+    "dialog": "dlg_okupa",
+    "hint": "Suena el portero... desde el 2A"
+   }
+  ],
+  "choices": [
+   {
+    "id": "acoger",
+    "label": "Acogerlo como vecino",
+    "hint": "Total, el barrio ya era así",
+    "icon": "hand",
+    "effects": [
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "okupa",
+      "affinity": 8
+     },
+     {
+      "op": "addReputation",
+      "resident": "okupa",
+      "amount": 6
+     }
+    ]
+   },
+   {
+    "id": "negociar",
+    "label": "Negociar una compensación",
+    "hint": "Minijuego de puño (casi) de hierro",
+    "icon": "game",
+    "effects": [
+     {
+      "op": "startMinigame",
+      "id": "mg_trato_vecino"
+     }
+    ]
+   },
+   {
+    "id": "junta",
+    "label": "Llevarlo a la junta",
+    "hint": "La democracia vecinal, en directo",
+    "icon": "vote",
+    "effects": [
+     {
+      "op": "openJunta",
+      "agenda": [
+       {
+        "id": "regularizacion_okupa",
+        "title": "Regularización del 2A",
+        "description": "Contrato de alquiler retroactivo, pintura a cambio y nada de taladros en domingo. 50 € de gestoría.",
+        "cost": 50,
+        "effects": [
+         {
+          "op": "addFunds",
+          "to": "community",
+          "amount": 50
+         },
+         {
+          "op": "addReputation",
+          "resident": "okupa",
+          "amount": 10
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "m_bateria",
+  "title": "Redobles en el 4D",
+  "description": "Rita ensaya batería electrónica de 20:00 a 22:00. La lámpara del salón marca el compás.",
+  "trigger": {
+   "all": [
+    {
+     "mission": "m_bienvenida",
+     "state": "done"
+    },
+    {
+     "dayMin": 2
+    }
+   ]
+  },
+  "steps": [
+   {
+    "id": "aviso",
+    "type": "phone_call",
+    "dialog": "dlg_musico",
+    "hint": "Un redoble muy cercano"
+   }
+  ],
+  "choices": [
+   {
+    "id": "horario",
+    "label": "Pedirle horario de día",
+    "hint": "Diplomacia básica de ascensor",
+    "icon": "hand",
+    "effects": [
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "musico",
+      "affinity": 4
+     },
+     {
+      "op": "addReputation",
+      "resident": "musico",
+      "amount": 3
+     }
+    ]
+   },
+   {
+    "id": "apadrinar",
+    "label": "Apadrinar su disco",
+    "hint": "Negociación de productor novel",
+    "icon": "game",
+    "effects": [
+     {
+      "op": "startMinigame",
+      "id": "mg_trato_vecino"
+     }
+    ]
+   },
+   {
+    "id": "junta",
+    "label": "Derrama: espuma acústica",
+    "hint": "Que vote la comunidad",
+    "icon": "vote",
+    "effects": [
+     {
+      "op": "openJunta",
+      "agenda": [
+       {
+        "id": "insonorizacion_4d",
+        "title": "Insonorización del 4D",
+        "description": "Espuma acústica de la buena (y del color que elijan en votación). 280 € de caja.",
+        "cost": 280,
+        "effects": [
+         {
+          "op": "addReputation",
+          "resident": "musico",
+          "amount": 8
+         },
+         {
+          "op": "addRelation",
+          "a": "player",
+          "b": "musico",
+          "affinity": 5
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ }
 ]

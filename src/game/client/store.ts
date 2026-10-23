@@ -2,6 +2,7 @@
 
 import { create } from 'zustand';
 import type { Access, MinigameDef, Weather } from '@/game/core/types';
+import { isMuted } from './audio';
 
 // ───────────────────────── Tipos de la interfaz ─────────────────────────
 
@@ -124,6 +125,12 @@ interface GameState {
   paused: boolean;
   speed: Speed;
   camMode: CamMode;
+  /** Mandos táctiles visibles (auto en pantallas táctiles, conmutado desde la barra). */
+  touchVisible: boolean;
+  /** Sonido silenciado (persistido por el motor de audio). */
+  soundMuted: boolean;
+  /** Aviso del catálogo al activar los mandos a mano (rules.touch.hint). */
+  touchHint: string;
   clock: { day: number; minute: number };
   weather: Weather;
   funds: number;
@@ -151,6 +158,8 @@ interface GameState {
   setPaused: (v: boolean) => void;
   setSpeed: (s: Speed) => void;
   setCamMode: (m: CamMode) => void;
+  setTouchControls: (v: boolean) => void;
+  setSoundMuted: (v: boolean) => void;
   syncHud: (h: HudSnapshot) => void;
   pushToast: (text: string, tone?: Tone) => void;
   dropToast: (id: number) => void;
@@ -178,6 +187,9 @@ export const useGameStore = create<GameState>((set) => ({
   paused: false,
   speed: 1,
   camMode: 'edificio',
+  touchVisible: false,
+  soundMuted: isMuted(),
+  touchHint: '',
   clock: { day: 1, minute: 480 },
   weather: 'sunny',
   funds: 0,
@@ -207,6 +219,15 @@ export const useGameStore = create<GameState>((set) => ({
   setPaused: (v) => set({ paused: v }),
   setSpeed: (s) => set({ speed: s }),
   setCamMode: (m) => set({ camMode: m }),
+  setTouchControls: (v) => {
+    try {
+      localStorage.setItem('vecinos.touch', v ? '1' : '0');
+    } catch {
+      /* almacenamiento no disponible: la preferencia solo vive en sesión */
+    }
+    set({ touchVisible: v });
+  },
+  setSoundMuted: (v) => set({ soundMuted: v }),
   syncHud: (h) => set(h),
   pushToast: (text, tone = 'info') => {
     const id = nextId++;

@@ -343,6 +343,29 @@ export const scenarioDefSchema = z.object({
   ),
   progress: z.object({ revealedTier: z.number() }),
   startMissions: z.array(z.string()),
+  minigameOverrides: z
+    .record(
+      z.string(),
+      z.object({
+        cursorSpeed: z.number().optional(),
+        zoneWidth: z.number().optional(),
+        rounds: z.number().optional(),
+        lives: z.number().optional(),
+        accelPerRound: z.number().optional(),
+        inputTimeoutMs: z.number().optional(),
+        showMs: z.number().optional(),
+        gapMs: z.number().optional(),
+        sequenceStart: z.number().optional(),
+        sequenceGrow: z.number().optional(),
+        targets: z.number().optional(),
+        spawnIntervalMs: z.number().optional(),
+        targetLifeMs: z.number().optional(),
+        radiusPct: z.number().optional(),
+        missesAllowed: z.number().optional(),
+        decoyChance: z.number().optional(),
+      }),
+    )
+    .optional(),
 });
 
 export const rulesSchema = z.object({
@@ -419,8 +442,41 @@ export const rulesSchema = z.object({
     failLines: z.array(z.string()),
     introByType: z.record(z.string(), z.string()),
   }),
+  touch: z.object({
+    deadzone: z.number(),
+    stick: z.object({ base: z.number(), thumb: z.number() }),
+    labels: z.object({ interact: z.string(), camera: z.string(), move: z.string() }),
+    hint: z.string(),
+  }),
   labels: z.object({ weather: z.record(z.string(), z.string()) }),
 });
+
+// ───────────────────────── Catálogo de sonido (procedural, Web Audio) ─────────────────────────
+
+const soundStepSchema = z.object({
+  wave: z.enum(['sine', 'square', 'triangle', 'sawtooth']).default('sine'),
+  freq: z.number(),
+  freqEnd: z.number().optional(),
+  durMs: z.number(),
+  gain: z.number(),
+  attackMs: z.number().default(5),
+  atMs: z.number().default(0),
+});
+
+export const soundsCatalogSchema = z.object({
+  masterGain: z.number(),
+  sounds: z.record(
+    z.string(),
+    z.discriminatedUnion('kind', [
+      soundStepSchema.extend({ kind: z.literal('tone') }),
+      z.object({ kind: z.literal('noise'), durMs: z.number(), gain: z.number(), filterHz: z.number().default(1200), atMs: z.number().default(0) }),
+      z.object({ kind: z.literal('seq'), steps: z.array(soundStepSchema) }),
+    ]),
+  ),
+  events: z.record(z.string(), z.array(z.string())),
+});
+
+export type SoundsCatalog = z.infer<typeof soundsCatalogSchema>;
 
 // ───────────────────────── Listas (los ficheros JSON son arrays; el Content las indexa) ─────────────────────────
 

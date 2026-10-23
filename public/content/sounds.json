@@ -1,0 +1,79 @@
+{
+  "masterGain": 0.4,
+  "sounds": {
+    "ui_click": { "kind": "tone", "wave": "triangle", "freq": 660, "freqEnd": 520, "durMs": 55, "gain": 0.18 },
+    "phone_ring": {
+      "kind": "seq",
+      "steps": [
+        { "wave": "square", "freq": 880, "durMs": 90, "gain": 0.2, "atMs": 0 },
+        { "wave": "square", "freq": 880, "durMs": 90, "gain": 0.2, "atMs": 170 },
+        { "wave": "square", "freq": 880, "durMs": 90, "gain": 0.2, "atMs": 340 }
+      ]
+    },
+    "door_open": { "kind": "tone", "wave": "sine", "freq": 300, "freqEnd": 520, "durMs": 130, "gain": 0.2 },
+    "door_locked": {
+      "kind": "seq",
+      "steps": [
+        { "wave": "square", "freq": 210, "durMs": 130, "gain": 0.22, "atMs": 0 },
+        { "wave": "square", "freq": 170, "durMs": 170, "gain": 0.22, "atMs": 170 }
+      ]
+    },
+    "doorbell": {
+      "kind": "seq",
+      "steps": [
+        { "wave": "sine", "freq": 784, "durMs": 180, "gain": 0.24, "atMs": 0 },
+        { "wave": "sine", "freq": 588, "durMs": 260, "gain": 0.24, "atMs": 220 }
+      ]
+    },
+    "coins": {
+      "kind": "seq",
+      "steps": [
+        { "wave": "triangle", "freq": 990, "durMs": 80, "gain": 0.22, "atMs": 0 },
+        { "wave": "triangle", "freq": 1320, "durMs": 110, "gain": 0.22, "atMs": 90 }
+      ]
+    },
+    "jingle_win": {
+      "kind": "seq",
+      "steps": [
+        { "wave": "triangle", "freq": 523, "durMs": 120, "gain": 0.22, "atMs": 0 },
+        { "wave": "triangle", "freq": 659, "durMs": 120, "gain": 0.22, "atMs": 110 },
+        { "wave": "triangle", "freq": 784, "durMs": 120, "gain": 0.22, "atMs": 220 },
+        { "wave": "triangle", "freq": 1047, "durMs": 220, "gain": 0.24, "atMs": 330 }
+      ]
+    },
+    "jingle_lose": {
+      "kind": "seq",
+      "steps": [
+        { "wave": "triangle", "freq": 392, "durMs": 160, "gain": 0.22, "atMs": 0 },
+        { "wave": "triangle", "freq": 330, "durMs": 160, "gain": 0.22, "atMs": 150 },
+        { "wave": "triangle", "freq": 262, "durMs": 260, "gain": 0.22, "atMs": 300 }
+      ]
+    },
+    "gavel": { "kind": "noise", "durMs": 100, "gain": 0.38, "filterHz": 600 },
+    "minigame_start": { "kind": "tone", "wave": "square", "freq": 440, "freqEnd": 880, "durMs": 150, "gain": 0.18 },
+    "mg_hit": { "kind": "tone", "wave": "triangle", "freq": 880, "durMs": 70, "gain": 0.22 },
+    "mg_miss": { "kind": "tone", "wave": "sawtooth", "freq": 220, "freqEnd": 140, "durMs": 140, "gain": 0.18 },
+    "thud": { "kind": "noise", "durMs": 80, "gain": 0.3, "filterHz": 300 },
+    "drill": { "kind": "noise", "durMs": 320, "gain": 0.18, "filterHz": 2000 },
+    "wind": { "kind": "noise", "durMs": 380, "gain": 0.1, "filterHz": 500 },
+    "stamp": { "kind": "noise", "durMs": 60, "gain": 0.32, "filterHz": 900 }
+  },
+  "events": {
+    "step_started:phone_call": ["phone_ring"],
+    "choice_required": ["ui_click"],
+    "door_locked": ["door_locked"],
+    "block_unlocked": ["door_open"],
+    "neighbor_arrived": ["doorbell"],
+    "mission_completed": ["jingle_win"],
+    "mission_failed": ["jingle_lose"],
+    "block_bought": ["coins"],
+    "rent_collected": ["coins"],
+    "work_done": ["coins"],
+    "junta_result": ["gavel"],
+    "minigame_requested": ["minigame_start"],
+    "weather_changed": ["wind"],
+    "furniture_placed": ["thud"],
+    "room_renovated": ["drill"],
+    "ui_toast": ["stamp"]
+  }
+}
