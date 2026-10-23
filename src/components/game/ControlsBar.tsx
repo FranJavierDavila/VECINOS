@@ -13,6 +13,7 @@ import {
   Play,
   Save,
   Hand,
+  Users,
   Volume2,
   VolumeX,
 } from 'lucide-react';
@@ -22,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useGameStore } from '@/game/client/store';
 import type { CamMode, Speed } from '@/game/client/store';
+import { MultiplayerPanel } from '@/components/game/MultiplayerPanel';
 import { cn } from '@/lib/utils';
 import { isMuted, setMuted } from '@/game/client/audio';
 
@@ -233,7 +235,19 @@ export function ControlsBar({
           {muted ? <VolumeX aria-hidden /> : <Volume2 aria-hidden />}
           {muted ? 'Silencio' : 'Sonido'}
         </Button>
+
+        {/* Multijugador */}
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => useGameStore.getState().setMpPanelOpen(true)}
+          aria-label="Abrir panel de multijugador"
+        >
+          <Users aria-hidden />
+          Multijugador
+        </Button>
       </CardContent>
+      <MultiplayerPanel />
     </Card>
   );
 }

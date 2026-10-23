@@ -10,6 +10,23 @@ export type Tone = 'info' | 'good' | 'bad';
 export type CamMode = 'edificio' | 'planta' | 'estancia';
 export type Speed = 1 | 3 | 10;
 
+/** Estado de la sesión multijugador en la interfaz ('off' = sin sesión). */
+export type MpStatus = 'off' | 'connecting' | 'connected' | 'error';
+
+/** Participante de la sesión (forma del protocolo session:participants). */
+export interface MpParticipant {
+  id: string;
+  name: string;
+  home: string;
+}
+
+/** Datos de la sesión propia: código, rol y residente asignado por el servidor. */
+export interface MpSessionInfo {
+  code: string;
+  isHost: boolean;
+  myResidentId: string;
+}
+
 export interface ToastItem {
   id: number;
   text: string;
@@ -154,6 +171,15 @@ interface GameState {
   saveState: 'idle' | 'saving' | 'saved' | 'error';
   savedAt: string | null;
 
+  // ── Multijugador (protocolo v1): solo refleja el transporte y la sesión, sin lógica de juego ──
+  mpStatus: MpStatus;
+  mpCode: string | null;
+  mpIsHost: boolean;
+  mpMyResidentId: string | null;
+  mpParticipants: MpParticipant[];
+  mpPanelOpen: boolean;
+  mpError: string | null;
+
   markReady: (backend: string) => void;
   setPaused: (v: boolean) => void;
   setSpeed: (s: Speed) => void;
@@ -171,6 +197,11 @@ interface GameState {
   setFinale: (text: string | null) => void;
   setEngineError: (v: boolean) => void;
   setSaveState: (s: GameState['saveState'], at?: string) => void;
+  setMpStatus: (v: MpStatus) => void;
+  setMpSession: (s: MpSessionInfo | null) => void;
+  setMpParticipants: (p: MpParticipant[]) => void;
+  setMpPanelOpen: (v: boolean) => void;
+  setMpError: (v: string | null) => void;
   resetUi: () => void;
 }
 
@@ -214,6 +245,13 @@ export const useGameStore = create<GameState>((set) => ({
   engineError: false,
   saveState: 'idle',
   savedAt: null,
+  mpStatus: 'off',
+  mpCode: null,
+  mpIsHost: false,
+  mpMyResidentId: null,
+  mpParticipants: [],
+  mpPanelOpen: false,
+  mpError: null,
 
   markReady: (backend) => set({ ready: true, backend }),
   setPaused: (v) => set({ paused: v }),
@@ -248,6 +286,17 @@ export const useGameStore = create<GameState>((set) => ({
   setFinale: (text) => set({ finale: text }),
   setEngineError: (v) => set({ engineError: v }),
   setSaveState: (saveState, at) => set({ saveState, savedAt: at ?? null }),
+  setMpStatus: (mpStatus) => set({ mpStatus }),
+  setMpSession: (s) =>
+    set(s ? { mpCode: s.code, mpIsHost: s.isHost, mpMyResidentId: s.myResidentId } : { mpCode: null, mpIsHost: false, mpMyResidentId: null }),
+  setMpParticipants: (mpParticipants) => set({ mpParticipants }),
+  setMpPanelOpen: (mpPanelOpen) => set({ mpPanelOpen }),
+  setMpError: (mpError) => set({ mpError }),
+  /**
+   * Limpia la UI de partida (al (re)crear el mundo). NO toca el estado de multijugador:
+   * restart() se ejecuta también al ADOPTAR el mundo del servidor, y el cierre explícito
+   * de sesión lo hace leaveSession() del controlador reseteando mp a la vez.
+   */
   resetUi: () =>
     set({
       phone: null,

@@ -33,6 +33,10 @@ export interface GameControllerApi {
   interact(): void;
   /** Desde el editor: desplazarse a una de tus viviendas. */
   visitHome(blockId: string): void;
+  /** Multijugador: crear sesión compartida, unirse por código o salir. */
+  hostSession(): void;
+  joinSession(code: string): void;
+  leaveSession(): void;
   save(): Promise<void>;
   load(): Promise<void>;
 }

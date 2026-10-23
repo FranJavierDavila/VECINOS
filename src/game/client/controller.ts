@@ -1,7 +1,7 @@
 'use client';
 
 import type { AbstractEngine, Scene } from '@babylonjs/core';
-import type { Content, Input, MinigameDef, ScenarioDef, World } from '@/game/core/types';
+import type { Command, Content, Input, MinigameDef, ScenarioDef, World } from '@/game/core/types';
 import { blockLabel } from '@/game/core/types';
 import { loadContent } from '@/game/content';
 import { activeObjective, applyEffects, buildCirculation, createWorld, dispatch, drainEvents, migrateRooms, tick, travelMinutes, visibleParams } from '@/game/sim';
@@ -12,6 +12,7 @@ import { createActors } from './actors';
 import { CameraRig, type CamMode } from './camera';
 import { B } from './babylon';
 import { eventSound, preloadSounds } from './audio';
+import { NetSession, type SessionStatePayload } from './net';
 import { setController } from './bridge';
 import { selectModalOpen, useGameStore, type Speed, type Tone } from './store';
 
@@ -52,6 +53,12 @@ class GameController {
   private phoneLines: { speaker: string; text: string }[] = [];
   private phoneLine = 0;
 
+  // ── Multijugador (protocolo v1): el servidor autoritativo posee el mundo; este cliente lo refleja ──
+  private net: NetSession | null = null;
+  private myResidentId: string | null = null;
+  private isHost = false;
+  private appliedSeq = 0;
+
   async init(canvas: HTMLCanvasElement): Promise<void> {
     if (this.engine || this.initializing) return;
     this.initializing = true;
@@ -84,6 +91,8 @@ class GameController {
 
   destroy(): void {
     window.removeEventListener('resize', this.onResize);
+    this.net?.disconnect();
+    this.net = null;
     this.engine?.stopRenderLoop(this.frame);
     this.scene?.dispose();
     this.engine?.dispose();
@@ -132,6 +141,12 @@ class GameController {
   }
 
   setSpeed(speed: Speed): void {
+    // En remoto el reloj lo lleva el servidor: solo el anfitrión cambia la velocidad de la sesión.
+    if (this.net) {
+      if (this.isHost) this.net.setSpeed(speed);
+      useGameStore.getState().setSpeed(speed);
+      return;
+    }
     useGameStore.getState().setSpeed(speed);
   }
 
@@ -143,6 +158,7 @@ class GameController {
   /** Botón "Fiesta demo": datos en rules.demo (residente, bloque y ruido) → canal de ruido en acción. */
   partyDemo(): void {
     if (!this.world) return;
+    if (this.net) return; // demo de dev: solo tiene sentido con el mundo en local
     const demo = this.content.rules.demo;
     if (!this.world.residents[demo.resident]!.present) {
       applyEffects(this.world, this.content, [{ op: 'unlock', target: demo.block, resident: demo.resident, arrival: 'mudanza' }]);
@@ -154,6 +170,10 @@ class GameController {
 
   skipTime(): void {
     if (!this.world) return;
+    if (this.net) {
+      useGameStore.getState().pushToast(this.content.rules.multiplayer.texts.remoteSaveDisabled, 'info');
+      return;
+    }
     for (let i = 0; i < 10; i++) tick(this.world, this.content);
     this.pump();
   }
@@ -174,6 +194,143 @@ class GameController {
     this.pump();
   }
 
+  // ───────────────────── Multijugador: sesión y modo remoto ─────────────────────
+
+  /** Quien actúa por este cliente (invitado en sesión; si no, el jugador clásico). */
+  private actorId(): string {
+    return this.myResidentId ?? this.world?.playerId ?? '';
+  }
+
+  /** Vía única de comandos: remoto → servidor autoritativo; clásico → dispatch local. */
+  private sendCommand(cmd: Command): void {
+    if (this.net) {
+      this.net.command(cmd);
+      return;
+    }
+    if (!this.world) return;
+    dispatch(this.world, this.content, cmd);
+    this.pump();
+  }
+
+  /** Crea una partida compartida (este cliente queda como anfitrión). */
+  hostSession(): void {
+    if (this.net || !this._content) return;
+    const store = useGameStore.getState();
+    store.setMpError(null);
+    store.setMpStatus('connecting');
+    store.setMpPanelOpen(true);
+    this.connectNet();
+    void this.net!.hostSession(this.activeScenarioId()).then((res) => {
+      this.onHostJoinResult(res);
+    });
+  }
+
+  /** Se une a una partida compartida por código. */
+  joinSession(code: string): void {
+    if (this.net || !this._content) return;
+    const store = useGameStore.getState();
+    store.setMpError(null);
+    store.setMpStatus('connecting');
+    store.setMpPanelOpen(true);
+    this.connectNet();
+    void this.net!.joinSession(code.trim().toUpperCase()).then((res) => {
+      this.onHostJoinResult(res);
+    });
+  }
+
+  /** Sale de la sesión y vuelve al mundo local en solitario. */
+  leaveSession(): void {
+    this.net?.leave();
+    this.net?.disconnect();
+    this.net = null;
+    this.myResidentId = null;
+    this.isHost = false;
+    this.appliedSeq = 0;
+    const store = useGameStore.getState();
+    store.setMpStatus('off');
+    store.setMpSession(null);
+    store.setMpParticipants([]);
+    store.setMpPanelOpen(false);
+    void this.restart();
+    store.pushToast('Has vuelto a tu partida en solitario.', 'info');
+  }
+
+  private connectNet(): void {
+    this.net = new NetSession({
+      onState: (s) => this.applyRemoteState(s),
+      onParticipants: (p) => useGameStore.getState().setMpParticipants(p),
+      onJoined: (j) => {
+        this.myResidentId = j.yourResidentId;
+        this.isHost = j.isHost;
+        useGameStore.getState().setMpSession({ code: j.code, isHost: j.isHost, myResidentId: j.yourResidentId });
+        useGameStore.getState().setMpParticipants(j.participants);
+      },
+      onError: (m) => {
+        useGameStore.getState().pushToast(m, 'bad');
+      },
+      onStatus: (st) => {
+        if (!this.net) return;
+        if (st === 'connected' && useGameStore.getState().mpStatus === 'connecting') return; // el ack decide
+        if (st === 'disconnected' && useGameStore.getState().mpStatus === 'connected') {
+          useGameStore.getState().setMpStatus('error');
+          useGameStore.getState().setMpError('Conexión perdida con el servidor de la comunidad.');
+        }
+      },
+    });
+  }
+
+  private onHostJoinResult(res: { ok: boolean; code?: string; isHost?: boolean; yourResidentId?: string; error?: string }): void {
+    const store = useGameStore.getState();
+    if (!res.ok) {
+      store.setMpStatus('error');
+      store.setMpError(res.error === 'timeout' ? 'El servidor no responde. ¿Se habrá ido a comer?' : res.error ?? 'No se pudo abrir la sesión.');
+      return;
+    }
+    store.setMpStatus('connected');
+    // onJoined ya habrá fijado myResidentId/isHost/código con session:joined.
+  }
+
+  /** Adopta el estado del servidor (autoridad). Primera vez: reinicia la escena con ese mundo. */
+  private applyRemoteState(s: SessionStatePayload): void {
+    if (s.seq <= this.appliedSeq) return;
+    this.appliedSeq = s.seq;
+    if (!this.world || this.world.scenarioId !== s.world.scenarioId) {
+      void this.restart(s.world).then(() => {
+        if (!this.world) return;
+        this.world.events = s.events.slice();
+        this.handleEvents();
+        this.reconcile();
+        this.syncHud();
+      });
+      return;
+    }
+    // Aplica en sitio conservando la identidad del objeto (PlayerLogic/building/actors referencian el mismo World).
+    Object.assign(this.world, s.world);
+    this.world.events = s.events.slice();
+    this.handleEvents();
+    this.paintBuilding();
+    this.reconcile();
+    this.syncHud();
+  }
+
+  /** Corrige desvíos de posición del avatar local respecto al mundo del servidor (autoridad). */
+  private reconcile(): void {
+    if (!this.logic || !this.world || !this.net) return;
+    const me = this.world.residents[this.actorId()];
+    if (!me) return;
+    const pos = this.logic.position();
+    const locBlock = me.location ? this.world.blocks[me.location] : null;
+    if (locBlock) {
+      const insideOk = pos.mode === 'inside' && pos.insideBlock === locBlock.id;
+      const corridorOk = pos.mode === 'corridor' && !pos.insideBlock;
+      if (!(locBlock.kind === 'dwelling' ? insideOk : corridorOk) || Math.abs(pos.floor - locBlock.cell.floor) > 0.01) {
+        this.logic.forceLocation(locBlock.id);
+      }
+    } else if (pos.mode === 'inside') {
+      this.logic.forceLocation(null);
+    }
+  }
+
   /** Siguiente frase del teléfono; al colgar responde la llamada en el sim. */
   phoneNext(): void {
     if (this.phoneLine < this.phoneLines.length - 1) {
@@ -186,8 +343,7 @@ class GameController {
     this.phoneMission = '';
     useGameStore.getState().setPhone(null);
     if (this.world && mission) {
-      dispatch(this.world, this.content, { type: 'answer_call', mission });
-      this.pump();
+      this.sendCommand({ type: 'answer_call', mission });
     }
   }
 
@@ -196,15 +352,13 @@ class GameController {
     const mission = state.choices?.mission;
     state.setChoices(null);
     if (!this.world || !mission) return;
-    dispatch(this.world, this.content, { type: 'choose', mission, choice: choiceId });
-    this.pump();
+    this.sendCommand({ type: 'choose', mission, choice: choiceId });
   }
 
   juntaVote(vote: 'yes' | 'no'): void {
     useGameStore.getState().setJunta(null);
     if (!this.world) return;
-    dispatch(this.world, this.content, { type: 'junta_vote', vote });
-    this.pump();
+    this.sendCommand({ type: 'junta_vote', vote });
   }
 
   finaleClose(): void {
@@ -215,6 +369,10 @@ class GameController {
 
   placeFurniture(block: string, room: string, slot: string, item: string): void {
     if (!this.world) return;
+    if (this.net) {
+      this.net.command({ type: 'place_furniture', block, room, slot, item });
+      return;
+    }
     const r = dispatch(this.world, this.content, { type: 'place_furniture', block, room, slot, item });
     if (!r.ok) this.furnitureFail(r.reason);
     this.pump();
@@ -222,6 +380,10 @@ class GameController {
 
   removeFurniture(block: string, room: string, slot: string): void {
     if (!this.world) return;
+    if (this.net) {
+      this.net.command({ type: 'remove_furniture', block, room, slot });
+      return;
+    }
     const r = dispatch(this.world, this.content, { type: 'remove_furniture', block, room, slot });
     if (!r.ok) this.furnitureFail(r.reason);
     this.pump();
@@ -229,6 +391,10 @@ class GameController {
 
   renovateRoom(block: string, room: string): void {
     if (!this.world) return;
+    if (this.net) {
+      this.net.command({ type: 'renovate_room', block, room });
+      return;
+    }
     const r = dispatch(this.world, this.content, { type: 'renovate_room', block, room });
     if (!r.ok) this.furnitureFail(r.reason);
     this.pump();
@@ -236,7 +402,7 @@ class GameController {
 
   completeMinigame(id: string, success: boolean): void {
     if (!this.world) return;
-    dispatch(this.world, this.content, { type: 'complete_minigame', id, success });
+    this.sendCommand({ type: 'complete_minigame', id, success });
     this.pump();
   }
 
@@ -248,6 +414,10 @@ class GameController {
   async save(): Promise<void> {
     if (!this.world) return;
     const store = useGameStore.getState();
+    if (this.net) {
+      store.pushToast(this.content.rules.multiplayer.texts.remoteSaveDisabled, 'info');
+      return;
+    }
     store.setSaveState('saving');
     drainEvents(this.world); // la cola de eventos no entra en el guardado
     try {
@@ -267,6 +437,10 @@ class GameController {
 
   async load(): Promise<void> {
     const store = useGameStore.getState();
+    if (this.net) {
+      store.pushToast(this.content.rules.multiplayer.texts.remoteSaveDisabled, 'info');
+      return;
+    }
     try {
       const res = await fetch('/api/save?slot=auto');
       const json = (await res.json()) as { state?: unknown };
@@ -311,7 +485,10 @@ class GameController {
     }
     // Migración de estancias de guardados v0.1: params y ranuras de muebles según catálogo.
     for (const b of Object.values(this.world.blocks)) migrateRooms(this.content, b.rooms);
-    this.logic = new PlayerLogic(this.world, this.content);
+    this.logic = new PlayerLogic(this.world, this.content, {
+      actorId: this.myResidentId ?? undefined,
+      send: (cmd) => this.sendCommand(cmd),
+    });
 
     this.scene?.dispose();
     this.scene = new Scene(this.engine);
@@ -355,13 +532,16 @@ class GameController {
     let ticked = false;
     if (!frozen) {
       this.logic.update(dt, this.readInput());
-      this.clockAcc += dt * store.speed;
-      let guard = 0;
-      while (this.clockAcc >= 1 && guard < 60) {
-        tick(this.world, this.content);
-        this.clockAcc -= 1;
-        ticked = true;
-        guard += 1;
+      // En remoto el servidor es la autoridad del reloj: nada de ticks locales.
+      if (!this.net) {
+        this.clockAcc += dt * store.speed;
+        let guard = 0;
+        while (this.clockAcc >= 1 && guard < 60) {
+          tick(this.world, this.content);
+          this.clockAcc -= 1;
+          ticked = true;
+          guard += 1;
+        }
       }
     }
 
@@ -375,7 +555,7 @@ class GameController {
     }
 
     const pos = this.logic.position();
-    this.actors.update(dt, pos);
+    this.actors.update(dt, pos, this.actorId());
     // LOD por distancia: solo con cámaras cercanas (planta/estancia); el plano general (edificio) muestra todo.
     this.building.update(dt, useGameStore.getState().camMode === 'edificio' ? undefined : { x: pos.x, floor: pos.floor });
     this.rig.update(dt, pos);
@@ -497,6 +677,12 @@ class GameController {
             d.approved ? ('good' as Tone) : ('bad' as Tone),
           );
           break;
+        case 'junta_vote_registered':
+          store.pushLog(`🗳️ ${this.nameOf(d.resident)} ha depositado su voto. Pendientes: ${String(d.pendingHumans)}`, 'info');
+          break;
+        case 'junta_closed':
+          store.setJunta(null);
+          break;
         case 'minigame_requested': {
           const def = this.content.minigames[String(d.minigame)];
           if (!def) break;
@@ -595,8 +781,9 @@ class GameController {
   private homesUi() {
     const world = this.world!;
     const cellH = this.content.rules.view.cellH;
+    const mine = this.actorId();
     return Object.values(world.blocks)
-      .filter((b) => b.kind === 'dwelling' && b.ownerId === world.playerId)
+      .filter((b) => b.kind === 'dwelling' && b.ownerId === mine)
       .sort((a, b) => a.id.localeCompare(b.id))
       .map((b) => ({
         id: b.id,
@@ -622,7 +809,8 @@ class GameController {
   private syncHud(): void {
     const world = this.world;
     if (!world) return;
-    const player = world.residents[world.playerId]!;
+    const player = world.residents[this.actorId()] ?? world.residents[world.playerId];
+    if (!player) return;
     const home = player.home;
     const params = visibleParams(world, this.content, home).map((p) => ({ name: p.name, label: p.def.label ?? p.name, value: String(p.value) }));
     const missions = world.missions.map((m) => {

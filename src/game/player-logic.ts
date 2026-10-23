@@ -1,4 +1,4 @@
-import type { BlockInstance, Content, Input, InteractTarget, PlayerPosition, World } from '@/game/core/types';
+import type { BlockInstance, Command, CommandResult, Content, Input, InteractTarget, PlayerPosition, World } from '@/game/core/types';
 import { dispatch, nextStepTowards } from '@/game/sim';
 
 export type InteractResult =
@@ -8,9 +8,20 @@ export type InteractResult =
   | { type: 'locked'; block: string; reason: string | null; price: number | null };
 
 /**
+ * Firma de la vía de salida de comandos. En partida clásica el controlador devuelve el
+ * CommandResult del dispatch (bloqueo de puerta, etc.); en remoto devuelve void y el
+ * resultado real llega por session:state (el servidor es la autoridad).
+ */
+export type SendCommand = (cmd: Command) => CommandResult | void;
+
+/**
  * Lógica del personaje sin gráficos: dónde está, qué puerta tiene delante, escaleras y ascensor.
- * No decide nada por su cuenta (cada cambio de bloque pasa por `dispatch`) y NO contiene constantes:
+ * No decide nada por su cuenta (cada cambio de bloque pasa por el sim) y NO contiene constantes:
  * geometría y velocidades vienen de content.rules.view (catálogo greybox sustituible por arte final).
+ *
+ * Multi-actor: `actorId` identifica al residente controlado (por defecto world.playerId, igual que
+ * siempre). Con `send`, cada comando sale por esa vía (multijugador) en lugar de hacer dispatch
+ * local; sin `send` el comportamiento es idéntico al clásico.
  */
 export class PlayerLogic {
   x: number;
@@ -22,22 +33,40 @@ export class PlayerLogic {
   private readonly width: number;
   private readonly topFloor: number;
   private readonly view;
+  /** Residente controlado por esta lógica (world.playerId en solitario). */
+  private readonly actorId: string;
+  /** Vía de salida de comandos; si falta, el comando se despacha localmente (clásico). */
+  private readonly send: SendCommand | null;
+  /**
+   * Anti-duplicado de move en remoto: mientras el servidor no haya confirmado el destino
+   * (location !== z.id), no se reenvía el mismo move en cada frame.
+   */
+  private lastMoveTarget: string | null = null;
 
   constructor(
     private readonly world: World,
     private readonly content: Content,
+    opts?: { actorId?: string; send?: SendCommand },
   ) {
+    this.actorId = opts?.actorId ?? world.playerId;
+    this.send = opts?.send ?? null;
     this.view = content.rules.view;
     const blocks = Object.values(world.blocks);
     this.width = Math.max(...blocks.map((b) => (b.cell.col + b.size.w) * this.view.cellW));
     this.topFloor = Math.max(...blocks.map((b) => b.cell.floor));
-    const start = world.blocks[world.residents[world.playerId]!.location ?? world.residents[world.playerId]!.home] ?? blocks.find((b) => b.kind !== 'dwelling')!;
+    // Si el actor aún no existe en el mundo (estado del servidor en camino), se cae al jugador clásico.
+    const me = world.residents[this.actorId] ?? world.residents[world.playerId]!;
+    const start = world.blocks[me.location ?? me.home] ?? blocks.find((b) => b.kind !== 'dwelling')!;
     this.floor = start.cell.floor;
-    this.x = (this.rangeOf(start)[0] + this.rangeOf(start)[1]) / 2;
+    this.x = this.centerOf(start);
   }
 
   private rangeOf(b: BlockInstance): [number, number] {
     return [b.cell.col * this.view.cellW, (b.cell.col + b.size.w) * this.view.cellW];
+  }
+  private centerOf(b: BlockInstance): number {
+    const [a, z] = this.rangeOf(b);
+    return (a + z) / 2;
   }
   private within(x: number, b: BlockInstance): boolean {
     const [a, z] = this.rangeOf(b);
@@ -45,7 +74,7 @@ export class PlayerLogic {
   }
 
   private get location(): string | null {
-    return this.world.residents[this.world.playerId]!.location;
+    return this.world.residents[this.actorId]!.location;
   }
 
   private onFloor(f: number) {
@@ -86,9 +115,26 @@ export class PlayerLogic {
     return ok(a) && ok(b);
   }
 
+  /**
+   * Vía única de comandos: con `send` sale por ahí (multijugador; resultado null, el servidor
+   * decide y confirma por session:state); sin `send`, dispatch local devolviendo su resultado
+   * exactamente como siempre (clásico).
+   */
+  private exec(cmd: Command): CommandResult | null {
+    const r = this.send ? this.send(cmd) : dispatch(this.world, this.content, cmd);
+    return r ?? null;
+  }
+
   private sync() {
     const z = this.zone();
-    if (z.id !== this.location) dispatch(this.world, this.content, { type: 'move', resident: this.world.playerId, to: z.id });
+    const loc = this.location;
+    if (loc === z.id) {
+      this.lastMoveTarget = null; // el servidor (o el sim local) ya confirmó este destino
+      return;
+    }
+    if (z.id === this.lastMoveTarget) return; // en vuelo: no reenviar el mismo move cada frame
+    this.lastMoveTarget = z.id;
+    this.exec({ type: 'move', resident: this.actorId, to: z.id });
   }
 
   private startClimb(delta: 1 | -1) {
@@ -122,7 +168,7 @@ export class PlayerLogic {
     const door = this.doorInFront()?.id ?? null;
     if (door !== this.approached) {
       this.approached = door;
-      if (door) dispatch(this.world, this.content, { type: 'approach', resident: this.world.playerId, block: door });
+      if (door) this.exec({ type: 'approach', resident: this.actorId, block: door });
     }
     if (input.up) this.startClimb(1);
     else if (input.down) this.startClimb(-1);
@@ -130,7 +176,7 @@ export class PlayerLogic {
 
   /** Vecino que está a tu lado en el pasillo (o en tu misma vivienda). */
   residentNearby(): string | null {
-    const r = this.world.residents[this.world.playerId]!;
+    const r = this.world.residents[this.actorId]!;
     for (const other of Object.values(this.world.residents)) {
       if (other.id === r.id || !other.present || other.location === null) continue;
       const loc = this.world.blocks[other.location];
@@ -148,10 +194,10 @@ export class PlayerLogic {
     if (this.climb) return null;
     if (this.mode === 'inside') {
       const b = this.world.blocks[this.insideBlock!]!;
-      if (b.ownerId === this.world.playerId) {
+      if (b.ownerId === this.actorId) {
         const home = b;
         // Portátil en el salón: lado izquierdo; cama en el dormitorio: lado derecho (offsets del catálogo).
-        if (home.cell.col === this.world.blocks[this.world.residents[this.world.playerId]!.home].cell.col) {
+        if (home.cell.col === this.world.blocks[this.world.residents[this.actorId]!.home].cell.col) {
           const [a, z] = this.rangeOf(home);
           const nearLaptop = Math.abs(this.x - (a + this.view.laptopOffset)) < this.view.itemRadius;
           const nearBed = Math.abs(this.x - (z - this.view.bedOffset)) < this.view.itemRadius;
@@ -177,19 +223,22 @@ export class PlayerLogic {
     if (this.climb) return { type: 'none' };
     if (this.mode === 'inside') {
       const home = this.insideBlock!;
-      const res = dispatch(this.world, this.content, { type: 'move', resident: this.world.playerId, to: this.corridor().id });
-      if (!res.ok) return { type: 'none' };
+      const corridorId = this.corridor().id;
+      const res = this.exec({ type: 'move', resident: this.actorId, to: corridorId });
+      if (res && !res.ok) return { type: 'none' };
       this.mode = 'corridor';
       this.insideBlock = null;
+      this.lastMoveTarget = corridorId; // ya está en vuelo este move
       this.approached = home; // sigue delante de la misma puerta, sin repetir el aviso
       return { type: 'exited', block: home };
     }
     const door = this.doorInFront();
     if (!door) return { type: 'none' };
-    const res = dispatch(this.world, this.content, { type: 'move', resident: this.world.playerId, to: door.id });
-    if (!res.ok) return { type: 'locked', block: door.id, reason: door.lockReason, price: door.availability?.price ?? null };
+    const res = this.exec({ type: 'move', resident: this.actorId, to: door.id });
+    if (res && !res.ok) return { type: 'locked', block: door.id, reason: door.lockReason, price: door.availability?.price ?? null };
     this.mode = 'inside';
     this.insideBlock = door.id;
+    this.lastMoveTarget = door.id; // ya está en vuelo este move
     return { type: 'entered', block: door.id };
   }
 
@@ -206,15 +255,42 @@ export class PlayerLogic {
     this.insideBlock = null;
     this.approached = null;
     this.floor = target.cell.floor;
-    const [a, z] = this.rangeOf(target);
-    this.x = (a + z) / 2;
+    this.x = this.centerOf(target);
     for (let guard = 0; guard < 24; guard++) {
       const zone = this.zone();
       if (zone.id === this.location) break;
       const next = nextStepTowards(this.world, this.content, this.location ?? zone.id, zone.id);
       if (!next) break;
-      dispatch(this.world, this.content, { type: 'move', resident: this.world.playerId, to: next });
+      this.exec({ type: 'move', resident: this.actorId, to: next });
     }
+    this.lastMoveTarget = null; // los move en vuelo los confirmará el estado; sin dedup pendiente
     return true;
+  }
+
+  /**
+   * Reconciliación multijugador: impone la posición que dice el servidor (autoridad).
+   * Fija modo, planta y coordenada X al centro del bloque indicado; con null coloca en el
+   * pasillo de la planta actual. Resetea climb y el dedup de move.
+   */
+  forceLocation(blockId: string | null): void {
+    const target = blockId !== null ? this.world.blocks[blockId] : undefined;
+    this.climb = null;
+    this.lastMoveTarget = null;
+    if (!target) {
+      const c = this.corridor(this.floor);
+      this.mode = 'corridor';
+      this.insideBlock = null;
+      this.x = this.centerOf(c);
+      return;
+    }
+    this.floor = target.cell.floor;
+    this.x = this.centerOf(target);
+    if (target.kind === 'dwelling') {
+      this.mode = 'inside';
+      this.insideBlock = target.id;
+    } else {
+      this.mode = 'corridor';
+      this.insideBlock = null;
+    }
   }
 }

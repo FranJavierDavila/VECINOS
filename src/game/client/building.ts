@@ -7,6 +7,20 @@ interface BlockView {
   front: Mesh | null; // panel que cierra la vivienda mientras tiene candado
   lock: Mesh | null;
   lockBase: { x: number; y: number };
+  // ── LOD por distancia (rules.view.lod) ──
+  /** Centro X del bloque en metros (dx del LOD: |centerX − focus.x|). */
+  centerX: number;
+  /** Planta del bloque (dy del LOD: |floor − focus.floor| * view.cellH). */
+  floor: number;
+  /** Pared del fondo de la vivienda (la única malla que puede llevar edgesRendering) o null;
+   *  el EdgesRenderer activo solo existe en las paredes destacadas del jugador. */
+  edgesMesh: Mesh | null;
+  /** Emissive que paint() deja cuando no hay canales activos, capturado del material al crearlo. */
+  baseEmissive: Color3;
+  /** true mientras el LOD fuerza baseEmissive (al soltarlo se repinta el cálculo de paint una vez). */
+  glowForced: boolean;
+  /** true mientras el LOD oculta panel+candado; la visibilidad efectiva es la de paint() && !esto. */
+  lodHiddenPanels: boolean;
 }
 
 /**
@@ -36,12 +50,23 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     const bottom = b.cell.floor * v.cellH;
     const w = b.size.w * v.cellW - v.gapW;
     const h = v.cellH - v.gapH;
-    const view: BlockView = { mat: m, front: null, lock: null, lockBase: { x: cx, y: bottom + v.cellH / 2 - 0.2 } };
+    const view: BlockView = {
+      mat: m,
+      front: null,
+      lock: null,
+      lockBase: { x: cx, y: bottom + v.cellH / 2 - 0.2 },
+      centerX: cx,
+      floor: b.cell.floor,
+      edgesMesh: null,
+      baseEmissive: m.emissiveColor.clone(),
+      glowForced: false,
+      lodHiddenPanels: false,
+    };
     if (b.layer === 'corridor') {
       box(b.id, b.size.w * v.cellW, v.slab * 2, 0.5, cx, bottom + v.slab, v.corridorZ, m);
     } else if (b.kind === 'dwelling') {
       const y = bottom + v.cellH / 2;
-      box(`${b.id}_fondo`, w, h, v.wall, cx, y, v.roomZ + v.depth / 2, m);
+      view.edgesMesh = box(`${b.id}_fondo`, w, h, v.wall, cx, y, v.roomZ + v.depth / 2, m);
       box(`${b.id}_izq`, v.wall, h, v.depth, cx - w / 2, y, v.roomZ, m);
       box(`${b.id}_der`, v.wall, h, v.depth, cx + w / 2, y, v.roomZ, m);
       box(`${b.id}_suelo`, w, v.wall, v.depth, cx, bottom + v.slab + v.wall / 2, v.roomZ, m);
@@ -60,7 +85,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
   const homeId = world.residents[world.playerId]!.home;
   for (const b of Object.values(world.blocks)) {
     if (b.kind !== 'dwelling' || b.ownerId !== world.playerId) continue;
-    const wall = scene.getMeshByName(`${b.id}_fondo`);
+    const wall = views.get(b.id)!.edgesMesh;
     if (!wall) continue;
     wall.enableEdgesRendering();
     wall.edgesWidth = b.id === homeId ? 14 : 8;
@@ -99,24 +124,90 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     return base;
   }
 
+  /** Emissive del bloque: canales de influencia → emissive según color del canal en el catálogo. Se acumulan. */
+  function applyEmissive(view: BlockView, b: BlockInstance) {
+    let e = new Color3(0, 0, 0);
+    for (const [channel, value] of Object.entries(world.channels)) {
+      const level = value[b.id];
+      if (!level) continue;
+      const g = glow[channel];
+      if (!g) continue;
+      e = e.add(g.scale(Math.min(1, level)));
+    }
+    view.mat.emissiveColor = e;
+  }
+
+  /** Visibilidad efectiva de panel y candado: paint() la fija por el acceso y el LOD puede ocultarlos encima. */
+  function applyPanels(view: BlockView, b: BlockInstance) {
+    const closed = b.kind === 'dwelling' && b.access === 'locked';
+    const visible = closed && !view.lodHiddenPanels;
+    view.front?.setEnabled(visible);
+    view.lock?.setEnabled(visible);
+  }
+
+  /**
+   * LOD por distancia (rules.view.lod). Se ejecuta SIEMPRE al final de update(): con foco degrada
+   * cada bloque según su distancia, y sin foco (o con lod.enabled=false) restaura el estado completo.
+   * Idempotente y sin allocations por frame: solo aritmética, booleanos y asignaciones.
+   *
+   * Métrica (Vista · LOD por distancia): dx = |centroX del bloque − focus.x| en metros y
+   * dy = |planta del bloque − focus.floor| * view.cellH en metros; dist = Math.hypot(dx, dy).
+   * Nivel efectivo = todos los niveles de lod.levels cuyo `dist` ≤ distBloque (el `hide` es
+   * acumulado: un flag se oculta si cualquier nivel alcanzado lo lista; sin nivel → todo visible).
+   */
+  function applyLod(focus: { x: number; floor: number } | null) {
+    const lod = v.lod;
+    for (const id in world.blocks) {
+      const b = world.blocks[id]!;
+      const view = views.get(id)!;
+      let hideEdges = false;
+      let hideGlow = false;
+      let hidePanels = false;
+      if (lod.enabled && focus) {
+        const dx = Math.abs(view.centerX - focus.x);
+        const dy = Math.abs(view.floor - focus.floor) * v.cellH;
+        const dist = Math.hypot(dx, dy);
+        for (let i = 0; i < lod.levels.length; i++) {
+          const level = lod.levels[i];
+          if (level.dist > dist) continue;
+          for (let j = 0; j < level.hide.length; j++) {
+            const flag = level.hide[j];
+            if (flag === 'edges') hideEdges = true;
+            else if (flag === 'glow') hideGlow = true;
+            else if (flag === 'panels') hidePanels = true;
+          }
+        }
+      }
+      // 'edges': interruptor nativo barato — el renderingGroup consulta edgesRenderer.isEnabled cada
+      // frame, así que nunca se destruye ni recrea el EdgesRenderer (disable/enableEdgesRendering sí
+      // lo harían: el primero lo dispone y el segundo recomputaría las aristas). El grosor/color
+      // viven en la malla y sobreviven al apagado.
+      if (view.edgesMesh?.edgesRenderer) view.edgesMesh.edgesRenderer.isEnabled = !hideEdges;
+      // 'glow': pisa el emissive CADA frame (paint() pudo repintar los canales este tick); al soltarlo,
+      // una única llamada repinta el cálculo de paint para no esperar al próximo tick.
+      if (hideGlow) {
+        view.glowForced = true;
+        view.mat.emissiveColor = view.baseEmissive;
+      } else if (view.glowForced) {
+        view.glowForced = false;
+        applyEmissive(view, b);
+      }
+      // 'panels': solo gira la bandera (la visibilidad la calcula applyPanels); en la transición se
+      // aplica ya para no esperar al próximo paint(), que reproducirá el mismo resultado.
+      if (view.lodHiddenPanels !== hidePanels) {
+        view.lodHiddenPanels = hidePanels;
+        applyPanels(view, b);
+      }
+    }
+  }
+
   return {
     paint() {
       for (const b of Object.values(world.blocks)) {
         const view = views.get(b.id)!;
         view.mat.diffuseColor = color(b);
-        // Canales de influencia → emissive según color del canal en el catálogo. Se acumulan.
-        let e = new Color3(0, 0, 0);
-        for (const [channel, value] of Object.entries(world.channels)) {
-          const level = value[b.id];
-          if (!level) continue;
-          const g = glow[channel];
-          if (!g) continue;
-          e = e.add(g.scale(Math.min(1, level)));
-        }
-        view.mat.emissiveColor = e;
-        const closed = b.kind === 'dwelling' && b.access === 'locked';
-        view.front?.setEnabled(closed);
-        view.lock?.setEnabled(closed);
+        applyEmissive(view, b);
+        applyPanels(view, b);
       }
       // Muebles del editor de interiores: visibles/escala/color según furniture.view (catálogo).
       for (const [key, fv] of furnViews) {
@@ -141,7 +232,8 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     },
     /**
      * dt en segundos; `focus` es el punto de interés (posición del jugador) para el
-     * LOD por distancia (rules.view.lod). Se consume en el siguiente paint().
+     * LOD por distancia (rules.view.lod): applyLod() lo aplica SIEMPRE al final del frame
+     * (con focus undefined, p. ej. cámara 'edificio', restaura el estado completo).
      */
     update(dt: number, focus?: { x: number; floor: number }) {
       if (focus) lastFocus = focus;
@@ -156,6 +248,9 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           view.lock?.position.set(view.lockBase.x + Math.sin(t * 60) * 0.06, view.lockBase.y, view.lock.position.z);
         }
       }
+      // LOD SIEMPRE al final del frame: con foco aplica el nivel efectivo por bloque,
+      // sin foco restaura edges/emissive/paneles al estado completo.
+      applyLod(focus ?? null);
     },
   };
 }
