@@ -33,6 +33,14 @@ interface BlockView {
   lodHiddenPanels: boolean;
 }
 
+/** Interior 2D de una vivienda (Fase C): suelo por estancia + tapa de puerta hacia estancia cerrada. */
+interface InteriorView {
+  /** Suelo tintado por estancia (color del catálogo; lockedColor si está cerrada). */
+  floors: { roomKey: string; defId: string; mesh: Mesh; mat: StandardMaterial }[];
+  /** Tapas de los huecos de puerta que llevan a una estancia cerrada ("en obras"). */
+  covers: { mesh: Mesh; rooms: [string, string] }[];
+}
+
 /**
  * Una caja por bloque (placeholder greybox del futuro prefab) y, si el manifiesto de assets
  * (Content.assets.blocks) declara un modelo glTF para el tipo de bloque, el modelo en su lugar
@@ -46,6 +54,8 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
   const glow = Object.fromEntries(Object.entries(v.channelGlow).map(([k, hex]) => [k, Color3.FromHexString(hex)])) as Record<string, Color3>;
   const views = new Map<string, BlockView>();
   const shakes = new Map<string, number>();
+  /** Interiores 2D (Fase C) por bloque: suelos de estancia y tapas de puertas cerradas. */
+  const interiors = new Map<string, InteriorView>();
   /** Foco del LOD (posición del jugador): lo alimenta update() y lo consume paint(). */
   let lastFocus: { x: number; floor: number } | null = null;
   // Plano frontal de las estancias: la cara de la puerta. Con viviendas del doble de calado
@@ -100,6 +110,96 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       view.front = box(`${b.id}_puerta`, w, h, v.wall, cx, y, frontZ, m);
       view.lock = box(`${b.id}_candado`, 0.3, 0.38, 0.12, cx, view.lockBase.y, frontZ - 0.1, mat(`${b.id}_candado_mat`));
       (view.lock.material as StandardMaterial).diffuseColor = Color3.FromHexString(v.lockColor);
+
+      // ── Interior 2D (Fase C): tabiques con huecos, suelo por estancia y tapas "en obras". ──
+      // TODO sale del layout del catálogo (rects + doorways); sin rects no hay interior 2D.
+      const layoutId = content.blocks[b.defId]?.container?.layout;
+      const layout = layoutId ? content.layouts[layoutId] : undefined;
+      const geoRooms = (layout?.rooms ?? []).filter((r) => r.rect !== undefined);
+      if (geoRooms.length > 0 && layout) {
+        const interior: InteriorView = { floors: [], covers: [] };
+        const x0 = b.cell.col * v.cellW;
+        const wallH = v.cellH - 2 * v.slab - 2 * v.wall;
+        const partMat = mat(`${b.id}_tabique_mat`);
+        partMat.diffuseColor = Color3.FromHexString('#d8d2c4');
+        // Suelo tintado por estancia (plancha fina sobre el suelo, alpha suave).
+        for (const lr of geoRooms) {
+          const r = lr.rect!;
+          const fmat = mat(`${b.id}_${lr.key}_suelo_mat`);
+          fmat.diffuseColor = Color3.FromHexString(content.rooms[lr.defId]?.view?.color ?? '#cccccc');
+          fmat.alpha = 0.32;
+          const fm = box(`${b.id}_${lr.key}_suelo`, r.w, 0.02, r.d, x0 + r.x + r.w / 2, bottom + v.slab + v.wall + 0.02, frontZ + r.z + r.d / 2, fmat);
+          interior.floors.push({ roomKey: lr.key, defId: lr.defId, mesh: fm, mat: fmat });
+        }
+        // Tabiques: para cada par de estancias que comparten borde, pared entre ambas.
+        // Los doorways del catálogo recortan el hueco (y añaden tapa visible si alguna de las
+        // dos estancias está cerrada). Sin hueco declarado → tabique sólido (tampoco se puede
+        // pasar: walkable() exige doorway). Tabiques según X a media altura para no tapar la vista.
+        const eps = 0.01;
+        const seg = (a: number, b: number, along: 'x' | 'z', at: number, height: number, yC: number, name: string) => {
+          const len = b - a;
+          if (len <= 0.01) return;
+          view.greybox.push(
+            along === 'z'
+              ? box(name, v.wall, height, len, at, yC, (a + b) / 2, partMat)
+              : box(name, len, height, v.wall, (a + b) / 2, yC, at, partMat),
+          );
+        };
+        geoRooms.forEach((lr, i) => {
+          geoRooms.forEach((other, j) => {
+            if (j <= i) return;
+            const ra = lr.rect!;
+            const rb = other.rect!;
+            const door = (layout.doorways ?? []).find(
+              (dw) => (dw.a === lr.key && dw.b === other.key) || (dw.a === other.key && dw.b === lr.key),
+            );
+            // Borde vertical compartido → tabique que corre según Z (se cruza andando en X).
+            const touchX = Math.abs(ra.x + ra.w - rb.x) < eps || Math.abs(rb.x + rb.w - ra.x) < eps;
+            const overlapZ = Math.min(ra.z + ra.d, rb.z + rb.d) - Math.max(ra.z, rb.z);
+            if (touchX && overlapZ > eps) {
+              const wx = x0 + Math.max(ra.x, rb.x);
+              const z0 = frontZ + Math.max(ra.z, rb.z);
+              const z1 = frontZ + Math.min(ra.z + ra.d, rb.z + rb.d);
+              const yC = bottom + v.slab + v.wall + wallH / 2;
+              if (door && door.axis === 'z') {
+                const g0 = Math.max(z0, frontZ + door.at - door.width / 2);
+                const g1 = Math.min(z1, frontZ + door.at + door.width / 2);
+                seg(z0, g0, 'z', wx, wallH, yC, `${b.id}_tab_${i}_${j}_i`);
+                seg(g1, z1, 'z', wx, wallH, yC, `${b.id}_tab_${i}_${j}_d`);
+                const cover = box(`${b.id}_tapa_${i}_${j}`, v.wall * 0.8, wallH, g1 - g0, wx, yC, frontZ + door.at, mat(`${b.id}_tapa_${i}_${j}_mat`));
+                (cover.material as StandardMaterial).diffuseColor = Color3.FromHexString(v.lockedColor);
+                cover.setEnabled(false);
+                interior.covers.push({ mesh: cover, rooms: [lr.key, other.key] });
+              } else {
+                seg(z0, z1, 'z', wx, wallH, yC, `${b.id}_tab_${i}_${j}`);
+              }
+            }
+            // Borde horizontal compartido → tabique que corre según X (se cruza andando en Z).
+            const touchZ = Math.abs(ra.z + ra.d - rb.z) < eps || Math.abs(rb.z + rb.d - ra.z) < eps;
+            const overlapX = Math.min(ra.x + ra.w, rb.x + rb.w) - Math.max(ra.x, rb.x);
+            if (touchZ && overlapX > eps) {
+              const wz = frontZ + Math.max(ra.z, rb.z);
+              const xa = x0 + Math.max(ra.x, rb.x);
+              const xb = x0 + Math.min(ra.x + ra.w, rb.x + rb.w);
+              const halfH = wallH * 0.45;
+              const yHalf = bottom + v.slab + v.wall + halfH / 2;
+              if (door && door.axis === 'x') {
+                const g0 = Math.max(xa, x0 + door.at - door.width / 2);
+                const g1 = Math.min(xb, x0 + door.at + door.width / 2);
+                seg(xa, g0, 'x', wz, halfH, yHalf, `${b.id}_tab_${i}_${j}_i`);
+                seg(g1, xb, 'x', wz, halfH, yHalf, `${b.id}_tab_${i}_${j}_d`);
+                const cover = box(`${b.id}_tapa_${i}_${j}`, g1 - g0, halfH, v.wall * 0.8, x0 + door.at, yHalf, wz, mat(`${b.id}_tapa_${i}_${j}_mat`));
+                (cover.material as StandardMaterial).diffuseColor = Color3.FromHexString(v.lockedColor);
+                cover.setEnabled(false);
+                interior.covers.push({ mesh: cover, rooms: [lr.key, other.key] });
+              } else {
+                seg(xa, xb, 'x', wz, halfH, yHalf, `${b.id}_tab_${i}_${j}`);
+              }
+            }
+          });
+        });
+        interiors.set(b.id, interior);
+      }
     } else {
       view.greybox.push(box(b.id, w, h, d, cx, bottom + v.cellH / 2, cz, m));
     }
@@ -157,26 +257,38 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
   }
 
   // ── Mobiliario placeholder (greybox del editor de interiores): una caja por ranura de las viviendas. ──
-  // La geometría llega al pintar, desde furniture.view del catálogo: sustituible por arte final sin tocar esto.
-  const furnViews = new Map<string, { mesh: Mesh; mat: StandardMaterial; x: number; z: number; bottom: number; pos1: number }>();
+  // Con layout 2D (Fase C), cada ranura se coloca en su rect de estancia: pos = [x, z] local;
+  // sin rects, cae al cálculo por bandas de siempre. La geometría llega al pintar.
+  const furnViews = new Map<string, { mesh: Mesh; mat: StandardMaterial; x: number; z: number; bottom: number; y: number | null }>();
   for (const b of Object.values(world.blocks)) {
     if (b.kind !== 'dwelling') continue;
-    const w = b.size.w * v.cellW - v.gapW;
     const bottom = b.cell.floor * v.cellH;
     const layoutId = content.blocks[b.defId]?.container?.layout;
-    const layoutRooms = layoutId ? content.layouts[layoutId]?.rooms ?? [] : [];
-    const bandW = w / Math.max(1, layoutRooms.length);
-    layoutRooms.forEach((layoutRoom, roomIdx) => {
+    const layout = layoutId ? content.layouts[layoutId] : undefined;
+    const geoRooms = (layout?.rooms ?? []).filter((r) => r.rect !== undefined);
+    const x0 = b.cell.col * v.cellW;
+    (layout?.rooms ?? []).forEach((layoutRoom, roomIdx) => {
       const rdef = content.rooms[layoutRoom.defId];
-      const roomW = rdef?.size.w ?? 1;
       (rdef?.furnitureSlots ?? []).forEach((slot, slotIdx) => {
-        const x = b.cell.col * v.cellW + roomIdx * bandW + (slot.pos[0] / Math.max(0.001, roomW)) * bandW;
-        // Cerca del plano frontal (con viviendas de calado doble queda todo el fondo libre para Fase C).
-        const z = frontZ + 0.35 + slotIdx * 0.32;
+        let x: number;
+        let z: number;
+        const rect = geoRooms[roomIdx]?.rect;
+        if (rect) {
+          // Fase C: metros locales al rect de la estancia (0,0 = esquina frontal-izquierda).
+          x = x0 + rect.x + slot.pos[0];
+          z = frontZ + rect.z + slot.pos[1];
+        } else {
+          // Fallback 1D (layout sin rects): bandas como siempre.
+          const w = b.size.w * v.cellW - v.gapW;
+          const bandW = w / Math.max(1, layout?.rooms.length ?? 1);
+          const roomW = rdef?.size.w ?? 1;
+          x = x0 + roomIdx * bandW + (slot.pos[0] / Math.max(0.001, roomW)) * bandW;
+          z = frontZ + 0.35 + slotIdx * 0.32;
+        }
         const fm = mat(`${b.id}_${layoutRoom.key}_${slot.id}_furn`);
         const mesh = box(`${b.id}_${layoutRoom.key}_${slot.id}_furn`, 1, 1, 1, x, bottom + v.slab, z, fm);
         mesh.setEnabled(false);
-        furnViews.set(`${b.id}:${layoutRoom.key}:${slot.id}`, { mesh, mat: fm, x, z, bottom, pos1: slot.pos[1] });
+        furnViews.set(`${b.id}:${layoutRoom.key}:${slot.id}`, { mesh, mat: fm, x, z, bottom, y: slot.y ?? null });
       });
     });
   }
@@ -295,6 +407,21 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         applyEmissive(view, b);
         applyPanels(view, b);
       }
+      // Interiores 2D (Fase C): suelo de cada estancia según su acceso + tapas de puertas cerradas.
+      for (const [blockId, interior] of interiors) {
+        const block = world.blocks[blockId];
+        if (!block) continue;
+        for (const f of interior.floors) {
+          const room = block.rooms.find((r) => r.key === f.roomKey);
+          const locked = room ? room.access !== 'unlocked' : true;
+          const hex = locked ? v.lockedColor : content.rooms[f.defId]?.view?.color ?? '#cccccc';
+          f.mat.diffuseColor = Color3.FromHexString(hex);
+        }
+        for (const c of interior.covers) {
+          const anyLocked = c.rooms.some((key) => block.rooms.find((r) => r.key === key)?.access !== 'unlocked');
+          c.mesh.setEnabled(anyLocked);
+        }
+      }
       // Muebles del editor de interiores: visibles/escala/color según furniture.view (catálogo).
       for (const [key, fv] of furnViews) {
         const [blockId, roomKey, slotId] = key.split(':');
@@ -308,7 +435,9 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         const [iw, ih, idz] = fdef.view.size;
         fv.mesh.setEnabled(true);
         fv.mesh.scaling.set(iw, ih, idz);
-        fv.mesh.position.set(fv.x, fv.bottom + v.slab + v.wall + fv.pos1 + ih / 2, fv.z);
+        // Con y de anclaje (muebles de pared) cuelga a esa altura; si no, apoyado en el suelo.
+        const yBase = fv.y !== null ? fv.bottom + v.slab + v.wall + fv.y : fv.bottom + v.slab + v.wall;
+        fv.mesh.position.set(fv.x, yBase + ih / 2, fv.z);
         fv.mat.diffuseColor = Color3.FromHexString(fdef.view.color);
       }
     },

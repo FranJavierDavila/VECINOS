@@ -504,3 +504,22 @@ Work Log:
 Stage Summary:
 - La planta 0 cuenta una historia completa: portal · garaje · trasteros · núcleo · bar (local comercial) · lavandería comunal · escalera. Tres tipos de bloque nuevos insertables en cualquier columna de cualquier template: una línea de JSON cada uno.
 - Ganchos futuros data-driven: el bar y la lavandería pueden recibir features/params/actividades de la IA sin tocar código (ya son bloques del grafo y del render).
+
+---
+Task ID: 18
+Agent: main (Z.ai Code)
+Task: v0.7 Fase C — movimiento interior 2D + layouts de estancias (100% data-driven)
+
+Work Log:
+- DATOS: layouts.json v2 — cada estancia declara rect {x,z,w,d} en metros LOCALES a la vivienda (0,0 = esquina frontal-izquierda; x desde pared izquierda, z desde el plano frontal de la puerta) + doorways {a,b,axis,at,width} (huecos en tabiques). layout_vivienda_v1: salón 2.3×2.8 (izquierda, full depth), dormitorio 2.5×1.6 (frente-derecha), baño 2.5×1.2 (fondo-derecha); 2 huecos de 0.9 m en el tabique x=2.3 (z=0.8 dormitorio, z=2.1 baño). rooms.json: furnitureSlots con pos [x,z] local a estancia + y opcional (muebles de pared, ej. TV y=1.7) + NUEVO interactables por estancia (portátil salón [0.4,0.55], cama dormitorio [1.75,0.8]).
+- SCHEMAS/TYPES: furnitureSlotSchema +y?; roomDefSchema +interactables ({kind laptop|bed, pos}); layoutDefSchema +rect/doorways (opcionales → catálogos antiguos siguen válidos); rules.view laptopOffset/bedOffset @deprecated y eliminados de rules.json (sustituidos por datos de estancia); PlayerPosition +z.
+- PLAYER-LOGIC: z pública; geometryOf/roomAt/walkable (rects locales → world x − borde; si punto sin rect → estancia más cercana por centro); update inside 2D con deslizamiento por eje (A/D = x, W/S = z con roomSpeed; colisión: misma estancia libre, otra estancia solo por doorway y abierta); landInside (z=0.45; si la puerta cae en estancia cerrada → aterriza en el centro de la abierta); interactTarget dentro de casa = interactables 2D de la estancia actual (radio itemRadius) → si no, puerta; E sale (z reset); forceLocation/teleportTo respetan z. Fallback 1D intacto para layouts sin rects. FIX en el propio desarrollo: roomAt/walkable comparan x LOCAL (los rects son locales) — detectado antes de probar.
+- BUILDING: interior 2D por vivienda con layout: suelo tintado por estancia (alpha 0.32, color del catálogo / lockedColor si cerrada), tabiques automáticos entre pares de estancias que comparten borde (eje inferido por geometría; doorways recortan el hueco centrado en `at`), tabiques que corren según X a media altura (no tapan la vista), tapa del hueco visible mientras alguna de las dos estancias esté cerrada (paint() la enciende al reformar); mobiliario colocado en su rect (pos [x,z] + y de anclaje) con fallback de bandas si no hay rects; paint() repinta suelos y tapas según access.
+- ACTORS: jugador dentro de casa sigue (x, frontZ + z) — 2D real; vecinos en su vivienda cerca del frente (su z no se sincroniza). CÁMARA estancia: se asoma al fondo (look z = p.z·0.45, tope 1.2).
+- QA: scripts/qa-interior.ts NUEVO (22 checks caja negra vía PlayerLogic: aterrizaje en abierta, tabique bloquea cerradas, reforma abre hueco, portátil/cama por posición 2D, work +120/sleep 100, salida al pasillo, clamps de profundidad, fallback 1D). 22/22 OK.
+- E2E navegador: entrar en 3C (aterriza en salón porque la puerta cae en el dormitorio cerrado), W camina al fondo (z 0.45→2.45), D bloqueado por tabique, renovateRoom('bano') → D cruza por el hueco (x 13.15→16.01), cámara sigue la profundidad, cama detectada y sleep OK (toast catálogo), E sale al pasillo (planta), save+load con el mundo nuevo íntegros (8 bloques p0, tick exacto), móvil 390 px correcto. qa-pozos 16/16, smoke-sim, smoke-junta OK; tsc 0 en src/; lint 0; consola sin errores (solo warning preexistente de aria-describedby en DialogContent).
+- Compatibilidad: el save no cambia (World intacto); layouts/rooms viejos sin rects caen al 1D; los slot ids no cambian → guardados con muebles siguen pintando.
+
+Stage Summary:
+- Fase C completa: las viviendas son ahora espacios 2D transitables — estancias con tabiques y puertas del catálogo, reformas que abren huecos reales, portátil y cama en SU estancia por proximidad 2D, y todo declarado en JSON (añadir una estancia = un rect + su doorway, cero código). El sim sigue sin saber nada de geometría: rooms siguen siendo instancias (access/furniture/params).
+- Base lista para Fase D (cutscenes de misión data-driven) y para el arte final de interiores (los rects son el plano del prefab).

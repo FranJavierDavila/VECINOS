@@ -41,10 +41,16 @@ export const blockDefSchema = z.object({
   view: viewSchema,
 });
 
+/**
+ * Ranura de mobiliario. `pos` = [x, z] en metros LOCALES a la estancia (0,0 = esquina
+ * frontal-izquierda del rect de la estancia en el layout). `y` opcional = altura del punto
+ * de anclaje sobre el suelo (muebles de pared); sin y, el mueble se apoya en el suelo.
+ */
 export const furnitureSlotSchema = z.object({
   id: z.string(),
   kind: z.string(),
   pos: z.tuple([z.number(), z.number()]),
+  y: z.number().optional(),
 });
 
 export const roomDefSchema = z.object({
@@ -54,6 +60,14 @@ export const roomDefSchema = z.object({
   size: z.object({ w: z.number(), h: z.number() }),
   params: z.record(z.string(), paramDefSchema).optional(),
   furnitureSlots: z.array(furnitureSlotSchema).optional(),
+  /**
+   * Fijaciones interactivas de la estancia (no son muebles del editor): portátil, cama…
+   * `pos` = [x, z] en metros locales al rect de la estancia; el jugador las usa por
+   * proximidad 2D (rules.view.itemRadius). Solo responden en la vivienda propia.
+   */
+  interactables: z
+    .array(z.object({ id: z.string(), kind: z.enum(['laptop', 'bed']), pos: z.tuple([z.number(), z.number()]) }))
+    .optional(),
   view: viewSchema,
 });
 
@@ -69,9 +83,30 @@ export const furnitureDefSchema = z.object({
   view: z.object({ color: z.string(), size: z.tuple([z.number(), z.number(), z.number()]) }),
 });
 
+/**
+ * Layout interior de una vivienda (Fase C, 100% data-driven). Cada estancia ocupa un rect
+ * en metros LOCALES a la planta de la vivienda: x desde la pared izquierda, z desde el
+ * plano frontal (la puerta). Los rects deben teselar la huella (size.w * view.cellW de ancho
+ * × view.depth de calado para viviendas). Sin rects, el layout cae al comportamiento 1D
+ * antiguo (bandas) — compatibilidad con catálogos previos.
+ * `doorways`: huecos en los tabiques entre pares de estancias. `axis` = eje QUE CORRE el
+ * tabique ('z' = tabique perpendicular a X, se cruza andando en X; 'x' = perpendicular a Z);
+ * `at` = coordenada del centro del hueco según ese eje; `width` = anchura del hueco.
+ * Entrar en una estancia cerrada (access locked) está bloqueado tenga o no hueco.
+ */
 export const layoutDefSchema = z.object({
   id: z.string(),
-  rooms: z.array(z.object({ key: z.string(), defId: z.string(), startsUnlocked: z.boolean() })),
+  rooms: z.array(
+    z.object({
+      key: z.string(),
+      defId: z.string(),
+      startsUnlocked: z.boolean(),
+      rect: z.object({ x: z.number(), z: z.number(), w: z.number(), d: z.number() }).optional(),
+    }),
+  ),
+  doorways: z
+    .array(z.object({ a: z.string(), b: z.string(), axis: z.enum(['x', 'z']), at: z.number(), width: z.number() }))
+    .optional(),
 });
 
 export const influenceRuleSchema = z.object({
@@ -417,8 +452,10 @@ export const rulesSchema = z.object({
     elevatorSeconds: z.number(),
     margin: z.number(),
     nearRadius: z.number(),
-    laptopOffset: z.number(),
-    bedOffset: z.number(),
+    /** @deprecated sustituido por interactables del catálogo de estancias (Fase C). */
+    laptopOffset: z.number().optional(),
+    /** @deprecated sustituido por interactables del catálogo de estancias (Fase C). */
+    bedOffset: z.number().optional(),
     itemRadius: z.number(),
     corridorZ: z.number(),
     roomZ: z.number(),

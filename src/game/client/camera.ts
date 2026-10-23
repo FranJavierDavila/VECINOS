@@ -33,6 +33,7 @@ export class CameraRig {
     let viewH: number;
     let cx = width / 2;
     let cy = (this.floors * this.cellH) / 2;
+    let cz = 0; // profundidad del punto de interés (solo estancia: sigue parcialmente al jugador)
     if (this.mode === 'edificio') {
       viewH = Math.max(this.floors * this.cellH * 1.25, (width * 1.25) / aspect);
     } else {
@@ -40,11 +41,13 @@ export class CameraRig {
       const half = (viewH * aspect) / 2;
       cx = half * 2 >= width ? width / 2 : Math.min(width - half, Math.max(half, p.x));
       cy = (p.floor + 0.5) * this.cellH;
+      // Fase C: en estancia, la cámara se asoma al fondo siguiendo en parte la profundidad (z).
+      if (this.mode === 'estancia') cz = Math.min(1.2, Math.max(0, p.z)) * 0.45;
     }
     const dist = viewH / (2 * Math.tan(FOV / 2));
     const k = 1 - Math.exp(-dt * 6);
-    this.pos.addInPlace(new Vector3(cx + dist * 0.1, cy + dist * 0.05, -dist).subtract(this.pos).scale(k));
-    this.look.addInPlace(new Vector3(cx, cy, 0).subtract(this.look).scale(k));
+    this.pos.addInPlace(new Vector3(cx + dist * 0.1, cy + dist * 0.05, cz - dist).subtract(this.pos).scale(k));
+    this.look.addInPlace(new Vector3(cx, cy, cz).subtract(this.look).scale(k));
     this.camera.position.copyFrom(this.pos);
     this.camera.setTarget(this.look);
   }

@@ -52,8 +52,13 @@ export interface RoomDef {
   label?: string;
   size: { w: number; h: number };
   params?: Record<string, ParamDef>;
-  /** Ranuras del editor de interiores: posición, categoría y qué cabe en cada una. */
+  /** Ranuras del editor de interiores: posición [x,z] local a la estancia, categoría y qué cabe en cada una. */
   furnitureSlots?: FurnitureSlotDef[];
+  /**
+   * Fijaciones interactivas de la estancia (portátil, cama…): pos [x,z] local al rect;
+   * el jugador las usa por proximidad 2D y solo responden en su vivienda.
+   */
+  interactables?: { id: string; kind: 'laptop' | 'bed'; pos: [number, number] }[];
   view: BlockView;
 }
 
@@ -192,7 +197,15 @@ export type MinigameDef = {
 
 export interface LayoutDef {
   id: string;
-  rooms: { key: string; defId: string; startsUnlocked: boolean }[];
+  rooms: {
+    key: string;
+    defId: string;
+    startsUnlocked: boolean;
+    /** Rect de la estancia en metros locales a la vivienda (x desde pared izquierda, z desde plano frontal). */
+    rect?: { x: number; z: number; w: number; d: number };
+  }[];
+  /** Huecos en los tabiques entre pares de estancias (Fase C). */
+  doorways?: { a: string; b: string; axis: 'x' | 'z'; at: number; width: number }[];
 }
 
 export interface InfluenceRule {
@@ -220,7 +233,9 @@ export interface FurnitureSlotDef {
   id: string;
   /** Categoría de ranura: los muebles declaran qué categorías encajan (furniture.slots). */
   kind: string;
+  /** [x, z] en metros locales a la estancia (rect del layout); y opcional = altura de anclaje. */
   pos: [number, number];
+  y?: number;
 }
 
 /** Pistas de vista para el renderer: color, complemento y accesorio del personaje. */
@@ -497,8 +512,10 @@ export interface Rules {
     elevatorSeconds: number;
     margin: number;
     nearRadius: number;
-    laptopOffset: number;
-    bedOffset: number;
+    /** @deprecated sustituido por interactables del catálogo de estancias (Fase C). */
+    laptopOffset?: number;
+    /** @deprecated sustituido por interactables del catálogo de estancias (Fase C). */
+    bedOffset?: number;
     itemRadius: number;
     corridorZ: number;
     roomZ: number;
@@ -706,6 +723,8 @@ export interface CommandResult {
 
 export interface PlayerPosition {
   x: number;
+  /** Profundidad en metros dentro de la vivienda (0 = plano frontal de la puerta; solo mode 'inside'). */
+  z: number;
   /** Altura en unidades de planta (fraccionaria mientras sube o baja). */
   floor: number;
   mode: 'corridor' | 'inside';

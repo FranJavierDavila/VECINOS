@@ -3,6 +3,9 @@ import type { Content, PlayerPosition, World } from '@/game/core/types';
 import { B } from './babylon';
 import { instantiateActorAsset, type ActorRig } from './assets';
 
+/** Plano frontal de las viviendas: z local 0 de los interiores (la cara de la puerta). */
+const frontZOf = (roomZ: number, commonDepth: number): number => roomZ - commonDepth / 2;
+
 interface Actor {
   /** Nodo posicionable: cápsula greybox o raíz del modelo glTF (pivote en pies). */
   node: Mesh | TransformNode;
@@ -90,6 +93,7 @@ export function createActors(scene: Scene, world: World, content: Content) {
       }
 
       const k = 1 - Math.exp(-dt * 10);
+      const frontZ = frontZOf(v.roomZ, v.commonDepth);
       for (const [id, a] of actors) {
         const r = world.residents[id]!;
         const isPlayer = id === playerResidentId;
@@ -97,13 +101,16 @@ export function createActors(scene: Scene, world: World, content: Content) {
         if (!a.node.isEnabled()) continue;
         if (isPlayer) {
           const inside = player.mode === 'inside';
-          goal.set(player.x, player.floor * v.cellH + (inside ? 0.12 : 0.14) + a.pivotY, inside ? v.roomZ : v.corridorZ);
+          // Dentro de la vivienda el actor sigue la posición 2D (x + profundidad z del layout).
+          const z = inside ? frontZ + Math.min(Math.max(player.z, 0), v.depth) : v.corridorZ;
+          goal.set(player.x, player.floor * v.cellH + (inside ? 0.12 : 0.14) + a.pivotY, z);
         } else {
           const b = world.blocks[r.location!]!;
           const home = world.blocks[r.home]!;
           const inRoom = b.kind === 'dwelling';
           const x = b.layer === 'corridor' ? (home.cell.col + 0.5) * v.cellW : (b.cell.col + b.size.w / 2) * v.cellW;
-          goal.set(x, b.cell.floor * v.cellH + 0.14 + a.pivotY, inRoom ? v.roomZ : v.corridorZ);
+          // Vecinos dentro de su vivienda: cerca del frente (su profundidad exacta no se sincroniza).
+          goal.set(x, b.cell.floor * v.cellH + 0.14 + a.pivotY, inRoom ? frontZ + 0.6 : v.corridorZ);
         }
         if (a.node.position.lengthSquared() === 0) a.node.position.copyFrom(goal);
         a.node.position.addInPlace(goal.subtract(a.node.position).scale(isPlayer ? Math.min(1, k * 2) : k));

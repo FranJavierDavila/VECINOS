@@ -119,8 +119,6 @@
     "elevatorSeconds": 0.6,
     "margin": 0.35,
     "nearRadius": 1.6,
-    "laptopOffset": 0.7,
-    "bedOffset": 0.6,
     "itemRadius": 0.9,
     "corridorZ": -0.95,
     "roomZ": 0,

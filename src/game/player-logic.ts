@@ -8,6 +8,20 @@ export type InteractResult =
   | { type: 'locked'; block: string; reason: string | null; price: number | null }
   | { type: 'used'; kind: 'laptop' | 'bed' | 'mailbox' | 'noticeboard' | 'resident' };
 
+/** Estancia del layout con su geometría 2D y el acceso de la instancia viva. */
+interface RoomRect {
+  key: string;
+  defId: string;
+  rect: { x: number; z: number; w: number; d: number };
+  locked: boolean;
+}
+
+/** Geometría interior de una vivienda (del layout del catálogo); null = layout sin rects → 1D clásico. */
+interface LayoutGeometry {
+  rooms: RoomRect[];
+  doorways: { a: string; b: string; axis: 'x' | 'z'; at: number; width: number }[];
+}
+
 /**
  * Firma de la vía de salida de comandos. En partida clásica el controlador devuelve el
  * CommandResult del dispatch (bloqueo de puerta, etc.); en remoto devuelve void y el
@@ -26,6 +40,8 @@ export type SendCommand = (cmd: Command) => CommandResult | void;
  */
 export class PlayerLogic {
   x: number;
+  /** Profundidad en metros dentro de la vivienda (0 = plano frontal de la puerta). */
+  z: number;
   floor: number;
   mode: 'corridor' | 'inside' = 'corridor';
   insideBlock: string | null = null;
@@ -60,6 +76,7 @@ export class PlayerLogic {
     const start = world.blocks[me.location ?? me.home] ?? blocks.find((b) => b.kind !== 'dwelling')!;
     this.floor = start.cell.floor;
     this.x = this.centerOf(start);
+    this.z = 0;
   }
 
   private rangeOf(b: BlockInstance): [number, number] {
@@ -90,6 +107,69 @@ export class PlayerLogic {
     return this.onFloor(f).find((b) => this.content.blocks[b.defId]!.features?.elevator);
   }
 
+  // ── Fase C: geometría interior 2D (data-driven desde layouts.json; null = 1D clásico) ──
+
+  /** Geometría 2D del layout de una vivienda; null si el layout no declara rects (catálogo antiguo). */
+  private geometryOf(block: BlockInstance): LayoutGeometry | null {
+    const layoutId = this.content.blocks[block.defId]?.container?.layout;
+    const layout = layoutId ? this.content.layouts[layoutId] : undefined;
+    const declared = layout?.rooms.filter((r) => r.rect !== undefined) ?? [];
+    if (!layout || declared.length === 0) return null;
+    return {
+      rooms: declared.map((r) => {
+        const inst = block.rooms.find((x) => x.key === r.key);
+        return { key: r.key, defId: r.defId, rect: r.rect!, locked: inst ? inst.access !== 'unlocked' : true };
+      }),
+      doorways: layout.doorways ?? [],
+    };
+  }
+
+  /** Estancia que contiene el punto (rects que teselan); si ninguno lo contiene, la más cercana por centro. */
+  private roomAt(geo: LayoutGeometry, x: number, z: number): RoomRect {
+    const hit = geo.rooms.find((r) => x >= r.rect.x && x < r.rect.x + r.rect.w && z >= r.rect.z && z < r.rect.z + r.rect.d);
+    if (hit) return hit;
+    let best = geo.rooms[0]!;
+    let bestD = Infinity;
+    for (const r of geo.rooms) {
+      const d = (r.rect.x + r.rect.w / 2 - x) ** 2 + (r.rect.z + r.rect.d / 2 - z) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        best = r;
+      }
+    }
+    return best;
+  }
+
+  /**
+   * ¿Se puede estar en (x, z) viniendo de `from`? Misma estancia siempre; otra estancia solo
+   * cruzando un hueco de puerta entre ambas y si la destino está abierta (access unlocked).
+   * La particularidad del eje: axis 'z' = tabique que corre según Z (se cruza andando en X, y el
+   * hueco se valida con la coordenada z); axis 'x' = simétrico.
+   */
+  private walkable(geo: LayoutGeometry, from: RoomRect, x: number, z: number): boolean {
+    const target = this.roomAt(geo, x, z);
+    if (target.key === from.key) return true;
+    if (target.locked) return false;
+    const door = geo.doorways.find((d) => (d.a === from.key && d.b === target.key) || (d.a === target.key && d.b === from.key));
+    if (!door) return false;
+    return door.axis === 'z' ? Math.abs(z - door.at) <= door.width / 2 : Math.abs(x - door.at) <= door.width / 2;
+  }
+
+  /** Aterriza dentro de una vivienda: plano frontal, y si cae en estancia cerrada, a la abierta más al frente. */
+  private landInside(block: BlockInstance): void {
+    this.mode = 'inside';
+    this.insideBlock = block.id;
+    this.z = 0.45;
+    const geo = this.geometryOf(block);
+    if (geo) {
+      const room = this.roomAt(geo, this.x - block.cell.col * this.view.cellW, this.z);
+      if (room.locked) {
+        const open = geo.rooms.find((r) => !r.locked);
+        if (open) this.x = block.cell.col * this.view.cellW + open.rect.x + open.rect.w / 2;
+      }
+    }
+  }
+
   /** Bloque bajo los pies del jugador (zona común) o, si no, el pasillo. */
   zone(): BlockInstance {
     const common = this.onFloor(this.floor).find((b) => b.layer === 'main' && b.kind !== 'dwelling' && this.within(this.x, b));
@@ -108,7 +188,7 @@ export class PlayerLogic {
       const k = Math.min(1, this.climb.t / this.climb.duration);
       floor = this.climb.from + (this.climb.to - this.climb.from) * (k * k * (3 - 2 * k));
     }
-    return { x: this.x, floor, mode: this.mode, insideBlock: this.insideBlock, climbing: this.climb !== null };
+    return { x: this.x, z: this.z, floor, mode: this.mode, insideBlock: this.insideBlock, climbing: this.climb !== null };
   }
 
   private elevatorWorks(a: number, b: number) {
@@ -170,8 +250,28 @@ export class PlayerLogic {
     const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
     if (this.mode === 'inside') {
       const home = this.world.blocks[this.insideBlock!]!;
-      const [a, z] = this.rangeOf(home);
-      this.x = Math.min(z - this.view.margin, Math.max(a + this.view.margin, this.x + dir * this.view.roomSpeed * dt));
+      const dx = dir * this.view.roomSpeed * dt;
+      const dz = ((input.up ? 1 : 0) - (input.down ? 1 : 0)) * this.view.roomSpeed * dt;
+      const geo = this.geometryOf(home);
+      if (!geo) {
+        // Layout sin geometría 2D (catálogo antiguo): movimiento 1D de siempre.
+        const [a, b] = this.rangeOf(home);
+        this.x = Math.min(b - this.view.margin, Math.max(a + this.view.margin, this.x + dx));
+        return;
+      }
+      // Movimiento 2D con deslizamiento: cada eje se prueba por separado contra tabiques,
+      // huecos de puerta y estancias cerradas. TODO sale del catálogo (layout + rules.view).
+      // Los rects del layout son LOCALES a la vivienda: se compara con la x local (x − borde izq.).
+      const [a, b] = this.rangeOf(home);
+      const x0 = home.cell.col * this.view.cellW;
+      const clampX = (x: number) => Math.min(b - this.view.margin, Math.max(a + this.view.margin, x));
+      const clampZ = (z: number) => Math.min(this.view.depth - this.view.margin, Math.max(this.view.margin, z));
+      const cur = this.roomAt(geo, this.x - x0, this.z);
+      const nx = clampX(this.x + dx);
+      if (this.walkable(geo, cur, nx - x0, this.z)) this.x = nx;
+      const cur2 = this.roomAt(geo, this.x - x0, this.z);
+      const nz = clampZ(this.z + dz);
+      if (this.walkable(geo, cur2, this.x - x0, nz)) this.z = nz;
       return;
     }
     this.x = Math.min(this.width - this.view.margin, Math.max(this.view.margin, this.x + dir * this.view.walkSpeed * dt));
@@ -211,14 +311,16 @@ export class PlayerLogic {
     if (this.mode === 'inside') {
       const b = this.world.blocks[this.insideBlock!]!;
       if (b.ownerId === this.actorId) {
-        const home = b;
-        // Portátil en el salón: lado izquierdo; cama en el dormitorio: lado derecho (offsets del catálogo).
-        if (home.cell.col === this.world.blocks[this.world.residents[this.actorId]!.home].cell.col) {
-          const [a, z] = this.rangeOf(home);
-          const nearLaptop = Math.abs(this.x - (a + this.view.laptopOffset)) < this.view.itemRadius;
-          const nearBed = Math.abs(this.x - (z - this.view.bedOffset)) < this.view.itemRadius;
-          if (nearLaptop) return { kind: 'laptop' };
-          if (nearBed) return { kind: 'bed' };
+        // Interactivos de la estancia actual (portátil/cama): posición 2D del catálogo, no offsets.
+        const geo = this.geometryOf(b);
+        if (geo) {
+          const room = this.roomAt(geo, this.x - b.cell.col * this.view.cellW, this.z);
+          const rdef = this.content.rooms[room.defId];
+          for (const it of rdef?.interactables ?? []) {
+            const wx = b.cell.col * this.view.cellW + room.rect.x + it.pos[0];
+            const wz = room.rect.z + it.pos[1];
+            if (Math.hypot(this.x - wx, this.z - wz) < this.view.itemRadius) return { kind: it.kind };
+          }
         }
       }
       return { kind: 'door', blockId: this.insideBlock! };
@@ -262,6 +364,7 @@ export class PlayerLogic {
       if (res && !res.ok) return { type: 'none' };
       this.mode = 'corridor';
       this.insideBlock = null;
+      this.z = 0;
       this.lastMoveTarget = corridorId; // ya está en vuelo este move
       this.approached = home; // sigue delante de la misma puerta, sin repetir el aviso
       return { type: 'exited', block: home };
@@ -270,9 +373,8 @@ export class PlayerLogic {
     if (!door) return { type: 'none' };
     const res = this.exec({ type: 'move', resident: this.actorId, to: door.id });
     if (res && !res.ok) return { type: 'locked', block: door.id, reason: door.lockReason, price: door.availability?.price ?? null };
-    this.mode = 'inside';
-    this.insideBlock = door.id;
     this.lastMoveTarget = door.id; // ya está en vuelo este move
+    this.landInside(door);
     return { type: 'entered', block: door.id };
   }
 
@@ -287,6 +389,7 @@ export class PlayerLogic {
     if (!target || this.climb) return false;
     this.mode = 'corridor';
     this.insideBlock = null;
+    this.z = 0;
     this.approached = null;
     this.floor = target.cell.floor;
     this.x = this.centerOf(target);
@@ -314,17 +417,18 @@ export class PlayerLogic {
       const c = this.corridor(this.floor);
       this.mode = 'corridor';
       this.insideBlock = null;
+      this.z = 0;
       this.x = this.centerOf(c);
       return;
     }
     this.floor = target.cell.floor;
     this.x = this.centerOf(target);
     if (target.kind === 'dwelling') {
-      this.mode = 'inside';
-      this.insideBlock = target.id;
+      this.landInside(target);
     } else {
       this.mode = 'corridor';
       this.insideBlock = null;
+      this.z = 0;
     }
   }
 }
