@@ -460,6 +460,16 @@ export interface BlockAssetDef {
   nominal: { w: number; h: number; d: number };
   /** 0..1: cuánto se tiñe el modelo con el color de estado (roto/cerrado/vacío) en paint(). */
   tintStrength?: number;
+  /**
+   * Overlay: el modelo DECORA sin sustituir la caja greybox (no se oculta nada, el edge de
+   * vivienda del jugador se conserva). Pensado para marcos de puerta sobre el corte interior.
+   */
+  overlay?: boolean;
+  /**
+   * Clonar materiales por instancia (default true): cada bloque pinta su tinte de estado y su
+   * glow de canales SIN contaminar a los hermanos del mismo tipo. false = materiales compartidos.
+   */
+  cloneMaterials?: boolean;
 }
 
 /** Manifiesto del arte final (public/content/assets.json). Opcional: sin él, greybox puro. */

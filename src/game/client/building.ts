@@ -235,20 +235,30 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           model.root.dispose(false, false); // bloque ya servido: no dejar instancias sueltas
           return;
         }
-        const w = b.size.w * v.cellW - v.gapW;
-        const h = v.cellH - v.gapH;
-        const d = depthOf(b);
-        const cz = frontZ + d / 2;
+        // Dimensiones reales de la celda: el pasillo (tira saliente) tiene geometría propia,
+        // espejo exacto de su greybox (ancho completo, canto slab*2, calado corridorDepth).
+        const isCorridor = b.layer === 'corridor';
+        const w = isCorridor ? b.size.w * v.cellW : b.size.w * v.cellW - v.gapW;
+        const h = isCorridor ? v.slab * 2 : v.cellH - v.gapH;
+        const d = isCorridor ? v.corridorDepth : depthOf(b);
+        const cz = isCorridor ? frontZ - d / 2 : frontZ + d / 2;
+        const y = isCorridor ? b.cell.floor * v.cellH + v.slab : b.cell.floor * v.cellH;
         // El modelo se authora a dimensiones nominales con la base en y=0 y centrado en x/z.
         model.root.scaling.set(w / entry.nominal.w, h / entry.nominal.h, d / entry.nominal.d);
-        model.root.position.set((b.cell.col + b.size.w / 2) * v.cellW, b.cell.floor * v.cellH, cz);
+        model.root.position.set((b.cell.col + b.size.w / 2) * v.cellW, y, cz);
         view.model = model.root;
-        view.mats = model.mats;
-        view.baseEmissive = model.mats.map((mm) => new Color3(mm.emissiveColor.r, mm.emissiveColor.g, mm.emissiveColor.b));
-        view.baseColor = model.baseColor.map((c) => new Color3(c.r, c.g, c.b));
-        view.tintStrength = entry.tintStrength ?? 0.6;
-        view.edgesMesh = null; // el modelo no lleva EdgesRenderer (no hay pared destacada greybox)
-        for (const mesh of view.greybox) mesh.setEnabled(false);
+        if (entry.overlay) {
+          // Overlay (marco de puerta sobre el corte interior): DECORA — el greybox estructural
+          // sigue visible con sus materiales (tinte de estado y glow intactos), y el edge de
+          // vivienda del jugador (edgesMesh) no se toca. El overlay no entra en tintado/glow.
+        } else {
+          view.mats = model.mats;
+          view.baseEmissive = model.mats.map((mm) => new Color3(mm.emissiveColor.r, mm.emissiveColor.g, mm.emissiveColor.b));
+          view.baseColor = model.baseColor.map((c) => new Color3(c.r, c.g, c.b));
+          view.tintStrength = entry.tintStrength ?? 0.6;
+          view.edgesMesh = null; // el modelo no lleva EdgesRenderer (no hay pared destacada greybox)
+          for (const mesh of view.greybox) mesh.setEnabled(false);
+        }
       });
     }
   }

@@ -32,6 +32,62 @@
       "defaultAnimation": "idle",
       "walkAnimation": "walk",
       "activityAnimations": { "chair": "knit" }
+    },
+    "jugador_base": {
+      "model": "actors/jugador_base.gltf",
+      "nominalHeight": 1.35,
+      "animations": { "idle": "idle", "walk": "walk", "work": "work" },
+      "defaultAnimation": "idle",
+      "walkAnimation": "walk",
+      "activityAnimations": { "work": "work" }
+    },
+    "presidente": {
+      "model": "actors/presidente.gltf",
+      "nominalHeight": 1.35,
+      "animations": { "idle": "idle", "walk": "walk", "inspect": "inspect" },
+      "defaultAnimation": "idle",
+      "walkAnimation": "walk",
+      "activityAnimations": { "stroll": "inspect" }
+    },
+    "estudiante": {
+      "model": "actors/estudiante.gltf",
+      "nominalHeight": 1.35,
+      "animations": { "idle": "idle", "walk": "walk", "rock": "rock" },
+      "defaultAnimation": "idle",
+      "walkAnimation": "walk",
+      "activityAnimations": { "study_music": "rock" }
+    },
+    "fondo_buitre": {
+      "model": "actors/fondo_buitre.gltf",
+      "nominalHeight": 1.35,
+      "animations": { "idle": "idle", "walk": "walk", "appraise": "appraise" },
+      "defaultAnimation": "idle",
+      "walkAnimation": "walk",
+      "activityAnimations": { "stroll": "appraise" }
+    },
+    "inquilino": {
+      "model": "actors/inquilino.gltf",
+      "nominalHeight": 1.35,
+      "animations": { "idle": "idle", "walk": "walk", "phone": "phone" },
+      "defaultAnimation": "idle",
+      "walkAnimation": "walk",
+      "activityAnimations": { "idle": "phone" }
+    },
+    "okupa": {
+      "model": "actors/okupa.gltf",
+      "nominalHeight": 1.35,
+      "animations": { "idle": "idle", "walk": "walk", "drill": "drill" },
+      "defaultAnimation": "idle",
+      "walkAnimation": "walk",
+      "activityAnimations": { "reforma_creativa": "drill" }
+    },
+    "musico": {
+      "model": "actors/musico.gltf",
+      "nominalHeight": 1.35,
+      "animations": { "idle": "idle", "walk": "walk", "drums": "drums", "gig": "gig" },
+      "defaultAnimation": "idle",
+      "walkAnimation": "walk",
+      "activityAnimations": { "bateria": "drums", "concierto_bar": "gig" }
     }
   },
   "blocks": {
@@ -49,6 +105,36 @@
       "model": "blocks/escaleras_planta.gltf",
       "nominal": { "w": 2.28, "h": 2.46, "d": 1.4 },
       "tintStrength": 0.5
+    },
+    "pasillo_planta": {
+      "model": "blocks/pasillo_planta.gltf",
+      "nominal": { "w": 24, "h": 0.14, "d": 1.4 },
+      "tintStrength": 0.55
+    },
+    "garaje": {
+      "model": "blocks/garaje.gltf",
+      "nominal": { "w": 2.28, "h": 2.46, "d": 1.4 },
+      "tintStrength": 0.5
+    },
+    "trasteros": {
+      "model": "blocks/trasteros.gltf",
+      "nominal": { "w": 2.28, "h": 2.46, "d": 1.4 },
+      "tintStrength": 0.5
+    },
+    "local_comercial": {
+      "model": "blocks/local_comercial.gltf",
+      "nominal": { "w": 4.68, "h": 2.46, "d": 1.4 },
+      "tintStrength": 0.4
+    },
+    "lavanderia_comunal": {
+      "model": "blocks/lavanderia_comunal.gltf",
+      "nominal": { "w": 4.68, "h": 2.46, "d": 1.4 },
+      "tintStrength": 0.4
+    },
+    "vivienda_estandar": {
+      "model": "blocks/vivienda_estandar.gltf",
+      "nominal": { "w": 4.68, "h": 2.46, "d": 2.8 },
+      "overlay": true
     }
   }
 }

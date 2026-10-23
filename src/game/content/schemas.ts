@@ -610,6 +610,10 @@ export const blockAssetSchema = z.object({
   model: z.string().min(1),
   nominal: z.object({ w: z.number().positive(), h: z.number().positive(), d: z.number().positive() }),
   tintStrength: z.number().min(0).max(1).optional(),
+  /** Overlay: decora sin ocultar el greybox (marcos de puerta sobre el corte interior). */
+  overlay: z.boolean().optional(),
+  /** Clonar materiales por instancia (default true): tinte/glow por bloque sin contaminar hermanos. */
+  cloneMaterials: z.boolean().optional(),
 });
 
 export const assetsCatalogSchema = z.object({

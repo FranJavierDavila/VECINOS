@@ -147,7 +147,9 @@ export async function instantiateBlockAsset(scene: Scene, def: BlockAssetDef, ba
   const c = await loadContainer(scene, base + def.model);
   if (!c || scene.isDisposed) return null;
   try {
-    const inst = c.instantiateModelsToScene();
+    // Materiales clonados por instancia (default): el tinte de estado y el glow de canales son
+    // POR BLOQUE (dos pasillos no brillan juntos). El manifiesto puede optar salir con false.
+    const inst = c.instantiateModelsToScene(undefined, def.cloneMaterials !== false);
     const root = inst.rootNodes[0] as TransformNode | undefined;
     if (!root) return null;
     for (const g of inst.animationGroups) g.dispose(); // bloques estáticos: sin clips
