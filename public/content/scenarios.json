@@ -15,7 +15,7 @@
   },
   "building": {
    "id": "bld_principal",
-   "template": "edificio_4x4_nucleo_central",
+   "template": "edificio_9x8_nucleo_central",
    "community": {
     "funds": 500,
     "presidentId": "res_presidente_01"
@@ -195,7 +195,7 @@
   },
   "building": {
    "id": "bld_principal",
-   "template": "edificio_4x4_nucleo_central",
+   "template": "edificio_9x8_nucleo_central",
    "community": {
     "funds": 500,
     "presidentId": "res_presidente_01"

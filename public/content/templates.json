@@ -1,10 +1,10 @@
 [
   {
-    "id": "edificio_4x4_nucleo_central",
-    "grid": { "cols": 5, "floors": 5 },
+    "id": "edificio_9x8_nucleo_central",
+    "grid": { "cols": 9, "floors": 8 },
     "rows": [
-      { "floors": [0, 4], "blocks": [{ "col": 0, "defId": "pasillo_planta", "tag": "pasillo" }] },
-      { "floors": [0, 4], "blocks": [{ "col": 2, "defId": "nucleo_comunicaciones", "tag": "nucleo" }] },
+      { "floors": [0, 7], "blocks": [{ "col": 0, "defId": "pasillo_planta", "tag": "pasillo" }] },
+      { "floors": [0, 7], "blocks": [{ "col": 4, "defId": "nucleo_comunicaciones", "tag": "nucleo" }] },
       {
         "floors": [0, 0],
         "blocks": [
@@ -13,12 +13,12 @@
         ]
       },
       {
-        "floors": [1, 4],
+        "floors": [1, 7],
         "blocks": [
           { "col": 0, "defId": "vivienda_estandar", "tag": "a" },
-          { "col": 1, "defId": "vivienda_estandar", "tag": "b" },
-          { "col": 3, "defId": "vivienda_estandar", "tag": "c" },
-          { "col": 4, "defId": "vivienda_estandar", "tag": "d" }
+          { "col": 2, "defId": "vivienda_estandar", "tag": "b" },
+          { "col": 5, "defId": "vivienda_estandar", "tag": "c" },
+          { "col": 7, "defId": "vivienda_estandar", "tag": "d" }
         ]
       }
     ]

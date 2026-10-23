@@ -410,3 +410,27 @@ Stage Summary:
 - El juego acepta ARTE FINAL data-driven: un modelo glTF por arquetipo (con clips por actividad) y por tipo de bloque (con tintado de estado y glow), sin tocar sim ni lógica; añadir un vecino/bloque modelado = soltar el .gltf en public/assets + una entrada en assets.json. El greybox queda como fallback universal y el pipeline se valida visualmente en /art-preview.html.
 - Piloto entregado: Pinturillas animado (idle/walk/spray) que reproduce su animación de pintada al hacer paint_cabin en el ascensor, y el núcleo de comunicaciones 3D con puertas de ascensor.
 - Pendientes v0.6 siguientes: resincronización de vistas tras load, arte real (skinning/artistas), more blocks/actors, plantilla 8 plantas + viviendas dobles (Fase B).
+
+---
+Task ID: 14
+Agent: main (Z.ai Code)
+Task: v0.6 Fase B — plantilla del edificio con 8 plantas y viviendas del doble de ancho (100% contenido, cero código)
+
+Work Log:
+- Diseño: en lugar de dejar 2 viviendas/planta (rompía toda la narrativa con ids blk_pX_b/d y labels "2B/4D"), se ensancha la retícula a 9 columnas y las 4 viviendas por planta pasan de w=1 a w=2 → los ids blk_p{floor}_{a-d} y TODA la narrativa (misiones, diálogos, minijuegos, demo, scenarios) quedan intactos sin tocar ni un texto.
+- templates.json: nuevo template "edificio_9x8_nucleo_central" — grid {cols:9, floors:8}; pasillo [0,7], núcleo col 4 [0,7], portal+trasteros [0,0], viviendas [1,7] en cols 0/2/5/7 con tags a-d. scenarios.json: referencias al template renombradas (slice y qa).
+- blocks.json: vivienda_estandar size.w 1→2 (vivienda de 4,8 m) y pasillo_planta size.w 5→9 (cubre toda la retícula).
+- Verificado que NADA más necesitaba cambios: world.ts expande filas×plantas genérico; graph.ts encadena núcleos floor+1 solo; PlayerLogic.rangeOf usa size.w; cámara encuadra por cols/floors derivados de los bloques; building.ts dibuja por size.w (interior, muebles, panel/candado); blockLabel sigue formateando a-d; el nucleo glTF de Fase A sigue siendo 1×1.
+- Compatibilidad de guardados: el save serializa el World completo (bloques con su size) → una partida antigua carga el edificio antiguo tal cual; una nueva usa la plantilla nueva.
+
+Test (agent-browser, todo verificado en vivo):
+- Edificio 9x8 renderiza completo: 8 plantas, 4 viviendas dobles/planta, núcleo central con antena glTF, portal+trasteros en PB, tintado rojo del núcleo por ascensor averiado, candados en vacías, naranja de ocupadas, borde blanco del 3C.
+- Cámara edificio/planta/estancia enframan bien la retícula nueva; HUD "del portal a tu puerta: 13 min" (Dijkstra recalculado con escaleras).
+- Gameplay E2E: andar portal→núcleo, subir 3 plantas por escalera (prompt "W/S · escalera"), puerta 3C alcanzada → "Misión completada: Bienvenido al edificio", cadena disparó mudanza de Dolores+Pinturillas al 1B (avatares nuevos en vivo), teléfono del administrador → elección → junta de vecinos con votación IA ("Rechazado (6 sí / 1 no)": fondos 500 € < obra 800 €, comportamiento preexistente del sim).
+- Entrar/salir del 3C con interior ancho visible en cámara estancia; guardar + cargar respeta edificio y estado; escenario ?scenario=qa arranca limpio.
+- Consola del navegador sin errores; dev.log sin errores; bun run lint limpio.
+
+Stage Summary:
+- Fase B completa: el edificio es data-driven al 100% — pasar de 5x5 a 9x8 con viviendas dobles costó 3 ficheros de contenido y CERO líneas de código/sim (la arquitectura agnóstica demostrada en la práctica).
+- Hallazgo para futuras fases: interactTarget() (portátil/cama/buzones/tablón) está declarado en PlayerLogic pero aún no está cableado a la tecla E (solo entra/sale); conectarlo es la QoL pendiente junto a la resincronización de vistas tras "Cargar partida" (v0.6-b).
+- Pendientes v0.6: Fase C (movimiento interior 2D + layouts 2D), Fase D (cutscenes de misión data-driven).

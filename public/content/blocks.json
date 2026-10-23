@@ -18,7 +18,7 @@
     "id": "pasillo_planta",
     "kind": "common",
     "layer": "corridor",
-    "size": { "w": 5, "h": 1 },
+    "size": { "w": 9, "h": 1 },
     "traversable": true,
     "params": {
       "cleanliness": { "type": "number", "min": 0, "max": 100, "default": 70, "tier": 1, "label": "Limpieza del pasillo" },
@@ -53,7 +53,7 @@
     "id": "vivienda_estandar",
     "kind": "dwelling",
     "layer": "main",
-    "size": { "w": 1, "h": 1 },
+    "size": { "w": 2, "h": 1 },
     "container": { "childKind": "room", "layout": "layout_vivienda_v1" },
     "params": {
       "style": { "type": "enum", "values": ["moderno", "clasico", "retro", "caotico", "duplex"], "default": "clasico", "tier": 2, "label": "Estilo" },
