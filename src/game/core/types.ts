@@ -59,6 +59,8 @@ export interface RoomDef {
    * el jugador las usa por proximidad 2D y solo responden en su vivienda.
    */
   interactables?: { id: string; kind: 'laptop' | 'bed'; pos: [number, number] }[];
+  /** Anclas de actividad de los vecinos (no interactivas): pos [x,z] local al rect de la estancia. */
+  anchors?: { id: string; kind: string; pos: [number, number] }[];
   view: BlockView;
 }
 
@@ -261,6 +263,8 @@ export interface ActivityDef {
   /** Etiqueta para el registro de la interfaz (con emoji si procede). */
   label?: string;
   at?: 'home' | 'corridor' | 'core' | 'stairs' | 'out';
+  /** Kind de ancla de estancia donde ocurre (cama, tv, stove…): vida interior de los vecinos. */
+  anchor?: string;
   say?: string[];
   emits?: Record<string, number>;
   schedule?: ScheduleWindow[];
@@ -524,6 +528,8 @@ export interface Rules {
     corridorRail: number;
     /** Velocidad de crucero de los vecinos (IA) en m/s: la interpolación nunca "teletransporta". */
     npcWalkSpeed: number;
+    /** Segundos entre deambulaciones de un vecino en casa sin ancla de actividad (vida interior). */
+    npcWanderSeconds: number;
     roomZ: number;
     /** Calado (profundidad en Z) de las viviendas: doblado en v0.6-b para mobiliario interior. */
     depth: number;

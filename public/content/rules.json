@@ -124,6 +124,7 @@
     "corridorDepth": 1.3,
     "corridorRail": 0.32,
     "npcWalkSpeed": 2.2,
+    "npcWanderSeconds": 8,
     "roomZ": 0,
     "depth": 2.8,
     "wall": 0.1,

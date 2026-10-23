@@ -17,6 +17,7 @@
   "activities": {
    "idle": {},
    "sleep": {
+    "anchor": "bed",
     "label": "😴 duerme"
    },
    "work": {
@@ -57,10 +58,12 @@
     "at": "home"
    },
    "sleep": {
+    "anchor": "bed",
     "at": "home",
     "label": "😴 duerme"
    },
    "tv_loud": {
+    "anchor": "tv",
     "at": "home",
     "label": "📺 tele a todo volumen",
     "emits": {
@@ -78,6 +81,7 @@
     ]
    },
    "cocina_guiso": {
+    "anchor": "stove",
     "at": "home",
     "label": "🍲 cocina el guiso de siempre",
     "emits": {
@@ -95,6 +99,7 @@
     ]
    },
    "quema_guiso": {
+    "anchor": "stove",
     "at": "home",
     "label": "🔥 quema el guiso de siempre",
     "emits": {
@@ -161,6 +166,7 @@
     "at": "home"
    },
    "sleep": {
+    "anchor": "bed",
     "at": "home",
     "label": "😴 duerme"
    },
@@ -233,6 +239,7 @@
     ]
    },
    "sleep": {
+    "anchor": "bed",
     "at": "home",
     "label": "😴 duerme"
    },
@@ -310,6 +317,7 @@
     ]
    },
    "sleep": {
+    "anchor": "bed",
     "at": "home",
     "label": "😴 duerme"
    },
@@ -361,6 +369,7 @@
     "at": "home"
    },
    "sleep": {
+    "anchor": "bed",
     "at": "home",
     "label": "😴 duerme",
     "say": [
@@ -381,6 +390,7 @@
     ]
    },
    "study_music": {
+    "anchor": "desk",
     "at": "home",
     "label": "🎸 estudia... con amplificador",
     "emits": {
@@ -427,6 +437,7 @@
     ]
    },
    "sleep": {
+    "anchor": "bed",
     "at": "home",
     "label": "😴 duerme"
    },
@@ -511,6 +522,7 @@
     ]
    },
    "sleep": {
+    "anchor": "bed",
     "at": "home",
     "label": "😴 duerme"
    },
@@ -566,6 +578,7 @@
     ]
    },
    "sleep": {
+    "anchor": "bed",
     "at": "home",
     "label": "😴 duerme"
    },
@@ -610,6 +623,7 @@
     "at": "home"
    },
    "sleep": {
+    "anchor": "bed",
     "at": "home",
     "label": "😴 duerme"
    },
@@ -668,6 +682,7 @@
     "at": "home"
    },
    "sleep": {
+    "anchor": "bed",
     "at": "home",
     "label": "😴 duerme"
    },
@@ -679,6 +694,7 @@
     ]
    },
    "bateria": {
+    "anchor": "amp",
     "at": "home",
     "label": "🥁 ensaya con la batería electrónica",
     "emits": {

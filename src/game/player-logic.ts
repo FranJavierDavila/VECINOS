@@ -1,5 +1,6 @@
 import type { BlockInstance, Command, CommandResult, Content, Input, InteractTarget, PlayerPosition, World } from '@/game/core/types';
 import { dispatch, nextStepTowards } from '@/game/sim';
+import { layoutGeometryOf, roomAt, walkable, type LayoutGeometry } from '@/game/interior';
 
 export type InteractResult =
   | { type: 'none' }
@@ -7,20 +8,6 @@ export type InteractResult =
   | { type: 'exited'; block: string }
   | { type: 'locked'; block: string; reason: string | null; price: number | null }
   | { type: 'used'; kind: 'laptop' | 'bed' | 'mailbox' | 'noticeboard' | 'resident' };
-
-/** Estancia del layout con su geometría 2D y el acceso de la instancia viva. */
-interface RoomRect {
-  key: string;
-  defId: string;
-  rect: { x: number; z: number; w: number; d: number };
-  locked: boolean;
-}
-
-/** Geometría interior de una vivienda (del layout del catálogo); null = layout sin rects → 1D clásico. */
-interface LayoutGeometry {
-  rooms: RoomRect[];
-  doorways: { a: string; b: string; axis: 'x' | 'z'; at: number; width: number }[];
-}
 
 /**
  * Firma de la vía de salida de comandos. En partida clásica el controlador devuelve el
@@ -77,6 +64,10 @@ export class PlayerLogic {
     this.floor = start.cell.floor;
     this.x = this.centerOf(start);
     this.z = 0;
+    // Guardado (o sesión remota) con el residente DENTRO de una vivienda: aterriza en el interior
+    // (sin esto, el modo 'corridor' del constructor sincronizaría un move al pasillo en el
+    // primer frame y el jugador "saldría de casa" solo al cargar la partida).
+    if (start.kind === 'dwelling') this.landInside(start);
   }
 
   private rangeOf(b: BlockInstance): [number, number] {
@@ -107,52 +98,13 @@ export class PlayerLogic {
     return this.onFloor(f).find((b) => this.content.blocks[b.defId]!.features?.elevator);
   }
 
-  // ── Fase C: geometría interior 2D (data-driven desde layouts.json; null = 1D clásico) ──
+  // ── Fase C: geometría interior 2D — compartida con la vida interior de los vecinos ──
+  // (src/game/interior.ts: rects, tabiques, huecos, rutas y anclas; UNA fuente de verdad
+  // para el jugador y los NPCs, siempre desde el catálogo layouts/rooms + rules.view).
 
   /** Geometría 2D del layout de una vivienda; null si el layout no declara rects (catálogo antiguo). */
   private geometryOf(block: BlockInstance): LayoutGeometry | null {
-    const layoutId = this.content.blocks[block.defId]?.container?.layout;
-    const layout = layoutId ? this.content.layouts[layoutId] : undefined;
-    const declared = layout?.rooms.filter((r) => r.rect !== undefined) ?? [];
-    if (!layout || declared.length === 0) return null;
-    return {
-      rooms: declared.map((r) => {
-        const inst = block.rooms.find((x) => x.key === r.key);
-        return { key: r.key, defId: r.defId, rect: r.rect!, locked: inst ? inst.access !== 'unlocked' : true };
-      }),
-      doorways: layout.doorways ?? [],
-    };
-  }
-
-  /** Estancia que contiene el punto (rects que teselan); si ninguno lo contiene, la más cercana por centro. */
-  private roomAt(geo: LayoutGeometry, x: number, z: number): RoomRect {
-    const hit = geo.rooms.find((r) => x >= r.rect.x && x < r.rect.x + r.rect.w && z >= r.rect.z && z < r.rect.z + r.rect.d);
-    if (hit) return hit;
-    let best = geo.rooms[0]!;
-    let bestD = Infinity;
-    for (const r of geo.rooms) {
-      const d = (r.rect.x + r.rect.w / 2 - x) ** 2 + (r.rect.z + r.rect.d / 2 - z) ** 2;
-      if (d < bestD) {
-        bestD = d;
-        best = r;
-      }
-    }
-    return best;
-  }
-
-  /**
-   * ¿Se puede estar en (x, z) viniendo de `from`? Misma estancia siempre; otra estancia solo
-   * cruzando un hueco de puerta entre ambas y si la destino está abierta (access unlocked).
-   * La particularidad del eje: axis 'z' = tabique que corre según Z (se cruza andando en X, y el
-   * hueco se valida con la coordenada z); axis 'x' = simétrico.
-   */
-  private walkable(geo: LayoutGeometry, from: RoomRect, x: number, z: number): boolean {
-    const target = this.roomAt(geo, x, z);
-    if (target.key === from.key) return true;
-    if (target.locked) return false;
-    const door = geo.doorways.find((d) => (d.a === from.key && d.b === target.key) || (d.a === target.key && d.b === from.key));
-    if (!door) return false;
-    return door.axis === 'z' ? Math.abs(z - door.at) <= door.width / 2 : Math.abs(x - door.at) <= door.width / 2;
+    return layoutGeometryOf(this.content, block);
   }
 
   /** Aterriza dentro de una vivienda: plano frontal, y si cae en estancia cerrada, a la abierta más al frente. */
@@ -162,7 +114,7 @@ export class PlayerLogic {
     this.z = 0.45;
     const geo = this.geometryOf(block);
     if (geo) {
-      const room = this.roomAt(geo, this.x - block.cell.col * this.view.cellW, this.z);
+      const room = roomAt(geo, this.x - block.cell.col * this.view.cellW, this.z);
       if (room.locked) {
         const open = geo.rooms.find((r) => !r.locked);
         if (open) this.x = block.cell.col * this.view.cellW + open.rect.x + open.rect.w / 2;
@@ -266,12 +218,12 @@ export class PlayerLogic {
       const x0 = home.cell.col * this.view.cellW;
       const clampX = (x: number) => Math.min(b - this.view.margin, Math.max(a + this.view.margin, x));
       const clampZ = (z: number) => Math.min(this.view.depth - this.view.margin, Math.max(this.view.margin, z));
-      const cur = this.roomAt(geo, this.x - x0, this.z);
+      const cur = roomAt(geo, this.x - x0, this.z);
       const nx = clampX(this.x + dx);
-      if (this.walkable(geo, cur, nx - x0, this.z)) this.x = nx;
-      const cur2 = this.roomAt(geo, this.x - x0, this.z);
+      if (walkable(geo, cur, nx - x0, this.z)) this.x = nx;
+      const cur2 = roomAt(geo, this.x - x0, this.z);
       const nz = clampZ(this.z + dz);
-      if (this.walkable(geo, cur2, this.x - x0, nz)) this.z = nz;
+      if (walkable(geo, cur2, this.x - x0, nz)) this.z = nz;
       return;
     }
     this.x = Math.min(this.width - this.view.margin, Math.max(this.view.margin, this.x + dir * this.view.walkSpeed * dt));
@@ -314,7 +266,7 @@ export class PlayerLogic {
         // Interactivos de la estancia actual (portátil/cama): posición 2D del catálogo, no offsets.
         const geo = this.geometryOf(b);
         if (geo) {
-          const room = this.roomAt(geo, this.x - b.cell.col * this.view.cellW, this.z);
+          const room = roomAt(geo, this.x - b.cell.col * this.view.cellW, this.z);
           const rdef = this.content.rooms[room.defId];
           for (const it of rdef?.interactables ?? []) {
             const wx = b.cell.col * this.view.cellW + room.rect.x + it.pos[0];

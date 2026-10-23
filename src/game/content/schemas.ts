@@ -68,6 +68,12 @@ export const roomDefSchema = z.object({
   interactables: z
     .array(z.object({ id: z.string(), kind: z.enum(['laptop', 'bed']), pos: z.tuple([z.number(), z.number()]) }))
     .optional(),
+  /**
+   * Anclas de actividad de los vecinos (no interactivas para el jugador): dónde se colocan
+   * dentro de la estancia las actividades que declaran `anchor` con ese kind en el arquetipo
+   * (tv, stove, desk, amp…). `pos` = [x, z] en metros locales al rect de la estancia.
+   */
+  anchors: z.array(z.object({ id: z.string(), kind: z.string(), pos: z.tuple([z.number(), z.number()]) })).optional(),
   view: viewSchema,
 });
 
@@ -283,6 +289,8 @@ export const archetypeDefSchema = z.object({
     z.object({
       label: z.string().optional(),
       at: z.enum(['home', 'corridor', 'core', 'stairs', 'out']).optional(),
+      /** Kind de ancla de estancia donde ocurre (cama, tv, stove…): vida interior de los vecinos. */
+      anchor: z.string().optional(),
       say: z.array(z.string()).optional(),
       emits: z.record(z.string(), z.number()).optional(),
       schedule: z.array(scheduleWindowSchema).optional(),
@@ -464,6 +472,8 @@ export const rulesSchema = z.object({
     corridorRail: z.number().default(0),
     /** Velocidad de crucero de los vecinos (IA) en m/s: la interpolación nunca "teletransporta". */
     npcWalkSpeed: z.number().default(2.2),
+    /** Segundos entre deambulaciones de un vecino en casa sin ancla de actividad (vida interior). */
+    npcWanderSeconds: z.number().default(8),
     roomZ: z.number(),
     depth: z.number(),
     commonDepth: z.number().default(1.4),

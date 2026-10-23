@@ -2,6 +2,7 @@ import type { Mesh, Scene, TransformNode } from '@babylonjs/core';
 import type { BlockInstance, Content, PlayerPosition, World } from '@/game/core/types';
 import { B } from './babylon';
 import { instantiateActorAsset, type ActorRig } from './assets';
+import { hash01, interiorRoute, interiorTarget, layoutGeometryOf, type Pt } from '@/game/interior';
 
 /** Plano frontal de las viviendas: z local 0 de los interiores (la cara de la puerta). */
 const frontZOf = (roomZ: number, commonDepth: number): number => roomZ - commonDepth / 2;
@@ -15,6 +16,14 @@ interface Actor {
   /** Cola de tramos en curso: el actor la agota ANTES de capturar el destino del mundo de nuevo
    *  (ir al pozo → subir → salir: un salto del sim se ve como un viaje, nunca un teletransporte). */
   path: { x: number; y: number; z: number }[];
+  /** Vida interior (Fase C): cuenta atrás para el próximo punto de deambulación y nº de vuelta
+   *  (el punto es determinista por residente+ vuelta: sin RNG global ni capturas irreproducibles). */
+  wanderT: number;
+  wanderLap: number;
+  /** Objetivo interior VIGENTE (coords locales de la vivienda): se refresca con la cadencia del
+   *  catálogo (npcWanderSeconds), no cada tick — amortigua el parpadeo de actividades con chance. */
+  targetLocal: Pt | null;
+  lastLoc: string | null;
   /** Rig del arte final (null mientras carga o si hay fallback greybox). */
   rig: ActorRig | null;
 }
@@ -43,7 +52,7 @@ export function createActors(scene: Scene, world: World, content: Content) {
     m.emissiveColor = m.diffuseColor.scale(0.25);
     mesh.material = m;
     mesh.isPickable = false;
-    const a: Actor = { node: mesh, height, pivotY: height / 2, path: [], rig: null };
+    const a: Actor = { node: mesh, height, pivotY: height / 2, path: [], wanderT: 0, wanderLap: 0, targetLocal: null, lastLoc: null, rig: null };
     actors.set(id, a);
 
     // Arte final (opcional): modelo glTF del manifiesto; cualquier fallo → cápsula.
@@ -124,9 +133,37 @@ export function createActors(scene: Scene, world: World, content: Content) {
           const b = world.blocks[r.location!]!;
           const home = world.blocks[r.home]!;
           const inRoom = b.kind === 'dwelling';
-          const x = b.layer === 'corridor' ? (home.cell.col + 0.5) * v.cellW : (b.cell.col + b.size.w / 2) * v.cellW;
-          // Vecinos dentro de su vivienda: cerca del frente (su profundidad exacta no se sincroniza).
-          goal.set(x, b.cell.floor * v.cellH + 0.14 + a.pivotY, inRoom ? frontZ + 0.6 : v.corridorZ);
+          const x0 = b.cell.col * v.cellW;
+          let gx = b.layer === 'corridor' ? (home.cell.col + 0.5) * v.cellW : (x0 + b.size.w * v.cellW) / 2;
+          let gz = inRoom ? frontZ + 0.6 : v.corridorZ;
+          // ── Vida interior (Fase C): en vivienda, el punto lo decide el contenido. La actividad
+          // con `anchor` (cama, tv, stove…) coloca al vecino en SU estancia por el catálogo de
+          // anclas (rooms.json); sin ancla, deambula por las estancias abiertas. El objetivo se
+          // REFRESCA con la cadencia npcWanderSeconds (no cada tick): una actividad con chance
+          // que parpadea en el sim no arrastra al vecino por la casa. Cerradas jamás son destino.
+          const geo = inRoom ? layoutGeometryOf(content, b) : null;
+          let localTarget: Pt | null = null;
+          if (a.lastLoc !== r.location) {
+            a.lastLoc = r.location;
+            a.targetLocal = null;
+            a.wanderT = 0;
+          }
+          if (geo) {
+            a.wanderT -= dt;
+            if (a.path.length === 0 && a.wanderT <= 0) {
+              a.wanderLap += 1;
+              a.wanderT = v.npcWanderSeconds * (0.7 + 0.6 * hash01(id, a.wanderLap));
+              const act = r.activity ? content.archetypes[r.archetype]?.activities[r.activity] : undefined;
+              a.targetLocal = (act?.anchor ? interiorTarget(content, geo, act.anchor, id, 0) : null)
+                ?? interiorTarget(content, geo, undefined, id, a.wanderLap);
+            }
+            localTarget = a.targetLocal;
+          }
+          if (localTarget) {
+            gx = x0 + localTarget.x;
+            gz = frontZ + localTarget.z;
+          }
+          goal.set(gx, b.cell.floor * v.cellH + 0.14 + a.pivotY, gz);
           // ── Locomoción interpolada (nada de teletransportes): el destino del sim se recorre a
           // velocidad de crucero del catálogo, tramo a tramo. Los saltos del sim (IA cada aiHopTicks)
           // se encolan: el actor agota su ruta (pozo incluido) y SOLO THEN captura el destino nuevo.
@@ -140,6 +177,8 @@ export function createActors(scene: Scene, world: World, content: Content) {
           } else if (a.path.length === 0) {
             // Captura: sin cambio de planta → tramo directo. Con cambio → pozo más cercano:
             // andar hasta él (saliendo de la vivienda si hace falta), subir y salir al destino.
+            let startX = node.x;
+            let startZ = node.z;
             if (dy > 0.05) {
               const here = shafts
                 .filter((s) => s.cell.floor === b.cell.floor)
@@ -149,9 +188,29 @@ export function createActors(scene: Scene, world: World, content: Content) {
               }
               if (here) {
                 a.path.push({ x: shaftXOf(here), y: goal.y, z: v.corridorZ });
+                startX = shaftXOf(here);
+                startZ = v.corridorZ;
               }
             }
-            a.path.push({ x: goal.x, y: goal.y, z: goal.z });
+            // Tramo final: dentro de una vivienda con geometría 2D, la ruta pasa por los huecos
+            // del catálogo (nunca a través de tabiques): entrada por la puerta + cruce de
+            // estancias (interior.ts). Fuera de ella, el tramo directo de siempre.
+            const legs: Pt[] = [];
+            if (geo && localTarget) {
+              const outside = startZ < frontZ - 0.01;
+              const fromLocal: Pt = outside
+                ? { x: Math.min(b.size.w * v.cellW - v.margin, Math.max(v.margin, startX - x0)), z: 0.45 }
+                : { x: startX - x0, z: startZ - frontZ };
+              const route = interiorRoute(geo, fromLocal, localTarget);
+              if (route) {
+                if (outside) legs.push({ x: x0 + fromLocal.x, z: frontZ + 0.45 });
+                for (const p of route) legs.push({ x: x0 + p.x, z: frontZ + p.z });
+              } else {
+                legs.push({ x: (x0 + b.size.w * v.cellW) / 2, z: frontZ + 0.6 }); // sin ruta legal: al frente
+              }
+            }
+            if (legs.length === 0) legs.push({ x: goal.x, z: goal.z });
+            for (const p of legs) a.path.push({ x: p.x, y: goal.y, z: p.z });
           }
           if (a.path.length > 0) {
             const w = a.path[0]!;
