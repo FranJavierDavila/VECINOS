@@ -1526,5 +1526,408 @@
     ]
    }
   ]
+ },
+ {
+  "id": "m_bar_inaugura",
+  "title": "Abre El Rincón",
+  "description": "El local del bajo por fin tiene inquilina. Doña Marisa inaugura bar: tapas, hielo y toda la chismografía del edificio en barra.",
+  "trigger": {
+   "all": [
+    {
+     "mission": "m_bienvenida",
+     "state": "done"
+    }
+   ]
+  },
+  "steps": [
+   {
+    "id": "aviso",
+    "type": "phone_call",
+    "dialog": "dlg_bar_inaugura",
+    "hint": "Nota de voz de Doña Marisa"
+   },
+   {
+    "id": "bajar",
+    "type": "reach",
+    "target": {
+     "block": "blk_p0_local",
+     "slot": "door"
+    },
+    "hint": "Baja a la inauguración (planta 0)"
+   }
+  ],
+  "choices": [
+   {
+    "id": "brindar",
+    "label": "Brindar con el vecindario",
+    "hint": "La primera tapa la invita Marisa y la segunda también",
+    "icon": "party",
+    "effects": [
+     {
+      "op": "addReputation",
+      "resident": "player",
+      "amount": 6
+     },
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "fiestero",
+      "affinity": 12
+     },
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "cotilla",
+      "affinity": 8
+     },
+     {
+      "op": "toast",
+      "text": "Brindis en El Rincón: Kevin propone un brindis por cada planta y Dolores ya sabe de sobras lo de la 4A.",
+      "tone": "good"
+     }
+    ]
+   },
+   {
+    "id": "timidez",
+    "label": "Asomarse y volver arriba",
+    "hint": "Copa en mano, cara de prisa",
+    "icon": "stairs",
+    "effects": [
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "fiestero",
+      "affinity": -4
+     },
+     {
+      "op": "addReputation",
+      "resident": "player",
+      "amount": 1
+     },
+     {
+      "op": "toast",
+      "text": "Apareciste 90 segundos, dijiste 'qué va, qué va' y te fuiste. Marisa lo ha apuntado en la pizarra de faltas.",
+      "tone": "info"
+     }
+    ]
+   }
+  ],
+  "onComplete": [
+   {
+    "op": "addFunds",
+    "to": "player",
+    "amount": 150
+   },
+   {
+    "op": "unlock",
+    "target": "blk_p2_b",
+    "occupancy": "occupied",
+    "resident": "res_fiestero_01",
+    "arrival": "mudanza"
+   },
+   {
+    "op": "toast",
+    "text": "Marisa te entrega un tupper 'de agradecimiento'. Dentro: croquetas y 150 € que no sabías que iban dentro.",
+    "tone": "good"
+   },
+   {
+    "op": "toast",
+    "text": "Kevin, el Fiestero, ha alquilado el 2B: 'vivir a 20 metros del bar es salud mental'.",
+    "tone": "info"
+   }
+  ]
+ },
+ {
+  "id": "m_bar_ruido",
+  "title": "El Rincón no descansa",
+  "description": "Concierto acústico de Rita, copas de Kevin y el aislamiento de una fiesta de pueblo. Tres quejas y un acta de 14 páginas.",
+  "trigger": {
+   "all": [
+    {
+     "mission": "m_bar_inaugura",
+     "state": "done"
+    },
+    {
+     "time": {
+      "after": "22:30"
+     }
+    }
+   ]
+  },
+  "steps": [
+   {
+    "id": "aviso",
+    "type": "phone_call",
+    "dialog": "dlg_bar_ruido",
+    "hint": "Quejas en cadena del administrador"
+   },
+   {
+    "id": "hablar",
+    "type": "reach",
+    "target": {
+     "block": "blk_p0_local",
+     "slot": "door"
+    },
+    "hint": "Baja a hablar con Marisa"
+   }
+  ],
+  "choices": [
+   {
+    "id": "insonorizar",
+    "label": "Pagar una reforma acústica (250 €)",
+    "hint": "Obra de la buena: el ruido se queda dentro",
+    "icon": "coins",
+    "effects": [
+     {
+      "op": "addFunds",
+      "to": "player",
+      "amount": -250
+     },
+     {
+      "op": "setParam",
+      "target": "blk_p0_local",
+      "param": "soundproofing",
+      "delta": 0.3
+     },
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "cotilla",
+      "affinity": 10
+     },
+     {
+      "op": "addReputation",
+      "resident": "player",
+      "amount": 6
+     },
+     {
+      "op": "toast",
+      "text": "Obra acústica en El Rincón. Ahora el concierto de Rita es un susurro con compás y la 3A vuelve a dormir.",
+      "tone": "good"
+     }
+    ]
+   },
+   {
+    "id": "junta",
+    "label": "Llevarlo a la junta",
+    "hint": "Tope de música: democracia con megáfono",
+    "icon": "vote",
+    "effects": [
+     {
+      "op": "openJunta",
+      "agenda": [
+       {
+        "id": "tope_musica",
+        "title": "Tope de música en El Rincón",
+        "description": "Sello 'música ambiente' y sellado de la puerta del local. 150 € de caja.",
+        "cost": 150,
+        "effects": [
+         {
+          "op": "setParam",
+          "target": "blk_p0_local",
+          "param": "soundproofing",
+          "delta": 0.15
+         },
+         {
+          "op": "addRelation",
+          "a": "player",
+          "b": "musico",
+          "affinity": -8
+         },
+         {
+          "op": "toast",
+          "text": "El Rincón, aprobado como 'local de música ambiente'. Rita dice que el sello aplasta su alma artística.",
+          "tone": "info"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "id": "ignorar",
+    "label": "Total, tú no duermes ahí",
+    "hint": "Método español: aguantar y comentarlo",
+    "icon": "volume-off",
+    "effects": [
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "jubilada",
+      "affinity": -12
+     },
+     {
+      "op": "toast",
+      "text": "Esperanza te ha mirado por encima de las gafas. Esa mirada cuesta más de lo que ahorras.",
+      "tone": "bad"
+     }
+    ]
+   }
+  ],
+  "onComplete": [
+   {
+    "op": "addFunds",
+    "to": "player",
+    "amount": 100
+   }
+  ]
+ },
+ {
+  "id": "m_lavanderia_pelea",
+  "title": "La guerra de la lavandería",
+  "description": "Turnos imposibles, filtro atascado y dos notas de voz que ya se citan mutuamente en el tablón. La comunal necesita árbitro.",
+  "roles": {
+   "abuela": {
+    "archetype": "jubilada"
+   },
+   "vecino": {
+    "archetype": "okupa"
+   }
+  },
+  "trigger": {
+   "all": [
+    {
+     "mission": "m_bar_inaugura",
+     "state": "done"
+    },
+    {
+     "dayMin": 2
+    }
+   ]
+  },
+  "steps": [
+   {
+    "id": "aviso",
+    "type": "phone_call",
+    "dialog": "dlg_lavanderia",
+    "hint": "El contestador de la junta, desbordado"
+   },
+   {
+    "id": "bajar",
+    "type": "reach",
+    "target": {
+     "block": "blk_p0_lavanderia",
+     "slot": "door"
+    },
+    "hint": "Ve a la lavandería comunal (planta 0)"
+   }
+  ],
+  "choices": [
+   {
+    "id": "turnos",
+    "label": "Imponer un cuadro de turnos",
+    "hint": "Pares Esperanza, impares Nando. Firmado y enmarcado",
+    "icon": "vote",
+    "effects": [
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "jubilada",
+      "affinity": 14
+     },
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "okupa",
+      "affinity": 6
+     },
+     {
+      "op": "addReputation",
+      "resident": "player",
+      "amount": 8
+     },
+     {
+      "op": "toast",
+      "text": "Cuadro de turnos en la puerta. Esperanza lo ha plastificado y Nando lo ha aceptado con firmeza agria.",
+      "tone": "good"
+     }
+    ]
+   },
+   {
+    "id": "desatascar",
+    "label": "Desatascar el filtro tú mismo",
+    "hint": "Minijuego de la colada heroica",
+    "icon": "spray",
+    "effects": [
+     {
+      "op": "startMinigame",
+      "id": "mg_desatascar"
+     },
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "jubilada",
+      "affinity": 10
+     },
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "okupa",
+      "affinity": 10
+     },
+     {
+      "op": "addReputation",
+      "resident": "player",
+      "amount": 4
+     }
+    ]
+   },
+   {
+    "id": "lavadora_nueva",
+    "label": "Proponer lavadora nueva en junta (400 €)",
+    "hint": "Tambor 12 kg, ciclo rápido y revolución vecinal",
+    "icon": "coins",
+    "effects": [
+     {
+      "op": "openJunta",
+      "agenda": [
+       {
+        "id": "lavadora_nueva",
+        "title": "Lavadora nueva para la comunal",
+        "description": "Tambor 12 kg, ciclo rápido y panel 'quién lava ahora'. 400 € de caja.",
+        "cost": 400,
+        "effects": [
+         {
+          "op": "setParam",
+          "target": "blk_p0_lavanderia",
+          "param": "condition",
+          "delta": 20
+         },
+         {
+          "op": "addRelation",
+          "a": "player",
+          "b": "jubilada",
+          "affinity": 8
+         },
+         {
+          "op": "toast",
+          "text": "Lavadora nueva instalada. Esperanza la ha estrenado con un batido de cortinas y mucha emoción.",
+          "tone": "good"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "op": "addReputation",
+      "resident": "player",
+      "amount": 3
+     }
+    ]
+   }
+  ],
+  "onComplete": [
+   {
+    "op": "addFunds",
+    "to": "player",
+    "amount": 80
+   },
+   {
+    "op": "toast",
+    "text": "La paz de la lavandería vale su peso en suavizante. Marisa manda unas tapas 'por lo del buen ejemplo'.",
+    "tone": "good"
+   }
+  ]
  }
 ]

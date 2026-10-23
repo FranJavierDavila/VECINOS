@@ -86,7 +86,8 @@ function run(world: World, content: Content, cmd: Command): CommandResult {
       const r = world.residents[cmd.resident];
       const b = world.blocks[cmd.block];
       if (!r || !r.present || !b) return fail('unknown_target');
-      if (b.kind !== 'dwelling') return fail('not_a_door');
+      // Cualquier bloque principal (vivienda O local común: bar, lavandería…) puede avisar de
+      // que estás en su puerta; lo que es alcanzable lo decide doorInFront en presentación.
       const here = r.location ? world.blocks[r.location] : undefined;
       if (!here || here.cell.floor !== b.cell.floor) return fail('not_on_floor');
       emit(world, 'door_approached', { resident: r.id, block: b.id });

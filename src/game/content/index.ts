@@ -164,9 +164,14 @@ export function validateContent(c: Content): Issue[] {
     if (!c.rules.minigames.introByType[t]) err('rules/minigames', `introByType no cubre el tipo: ${t}`);
 
   for (const a of Object.values(c.archetypes)) {
-    for (const [act, def] of Object.entries(a.activities))
+    for (const [act, def] of Object.entries(a.activities)) {
       for (const ch of Object.keys(def.emits ?? {}))
         if (!Object.values(c.influences).some((i) => i.channel === ch)) err(`archetypes/${a.id}`, `canal desconocido en ${act}: ${ch}`);
+      if (def.at?.startsWith('def:')) {
+        const defId = def.at.slice('def:'.length);
+        if (!c.blocks[defId]) err(`archetypes/${a.id}`, `at def: desconocido en ${act}: ${defId}`);
+      }
+    }
   }
 
   for (const m of Object.values(c.missions)) {

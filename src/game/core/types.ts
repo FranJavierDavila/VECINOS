@@ -34,6 +34,8 @@ export interface BlockView {
 
 export interface BlockDef {
   id: string;
+  /** Nombre visible para prompt/HUD. */
+  label?: string;
   kind: 'common' | 'dwelling' | 'commercial' | 'infrastructure';
   layer: 'main' | 'corridor';
   size: { w: number; h: number };
@@ -262,7 +264,8 @@ export interface ScheduleWindow {
 export interface ActivityDef {
   /** Etiqueta para el registro de la interfaz (con emoji si procede). */
   label?: string;
-  at?: 'home' | 'corridor' | 'core' | 'stairs' | 'out';
+  /** Destino: sitio nominal o `def:<blockDefId>` (p. ej. def:local_comercial → el bar del bajo). */
+  at?: 'home' | 'corridor' | 'core' | 'stairs' | 'out' | `def:${string}`;
   /** Kind de ancla de estancia donde ocurre (cama, tv, stove…): vida interior de los vecinos. */
   anchor?: string;
   say?: string[];

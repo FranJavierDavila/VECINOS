@@ -54,6 +54,8 @@ class GameController {
   private phoneMission = '';
   private phoneLines: { speaker: string; text: string }[] = [];
   private phoneLine = 0;
+  /** Cola FIFO de llamadas pendientes: con varias misiones activándose a la vez, ninguna llamada se pisa. */
+  private phoneQueue: { mission: string; dialogId: string }[] = [];
 
   // ── Cutscenes (Fase D): teatro data-driven sobre eventos del sim. ──
   private cutscenePlayer: CutscenePlayer | null = null;
@@ -380,7 +382,7 @@ class GameController {
     }
   }
 
-  /** Siguiente frase del teléfono; al colgar responde la llamada en el sim. */
+  /** Siguiente frase del teléfono; al colgar responde la llamada en el sim y saca la siguiente de la cola. */
   phoneNext(): void {
     if (this.phoneLine < this.phoneLines.length - 1) {
       this.phoneLine += 1;
@@ -394,6 +396,8 @@ class GameController {
     if (this.world && mission) {
       this.sendCommand({ type: 'answer_call', mission });
     }
+    const next = this.phoneQueue.shift();
+    if (next) this.openPhone(next.mission, next.dialogId);
   }
 
   choose(choiceId: string): void {
@@ -572,7 +576,19 @@ class GameController {
     this.keys.clear();
     this.phoneLines = [];
     this.phoneMission = '';
+    this.phoneQueue = [];
     this.lastHudSync = 0;
+
+    // Re-llamada (Fase F): si la partida montada tenía pasos de teléfono pendientes, vuelven a
+    // sonar. La cola de openPhone ordena el resto sin que ninguna llamada se pierda.
+    if (this.world) {
+      for (const m of this.world.missions) {
+        if (m.state !== 'active') continue;
+        const step = this.content.missions[m.id]?.steps[m.step];
+        if (step?.type === 'phone_call') this.openPhone(m.id, step.dialog);
+      }
+    }
+
     this.pump();
   }
 
@@ -837,6 +853,13 @@ class GameController {
   private openPhone(mission: string, dialogId: string): void {
     const dlg = this.content.dialogs[dialogId];
     if (!dlg || dlg.lines.length === 0) return;
+    // Si ya hay una llamada en pantalla, la nueva espera en cola (dedupe por misión).
+    if (this.phoneMission) {
+      if (this.phoneMission !== mission && !this.phoneQueue.some((q) => q.mission === mission)) {
+        this.phoneQueue.push({ mission, dialogId });
+      }
+      return;
+    }
     this.phoneMission = mission;
     this.phoneLines = dlg.lines;
     this.phoneLine = 0;
@@ -851,6 +874,13 @@ class GameController {
 
   // ───────────────────────── HUD ─────────────────────────
 
+  /** Nombre visible de un bloque: label del catálogo (data-driven) o etiqueta de vivienda (1B). */
+  private blockName(id: string): string {
+    const b = this.world?.blocks[id];
+    const defLabel = b ? this.content.blocks[b.defId]?.label : undefined;
+    return defLabel ?? blockLabel(id);
+  }
+
   private objectiveUi(): { title: string; text: string } | null {
     if (!this.world) return null;
     const o = activeObjective(this.world, this.content);
@@ -862,7 +892,7 @@ class GameController {
       case 'phone_call':
         return { title: o.title, text: 'Suena el teléfono. Atiéndelo.' };
       case 'reach':
-        return { title: o.title, text: `Llega a la puerta (${blockLabel(s.block ?? '')}).` };
+        return { title: o.title, text: `Llega a la puerta (${this.blockName(s.block ?? '')}).` };
       case 'enter':
         return { title: o.title, text: 'Entra en tu piso con E.' };
       case 'catch_in_act':
@@ -886,8 +916,8 @@ class GameController {
           const door = world.blocks[t.blockId]!;
           if (logic.position().mode === 'inside') return ic.exit;
           return door.access === 'locked'
-            ? ic.doorLocked.replace('{block}', blockLabel(door.id))
-            : ic.doorEnter.replace('{block}', blockLabel(door.id));
+            ? ic.doorLocked.replace('{block}', this.blockName(door.id))
+            : ic.doorEnter.replace('{block}', this.blockName(door.id));
         }
         case 'resident':
           return ic.greet.replace('{name}', this.nameOf(t.residentId));

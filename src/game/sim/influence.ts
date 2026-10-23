@@ -50,14 +50,17 @@ export function adjacency(world: World): Map<string, Neighbor[]> {
   return out;
 }
 
-/** Emisiones de las actividades en curso (ruido, agua...) desde la vivienda de cada residente. */
+/** Emisiones de las actividades en curso (ruido, agua...) desde el bloque donde ocurren. */
 export function emissionsFromActivities(world: World, content: Content): Emissions {
   const out: Emissions = {};
   for (const r of Object.values(world.residents)) {
     if (!r.present || !r.activity || r.location === null) continue;
-    const emits = content.archetypes[r.archetype]?.activities[r.activity]?.emits;
+    const act = content.archetypes[r.archetype]?.activities[r.activity];
+    const emits = act?.emits;
     if (!emits) continue;
-    const from = r.home; // la actividad emite desde su vivienda
+    // La actividad emite desde DONDE ocurre: 'home' (o sin destino) desde la vivienda;
+    // cualquier destino externo (corridor/core/stairs/def:bar…) desde el bloque en que está.
+    const from = !act.at || act.at === 'home' ? r.home : r.location ?? r.home;
     for (const [channel, v] of Object.entries(emits)) {
       const bucket = (out[channel] ??= {});
       bucket[from] = Math.max(bucket[from] ?? 0, v);
@@ -116,10 +119,15 @@ export function propagate(world: World, content: Content, emissions: Emissions):
       for (const n of nb.get(emitter) ?? []) {
         const factor = rule.spread[n.dir];
         if (!factor) continue;
+        // Atenuación por aislamiento en CUALQUIERA de los dos extremos: manda el que más apaga
+        // (un local insonorizado no deja salir ruido aunque el receptor sea una caseta de obra).
         let att = 1;
         if (rule.attenuatedBy) {
-          const p = world.blocks[n.id]!.params[rule.attenuatedBy];
-          if (typeof p === 'number') att = 1 - Math.min(1, Math.max(0, p));
+          const pr = world.blocks[n.id]!.params[rule.attenuatedBy];
+          const pe = world.blocks[emitter]!.params[rule.attenuatedBy];
+          const fr = typeof pr === 'number' ? 1 - Math.min(1, Math.max(0, pr)) : 1;
+          const fe = typeof pe === 'number' ? 1 - Math.min(1, Math.max(0, pe)) : 1;
+          att = Math.min(fr, fe);
         }
         const value = em[emitter]! * factor * att;
         if (value > (state[n.id] ?? 0)) state[n.id] = value;

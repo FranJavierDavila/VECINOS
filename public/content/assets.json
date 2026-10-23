@@ -8,6 +8,30 @@
       "defaultAnimation": "idle",
       "walkAnimation": "walk",
       "activityAnimations": { "paint_cabin": "spray", "roam": "walk" }
+    },
+    "cotilla": {
+      "model": "actors/cotilla.gltf",
+      "nominalHeight": 1.35,
+      "animations": { "idle": "idle", "walk": "walk", "watch": "watch" },
+      "defaultAnimation": "idle",
+      "walkAnimation": "walk",
+      "activityAnimations": { "watch_corridor": "watch" }
+    },
+    "fiestero": {
+      "model": "actors/fiestero.gltf",
+      "nominalHeight": 1.35,
+      "animations": { "idle": "idle", "walk": "walk", "dance": "dance" },
+      "defaultAnimation": "idle",
+      "walkAnimation": "walk",
+      "activityAnimations": { "party": "dance" }
+    },
+    "jubilada": {
+      "model": "actors/jubilada.gltf",
+      "nominalHeight": 1.35,
+      "animations": { "idle": "idle", "walk": "walk", "knit": "knit" },
+      "defaultAnimation": "idle",
+      "walkAnimation": "walk",
+      "activityAnimations": { "chair": "knit" }
     }
   },
   "blocks": {
@@ -15,6 +39,16 @@
       "model": "blocks/nucleo_comunicaciones.gltf",
       "nominal": { "w": 2.4, "h": 2.6, "d": 1.4 },
       "tintStrength": 0.55
+    },
+    "portal": {
+      "model": "blocks/portal.gltf",
+      "nominal": { "w": 4.68, "h": 2.46, "d": 1.4 },
+      "tintStrength": 0.5
+    },
+    "escaleras_planta": {
+      "model": "blocks/escaleras_planta.gltf",
+      "nominal": { "w": 2.28, "h": 2.46, "d": 1.4 },
+      "tintStrength": 0.5
     }
   }
 }

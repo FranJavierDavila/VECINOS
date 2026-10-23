@@ -128,10 +128,20 @@ export class PlayerLogic {
     return common ?? this.corridor();
   }
 
-  /** Vivienda justo delante (la puerta que puede abrir), si la hay. */
+  /** Vivienda o local justo delante (la puerta que puede abrir), si la hay. */
   doorInFront(): BlockInstance | null {
     if (this.mode !== 'corridor') return null;
-    return this.onFloor(this.floor).find((b) => b.kind === 'dwelling' && this.within(this.x, b)) ?? null;
+    return this.onFloor(this.floor).find((b) => this.isDoorTarget(b) && this.within(this.x, b)) ?? null;
+  }
+
+  /** Objetivos de puerta: viviendas siempre; locales comunes transitables sin features (bar, lavandería…). */
+  private isDoorTarget(b: BlockInstance): boolean {
+    if (b.kind === 'dwelling') return true;
+    if (b.layer !== 'main') return false;
+    const def = this.content.blocks[b.defId]!;
+    if (!def.traversable) return false;
+    const f = def.features;
+    return !f || Object.keys(f).length === 0;
   }
 
   position(): PlayerPosition {
@@ -330,7 +340,8 @@ export class PlayerLogic {
       return { type: 'locked', block: door.id, reason: door.lockReason, price: door.availability?.price ?? null };
     }
     this.lastMoveTarget = door.id; // ya está en vuelo este move
-    this.landInside(door);
+    if (door.kind === 'dwelling') this.landInside(door);
+    else this.approached = door.id; // local común (bar/lavandería): te plantas en su puerta, sin modo interior
     return { type: 'entered', block: door.id };
   }
 

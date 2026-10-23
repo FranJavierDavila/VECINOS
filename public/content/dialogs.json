@@ -184,5 +184,52 @@
     "text": "Ensayo de 8 a 10. Se puede negociar: horario, espuma, o que apadrines mi disco. Tú decides."
    }
   ]
+ },
+ {
+  "id": "dlg_bar_inaugura",
+  "lines": [
+   {
+    "speaker": "Doña Marisa (nota de voz)",
+    "text": "¡Vecino! Marisa, la del bajo. El local por fin abre: EL RINCÓN. Tapas, refresco y teletienda en la tele de barra. Inauguro el viernes."
+   },
+   {
+    "speaker": "Doña Marisa (nota de voz)",
+    "text": "Baja cuando quieras. La primera tapa la invito yo y la segunda también, porque nadie viene dos veces por voluntad propia hasta que vienen."
+   },
+   {
+    "speaker": "Doña Marisa (nota de voz)",
+    "text": "Ah, y aviso: aquí se ventila todo. TODO. Lo del portal, lo del guiso, lo del ascensor. Es como una junta pero con hielo."
+   }
+  ]
+ },
+ {
+  "id": "dlg_bar_ruido",
+  "lines": [
+   {
+    "speaker": "Administrador de fincas",
+    "text": "Tres quejas esta noche sobre El Rincón. La 3A, la 4C y el Sr. Vulture, que ha escrito un acta de 14 páginas sobre 'vibraciones estructurales'."
+   },
+   {
+    "speaker": "Administrador de fincas",
+    "text": "El local tiene el aislamiento de una fiesta de pueblo. Hay solución: obra acústica, junta, o el método español: aguantar y comentarlo."
+   }
+  ]
+ },
+ {
+  "id": "dlg_lavanderia",
+  "lines": [
+   {
+    "speaker": "Contestador de la junta",
+    "text": "Mensaje de Esperanza (4C): 'Los días impares la lavadora comunal es MÍA. Que conste en acta. Que conste en HIERRO.'"
+   },
+   {
+    "speaker": "Contestador de la junta",
+    "text": "Mensaje de Nando (2A): 'Sí, muy bonito, pero la máquina está atascada desde el martes y mi colada ya tiene opiniones.'"
+   },
+   {
+    "speaker": "Contestador de la junta",
+    "text": "Dos vecinos, una lavandería y cero consenso. Baja a echar un ojo antes de que esto salga en el tablón."
+   }
+  ]
  }
 ]

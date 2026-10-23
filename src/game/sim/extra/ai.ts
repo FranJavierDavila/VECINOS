@@ -29,7 +29,7 @@ function windowActive(w: ScheduleWindow, minute: number, day: number): boolean {
 }
 
 /** Decide la actividad deseada del residente: primera actividad cuyo schedule encaje (orden del catálogo). */
-function desire(world: World, content: Content, r: ResidentInstance): [string | null, 'home' | 'corridor' | 'core' | 'stairs' | 'out'] {
+function desire(world: World, content: Content, r: ResidentInstance): [string | null, 'home' | 'corridor' | 'core' | 'stairs' | 'out' | `def:${string}`] {
   const acts = content.archetypes[r.archetype]?.activities ?? {};
   const { night } = content.rules.sim;
   const minute = world.clock.minute;
@@ -57,6 +57,21 @@ function coreOf(world: World, floor: number): string | null {
 function stairsOf(world: World, content: Content, floor: number): string | null {
   return Object.values(world.blocks).find((b) => b.cell.floor === floor && content.blocks[b.defId]!.features?.stairs === true)?.id ?? null;
 }
+/**
+ * Resuelve `def:<blockDefId>`: la instancia de ese tipo más cercana a la vivienda del residente
+ * (distancia de rejilla |Δplanta|·4 + |Δcolumna|, desempate por id — determinista y sin grafo).
+ */
+function blockOfDef(world: World, defId: string, homeId: string): string | null {
+  const home = world.blocks[homeId];
+  const candidates = Object.values(world.blocks)
+    .filter((b) => b.defId === defId)
+    .sort((a, b) => {
+      const da = home ? Math.abs(a.cell.floor - home.cell.floor) * 4 + Math.abs(a.cell.col - home.cell.col) : 0;
+      const db = home ? Math.abs(b.cell.floor - home.cell.floor) * 4 + Math.abs(b.cell.col - home.cell.col) : 0;
+      return da - db || a.id.localeCompare(b.id);
+    });
+  return candidates[0]?.id ?? null;
+}
 
 function setActivity(world: World, content: Content, r: ResidentInstance, activity: string | null) {
   if (r.activity === activity) return;
@@ -76,7 +91,8 @@ export function runAI(world: World, content: Content): void {
     if (r.controller.type === 'human' || !r.present) continue;
 
     const [activity, where] = desire(world, content, r);
-    const targetBlock = where === 'home' ? r.home : where === 'corridor' ? corridorOf(world, world.blocks[r.home]!.cell.floor) : where === 'core' ? coreOf(world, world.blocks[r.home]!.cell.floor) : where === 'stairs' ? stairsOf(world, content, world.blocks[r.home]!.cell.floor) : null;
+    const homeFloor = world.blocks[r.home]!.cell.floor;
+    const targetBlock = where === 'home' ? r.home : where === 'corridor' ? corridorOf(world, homeFloor) : where === 'core' ? coreOf(world, homeFloor) : where === 'stairs' ? stairsOf(world, content, homeFloor) : where.startsWith('def:') ? blockOfDef(world, where.slice('def:'.length), r.home) : null;
 
     if (where === 'out') {
       if (r.location !== null) {

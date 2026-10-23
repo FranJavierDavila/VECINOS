@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { Effect, Condition } from '@/game/core/types';
+import type { ActivityDef, Condition, Effect } from '@/game/core/types';
 
 /**
  * Schemas Zod de los catálogos de contenido. Son la única puerta de entrada:
@@ -23,6 +23,8 @@ const viewSchema = z.object({ color: z.string(), altColor: z.string().optional()
 export const blockDefSchema = z.object({
   id: z.string(),
   kind: z.enum(['common', 'dwelling', 'commercial', 'infrastructure']),
+  /** Nombre visible para el prompt/HUD (p. ej. 'la lavandería'). */
+  label: z.string().optional(),
   layer: z.enum(['main', 'corridor']),
   size: z.object({ w: z.number(), h: z.number() }),
   traversable: z.boolean().optional(),
@@ -288,7 +290,10 @@ export const archetypeDefSchema = z.object({
     z.string(),
     z.object({
       label: z.string().optional(),
-      at: z.enum(['home', 'corridor', 'core', 'stairs', 'out']).optional(),
+      /** Destino: 'home'|'corridor'|'core'|'stairs'|'out', o 'def:<blockDefId>' para ir a un bloque por tipo (bar, lavandería…). */
+      at: z
+        .union([z.enum(['home', 'corridor', 'core', 'stairs', 'out']), z.string().regex(/^def:[\w-]+$/, 'debe ser def:<blockDefId>')])
+        .optional() as z.ZodType<ActivityDef['at']>,
       /** Kind de ancla de estancia donde ocurre (cama, tv, stove…): vida interior de los vecinos. */
       anchor: z.string().optional(),
       say: z.array(z.string()).optional(),

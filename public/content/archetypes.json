@@ -98,6 +98,21 @@
      }
     ]
    },
+   "copas_bar": {
+    "at": "def:local_comercial",
+    "label": "🍹 toma algo en El Rincón",
+    "say": [
+     "En el bar se entera una de TODO. Pregunte sin compromiso.",
+     "Marisa pone hielo. Yo pongo temas."
+    ],
+    "schedule": [
+     {
+      "from": "19:30",
+      "to": "21:15",
+      "chance": 0.65
+     }
+    ]
+   },
    "quema_guiso": {
     "anchor": "stove",
     "at": "home",
@@ -180,6 +195,25 @@
      {
       "from": "10:30",
       "to": "19:00"
+     }
+    ]
+   },
+   "copas_bar": {
+    "at": "def:local_comercial",
+    "label": "🍸 calienta motores en El Rincón",
+    "emits": {
+     "noise": 0.3,
+     "odors": 0.15
+    },
+    "say": [
+     "Una copita para coger aire. O tres.",
+     "Marisa, ¡la de siempre! Y ponle música."
+    ],
+    "schedule": [
+     {
+      "from": "20:00",
+      "to": "21:30",
+      "chance": 0.7
      }
     ]
    },
@@ -278,6 +312,24 @@
       "from": "10:30",
       "to": "11:10",
       "days": "even"
+     }
+    ]
+   },
+   "lavadora_comunal": {
+    "at": "def:lavanderia_comunal",
+    "label": "🧼 lava en la comunal",
+    "emits": {
+     "water": 0.4
+    },
+    "say": [
+     "Los días impares, la comunal es MÍA. Lo demás es folclore.",
+     "Aquí se lava, se plancha y se juzga. Sobre todo se juzga."
+    ],
+    "schedule": [
+     {
+      "from": "10:30",
+      "to": "11:30",
+      "days": "odd"
      }
     ]
    }
@@ -708,6 +760,24 @@
       "from": "20:00",
       "to": "22:00",
       "chance": 0.8
+     }
+    ]
+   },
+   "concierto_bar": {
+    "at": "def:local_comercial",
+    "label": "🎸 concierto acústico en El Rincón",
+    "emits": {
+     "noise": 0.6
+    },
+    "say": [
+     "Acústico significa que el amplificador es más pequeño.",
+     "Esta noche, solos de percusión en El Rincón. De nada."
+    ],
+    "schedule": [
+     {
+      "from": "22:00",
+      "to": "23:30",
+      "chance": 0.55
      }
     ]
    }

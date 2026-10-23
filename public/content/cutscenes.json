@@ -30,5 +30,27 @@
    { "type": "line", "text": "Tu piso, sus vecinos, su junta. El edificio es tuyo... más o menos.", "seconds": 3 },
    { "type": "cam", "focus": "player", "hold": 0.6 }
   ]
+ },
+ {
+  "id": "cut_bar_inaugura",
+  "trigger": { "on": "mission_completed", "mission": "m_bar_inaugura" },
+  "beats": [
+   { "type": "sound", "id": "doorbell" },
+   { "type": "cam", "focus": "wide", "hold": 1.0 },
+   { "type": "cam", "focus": { "block": "blk_p0_local", "at": "door" }, "hold": 0.8 },
+   { "type": "line", "text": "El Rincón enciende el letrero: tapas, hielo y la primera bronca vecinal servida en barra.", "seconds": 3.4 },
+   { "type": "cam", "focus": "player", "hold": 0.6 }
+  ]
+ },
+ {
+  "id": "cut_lavanderia",
+  "trigger": { "on": "step_started", "mission": "m_lavanderia_pelea", "step": "bajar" },
+  "beats": [
+   { "type": "cam", "focus": { "block": "blk_p0_lavanderia", "at": "door" }, "hold": 0.8 },
+   { "type": "walk", "who": "$role.abuela", "from": { "block": "blk_p4_c", "at": "door" }, "to": { "block": "blk_p0_lavanderia", "at": "door" }, "max": 12 },
+   { "type": "line", "speaker": "Esperanza", "text": "Los días impares, la lavadora es MÍA. Lo demás es folclore.", "seconds": 3.2 },
+   { "type": "sound", "id": "wind" },
+   { "type": "cam", "focus": "player", "hold": 0.5 }
+  ]
  }
 ]
