@@ -27,6 +27,7 @@ import type { CamMode, Speed } from '@/game/client/store';
 import { MultiplayerPanel } from '@/components/game/MultiplayerPanel';
 import { cn } from '@/lib/utils';
 import { isMuted, setMuted } from '@/game/client/audio';
+import { useT } from '@/game/client/i18n';
 
 interface ControlsBarProps {
   onTogglePause: () => void;
@@ -38,16 +39,16 @@ interface ControlsBarProps {
   onLoad: () => void;
 }
 
-const SPEEDS: ReadonlyArray<{ value: Speed; label: string }> = [
-  { value: 1, label: '1x' },
-  { value: 3, label: '3x' },
-  { value: 10, label: '10x' },
+const SPEEDS: ReadonlyArray<{ value: Speed }> = [
+  { value: 1 },
+  { value: 3 },
+  { value: 10 },
 ];
 
-const CAMS: ReadonlyArray<{ value: CamMode; label: string; icon: LucideIcon }> = [
-  { value: 'edificio', label: 'Edificio', icon: Building2 },
-  { value: 'planta', label: 'Planta', icon: Layers },
-  { value: 'estancia', label: 'Estancia', icon: Lamp },
+const CAMS: ReadonlyArray<{ value: CamMode; icon: LucideIcon }> = [
+  { value: 'edificio', icon: Building2 },
+  { value: 'planta', icon: Layers },
+  { value: 'estancia', icon: Lamp },
 ];
 
 export function ControlsBar({
@@ -59,6 +60,7 @@ export function ControlsBar({
   onSave,
   onLoad,
 }: ControlsBarProps) {
+  const t = useT();
   const ready = useGameStore((s) => s.ready);
   const paused = useGameStore((s) => s.paused);
   const speed = useGameStore((s) => s.speed);
@@ -79,16 +81,16 @@ export function ControlsBar({
           variant="outline"
           onClick={onTogglePause}
           disabled={!ready}
-          aria-label={paused ? 'Reanudar la simulación' : 'Pausar la simulación'}
+          aria-label={paused ? t('ctrl.pauseAria') : t('ctrl.pauseAriaOn')}
         >
           {paused ? <Play aria-hidden /> : <Pause aria-hidden />}
-          {paused ? 'Reanudar' : 'Pausa'}
+          {paused ? t('ctrl.resume') : t('ctrl.pause')}
         </Button>
 
         {/* Velocidad */}
         <div
           role="group"
-          aria-label="Velocidad de simulación"
+          aria-label={t('ctrl.speedGroup')}
           className="inline-flex items-center gap-0.5 rounded-md border bg-muted/40 p-0.5"
         >
           {SPEEDS.map((s) => (
@@ -103,9 +105,9 @@ export function ControlsBar({
               onClick={() => onSetSpeed(s.value)}
               disabled={!ready}
               aria-pressed={speed === s.value}
-              aria-label={`Velocidad ${s.label}`}
+              aria-label={t('ctrl.speedAria', { s: `${s.value}x` })}
             >
-              {s.label}
+              {s.value}x
             </Button>
           ))}
         </div>
@@ -113,7 +115,7 @@ export function ControlsBar({
         {/* Cámara */}
         <div
           role="group"
-          aria-label="Modo de cámara"
+          aria-label={t('ctrl.camGroup')}
           className="inline-flex items-center gap-0.5 rounded-md border bg-muted/40 p-0.5"
         >
           {CAMS.map((c) => {
@@ -131,10 +133,10 @@ export function ControlsBar({
                 onClick={() => onSetCam(c.value)}
                 disabled={!ready}
                 aria-pressed={active}
-                aria-label={`Cámara: ${c.label}`}
+                aria-label={t('ctrl.camAria', { c: t(`ctrl.cam.${c.value}`) })}
               >
                 <Icon className="size-3.5" aria-hidden />
-                {c.label}
+                {t(`ctrl.cam.${c.value}`)}
               </Button>
             );
           })}
@@ -146,11 +148,11 @@ export function ControlsBar({
           variant="secondary"
           onClick={onParty}
           disabled={!ready}
-          title="Activa la fiesta del 2B para ver el ruido"
-          aria-label="Fiesta demo del 2B"
+          title={t('ctrl.partyTitle')}
+          aria-label={t('ctrl.partyAria')}
         >
           <PartyPopper aria-hidden />
-          Fiesta demo
+          {t('ctrl.party')}
         </Button>
 
         {/* Saltar tiempo */}
@@ -159,10 +161,10 @@ export function ControlsBar({
           variant="outline"
           onClick={onSkipTime}
           disabled={!ready}
-          aria-label="Avanzar 10 minutos"
+          aria-label={t('ctrl.skipAria')}
         >
           <FastForward aria-hidden />
-          +10 min
+          {t('ctrl.skip')}
         </Button>
 
         {/* Guardar */}
@@ -173,12 +175,12 @@ export function ControlsBar({
           disabled={!ready || saveState === 'saving'}
           title={
             saveState === 'saved' && savedAt
-              ? `Partida guardada a las ${savedAt}`
+              ? t('ctrl.saveTitleSaved', { t: savedAt })
               : saveState === 'saving'
-                ? 'Guardando...'
-                : 'Guardar partida'
+                ? t('ctrl.saveTitleSaving')
+                : t('ctrl.saveTitle')
           }
-          aria-label="Guardar partida"
+          aria-label={t('ctrl.saveAria')}
         >
           {saveState === 'saving' ? (
             <Loader2 className="animate-spin" aria-hidden />
@@ -187,7 +189,7 @@ export function ControlsBar({
           ) : (
             <Save aria-hidden />
           )}
-          Guardar
+          {t('ctrl.save')}
         </Button>
 
         {/* Cargar */}
@@ -196,10 +198,10 @@ export function ControlsBar({
           variant="outline"
           onClick={onLoad}
           disabled={!ready}
-          aria-label="Cargar partida"
+          aria-label={t('ctrl.loadAria')}
         >
           <FolderOpen aria-hidden />
-          Cargar
+          {t('ctrl.load')}
         </Button>
 
         {/* Mandos táctiles */}
@@ -215,10 +217,10 @@ export function ControlsBar({
           }}
           disabled={!ready}
           aria-pressed={touchVisible}
-          aria-label={touchVisible ? 'Ocultar mandos táctiles' : 'Mostrar mandos táctiles'}
+          aria-label={touchVisible ? t('ctrl.touchHide') : t('ctrl.touchShow')}
         >
           <Hand aria-hidden />
-          Táctil
+          {t('ctrl.touch')}
         </Button>
 
         {/* Sonido */}
@@ -231,10 +233,10 @@ export function ControlsBar({
             setMuted(v);
           }}
           aria-pressed={muted}
-          aria-label={muted ? 'Activar sonido' : 'Silenciar'}
+          aria-label={muted ? t('ctrl.soundAriaOn') : t('ctrl.soundAriaOff')}
         >
           {muted ? <VolumeX aria-hidden /> : <Volume2 aria-hidden />}
-          {muted ? 'Silencio' : 'Sonido'}
+          {muted ? t('ctrl.soundOff') : t('ctrl.soundOn')}
         </Button>
 
         {/* Opciones */}
@@ -242,10 +244,10 @@ export function ControlsBar({
           size="sm"
           variant="outline"
           onClick={() => useGameStore.getState().setOptionsOpen(true)}
-          aria-label="Abrir opciones del juego"
+          aria-label={t('ctrl.optionsAria')}
         >
           <Settings aria-hidden />
-          Opciones
+          {t('ctrl.options')}
         </Button>
 
         {/* Multijugador */}
@@ -253,10 +255,10 @@ export function ControlsBar({
           size="sm"
           variant="outline"
           onClick={() => useGameStore.getState().setMpPanelOpen(true)}
-          aria-label="Abrir panel de multijugador"
+          aria-label={t('ctrl.multiAria')}
         >
           <Users aria-hidden />
-          Multijugador
+          {t('ctrl.multiplayer')}
         </Button>
       </CardContent>
       <MultiplayerPanel />

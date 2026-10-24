@@ -1,407 +1,433 @@
 [
- {
-  "id": "slice",
-  "world": {
-   "seed": 12345,
-   "clock": {
-    "day": 1,
-    "minute": 480
-   },
-   "timeScale": 60,
-   "weather": {
-    "state": "sunny",
-    "nextChangeMinute": 660
-   }
-  },
-  "building": {
-   "id": "bld_principal",
-   "template": "edificio_9x8_nucleo_central",
-   "community": {
-    "funds": 500,
-    "presidentId": "res_presidente_01"
-   },
-   "stateByDef": {
-    "nucleo_comunicaciones": {
-     "params": {
-      "elevator_status": "broken"
-     }
-    }
-   }
-  },
-  "player": {
-   "residentId": "res_player_01",
-   "archetype": "jugador_base",
-   "startBlock": "blk_p0_portal",
-   "homeCandidates": [
-    "blk_p3_c"
-   ],
-   "wallet": 800,
-   "reputation": 50
-  },
-  "residents": [
-   {
-    "id": "res_presidente_01",
-    "archetype": "presidente",
-    "home": "blk_p1_d",
-    "present": true,
-    "controller": {
-     "type": "ai",
-     "profile": "default"
+  {
+    "id": "slice",
+    "world": {
+      "seed": 12345,
+      "clock": {
+        "day": 1,
+        "minute": 480
+      },
+      "timeScale": 60,
+      "weather": {
+        "state": "sunny",
+        "nextChangeMinute": 660
+      }
     },
-    "wallet": 2400,
-    "reputation": 55,
-    "relations": []
-   },
-   {
-    "id": "res_jubilada_01",
-    "archetype": "jubilada",
-    "home": "blk_p4_c",
-    "present": true,
-    "controller": {
-     "type": "ai",
-     "profile": "default"
+    "building": {
+      "id": "bld_principal",
+      "template": "edificio_9x8_nucleo_central",
+      "community": {
+        "funds": 500,
+        "presidentId": "res_presidente_01"
+      },
+      "stateByDef": {
+        "nucleo_comunicaciones": {
+          "params": {
+            "elevator_status": "broken"
+          }
+        }
+      }
     },
-    "wallet": 900,
-    "reputation": 60,
-    "relations": []
-   },
-   {
-    "id": "res_cotilla_01",
-    "archetype": "cotilla",
-    "home": "blk_p1_b",
-    "present": false,
-    "controller": {
-     "type": "ai",
-     "profile": "default"
+    "player": {
+      "residentId": "res_player_01",
+      "archetype": "jugador_base",
+      "startBlock": "blk_p0_portal",
+      "homeCandidates": [
+        "blk_p3_c"
+      ],
+      "wallet": 800,
+      "reputation": 50
     },
-    "wallet": 1200,
-    "reputation": 40,
-    "relations": [],
-    "parentOf": [
-     "res_nino_01"
+    "residents": [
+      {
+        "id": "res_presidente_01",
+        "archetype": "presidente",
+        "home": "blk_p1_d",
+        "present": true,
+        "controller": {
+          "type": "ai",
+          "profile": "default"
+        },
+        "wallet": 2400,
+        "reputation": 55,
+        "relations": []
+      },
+      {
+        "id": "res_jubilada_01",
+        "archetype": "jubilada",
+        "home": "blk_p4_c",
+        "present": true,
+        "controller": {
+          "type": "ai",
+          "profile": "default"
+        },
+        "wallet": 900,
+        "reputation": 60,
+        "relations": []
+      },
+      {
+        "id": "res_cotilla_01",
+        "archetype": "cotilla",
+        "home": "blk_p1_b",
+        "present": false,
+        "controller": {
+          "type": "ai",
+          "profile": "default"
+        },
+        "wallet": 1200,
+        "reputation": 40,
+        "relations": [],
+        "parentOf": [
+          "res_nino_01"
+        ]
+      },
+      {
+        "id": "res_nino_01",
+        "archetype": "nino_grafitero",
+        "home": "blk_p1_b",
+        "present": false,
+        "controller": {
+          "type": "script"
+        },
+        "wallet": 5,
+        "reputation": 20,
+        "relations": []
+      },
+      {
+        "id": "res_fiestero_01",
+        "archetype": "fiestero",
+        "home": "blk_p2_b",
+        "present": false,
+        "controller": {
+          "type": "ai",
+          "profile": "default"
+        },
+        "wallet": 700,
+        "reputation": 30,
+        "relations": []
+      },
+      {
+        "id": "res_estudiante_01",
+        "archetype": "estudiante",
+        "home": "blk_p4_a",
+        "present": false,
+        "controller": {
+          "type": "ai",
+          "profile": "default"
+        },
+        "wallet": 350,
+        "reputation": 45,
+        "relations": []
+      },
+      {
+        "id": "res_buitre_01",
+        "archetype": "fondo_buitre",
+        "home": "blk_p4_b",
+        "present": false,
+        "controller": {
+          "type": "ai",
+          "profile": "default"
+        },
+        "wallet": 50000,
+        "reputation": 15,
+        "relations": []
+      },
+      {
+        "id": "res_inquilino_01",
+        "archetype": "inquilino",
+        "home": "blk_p3_d",
+        "present": false,
+        "controller": {
+          "type": "ai",
+          "profile": "default"
+        },
+        "wallet": 200,
+        "reputation": 40,
+        "relations": []
+      },
+      {
+        "id": "res_okupa_01",
+        "archetype": "okupa",
+        "home": "blk_p2_a",
+        "present": true,
+        "controller": {
+          "type": "ai",
+          "profile": "default"
+        },
+        "wallet": 90,
+        "reputation": 25,
+        "relations": []
+      },
+      {
+        "id": "res_musico_01",
+        "archetype": "musico",
+        "home": "blk_p4_d",
+        "present": true,
+        "controller": {
+          "type": "ai",
+          "profile": "default"
+        },
+        "wallet": 420,
+        "reputation": 45,
+        "relations": []
+      },
+      {
+        "id": "res_pintora_01",
+        "archetype": "pintora",
+        "home": "blk_p2_c",
+        "present": false,
+        "controller": {
+          "type": "ai",
+          "profile": "default"
+        },
+        "wallet": 900,
+        "reputation": 45,
+        "relations": []
+      },
+      {
+        "id": "res_repartidor_01",
+        "archetype": "repartidor",
+        "home": "blk_p5_a",
+        "present": false,
+        "controller": {
+          "type": "ai",
+          "profile": "default"
+        },
+        "wallet": 700,
+        "reputation": 40,
+        "relations": []
+      }
+    ],
+    "progress": {
+      "revealedTier": 1
+    },
+    "startMissions": [
+      "m_bienvenida"
     ]
-   },
-   {
-    "id": "res_nino_01",
-    "archetype": "nino_grafitero",
-    "home": "blk_p1_b",
-    "present": false,
-    "controller": {
-     "type": "script"
-    },
-    "wallet": 5,
-    "reputation": 20,
-    "relations": []
-   },
-   {
-    "id": "res_fiestero_01",
-    "archetype": "fiestero",
-    "home": "blk_p2_b",
-    "present": false,
-    "controller": {
-     "type": "ai",
-     "profile": "default"
-    },
-    "wallet": 700,
-    "reputation": 30,
-    "relations": []
-   },
-   {
-    "id": "res_estudiante_01",
-    "archetype": "estudiante",
-    "home": "blk_p4_a",
-    "present": false,
-    "controller": {
-     "type": "ai",
-     "profile": "default"
-    },
-    "wallet": 350,
-    "reputation": 45,
-    "relations": []
-   },
-   {
-    "id": "res_buitre_01",
-    "archetype": "fondo_buitre",
-    "home": "blk_p4_b",
-    "present": false,
-    "controller": {
-     "type": "ai",
-     "profile": "default"
-    },
-    "wallet": 50000,
-    "reputation": 15,
-    "relations": []
-   },
-   {
-    "id": "res_inquilino_01",
-    "archetype": "inquilino",
-    "home": "blk_p3_d",
-    "present": false,
-    "controller": {
-     "type": "ai",
-     "profile": "default"
-    },
-    "wallet": 200,
-    "reputation": 40,
-    "relations": []
-   },
-   {
-    "id": "res_okupa_01",
-    "archetype": "okupa",
-    "home": "blk_p2_a",
-    "present": true,
-    "controller": {
-     "type": "ai",
-     "profile": "default"
-    },
-    "wallet": 90,
-    "reputation": 25,
-    "relations": []
-   },
-   {
-    "id": "res_musico_01",
-    "archetype": "musico",
-    "home": "blk_p4_d",
-    "present": true,
-    "controller": {
-     "type": "ai",
-     "profile": "default"
-    },
-    "wallet": 420,
-    "reputation": 45,
-    "relations": []
-   }
-  ],
-  "progress": {
-   "revealedTier": 1
   },
-  "startMissions": [
-   "m_bienvenida"
-  ]
- },
- {
-  "id": "qa",
-  "world": {
-   "seed": 777,
-   "clock": {
-    "day": 1,
-    "minute": 480
-   },
-   "timeScale": 60,
-   "weather": {
-    "state": "sunny",
-    "nextChangeMinute": 660
-   }
-  },
-  "building": {
-   "id": "bld_principal",
-   "template": "edificio_9x8_nucleo_central",
-   "community": {
-    "funds": 500,
-    "presidentId": "res_presidente_01"
-   },
-   "stateByDef": {
-    "nucleo_comunicaciones": {
-     "params": {
-      "elevator_status": "broken",
-      "qa_mode": 1
-     }
+  {
+    "id": "qa",
+    "world": {
+      "seed": 777,
+      "clock": {
+        "day": 1,
+        "minute": 480
+      },
+      "timeScale": 60,
+      "weather": {
+        "state": "sunny",
+        "nextChangeMinute": 660
+      }
+    },
+    "building": {
+      "id": "bld_principal",
+      "template": "edificio_9x8_nucleo_central",
+      "community": {
+        "funds": 500,
+        "presidentId": "res_presidente_01"
+      },
+      "stateByDef": {
+        "nucleo_comunicaciones": {
+          "params": {
+            "elevator_status": "broken",
+            "qa_mode": 1
+          }
+        }
+      }
+    },
+    "player": {
+      "residentId": "res_player_01",
+      "archetype": "jugador_base",
+      "startBlock": "blk_p0_portal",
+      "homeCandidates": [
+        "blk_p3_c"
+      ],
+      "wallet": 800,
+      "reputation": 50
+    },
+    "residents": [
+      {
+        "id": "res_presidente_01",
+        "archetype": "presidente",
+        "home": "blk_p1_d",
+        "present": true,
+        "controller": {
+          "type": "ai",
+          "profile": "default"
+        },
+        "wallet": 2400,
+        "reputation": 55,
+        "relations": []
+      },
+      {
+        "id": "res_jubilada_01",
+        "archetype": "jubilada",
+        "home": "blk_p4_c",
+        "present": true,
+        "controller": {
+          "type": "ai",
+          "profile": "default"
+        },
+        "wallet": 900,
+        "reputation": 60,
+        "relations": []
+      },
+      {
+        "id": "res_cotilla_01",
+        "archetype": "cotilla",
+        "home": "blk_p1_b",
+        "present": false,
+        "controller": {
+          "type": "ai",
+          "profile": "default"
+        },
+        "wallet": 1200,
+        "reputation": 40,
+        "relations": [],
+        "parentOf": [
+          "res_nino_01"
+        ]
+      },
+      {
+        "id": "res_nino_01",
+        "archetype": "nino_grafitero",
+        "home": "blk_p1_b",
+        "present": false,
+        "controller": {
+          "type": "script"
+        },
+        "wallet": 5,
+        "reputation": 20,
+        "relations": []
+      },
+      {
+        "id": "res_fiestero_01",
+        "archetype": "fiestero",
+        "home": "blk_p2_b",
+        "present": false,
+        "controller": {
+          "type": "ai",
+          "profile": "default"
+        },
+        "wallet": 700,
+        "reputation": 30,
+        "relations": []
+      },
+      {
+        "id": "res_estudiante_01",
+        "archetype": "estudiante",
+        "home": "blk_p4_a",
+        "present": false,
+        "controller": {
+          "type": "ai",
+          "profile": "default"
+        },
+        "wallet": 350,
+        "reputation": 45,
+        "relations": []
+      },
+      {
+        "id": "res_buitre_01",
+        "archetype": "fondo_buitre",
+        "home": "blk_p4_b",
+        "present": false,
+        "controller": {
+          "type": "ai",
+          "profile": "default"
+        },
+        "wallet": 50000,
+        "reputation": 15,
+        "relations": []
+      },
+      {
+        "id": "res_inquilino_01",
+        "archetype": "inquilino",
+        "home": "blk_p3_d",
+        "present": false,
+        "controller": {
+          "type": "ai",
+          "profile": "default"
+        },
+        "wallet": 200,
+        "reputation": 40,
+        "relations": []
+      },
+      {
+        "id": "res_okupa_01",
+        "archetype": "okupa",
+        "home": "blk_p2_a",
+        "present": true,
+        "controller": {
+          "type": "ai",
+          "profile": "default"
+        },
+        "wallet": 90,
+        "reputation": 25,
+        "relations": []
+      },
+      {
+        "id": "res_musico_01",
+        "archetype": "musico",
+        "home": "blk_p4_d",
+        "present": true,
+        "controller": {
+          "type": "ai",
+          "profile": "default"
+        },
+        "wallet": 420,
+        "reputation": 45,
+        "relations": []
+      }
+    ],
+    "progress": {
+      "revealedTier": 1
+    },
+    "startMissions": [
+      "m_qa_1"
+    ],
+    "minigameOverrides": {
+      "mg_limpiar_cabina": {
+        "cursorSpeed": 0.12,
+        "zoneWidth": 0.62,
+        "lives": 9,
+        "accelPerRound": 0.0,
+        "rounds": 2
+      },
+      "mg_desatascar": {
+        "cursorSpeed": 0.12,
+        "zoneWidth": 0.62,
+        "lives": 9,
+        "accelPerRound": 0.0,
+        "rounds": 2
+      },
+      "mg_trato_vecino": {
+        "cursorSpeed": 0.12,
+        "zoneWidth": 0.62,
+        "lives": 9,
+        "accelPerRound": 0.0,
+        "rounds": 2
+      },
+      "mg_fusibles": {
+        "rounds": 1,
+        "sequenceStart": 1,
+        "sequenceGrow": 0,
+        "showMs": 900,
+        "gapMs": 450,
+        "inputTimeoutMs": 60000,
+        "lives": 9
+      },
+      "mg_fumigar": {
+        "targets": 2,
+        "spawnIntervalMs": 500,
+        "targetLifeMs": 30000,
+        "missesAllowed": 9,
+        "lives": 9,
+        "decoyChance": 0.0,
+        "radiusPct": 11
+      },
+      "mg_buzones": {
+        "lives": 99
+      }
     }
-   }
-  },
-  "player": {
-   "residentId": "res_player_01",
-   "archetype": "jugador_base",
-   "startBlock": "blk_p0_portal",
-   "homeCandidates": [
-    "blk_p3_c"
-   ],
-   "wallet": 800,
-   "reputation": 50
-  },
-  "residents": [
-   {
-    "id": "res_presidente_01",
-    "archetype": "presidente",
-    "home": "blk_p1_d",
-    "present": true,
-    "controller": {
-     "type": "ai",
-     "profile": "default"
-    },
-    "wallet": 2400,
-    "reputation": 55,
-    "relations": []
-   },
-   {
-    "id": "res_jubilada_01",
-    "archetype": "jubilada",
-    "home": "blk_p4_c",
-    "present": true,
-    "controller": {
-     "type": "ai",
-     "profile": "default"
-    },
-    "wallet": 900,
-    "reputation": 60,
-    "relations": []
-   },
-   {
-    "id": "res_cotilla_01",
-    "archetype": "cotilla",
-    "home": "blk_p1_b",
-    "present": false,
-    "controller": {
-     "type": "ai",
-     "profile": "default"
-    },
-    "wallet": 1200,
-    "reputation": 40,
-    "relations": [],
-    "parentOf": [
-     "res_nino_01"
-    ]
-   },
-   {
-    "id": "res_nino_01",
-    "archetype": "nino_grafitero",
-    "home": "blk_p1_b",
-    "present": false,
-    "controller": {
-     "type": "script"
-    },
-    "wallet": 5,
-    "reputation": 20,
-    "relations": []
-   },
-   {
-    "id": "res_fiestero_01",
-    "archetype": "fiestero",
-    "home": "blk_p2_b",
-    "present": false,
-    "controller": {
-     "type": "ai",
-     "profile": "default"
-    },
-    "wallet": 700,
-    "reputation": 30,
-    "relations": []
-   },
-   {
-    "id": "res_estudiante_01",
-    "archetype": "estudiante",
-    "home": "blk_p4_a",
-    "present": false,
-    "controller": {
-     "type": "ai",
-     "profile": "default"
-    },
-    "wallet": 350,
-    "reputation": 45,
-    "relations": []
-   },
-   {
-    "id": "res_buitre_01",
-    "archetype": "fondo_buitre",
-    "home": "blk_p4_b",
-    "present": false,
-    "controller": {
-     "type": "ai",
-     "profile": "default"
-    },
-    "wallet": 50000,
-    "reputation": 15,
-    "relations": []
-   },
-   {
-    "id": "res_inquilino_01",
-    "archetype": "inquilino",
-    "home": "blk_p3_d",
-    "present": false,
-    "controller": {
-     "type": "ai",
-     "profile": "default"
-    },
-    "wallet": 200,
-    "reputation": 40,
-    "relations": []
-   },
-   {
-    "id": "res_okupa_01",
-    "archetype": "okupa",
-    "home": "blk_p2_a",
-    "present": true,
-    "controller": {
-     "type": "ai",
-     "profile": "default"
-    },
-    "wallet": 90,
-    "reputation": 25,
-    "relations": []
-   },
-   {
-    "id": "res_musico_01",
-    "archetype": "musico",
-    "home": "blk_p4_d",
-    "present": true,
-    "controller": {
-     "type": "ai",
-     "profile": "default"
-    },
-    "wallet": 420,
-    "reputation": 45,
-    "relations": []
-   }
-  ],
-  "progress": {
-   "revealedTier": 1
-  },
-  "startMissions": [
-   "m_qa_1"
-  ],
-  "minigameOverrides": {
-   "mg_limpiar_cabina": {
-    "cursorSpeed": 0.12,
-    "zoneWidth": 0.62,
-    "lives": 9,
-    "accelPerRound": 0.0,
-    "rounds": 2
-   },
-   "mg_desatascar": {
-    "cursorSpeed": 0.12,
-    "zoneWidth": 0.62,
-    "lives": 9,
-    "accelPerRound": 0.0,
-    "rounds": 2
-   },
-   "mg_trato_vecino": {
-    "cursorSpeed": 0.12,
-    "zoneWidth": 0.62,
-    "lives": 9,
-    "accelPerRound": 0.0,
-    "rounds": 2
-   },
-   "mg_fusibles": {
-    "rounds": 1,
-    "sequenceStart": 1,
-    "sequenceGrow": 0,
-    "showMs": 900,
-    "gapMs": 450,
-    "inputTimeoutMs": 60000,
-    "lives": 9
-   },
-   "mg_fumigar": {
-    "targets": 2,
-    "spawnIntervalMs": 500,
-    "targetLifeMs": 30000,
-    "missesAllowed": 9,
-    "lives": 9,
-    "decoyChance": 0.0,
-    "radiusPct": 11
-   },
-   "mg_buzones": {
-    "lives": 99
-   }
   }
- }
 ]

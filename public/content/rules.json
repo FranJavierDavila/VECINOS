@@ -163,7 +163,8 @@
       "odors": "#74c69d",
       "wifi": "#c77dff",
       "smoke": "#9aa5b1",
-      "plagas": "#8bc34a"
+      "plagas": "#8bc34a",
+      "chisme": "#ff8fa3"
     },
     "actorFallbackColor": "#e8e6e1",
     "actorFallbackHeight": 1.3,

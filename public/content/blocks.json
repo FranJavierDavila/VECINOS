@@ -122,6 +122,14 @@
         "default": 75,
         "tier": 1,
         "label": "Estado del portal"
+      },
+      "hype": {
+        "type": "number",
+        "min": 0,
+        "max": 100,
+        "default": 0,
+        "tier": 2,
+        "label": "Hype del barrio"
       }
     },
     "view": {
@@ -303,6 +311,14 @@
         "default": 40,
         "tier": 2,
         "label": "Alquiler/día"
+      },
+      "hype": {
+        "type": "number",
+        "min": 0,
+        "max": 100,
+        "default": 0,
+        "tier": 2,
+        "label": "Hype del barrio"
       }
     },
     "view": {

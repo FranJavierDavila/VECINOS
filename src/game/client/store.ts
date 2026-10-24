@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import type { Access, MinigameDef, Weather } from '@/game/core/types';
 import { isMuted } from './audio';
 import { loadOptions } from './options';
+import type { Lang } from './options';
 
 // ───────────────────────── Tipos de la interfaz ─────────────────────────
 
@@ -158,6 +159,8 @@ interface GameState {
   optionsOpen: boolean;
   /** Contador de FPS visible (opción de gráficos) y último valor medido. */
   fpsVisible: boolean;
+  /** Idioma de la interfaz (localización del chrome; persistido en opciones). */
+  lang: Lang;
   fps: number;
   /** Aviso del catálogo al activar los mandos a mano (rules.touch.hint). */
   touchHint: string;
@@ -202,6 +205,7 @@ interface GameState {
   setSoundMuted: (v: boolean) => void;
   setOptionsOpen: (v: boolean) => void;
   setFpsVisible: (v: boolean) => void;
+  setLang: (l: Lang) => void;
   setFps: (n: number) => void;
   syncHud: (h: HudSnapshot) => void;
   pushToast: (text: string, tone?: Tone) => void;
@@ -240,6 +244,7 @@ export const useGameStore = create<GameState>((set) => ({
   soundMuted: isMuted(),
   optionsOpen: false,
   fpsVisible: loadOptions().fpsVisible,
+  lang: loadOptions().lang,
   fps: 0,
   touchHint: '',
   clock: { day: 1, minute: 480 },
@@ -290,6 +295,7 @@ export const useGameStore = create<GameState>((set) => ({
   setSoundMuted: (v) => set({ soundMuted: v }),
   setOptionsOpen: (optionsOpen) => set({ optionsOpen }),
   setFpsVisible: (fpsVisible) => set({ fpsVisible }),
+  setLang: (lang) => set({ lang }),
   setFps: (fps) => set({ fps }),
   syncHud: (h) => set(h),
   pushToast: (text, tone = 'info') => {

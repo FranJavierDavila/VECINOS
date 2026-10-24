@@ -4,60 +4,159 @@
     "channel": "noise",
     "label": "Ruido",
     "emoji": "🔊",
-    "spread": { "horizontal": 1.0, "up": 0.8, "down": 0.6, "diagonal": 0.3, "corridor": 0.5 },
+    "spread": {
+      "horizontal": 1.0,
+      "up": 0.8,
+      "down": 0.6,
+      "diagonal": 0.3,
+      "corridor": 0.5
+    },
     "attenuatedBy": "soundproofing",
     "decayPerTick": 0.1,
     "threshold": 0.35,
-    "onThreshold": { "emitEvent": "noise_complaint", "uiLog": true, "tone": "bad", "message": "🔊 Ruido por encima del límite en {block}. Alguien aprieta los dientes." }
+    "onThreshold": {
+      "emitEvent": "noise_complaint",
+      "uiLog": true,
+      "tone": "bad",
+      "message": "🔊 Ruido por encima del límite en {block}. Alguien aprieta los dientes."
+    }
   },
   {
     "id": "water",
     "channel": "water",
     "label": "Agua",
     "emoji": "💧",
-    "spread": { "down": 1.0 },
+    "spread": {
+      "down": 1.0
+    },
     "decayPerTick": 0.02,
     "threshold": 0.2,
-    "onThreshold": { "emitEvent": "leak_detected", "uiLog": true, "tone": "bad", "message": "💧 Goteo detectado en {block}. El cubo del salón hace ojitos.", "setParam": { "param": "humidity", "delta": 8 } }
+    "onThreshold": {
+      "emitEvent": "leak_detected",
+      "uiLog": true,
+      "tone": "bad",
+      "message": "💧 Goteo detectado en {block}. El cubo del salón hace ojitos.",
+      "setParam": {
+        "param": "humidity",
+        "delta": 8
+      }
+    }
   },
   {
     "id": "odors",
     "channel": "odors",
     "label": "Olores",
     "emoji": "🤢",
-    "spread": { "horizontal": 0.7, "up": 0.5, "down": 0.35, "diagonal": 0.25, "corridor": 0.4 },
+    "spread": {
+      "horizontal": 0.7,
+      "up": 0.5,
+      "down": 0.35,
+      "diagonal": 0.25,
+      "corridor": 0.4
+    },
     "decayPerTick": 0.03,
     "threshold": 0.3,
-    "onThreshold": { "emitEvent": "odor_complaint", "uiLog": true, "tone": "bad", "message": "🤢 Olores dudosos en {block}. Dolores ya tiene una teoría y tres testigos." }
+    "onThreshold": {
+      "emitEvent": "odor_complaint",
+      "uiLog": true,
+      "tone": "bad",
+      "message": "🤢 Olores dudosos en {block}. Dolores ya tiene una teoría y tres testigos."
+    }
   },
   {
     "id": "wifi",
     "channel": "wifi",
     "label": "Wifi",
     "emoji": "📶",
-    "spread": { "horizontal": 1.0, "up": 0.75, "down": 0.75, "diagonal": 0.4, "corridor": 0.8 },
+    "spread": {
+      "horizontal": 1.0,
+      "up": 0.75,
+      "down": 0.75,
+      "diagonal": 0.4,
+      "corridor": 0.8
+    },
     "decayPerTick": 0.2,
     "threshold": 0.5,
-    "onThreshold": { "emitEvent": "wifi_shared", "uiLog": true, "tone": "good", "message": "📶 Señal de wifi compartida en {block}. Alguien ahorra 50 € al mes y gana un amigo." }
+    "onThreshold": {
+      "emitEvent": "wifi_shared",
+      "uiLog": true,
+      "tone": "good",
+      "message": "📶 Señal de wifi compartida en {block}. Alguien ahorra 50 € al mes y gana un amigo."
+    }
   },
   {
     "id": "smoke",
     "channel": "smoke",
     "label": "Humo",
     "emoji": "💨",
-    "spread": { "horizontal": 0.5, "up": 0.9, "down": 0.2, "diagonal": 0.25, "corridor": 0.6 },
+    "spread": {
+      "horizontal": 0.5,
+      "up": 0.9,
+      "down": 0.2,
+      "diagonal": 0.25,
+      "corridor": 0.6
+    },
     "decayPerTick": 0.12,
     "threshold": 0.45,
-    "onThreshold": { "emitEvent": "smoke_alarm", "uiLog": true, "tone": "bad", "message": "💨 Humo en {block}. Todos en pijama en el portal, como marca la tradición.", "setParam": { "param": "soot", "delta": 15 } }
+    "onThreshold": {
+      "emitEvent": "smoke_alarm",
+      "uiLog": true,
+      "tone": "bad",
+      "message": "💨 Humo en {block}. Todos en pijama en el portal, como marca la tradición.",
+      "setParam": {
+        "param": "soot",
+        "delta": 15
+      }
+    }
   },
   {
     "id": "plagas",
     "channel": "plagas",
     "label": "Plagas",
     "emoji": "🐜",
-    "spread": { "horizontal": 0.4, "up": 0.25, "down": 0.55, "diagonal": 0.2, "corridor": 0.45 },
+    "spread": {
+      "horizontal": 0.4,
+      "up": 0.25,
+      "down": 0.55,
+      "diagonal": 0.2,
+      "corridor": 0.45
+    },
     "decayPerTick": 0.03,
     "threshold": 0.15,
-    "onThreshold": { "emitEvent": "plague_sighting", "uiLog": true, "tone": "bad", "message": "🐜 Plaga vista en {block}. Vienen por el wifi gratis y se quedan por el guiso.", "setParam": { "param": "plague", "delta": 25 } }
+    "onThreshold": {
+      "emitEvent": "plague_sighting",
+      "uiLog": true,
+      "tone": "bad",
+      "message": "🐜 Plaga vista en {block}. Vienen por el wifi gratis y se quedan por el guiso.",
+      "setParam": {
+        "param": "plague",
+        "delta": 25
+      }
+    }
+  },
+  {
+    "id": "chisme",
+    "channel": "chisme",
+    "label": "Chisme",
+    "emoji": "🗣️",
+    "spread": {
+      "horizontal": 0.35,
+      "up": 0.2,
+      "down": 0.2,
+      "diagonal": 0.15,
+      "corridor": 0.95
+    },
+    "decayPerTick": 0.09,
+    "threshold": 0.4,
+    "onThreshold": {
+      "emitEvent": "gossip_buzz",
+      "uiLog": true,
+      "tone": "info",
+      "message": "🗣️ Se mueve un chisme en {block}. En el portal ya circulan dos versiones y una tercera más divertida.",
+      "setParam": {
+        "param": "hype",
+        "delta": 6
+      }
+    }
   }
 ]

@@ -2,28 +2,30 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Keyboard } from 'lucide-react';
+import { useT } from '@/game/client/i18n';
 
-const CONTROLS: { keys: string[]; text: string }[] = [
-  { keys: ['A', 'D', '←', '→'], text: 'Moverte por la planta' },
-  { keys: ['W', 'S', '↑', '↓'], text: 'Subir y bajar: en la escalera o en el ascensor' },
-  { keys: ['E'], text: 'Entrar, salir y usar cosas cercanas' },
-  { keys: ['1', '2', '3'], text: 'Cámara: edificio / planta / estancia' },
-  { keys: ['Espacio'], text: 'Avanzar los diálogos del teléfono' },
+const CONTROL_KEYS: { keys: string[]; key: string }[] = [
+  { keys: ['A', 'D', '←', '→'], key: 'help.move' },
+  { keys: ['W', 'S', '↑', '↓'], key: 'help.vertical' },
+  { keys: ['E'], key: 'help.interact' },
+  { keys: ['1', '2', '3'], key: 'help.cams' },
+  { keys: ['Espacio'], key: 'help.dialog' },
 ];
 
 /** Chuleta de controles. Requiere teclado (los controles táctiles llegan en la próxima iteración). */
 export function HelpCard() {
+  const t = useT();
   return (
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-base">
           <Keyboard className="h-4 w-4 text-amber-500" aria-hidden="true" />
-          Controles
+          {t('help.title')}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
-        {CONTROLS.map((c) => (
-          <div key={c.text} className="flex items-center justify-between gap-3">
+        {CONTROL_KEYS.map((c) => (
+          <div key={c.key} className="flex items-center justify-between gap-3">
             <div className="flex flex-wrap gap-1">
               {c.keys.map((k) => (
                 <kbd key={k} className="rounded border bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
@@ -31,17 +33,11 @@ export function HelpCard() {
                 </kbd>
               ))}
             </div>
-            <span className="text-right text-xs text-muted-foreground">{c.text}</span>
+            <span className="text-right text-xs text-muted-foreground">{t(c.key)}</span>
           </div>
         ))}
-        <p className="pt-1 text-[11px] leading-relaxed text-muted-foreground">
-          El tiempo corre solo: 1 segundo real = 1 minuto de juego (x1). Las fiestas de Kevin empiezan a las 21:30. Tú fuiste advertido.
-        </p>
-        <p className="text-[11px] leading-relaxed text-muted-foreground">
-          Nuevo: ARRASTRA muebles del catálogo al plano (clic largo en móvil), minijuegos nuevos
-          (secuencias, reflejos y parejas) y los canales plagas 🐜 y humo 💨: el guiso quemado de
-          Dolores sube pisos y la fiesta de Kevin baja cucarachas. Todo data-driven, sin tocar código.
-        </p>
+        <p className="pt-1 text-[11px] leading-relaxed text-muted-foreground">{t('help.note1')}</p>
+        <p className="text-[11px] leading-relaxed text-muted-foreground">{t('help.note2')}</p>
       </CardContent>
     </Card>
   );

@@ -18,12 +18,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useGameStore } from '@/game/client/store';
 import type { Weather } from '@/game/core/types';
 import { cn } from '@/lib/utils';
+import { useT } from '@/game/client/i18n';
 
-const WEATHER_UI: Record<Weather, { icon: LucideIcon; label: string; className: string }> = {
-  sunny: { icon: Sun, label: 'Soleado', className: 'text-amber-500' },
-  cloudy: { icon: CloudSun, label: 'Nublado', className: 'text-muted-foreground' },
-  rain: { icon: CloudRain, label: 'Lluvia', className: 'text-sky-600 dark:text-sky-400' },
-  storm: { icon: CloudLightning, label: 'Tormenta', className: 'text-amber-600 dark:text-amber-400' },
+const WEATHER_UI: Record<Weather, { icon: LucideIcon; key: string; className: string }> = {
+  sunny: { icon: Sun, key: 'weather.sunny', className: 'text-amber-500' },
+  cloudy: { icon: CloudSun, key: 'weather.cloudy', className: 'text-muted-foreground' },
+  rain: { icon: CloudRain, key: 'weather.rain', className: 'text-sky-600 dark:text-sky-400' },
+  storm: { icon: CloudLightning, key: 'weather.storm', className: 'text-amber-600 dark:text-amber-400' },
 };
 
 function Chip({
@@ -49,6 +50,7 @@ function Chip({
 }
 
 export function HudBar() {
+  const t = useT();
   const clock = useGameStore((s) => s.clock);
   const weather = useGameStore((s) => s.weather);
   const funds = useGameStore((s) => s.funds);
@@ -62,27 +64,28 @@ export function HudBar() {
   const mm = String(clock.minute % 60).padStart(2, '0');
   const w = WEATHER_UI[weather];
   const WeatherIcon = w.icon;
+  const weatherLabel = t(w.key);
 
   return (
     <Card className="gap-2 py-3">
       <CardContent className="flex flex-wrap items-center gap-2 px-3">
-        <Chip icon={Clock} label="Reloj del edificio">
-          Día {clock.day} · {hh}:{mm}
+        <Chip icon={Clock} label={t('hud.clockAria')}>
+          {t('hud.day', { d: clock.day })} · {hh}:{mm}
         </Chip>
 
-        <Chip icon={WeatherIcon} iconClassName={w.className} label={`Clima: ${w.label}`}>
-          {w.label}
+        <Chip icon={WeatherIcon} iconClassName={w.className} label={t('hud.weatherAria', { w: weatherLabel })}>
+          {weatherLabel}
         </Chip>
 
-        <Chip icon={Landmark} label="Fondos de la comunidad">
+        <Chip icon={Landmark} label={t('hud.fundsAria')}>
           {funds} €
         </Chip>
 
-        <Chip icon={Wallet} label="Tu cartera">
+        <Chip icon={Wallet} label={t('hud.walletAria')}>
           {wallet} €
         </Chip>
 
-        <Chip icon={Star} iconClassName="text-amber-500" label="Reputación en el vecindario">
+        <Chip icon={Star} iconClassName="text-amber-500" label={t('hud.repAria')}>
           {reputation}
         </Chip>
 
@@ -91,13 +94,13 @@ export function HudBar() {
             variant="secondary"
             className="border border-emerald-500/30 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
           >
-            Ascensor operativo
+            {t('hud.elevOk')}
           </Badge>
         ) : (
-          <Badge variant="destructive">Ascensor fuera de servicio</Badge>
+          <Badge variant="destructive">{t('hud.elevBroken')}</Badge>
         )}
 
-        <Chip icon={Home} label="Tu piso">
+        <Chip icon={Home} label={t('hud.homeAria')}>
           {homeLabel}
         </Chip>
 

@@ -1,793 +1,954 @@
 [
- {
-  "id": "jugador_base",
-  "name": "El recién llegado",
-  "tagline": "Viniste por el precio. Te quedas por el drama.",
-  "traits": {
-   "sociability": 0.5,
-   "tidiness": 0.5,
-   "noisiness": 0.3
-  },
-  "needs": [
-   "sleep",
-   "social",
-   "fun",
-   "money"
-  ],
-  "activities": {
-   "idle": {},
-   "sleep": {
-    "anchor": "bed",
-    "label": "😴 duerme"
-   },
-   "work": {
-    "at": "home",
-    "say": [
-     "Reuniones... desde el salón.",
-     "Si me buscan en la oficina, estoy en la nevera."
-    ]
-   }
-  },
-  "view": {
-   "color": "#ff7043",
-   "accent": "#ffd166",
-   "hat": "cap",
-   "prop": "phone",
-   "height": 1.3
-  }
- },
- {
-  "id": "cotilla",
-  "name": "Dolores, la Cotilla",
-  "tagline": "Lo sabe todo. Y lo cuenta.",
-  "traits": {
-   "gossip": 0.9,
-   "sociability": 0.8,
-   "tidiness": 0.5,
-   "noisiness": 0.2,
-   "generosity": 0.4
-  },
-  "needs": [
-   "sleep",
-   "social",
-   "fun",
-   "money"
-  ],
-  "activities": {
-   "idle": {
-    "at": "home"
-   },
-   "sleep": {
-    "anchor": "bed",
-    "at": "home",
-    "label": "😴 duerme"
-   },
-   "tv_loud": {
-    "anchor": "tv",
-    "at": "home",
-    "label": "📺 tele a todo volumen",
-    "emits": {
-     "noise": 0.5
+  {
+    "id": "jugador_base",
+    "name": "El recién llegado",
+    "tagline": "Viniste por el precio. Te quedas por el drama.",
+    "traits": {
+      "sociability": 0.5,
+      "tidiness": 0.5,
+      "noisiness": 0.3
     },
-    "say": [
-     "¡Está en el minuto clave del concurso!"
+    "needs": [
+      "sleep",
+      "social",
+      "fun",
+      "money"
     ],
-    "schedule": [
-     {
-      "from": "17:00",
-      "to": "19:00",
-      "chance": 0.6
-     }
-    ]
-   },
-   "cocina_guiso": {
-    "anchor": "stove",
-    "at": "home",
-    "label": "🍲 cocina el guiso de siempre",
-    "emits": {
-     "odors": 0.7
+    "activities": {
+      "idle": {},
+      "sleep": {
+        "anchor": "bed",
+        "label": "😴 duerme"
+      },
+      "work": {
+        "at": "home",
+        "say": [
+          "Reuniones... desde el salón.",
+          "Si me buscan en la oficina, estoy en la nevera."
+        ]
+      }
     },
-    "say": [
-     "Es la receta de mi madre. Y huelen TODOS los pisos."
-    ],
-    "schedule": [
-     {
-      "from": "13:00",
-      "to": "15:00",
-      "chance": 0.8
-     }
-    ]
-   },
-   "copas_bar": {
-    "at": "def:local_comercial",
-    "label": "🍹 toma algo en El Rincón",
-    "say": [
-     "En el bar se entera una de TODO. Pregunte sin compromiso.",
-     "Marisa pone hielo. Yo pongo temas."
-    ],
-    "schedule": [
-     {
-      "from": "19:30",
-      "to": "21:15",
-      "chance": 0.65
-     }
-    ]
-   },
-   "quema_guiso": {
-    "anchor": "stove",
-    "at": "home",
-    "label": "🔥 quema el guiso de siempre",
-    "emits": {
-     "smoke": 0.85,
-     "odors": 0.4
+    "view": {
+      "color": "#ff7043",
+      "accent": "#ffd166",
+      "hat": "cap",
+      "prop": "phone",
+      "height": 1.3
+    }
+  },
+  {
+    "id": "cotilla",
+    "name": "Dolores, la Cotilla",
+    "tagline": "Lo sabe todo. Y lo cuenta.",
+    "traits": {
+      "gossip": 0.9,
+      "sociability": 0.8,
+      "tidiness": 0.5,
+      "noisiness": 0.2,
+      "generosity": 0.4
     },
-    "say": [
-     "¡El guiso! ¡MI GUISO!"
+    "needs": [
+      "sleep",
+      "social",
+      "fun",
+      "money"
     ],
-    "schedule": [
-     {
-      "from": "13:00",
-      "to": "15:00",
-      "chance": 0.22
-     }
-    ]
-   },
-   "watch_corridor": {
-    "at": "corridor",
-    "label": "🔭 vigila el pasillo",
-    "say": [
-     "Yo lo vi todo desde la ventana. TODO.",
-     "¿Que si tengo azúcar? Tengo historias."
-    ],
-    "schedule": [
-     {
-      "from": "07:30",
-      "to": "09:00"
-     },
-     {
-      "from": "17:00",
-      "to": "19:00",
-      "chance": 0.6
-     }
-    ]
-   }
-  },
-  "view": {
-   "color": "#e255a0",
-   "accent": "#ffca3a",
-   "hat": "bun",
-   "prop": "binoculars",
-   "height": 1.28
-  }
- },
- {
-  "id": "fiestero",
-  "name": "Kevin, el Fiestero",
-  "tagline": "Siempre hay un motivo para celebrar.",
-  "traits": {
-   "sociability": 0.9,
-   "tidiness": 0.2,
-   "noisiness": 0.95,
-   "generosity": 0.6
-  },
-  "needs": [
-   "sleep",
-   "social",
-   "fun",
-   "money"
-  ],
-  "activities": {
-   "idle": {
-    "at": "home"
-   },
-   "sleep": {
-    "anchor": "bed",
-    "at": "home",
-    "label": "😴 duerme"
-   },
-   "out": {
-    "at": "out",
-    "label": "🚪 sale fuera",
-    "say": [
-     "Estoy en el gimnasio. O en el bar. Uno de los dos."
-    ],
-    "schedule": [
-     {
-      "from": "10:30",
-      "to": "19:00"
-     }
-    ]
-   },
-   "copas_bar": {
-    "at": "def:local_comercial",
-    "label": "🍸 calienta motores en El Rincón",
-    "emits": {
-     "noise": 0.3,
-     "odors": 0.15
+    "activities": {
+      "idle": {
+        "at": "home"
+      },
+      "sleep": {
+        "anchor": "bed",
+        "at": "home",
+        "label": "😴 duerme"
+      },
+      "tv_loud": {
+        "anchor": "tv",
+        "at": "home",
+        "label": "📺 tele a todo volumen",
+        "emits": {
+          "noise": 0.5
+        },
+        "say": [
+          "¡Está en el minuto clave del concurso!"
+        ],
+        "schedule": [
+          {
+            "from": "17:00",
+            "to": "19:00",
+            "chance": 0.6
+          }
+        ]
+      },
+      "cocina_guiso": {
+        "anchor": "stove",
+        "at": "home",
+        "label": "🍲 cocina el guiso de siempre",
+        "emits": {
+          "odors": 0.7
+        },
+        "say": [
+          "Es la receta de mi madre. Y huelen TODOS los pisos."
+        ],
+        "schedule": [
+          {
+            "from": "13:00",
+            "to": "15:00",
+            "chance": 0.8
+          }
+        ]
+      },
+      "copas_bar": {
+        "at": "def:local_comercial",
+        "label": "🍹 toma algo en El Rincón",
+        "say": [
+          "En el bar se entera una de TODO. Pregunte sin compromiso.",
+          "Marisa pone hielo. Yo pongo temas."
+        ],
+        "schedule": [
+          {
+            "from": "19:30",
+            "to": "21:15",
+            "chance": 0.65
+          }
+        ],
+        "emits": {
+          "chisme": 0.6
+        }
+      },
+      "quema_guiso": {
+        "anchor": "stove",
+        "at": "home",
+        "label": "🔥 quema el guiso de siempre",
+        "emits": {
+          "smoke": 0.85,
+          "odors": 0.4
+        },
+        "say": [
+          "¡El guiso! ¡MI GUISO!"
+        ],
+        "schedule": [
+          {
+            "from": "13:00",
+            "to": "15:00",
+            "chance": 0.22
+          }
+        ]
+      },
+      "watch_corridor": {
+        "at": "corridor",
+        "label": "🔭 vigila el pasillo",
+        "say": [
+          "Yo lo vi todo desde la ventana. TODO.",
+          "¿Que si tengo azúcar? Tengo historias."
+        ],
+        "schedule": [
+          {
+            "from": "07:30",
+            "to": "09:00"
+          },
+          {
+            "from": "17:00",
+            "to": "19:00",
+            "chance": 0.6
+          }
+        ],
+        "emits": {
+          "chisme": 0.5
+        }
+      }
     },
-    "say": [
-     "Una copita para coger aire. O tres.",
-     "Marisa, ¡la de siempre! Y ponle música."
-    ],
-    "schedule": [
-     {
-      "from": "20:00",
-      "to": "21:30",
-      "chance": 0.7
-     }
-    ]
-   },
-   "party": {
-    "at": "home",
-    "label": "🎉 fiesta en casa",
-    "emits": {
-     "noise": 0.9,
-     "odors": 0.3,
-     "plagas": 0.45
+    "view": {
+      "color": "#e255a0",
+      "accent": "#ffca3a",
+      "hat": "bun",
+      "prop": "binoculars",
+      "height": 1.28
+    }
+  },
+  {
+    "id": "fiestero",
+    "name": "Kevin, el Fiestero",
+    "tagline": "Siempre hay un motivo para celebrar.",
+    "traits": {
+      "sociability": 0.9,
+      "tidiness": 0.2,
+      "noisiness": 0.95,
+      "generosity": 0.6
     },
-    "say": [
-     "¡Pásate! Hay ice-cream en la nevera y confeti en el suelo.",
-     "¿Esto es ruido? Esto es CULTURA.",
-     "¿Las cucarachas? Son los invitados de verdad."
+    "needs": [
+      "sleep",
+      "social",
+      "fun",
+      "money"
     ],
-    "schedule": [
-     {
-      "from": "21:30",
-      "to": "01:00",
-      "chance": 0.75
-     }
-    ]
-   }
-  },
-  "view": {
-   "color": "#2ec4b6",
-   "accent": "#ff9f1c",
-   "hat": "sunglasses",
-   "prop": "none",
-   "height": 1.34
-  }
- },
- {
-  "id": "jubilada",
-  "name": "Esperanza, la Jubilada",
-  "tagline": "Ruta silla y paciencia.",
-  "traits": {
-   "gossip": 0.6,
-   "sociability": 0.7,
-   "tidiness": 0.9,
-   "noisiness": 0.1,
-   "generosity": 0.8
-  },
-  "needs": [
-   "sleep",
-   "social",
-   "fun",
-   "money"
-  ],
-  "activities": {
-   "idle": {
-    "at": "home",
-    "say": [
-     "A ver si arreglan ya la lavadora que tiro de balcón.",
-     "Yo a tu edad ya tenía tres pisos... de crisis."
-    ]
-   },
-   "sleep": {
-    "anchor": "bed",
-    "at": "home",
-    "label": "😴 duerme"
-   },
-   "chair": {
-    "at": "corridor",
-    "label": "🪑 ocupa la silla del pasillo",
-    "say": [
-     "Buenos días. Llevo aquí desde los buenos días anteriores."
-    ],
-    "schedule": [
-     {
-      "from": "08:00",
-      "to": "08:40"
-     },
-     {
-      "from": "12:00",
-      "to": "12:40"
-     },
-     {
-      "from": "18:00",
-      "to": "18:40"
-     }
-    ]
-   },
-   "laundry": {
-    "at": "home",
-    "label": "🌀 pone la lavadora",
-    "emits": {
-     "water": 0.55
+    "activities": {
+      "idle": {
+        "at": "home"
+      },
+      "sleep": {
+        "anchor": "bed",
+        "at": "home",
+        "label": "😴 duerme"
+      },
+      "out": {
+        "at": "out",
+        "label": "🚪 sale fuera",
+        "say": [
+          "Estoy en el gimnasio. O en el bar. Uno de los dos."
+        ],
+        "schedule": [
+          {
+            "from": "10:30",
+            "to": "19:00"
+          }
+        ]
+      },
+      "copas_bar": {
+        "at": "def:local_comercial",
+        "label": "🍸 calienta motores en El Rincón",
+        "emits": {
+          "noise": 0.3,
+          "odors": 0.15
+        },
+        "say": [
+          "Una copita para coger aire. O tres.",
+          "Marisa, ¡la de siempre! Y ponle música."
+        ],
+        "schedule": [
+          {
+            "from": "20:00",
+            "to": "21:30",
+            "chance": 0.7
+          }
+        ]
+      },
+      "party": {
+        "at": "home",
+        "label": "🎉 fiesta en casa",
+        "emits": {
+          "noise": 0.9,
+          "odors": 0.3,
+          "plagas": 0.45
+        },
+        "say": [
+          "¡Pásate! Hay ice-cream en la nevera y confeti en el suelo.",
+          "¿Esto es ruido? Esto es CULTURA.",
+          "¿Las cucarachas? Son los invitados de verdad."
+        ],
+        "schedule": [
+          {
+            "from": "21:30",
+            "to": "01:00",
+            "chance": 0.75
+          }
+        ]
+      }
     },
-    "say": [
-     "La lavadora hace un ruido raro, pero hace su vida."
-    ],
-    "schedule": [
-     {
-      "from": "10:30",
-      "to": "11:10",
-      "days": "even"
-     }
-    ]
-   },
-   "lavadora_comunal": {
-    "at": "def:lavanderia_comunal",
-    "label": "🧼 lava en la comunal",
-    "emits": {
-     "water": 0.4
+    "view": {
+      "color": "#2ec4b6",
+      "accent": "#ff9f1c",
+      "hat": "sunglasses",
+      "prop": "none",
+      "height": 1.34
+    }
+  },
+  {
+    "id": "jubilada",
+    "name": "Esperanza, la Jubilada",
+    "tagline": "Ruta silla y paciencia.",
+    "traits": {
+      "gossip": 0.6,
+      "sociability": 0.7,
+      "tidiness": 0.9,
+      "noisiness": 0.1,
+      "generosity": 0.8
     },
-    "say": [
-     "Los días impares, la comunal es MÍA. Lo demás es folclore.",
-     "Aquí se lava, se plancha y se juzga. Sobre todo se juzga."
+    "needs": [
+      "sleep",
+      "social",
+      "fun",
+      "money"
     ],
-    "schedule": [
-     {
-      "from": "10:30",
-      "to": "11:30",
-      "days": "odd"
-     }
-    ]
-   }
-  },
-  "view": {
-   "color": "#7fa65a",
-   "accent": "#f2cc8f",
-   "hat": "bun",
-   "prop": "cart",
-   "height": 1.2
-  }
- },
- {
-  "id": "presidente",
-  "name": "Don Ramón, el Presidente",
-  "tagline": "La comunidad es su vida. Literalmente.",
-  "traits": {
-   "gossip": 0.5,
-   "sociability": 0.6,
-   "tidiness": 0.8,
-   "noisiness": 0.2,
-   "generosity": 0.3
-  },
-  "voteBias": 0.35,
-  "needs": [
-   "sleep",
-   "social",
-   "fun",
-   "money"
-  ],
-  "activities": {
-   "idle": {
-    "at": "home",
-    "say": [
-     "¿Firmas la convocatoria? Es la número 47 del año.",
-     "Recuerde: la junta es sagrada. Y eterna."
-    ]
-   },
-   "sleep": {
-    "anchor": "bed",
-    "at": "home",
-    "label": "😴 duerme"
-   },
-   "stroll": {
-    "at": "corridor",
-    "label": "🚶 inspecciona el pasillo",
-    "say": [
-     "Inspecciono el pasillo. Hay una mancha en el 1A. Hay SIEMPRE una mancha."
-    ],
-    "schedule": [
-     {
-      "from": "12:00",
-      "to": "12:30"
-     },
-     {
-      "from": "17:00",
-      "to": "17:30"
-     }
-    ]
-   }
-  },
-  "view": {
-   "color": "#4a4a55",
-   "accent": "#e63946",
-   "hat": "none",
-   "prop": "briefcase",
-   "height": 1.32
-  }
- },
- {
-  "id": "estudiante",
-  "name": "Laia, la Estudiante",
-  "tagline": "Suena, estudia (y hace ruido).",
-  "traits": {
-   "gossip": 0.4,
-   "sociability": 0.6,
-   "tidiness": 0.4,
-   "noisiness": 0.6,
-   "generosity": 0.5
-  },
-  "needs": [
-   "sleep",
-   "social",
-   "fun",
-   "money"
-  ],
-  "activities": {
-   "idle": {
-    "at": "home"
-   },
-   "sleep": {
-    "anchor": "bed",
-    "at": "home",
-    "label": "😴 duerme",
-    "say": [
-     "Zzz... el examen es a las 8... zzz..."
-    ]
-   },
-   "out": {
-    "at": "out",
-    "label": "🚪 sale fuera",
-    "say": [
-     "En clase. Digo yo. Mejor no preguntes."
-    ],
-    "schedule": [
-     {
-      "from": "08:00",
-      "to": "15:00"
-     }
-    ]
-   },
-   "study_music": {
-    "anchor": "desk",
-    "at": "home",
-    "label": "🎸 estudia... con amplificador",
-    "emits": {
-     "noise": 0.45
+    "activities": {
+      "idle": {
+        "at": "home",
+        "say": [
+          "A ver si arreglan ya la lavadora que tiro de balcón.",
+          "Yo a tu edad ya tenía tres pisos... de crisis."
+        ]
+      },
+      "sleep": {
+        "anchor": "bed",
+        "at": "home",
+        "label": "😴 duerme"
+      },
+      "chair": {
+        "at": "corridor",
+        "label": "🪑 ocupa la silla del pasillo",
+        "say": [
+          "Buenos días. Llevo aquí desde los buenos días anteriores."
+        ],
+        "schedule": [
+          {
+            "from": "08:00",
+            "to": "08:40"
+          },
+          {
+            "from": "12:00",
+            "to": "12:40"
+          },
+          {
+            "from": "18:00",
+            "to": "18:40"
+          }
+        ]
+      },
+      "laundry": {
+        "at": "home",
+        "label": "🌀 pone la lavadora",
+        "emits": {
+          "water": 0.55
+        },
+        "say": [
+          "La lavadora hace un ruido raro, pero hace su vida."
+        ],
+        "schedule": [
+          {
+            "from": "10:30",
+            "to": "11:10",
+            "days": "even"
+          }
+        ]
+      },
+      "lavadora_comunal": {
+        "at": "def:lavanderia_comunal",
+        "label": "🧼 lava en la comunal",
+        "emits": {
+          "water": 0.4
+        },
+        "say": [
+          "Los días impares, la comunal es MÍA. Lo demás es folclore.",
+          "Aquí se lava, se plancha y se juzga. Sobre todo se juzga."
+        ],
+        "schedule": [
+          {
+            "from": "10:30",
+            "to": "11:30",
+            "days": "odd"
+          }
+        ]
+      }
     },
-    "say": [
-     "Estudio con música. Mozart, pero en versión techno."
-    ],
-    "schedule": [
-     {
-      "from": "16:00",
-      "to": "22:00"
-     }
-    ]
-   }
+    "view": {
+      "color": "#7fa65a",
+      "accent": "#f2cc8f",
+      "hat": "bun",
+      "prop": "cart",
+      "height": 1.2
+    }
   },
-  "view": {
-   "color": "#8e6fd8",
-   "accent": "#ffca3a",
-   "hat": "headphones",
-   "prop": "phone",
-   "height": 1.26
-  }
- },
- {
-  "id": "nino_grafitero",
-  "name": "Pinturillas, el Niño",
-  "tagline": "El ascensor es su lienzo. Su madre, su coartada.",
-  "traits": {
-   "mischief": 0.9,
-   "sociability": 0.6,
-   "noisiness": 0.5
-  },
-  "needs": [
-   "fun",
-   "social"
-  ],
-  "activities": {
-   "idle": {
-    "at": "home",
-    "say": [
-     "Yo no he sido. Pero quedó bonito.",
-     "¿Has visto mi obra en la cabina? Arte urbano."
-    ]
-   },
-   "sleep": {
-    "anchor": "bed",
-    "at": "home",
-    "label": "😴 duerme"
-   },
-   "out": {
-    "at": "out",
-    "label": "🚪 sale fuera",
-    "schedule": [
-     {
-      "from": "08:00",
-      "to": "15:00"
-     }
-    ]
-   },
-   "paint_cabin": {
-    "at": "core",
-    "label": "🎨 pinta \"arte\" en la cabina",
-    "say": [
-     "Esto no es una pintada. Es un mural."
-    ],
-    "schedule": [
-     {
-      "from": "16:00",
-      "to": "19:00",
-      "chance": 0.4
-     }
-    ],
-    "onStart": [
-     {
-      "op": "setParam",
-      "target": "nucleo",
-      "param": "cabin_graffiti",
-      "delta": 15
-     }
-    ]
-   },
-   "roam": {
-    "at": "stairs",
-    "label": "🛼 patrulla la escalera",
-    "say": [
-     "La escalera es mi circuito de karts. En modo andando."
-    ],
-    "schedule": [
-     {
-      "from": "16:00",
-      "to": "19:00"
-     }
-    ]
-   }
-  },
-  "view": {
-   "color": "#f2a93b",
-   "accent": "#06d6a0",
-   "hat": "cap",
-   "prop": "spray",
-   "height": 0.85
-  }
- },
- {
-  "id": "fondo_buitre",
-  "name": "Sr. Vulture, del Fondo Buitre",
-  "tagline": "Compra, reforma, revende. Sonríe.",
-  "traits": {
-   "gossip": 0.1,
-   "sociability": 0.5,
-   "tidiness": 1,
-   "noisiness": 0.1,
-   "generosity": 0.05
-  },
-  "voteBias": -0.3,
-  "needs": [
-   "sleep",
-   "social",
-   "fun",
-   "money"
-  ],
-  "activities": {
-   "idle": {
-    "at": "home",
-    "say": [
-     "Este edificio tiene mucho potencial. El suyo.",
-     "¿Reforma integral? Tengo precios. Y un ábaco."
-    ]
-   },
-   "sleep": {
-    "anchor": "bed",
-    "at": "home",
-    "label": "😴 duerme"
-   },
-   "stroll": {
-    "at": "corridor",
-    "label": "🚶 inspecciona el pasillo",
-    "say": [
-     "Mido el pasillo. Para una próxima reforma. La suya, claro."
-    ],
-    "schedule": [
-     {
-      "from": "09:30",
-      "to": "10:00"
-     },
-     {
-      "from": "14:00",
-      "to": "14:30"
-     }
-    ]
-   }
-  },
-  "view": {
-   "color": "#232323",
-   "accent": "#ffd60a",
-   "hat": "sunglasses",
-   "prop": "briefcase",
-   "height": 1.36
-  }
- },
- {
-  "id": "inquilino",
-  "name": "Mateo, el Erasmus",
-  "tagline": "Alquila, pregunta, imprime.",
-  "traits": {
-   "gossip": 0.3,
-   "sociability": 0.9,
-   "tidiness": 0.3,
-   "noisiness": 0.4,
-   "generosity": 0.5
-  },
-  "needs": [
-   "sleep",
-   "social",
-   "fun",
-   "money"
-  ],
-  "activities": {
-   "idle": {
-    "at": "home",
-    "say": [
-     "Hola! ¿Cómo se dice \"derrama\" en mi idioma? Ah, igual.",
-     "¿El wifi llega al baño? Pregunta importante."
-    ]
-   },
-   "sleep": {
-    "anchor": "bed",
-    "at": "home",
-    "label": "😴 duerme"
-   },
-   "out": {
-    "at": "out",
-    "label": "🚪 sale fuera",
-    "schedule": [
-     {
-      "from": "08:00",
-      "to": "14:00"
-     }
-    ]
-   }
-  },
-  "view": {
-   "color": "#46b5c9",
-   "accent": "#ff70a6",
-   "hat": "cap",
-   "prop": "phone",
-   "height": 1.28
-  }
- },
- {
-  "id": "okupa",
-  "name": "Nando, el Okupa",
-  "tagline": "Técnicamente, esa vivienda ya está habitada. Por él.",
-  "traits": {
-   "sociability": 0.6,
-   "tidiness": 0.3,
-   "noisiness": 0.5,
-   "generosity": 0.5
-  },
-  "needs": [
-   "sleep",
-   "social",
-   "fun",
-   "money"
-  ],
-  "voteBias": -0.1,
-  "activities": {
-   "idle": {
-    "at": "home"
-   },
-   "sleep": {
-    "anchor": "bed",
-    "at": "home",
-    "label": "😴 duerme"
-   },
-   "out": {
-    "at": "out",
-    "label": "🚪 sale fuera",
-    "say": [
-     "Voy a ver si el bar sigue open."
-    ]
-   },
-   "reforma_creativa": {
-    "at": "home",
-    "label": "🛠️ hace reforma creativa sin permiso",
-    "emits": {
-     "noise": 0.5
+  {
+    "id": "presidente",
+    "name": "Don Ramón, el Presidente",
+    "tagline": "La comunidad es su vida. Literalmente.",
+    "traits": {
+      "gossip": 0.5,
+      "sociability": 0.6,
+      "tidiness": 0.8,
+      "noisiness": 0.2,
+      "generosity": 0.3
     },
-    "say": [
-     "El taladro es mío. El piso, en breve, también."
+    "voteBias": 0.35,
+    "needs": [
+      "sleep",
+      "social",
+      "fun",
+      "money"
     ],
-    "schedule": [
-     {
-      "from": "11:00",
-      "to": "13:00",
-      "chance": 0.3
-     }
-    ]
-   }
-  },
-  "view": {
-   "color": "#8d6e63",
-   "accent": "#ffb703",
-   "hat": "cap",
-   "prop": "briefcase",
-   "height": 1.4
-  }
- },
- {
-  "id": "musico",
-  "name": "Rita, la Batería",
-  "tagline": "El compás perfecto a las 21:00. Y a las 21:00 de tu paciencia.",
-  "traits": {
-   "sociability": 0.7,
-   "tidiness": 0.4,
-   "noisiness": 0.85,
-   "generosity": 0.55
-  },
-  "needs": [
-   "sleep",
-   "social",
-   "fun",
-   "money"
-  ],
-  "voteBias": 0,
-  "activities": {
-   "idle": {
-    "at": "home"
-   },
-   "sleep": {
-    "anchor": "bed",
-    "at": "home",
-    "label": "😴 duerme"
-   },
-   "out": {
-    "at": "out",
-    "label": "🚪 sale fuera",
-    "say": [
-     "Voy a ver si el bar sigue open."
-    ]
-   },
-   "bateria": {
-    "anchor": "amp",
-    "at": "home",
-    "label": "🥁 ensaya con la batería electrónica",
-    "emits": {
-     "noise": 0.75
+    "activities": {
+      "idle": {
+        "at": "home",
+        "say": [
+          "¿Firmas la convocatoria? Es la número 47 del año.",
+          "Recuerde: la junta es sagrada. Y eterna."
+        ]
+      },
+      "sleep": {
+        "anchor": "bed",
+        "at": "home",
+        "label": "😴 duerme"
+      },
+      "stroll": {
+        "at": "corridor",
+        "label": "🚶 inspecciona el pasillo",
+        "say": [
+          "Inspecciono el pasillo. Hay una mancha en el 1A. Hay SIEMPRE una mancha."
+        ],
+        "schedule": [
+          {
+            "from": "12:00",
+            "to": "12:30"
+          },
+          {
+            "from": "17:00",
+            "to": "17:30"
+          }
+        ]
+      }
     },
-    "say": [
-     "Es música electrónica. Sin electrónica no hay música."
-    ],
-    "schedule": [
-     {
-      "from": "20:00",
-      "to": "22:00",
-      "chance": 0.8
-     }
-    ]
-   },
-   "concierto_bar": {
-    "at": "def:local_comercial",
-    "label": "🎸 concierto acústico en El Rincón",
-    "emits": {
-     "noise": 0.6
-    },
-    "say": [
-     "Acústico significa que el amplificador es más pequeño.",
-     "Esta noche, solos de percusión en El Rincón. De nada."
-    ],
-    "schedule": [
-     {
-      "from": "22:00",
-      "to": "23:30",
-      "chance": 0.55
-     }
-    ]
-   }
+    "view": {
+      "color": "#4a4a55",
+      "accent": "#e63946",
+      "hat": "none",
+      "prop": "briefcase",
+      "height": 1.32
+    }
   },
-  "view": {
-   "color": "#e76f51",
-   "accent": "#2a9d8f",
-   "hat": "headphones",
-   "prop": "guitar",
-   "height": 1.25
+  {
+    "id": "estudiante",
+    "name": "Laia, la Estudiante",
+    "tagline": "Suena, estudia (y hace ruido).",
+    "traits": {
+      "gossip": 0.4,
+      "sociability": 0.6,
+      "tidiness": 0.4,
+      "noisiness": 0.6,
+      "generosity": 0.5
+    },
+    "needs": [
+      "sleep",
+      "social",
+      "fun",
+      "money"
+    ],
+    "activities": {
+      "idle": {
+        "at": "home"
+      },
+      "sleep": {
+        "anchor": "bed",
+        "at": "home",
+        "label": "😴 duerme",
+        "say": [
+          "Zzz... el examen es a las 8... zzz..."
+        ]
+      },
+      "out": {
+        "at": "out",
+        "label": "🚪 sale fuera",
+        "say": [
+          "En clase. Digo yo. Mejor no preguntes."
+        ],
+        "schedule": [
+          {
+            "from": "08:00",
+            "to": "15:00"
+          }
+        ]
+      },
+      "study_music": {
+        "anchor": "desk",
+        "at": "home",
+        "label": "🎸 estudia... con amplificador",
+        "emits": {
+          "noise": 0.45
+        },
+        "say": [
+          "Estudio con música. Mozart, pero en versión techno."
+        ],
+        "schedule": [
+          {
+            "from": "16:00",
+            "to": "22:00"
+          }
+        ]
+      }
+    },
+    "view": {
+      "color": "#8e6fd8",
+      "accent": "#ffca3a",
+      "hat": "headphones",
+      "prop": "phone",
+      "height": 1.26
+    }
+  },
+  {
+    "id": "nino_grafitero",
+    "name": "Pinturillas, el Niño",
+    "tagline": "El ascensor es su lienzo. Su madre, su coartada.",
+    "traits": {
+      "mischief": 0.9,
+      "sociability": 0.6,
+      "noisiness": 0.5
+    },
+    "needs": [
+      "fun",
+      "social"
+    ],
+    "activities": {
+      "idle": {
+        "at": "home",
+        "say": [
+          "Yo no he sido. Pero quedó bonito.",
+          "¿Has visto mi obra en la cabina? Arte urbano."
+        ]
+      },
+      "sleep": {
+        "anchor": "bed",
+        "at": "home",
+        "label": "😴 duerme"
+      },
+      "out": {
+        "at": "out",
+        "label": "🚪 sale fuera",
+        "schedule": [
+          {
+            "from": "08:00",
+            "to": "15:00"
+          }
+        ]
+      },
+      "paint_cabin": {
+        "at": "core",
+        "label": "🎨 pinta \"arte\" en la cabina",
+        "say": [
+          "Esto no es una pintada. Es un mural."
+        ],
+        "schedule": [
+          {
+            "from": "16:00",
+            "to": "19:00",
+            "chance": 0.4
+          }
+        ],
+        "onStart": [
+          {
+            "op": "setParam",
+            "target": "nucleo",
+            "param": "cabin_graffiti",
+            "delta": 15
+          }
+        ]
+      },
+      "roam": {
+        "at": "stairs",
+        "label": "🛼 patrulla la escalera",
+        "say": [
+          "La escalera es mi circuito de karts. En modo andando."
+        ],
+        "schedule": [
+          {
+            "from": "16:00",
+            "to": "19:00"
+          }
+        ]
+      }
+    },
+    "view": {
+      "color": "#f2a93b",
+      "accent": "#06d6a0",
+      "hat": "cap",
+      "prop": "spray",
+      "height": 0.85
+    }
+  },
+  {
+    "id": "fondo_buitre",
+    "name": "Sr. Vulture, del Fondo Buitre",
+    "tagline": "Compra, reforma, revende. Sonríe.",
+    "traits": {
+      "gossip": 0.1,
+      "sociability": 0.5,
+      "tidiness": 1,
+      "noisiness": 0.1,
+      "generosity": 0.05
+    },
+    "voteBias": -0.3,
+    "needs": [
+      "sleep",
+      "social",
+      "fun",
+      "money"
+    ],
+    "activities": {
+      "idle": {
+        "at": "home",
+        "say": [
+          "Este edificio tiene mucho potencial. El suyo.",
+          "¿Reforma integral? Tengo precios. Y un ábaco."
+        ]
+      },
+      "sleep": {
+        "anchor": "bed",
+        "at": "home",
+        "label": "😴 duerme"
+      },
+      "stroll": {
+        "at": "corridor",
+        "label": "🚶 inspecciona el pasillo",
+        "say": [
+          "Mido el pasillo. Para una próxima reforma. La suya, claro."
+        ],
+        "schedule": [
+          {
+            "from": "09:30",
+            "to": "10:00"
+          },
+          {
+            "from": "14:00",
+            "to": "14:30"
+          }
+        ]
+      }
+    },
+    "view": {
+      "color": "#232323",
+      "accent": "#ffd60a",
+      "hat": "sunglasses",
+      "prop": "briefcase",
+      "height": 1.36
+    }
+  },
+  {
+    "id": "inquilino",
+    "name": "Mateo, el Erasmus",
+    "tagline": "Alquila, pregunta, imprime.",
+    "traits": {
+      "gossip": 0.3,
+      "sociability": 0.9,
+      "tidiness": 0.3,
+      "noisiness": 0.4,
+      "generosity": 0.5
+    },
+    "needs": [
+      "sleep",
+      "social",
+      "fun",
+      "money"
+    ],
+    "activities": {
+      "idle": {
+        "at": "home",
+        "say": [
+          "Hola! ¿Cómo se dice \"derrama\" en mi idioma? Ah, igual.",
+          "¿El wifi llega al baño? Pregunta importante."
+        ]
+      },
+      "sleep": {
+        "anchor": "bed",
+        "at": "home",
+        "label": "😴 duerme"
+      },
+      "out": {
+        "at": "out",
+        "label": "🚪 sale fuera",
+        "schedule": [
+          {
+            "from": "08:00",
+            "to": "14:00"
+          }
+        ]
+      }
+    },
+    "view": {
+      "color": "#46b5c9",
+      "accent": "#ff70a6",
+      "hat": "cap",
+      "prop": "phone",
+      "height": 1.28
+    }
+  },
+  {
+    "id": "okupa",
+    "name": "Nando, el Okupa",
+    "tagline": "Técnicamente, esa vivienda ya está habitada. Por él.",
+    "traits": {
+      "sociability": 0.6,
+      "tidiness": 0.3,
+      "noisiness": 0.5,
+      "generosity": 0.5
+    },
+    "needs": [
+      "sleep",
+      "social",
+      "fun",
+      "money"
+    ],
+    "voteBias": -0.1,
+    "activities": {
+      "idle": {
+        "at": "home"
+      },
+      "sleep": {
+        "anchor": "bed",
+        "at": "home",
+        "label": "😴 duerme"
+      },
+      "out": {
+        "at": "out",
+        "label": "🚪 sale fuera",
+        "say": [
+          "Voy a ver si el bar sigue open."
+        ]
+      },
+      "reforma_creativa": {
+        "at": "home",
+        "label": "🛠️ hace reforma creativa sin permiso",
+        "emits": {
+          "noise": 0.5
+        },
+        "say": [
+          "El taladro es mío. El piso, en breve, también."
+        ],
+        "schedule": [
+          {
+            "from": "11:00",
+            "to": "13:00",
+            "chance": 0.3
+          }
+        ]
+      }
+    },
+    "view": {
+      "color": "#8d6e63",
+      "accent": "#ffb703",
+      "hat": "cap",
+      "prop": "briefcase",
+      "height": 1.4
+    }
+  },
+  {
+    "id": "musico",
+    "name": "Rita, la Batería",
+    "tagline": "El compás perfecto a las 21:00. Y a las 21:00 de tu paciencia.",
+    "traits": {
+      "sociability": 0.7,
+      "tidiness": 0.4,
+      "noisiness": 0.85,
+      "generosity": 0.55
+    },
+    "needs": [
+      "sleep",
+      "social",
+      "fun",
+      "money"
+    ],
+    "voteBias": 0,
+    "activities": {
+      "idle": {
+        "at": "home"
+      },
+      "sleep": {
+        "anchor": "bed",
+        "at": "home",
+        "label": "😴 duerme"
+      },
+      "out": {
+        "at": "out",
+        "label": "🚪 sale fuera",
+        "say": [
+          "Voy a ver si el bar sigue open."
+        ]
+      },
+      "bateria": {
+        "anchor": "amp",
+        "at": "home",
+        "label": "🥁 ensaya con la batería electrónica",
+        "emits": {
+          "noise": 0.75
+        },
+        "say": [
+          "Es música electrónica. Sin electrónica no hay música."
+        ],
+        "schedule": [
+          {
+            "from": "20:00",
+            "to": "22:00",
+            "chance": 0.8
+          }
+        ]
+      },
+      "concierto_bar": {
+        "at": "def:local_comercial",
+        "label": "🎸 concierto acústico en El Rincón",
+        "emits": {
+          "noise": 0.6
+        },
+        "say": [
+          "Acústico significa que el amplificador es más pequeño.",
+          "Esta noche, solos de percusión en El Rincón. De nada."
+        ],
+        "schedule": [
+          {
+            "from": "22:00",
+            "to": "23:30",
+            "chance": 0.55
+          }
+        ]
+      }
+    },
+    "view": {
+      "color": "#e76f51",
+      "accent": "#2a9d8f",
+      "hat": "headphones",
+      "prop": "guitar",
+      "height": 1.25
+    }
+  },
+  {
+    "id": "pintora",
+    "name": "Pilar, la Pintora",
+    "tagline": "Un rodillo, tres colores y la opinión de todo el edificio.",
+    "traits": {
+      "gossip": 0.45,
+      "sociability": 0.6,
+      "tidiness": 0.85,
+      "noisiness": 0.2,
+      "generosity": 0.6
+    },
+    "needs": [
+      "sleep",
+      "social",
+      "fun",
+      "money"
+    ],
+    "voteBias": 5,
+    "activities": {
+      "idle": {
+        "at": "home"
+      },
+      "sleep": {
+        "anchor": "bed",
+        "at": "home",
+        "label": "😴 duerme"
+      },
+      "pintar_mural": {
+        "at": "def:portal",
+        "label": "🎨 pinta el mural del portal",
+        "emits": {
+          "chisme": 0.35
+        },
+        "say": [
+          "El terracota pide paso. Y yo también.",
+          "Esto no es grafiti, es IDENTIDAD comunitaria.",
+          "El portal era gris. Ahora es un relato."
+        ],
+        "schedule": [
+          {
+            "from": "10:00",
+            "to": "13:00",
+            "chance": 0.7
+          }
+        ]
+      },
+      "charla_rodillo": {
+        "at": "corridor",
+        "label": "🗣️ charla con el rodillo en la mano",
+        "emits": {
+          "chisme": 0.45
+        },
+        "say": [
+          "Pregunta sin compromiso. Yo respondo con capas.",
+          "Del mural al chisme hay un pincel de distancia."
+        ],
+        "schedule": [
+          {
+            "from": "17:30",
+            "to": "19:00",
+            "chance": 0.5
+          }
+        ]
+      }
+    },
+    "view": {
+      "color": "#2a9d8f",
+      "accent": "#e9c46a",
+      "hat": "cap",
+      "prop": "spray",
+      "height": 1.22
+    }
+  },
+  {
+    "id": "repartidor",
+    "name": "Ray, el Repartidor",
+    "tagline": "Llega a las 22:40, suena como una moto y se lleva tu pizza.",
+    "traits": {
+      "gossip": 0.3,
+      "sociability": 0.5,
+      "tidiness": 0.5,
+      "noisiness": 0.75,
+      "generosity": 0.4
+    },
+    "needs": [
+      "sleep",
+      "social",
+      "fun",
+      "money"
+    ],
+    "voteBias": 0,
+    "activities": {
+      "idle": {
+        "at": "home"
+      },
+      "sleep": {
+        "anchor": "bed",
+        "at": "home",
+        "label": "😴 duerme (oficio nocturno)"
+      },
+      "siesta_mediodia": {
+        "anchor": "bed",
+        "at": "home",
+        "label": "😴 siesta oficial de turno de noche",
+        "schedule": [
+          {
+            "from": "12:30",
+            "to": "16:00"
+          }
+        ]
+      },
+      "ruta_nocturna": {
+        "at": "out",
+        "label": "🛵 ruta de pedidos nocturna",
+        "emits": {
+          "noise": 0.4
+        },
+        "say": [
+          "¡Última entrega y a casa! El portal me conoce de oír mi moto.",
+          "Si es para el festival, lo subo cantando."
+        ],
+        "schedule": [
+          {
+            "from": "21:00",
+            "to": "23:45",
+            "chance": 0.75
+          }
+        ]
+      },
+      "descarga_en_pasillo": {
+        "at": "corridor",
+        "label": "📦 deja un paquete (y una historia)",
+        "emits": {
+          "chisme": 0.3
+        },
+        "say": [
+          "Firma aquí. Y si sabe algo del festival, dígalo ahora que no vuelvo."
+        ],
+        "schedule": [
+          {
+            "from": "20:30",
+            "to": "21:00",
+            "chance": 0.4
+          }
+        ]
+      }
+    },
+    "view": {
+      "color": "#f4a261",
+      "accent": "#264653",
+      "hat": "cap",
+      "prop": "phone",
+      "height": 1.3
+    }
   }
- }
 ]

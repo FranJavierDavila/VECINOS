@@ -252,6 +252,74 @@ function buildMusico(): Record<string, unknown> {
   return g.finish('vecinos-gen-fase-e (musico v1)');
 }
 
+/** Pilar, la Pintora: peto teal, boina ámbar, rodillo en la mano. Clip 'paint' (pinta el mural). */
+function buildPintora(): Record<string, unknown> {
+  const r = buildAdult({ torso: '#2a9d8f', pants: '#264653', skin: '#d9a06b', shoe: '#e9ecef', torsoScale: [0.33, 0.47, 0.24] });
+  const { g, hips, headPivot, armL, armR } = r;
+  const mCap = g.addMaterial('boina', '#e9c46a');
+  const mRoller = g.addMaterial('rodillo', '#eceff1', { roughness: 0.55 });
+  const mPaint = g.addMaterial('pintura', '#e76f51', { roughness: 0.7 });
+  const mHandle = g.addMaterial('mango', '#4e342e');
+  const meshCap = g.addBoxMesh('boina', mCap);
+  const meshRoller = g.addBoxMesh('rodillo', mRoller);
+  const meshPaint = g.addBoxMesh('pintura', mPaint);
+  const meshHandle = g.addBoxMesh('mango', mHandle);
+  const beret = g.addNode({ name: 'beret', mesh: meshCap, translation: [0.01, 0.33, 0], scale: [0.24, 0.07, 0.24] });
+  const rollerDrum = g.addNode({ name: 'rollerDrum', mesh: meshRoller, translation: [0.1, -0.3, 0.16], scale: [0.09, 0.16, 0.09] });
+  const rollerPaint = g.addNode({ name: 'rollerPaint', mesh: meshPaint, translation: [0.1, -0.24, 0.16], scale: [0.1, 0.05, 0.1] });
+  const rollerHandle = g.addNode({ name: 'rollerHandle', mesh: meshHandle, translation: [0.06, -0.42, 0.1], scale: [0.03, 0.24, 0.03] });
+  (g.nodes[headPivot] as { children: number[] }).children.push(beret);
+  (g.nodes[armR] as { children: number[] }).children.push(rollerDrum, rollerPaint, rollerHandle);
+
+  addBaseClips(r, 2.4);
+  // paint: pasa el rodillo hacia arriba con la mano derecha, escanea la pared con la cabeza (2.4 s)
+  const t = loopTimes(2.4, 12);
+  const swipe = t.map((x) => (Math.sin((2 * Math.PI * 2 * x) / 2.4) + 1) / 2); // 0..1
+  g.addAnimation('paint', [
+    { node: armR, path: 'rotation', times: t, values: swipe.map((k) => quatAxis(0, 0, 1, 1.15 + 0.75 * k)) },
+    { node: armL, path: 'rotation', times: t, values: t.map(() => quatAxis(0, 0, 1, -0.3)) },
+    { node: headPivot, path: 'rotation', times: t, values: swipe.map((k) => quatAxis(0, 0, 1, 0.12 - 0.2 * k)) },
+    { node: hips, path: 'translation', times: t, values: swipe.map((k) => [0, 0.52 + 0.015 * k, 0]) },
+  ]);
+  return g.finish('vecinos-gen-fase-e (pintora v1)');
+}
+
+/** Ray, el Repartidor: chaqueta naranja, gorra oscura, mochila térmica. Clip 'ride' (conduce la moto). */
+function buildRepartidor(): Record<string, unknown> {
+  const r = buildAdult({ torso: '#f4a261', pants: '#264653', skin: '#c98d5f', shoe: '#2b2b31', torsoScale: [0.36, 0.5, 0.25] });
+  const { g, hips, headPivot, armL, armR } = r;
+  const mCap = g.addMaterial('gorra', '#264653');
+  const mBag = g.addMaterial('mochila', '#b5651d', { roughness: 0.6 });
+  const mBagStrap = g.addMaterial('correa', '#5d4037');
+  const mPhone = g.addMaterial('movil', '#22303a', { metallic: 0.3, roughness: 0.4 });
+  const meshCap = g.addBoxMesh('gorra', mCap);
+  const meshBag = g.addBoxMesh('mochila', mBag);
+  const meshStrap = g.addBoxMesh('correa', mBagStrap);
+  const meshPhone = g.addBoxMesh('movil', mPhone);
+  const cap = g.addNode({ name: 'cap', mesh: meshCap, translation: [0.01, 0.3, 0], scale: [0.27, 0.09, 0.27] });
+  const visor = g.addNode({ name: 'visor', mesh: meshCap, translation: [0.17, 0.28, 0], scale: [0.12, 0.035, 0.2] });
+  const bag = g.addNode({ name: 'thermalBag', mesh: meshBag, translation: [-0.3, 0.24, 0], scale: [0.14, 0.34, 0.34] });
+  const bagLid = g.addNode({ name: 'bagLid', mesh: meshStrap, translation: [-0.38, 0.42, 0], scale: [0.03, 0.06, 0.28] });
+  const strap = g.addNode({ name: 'strap', mesh: meshStrap, translation: [-0.12, 0.24, 0], scale: [0.03, 0.36, 0.05] });
+  const phone = g.addNode({ name: 'phone', mesh: meshPhone, translation: [0.03, -0.41, 0], scale: [0.05, 0.13, 0.04] });
+  (g.nodes[headPivot] as { children: number[] }).children.push(cap, visor);
+  (g.nodes[hips] as { children: number[] }).children.push(bag, bagLid, strap);
+  (g.nodes[armR] as { children: number[] }).children.push(phone);
+
+  addBaseClips(r, 2.3);
+  // ride: agarra el manillar con los dos brazos al frente, culebreo de moto y cabeza atenta (1.8 s)
+  const t = loopTimes(1.8, 12);
+  const weave = t.map((x) => 0.09 * Math.sin((2 * Math.PI * 2 * x) / 1.8));
+  g.addAnimation('ride', [
+    { node: armL, path: 'rotation', times: t, values: t.map(() => quatAxis(0, 0, 1, 1.0)) },
+    { node: armR, path: 'rotation', times: t, values: t.map(() => quatAxis(0, 0, 1, 1.0)) },
+    { node: hips, path: 'translation', times: t, values: t.map((x) => [0, 0.52 + 0.018 * Math.sin((2 * Math.PI * 6 * x) / 1.8), 0]) },
+    { node: hips, path: 'rotation', times: t, values: weave.map((y) => quatAxis(0, 1, 0, y)) },
+    { node: headPivot, path: 'rotation', times: t, values: weave.map((y) => quatAxis(0, 1, 0, -0.5 * y)) },
+  ]);
+  return g.finish('vecinos-gen-fase-e (repartidor v1)');
+}
+
 // ───────────────────────── Bloques ─────────────────────────
 // Convenciones: base y=0, centrado en x/z, frente hacia −Z. Nominal = celda real (el runtime escala).
 
@@ -415,6 +483,8 @@ for (const [path, data] of [
   ['actors/inquilino.gltf', buildInquilino()],
   ['actors/okupa.gltf', buildOkupa()],
   ['actors/musico.gltf', buildMusico()],
+  ['actors/pintora.gltf', buildPintora()],
+  ['actors/repartidor.gltf', buildRepartidor()],
   ['blocks/pasillo_planta.gltf', buildPasillo()],
   ['blocks/garaje.gltf', buildGaraje()],
   ['blocks/trasteros.gltf', buildTrasteros()],
