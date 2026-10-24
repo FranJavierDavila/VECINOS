@@ -663,3 +663,24 @@ Stage Summary:
 - Pulido Steam operativo: menú de opciones completo (sonido/gráficos/idioma), gamepad (stick+A/Y/Start), calidad y FPS, localización ES/EN del chrome con cambio instantáneo y persistente, y empaquetado web instalable (PWA con manifest, iconos IA, service worker con cache-first del contenido). Lo único que el navegador no puede ejercer aquí: un gamepad físico real (el polling está cableado y los toasts de conexión listos).
 - El edificio crece sin tocar una línea de sim: canal chisme que contagia por el pasillo y alimenta la hype, cadena del Festival con cine y decisiones, dos vecinos nuevos con cuerpo generado (Pilar pinta el portal, Ray ronda de noche) y la carta del 4D. El manifiesto de assets suma 13/13 actores — cualquier .glb de artista los sustituye sin código.
 - Siguientes naturales: multijugador robusto (interiores/cutscenes sincronizados, reconexión), traducción completa del contenido JSON reutilizando el diccionario, o ajustes del diseñador sobre caminatas de mudanza (pendiente de decisión: siguen activas y saltables con E).
+
+---
+Task ID: 26
+Agent: main (Z.ai Code)
+Task: v1.1.1 — Re-verificación E2E en vivo de v1.1 (Pulido Steam + Contenido F) tras corte de contexto
+
+Work Log:
+- Reanudada la sesión: el resumen decía "tarea no iniciada" pero el worklog mostraba Task 25 (v1.1) ya implementada y commiteada (360b7c2, en origin/main). En lugar de duplicar, se re-verificó todo en vivo.
+- Estado de artefactos confirmado: i18n.ts (import useGameStore correcto — el error antiguo del dev.log era estado intermedio de desarrollo), manifest.webmanifest, sw.js, 3 iconos, PwaRegister en src/components/game/, qa-fasef2.ts.
+- QA: qa-fasef2 completo ("QA CONTENIDO F v1.1 OK", 32 checks); lint 0; dev server HTTP 200.
+- E2E navegador (agent-browser, viewport 1280x900): insignia "v1.1 · pulido Steam"; partida nueva → intro inmobiliaria; Opciones verificadas (Sonido: volumen 70 + mute, Gráficos: calidad + FPS, Idioma) — cambio ES→EN→ES EN VIVO traduciendo todo el chrome (Options/Sound/Graphics/Render quality); contador FPS activado y visible ("7-8 FPS" headless); PWA: manifest/sw/iconos HTTP 200 + 1 service worker registrado; opciones persistidas tras reload (FPS sigue visible).
+- Contenido F en vivo (Días 1-5 a velocidad 10x, stick táctil virtual): m_bienvenida completada caminando portal→escalera→3C (subida/bajada de plantas con stick, candados de 3D/4D visibles); eventos de canales disparados en vivo: "Gota a gota (4C→3C)" (agua), "Redobles en el 4D" (ruido, Rita), "El detector que no calla" (humo, Kevin), "Plaga en el 1B" (plagas, Dolores), llamadas de chisme (Dolores); cola FIFO del teléfono completa (administrador, ascensor, Marisa, okupa, buzones, presidente); decisiones con modal de choices todas funcionales.
+- Cadena FESTIVAL DEL PORTAL verificada en juego real: (I) convocatoria — llamada del presidente + paso "Abre El Rincón" + modal de brindis → completada (+hype); (II) el ensayo — llamada de Rita + paso garaje ("E · entrar en el garaje") → completada con CUTSCENE de mudanza de Pilar la Pintora CAMINANDO con su glTF generado (peto teal + rodillo, visible luego viviendo en el 2C); (III) gran día — lógica hype≥50+19:00 verificada por qa-fasef2 (activa a las 19:15, muda a Ray al 5A).
+- m_buzon_4d: "Buzones revueltos" modal en vivo (elegida opción comunitaria, toast de Dolores leyendo tu carta) + continuación "La carta del 4D (de verdad esta vez)" en curso.
+- Consecuencias del sim fluyendo: quejas del administrador por El Rincón (Sr. Vulture, acta de 14 páginas), cartera 800→1520 €, hype en HUD, "Pintadas en el ascensor" caducó a fallida (estados en curso/completada/fallida renderizando).
+- Git: commit local extra 7ddb5a0 (snapshot del sistema, 0 cambios de contenido) se sincroniza con el backup de esta tarea.
+
+Stage Summary:
+- v1.1 queda DOBLEMENTE verificada (QA determinista 32 checks + E2E en navegador con la cadena del Festival completa, canales agua/ruido/humo/plagas/chisme en vivo, i18n en vivo, PWA y persistencia). El reporte anterior de "tarea no iniciada" era un desfase del resumen de contexto: la implementación existía desde Task 25.
+- Pendiente de decisión del usuario (sin bloquear): caminatas encadenadas de mudanza siguen activas y saltables con E (comportamiento v1.1 sin cambios).
+- Siguientes naturales: multijugador robusto (interiores/cutscenes sincronizados, reconexión), traducción del contenido JSON reutilizando i18n.ts, o el gran día del Festival jugado a mano (Festival III).
