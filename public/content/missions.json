@@ -3681,5 +3681,246 @@
         ]
       }
     ]
+  },
+  {
+    "id": "m_aviso_polvo",
+    "title": "El polvo que camina",
+    "description": "Román, el del 5B, ha convertido su casa en una cantera y el resto del edificio en su filtro de café. El presidente llama: o hablas tú, o habla el parte oficial.",
+    "trigger": {
+      "all": [
+        {
+          "dayMin": 2
+        },
+        {
+          "time": {
+            "after": "10:00",
+            "before": "21:00"
+          }
+        }
+      ]
+    },
+    "steps": [
+      {
+        "id": "aviso",
+        "type": "phone_call",
+        "dialog": "dlg_polvo_aviso",
+        "hint": "El presidente, con la voz cargada de polvo"
+      }
+    ],
+    "choices": [
+      {
+        "id": "me_ocupo",
+        "label": "Yo hablo con él (con tacto)",
+        "hint": "Palabra a palabra. Sin taladros de por medio",
+        "icon": "handshake",
+        "effects": [
+          {
+            "op": "toast",
+            "text": "🪚 Vas a hablar con Román. El presidente cuelga antes de que te arrepientas.",
+            "tone": "info"
+          },
+          {
+            "op": "startMission",
+            "id": "m_negociar_obra"
+          }
+        ]
+      },
+      {
+        "id": "que_aguante",
+        "label": "Que aguante el edificio",
+        "hint": "El polvo no perdona: la misión volverá a ti",
+        "icon": "spray",
+        "effects": [
+          {
+            "op": "addReputation",
+            "resident": "player",
+            "amount": -1
+          },
+          {
+            "op": "toast",
+            "text": "🏗️ 'Que aguante' ha dicho usted. El polvo lo ha oído y le ha puesto fecha.",
+            "tone": "bad"
+          },
+          {
+            "op": "startMission",
+            "id": "m_negociar_obra",
+            "delayMinutes": 180
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "m_negociar_obra",
+    "title": "La obra fina del 5B",
+    "description": "Román baja al portal a por materiales cada tarde (14:10–15:30). Es SU momento: córrelo y negocia horarios, felpudos y decoro antes de que el polvo llegue a la junta.",
+    "roles": {
+      "obra": {
+        "archetype": "electricista"
+      }
+    },
+    "steps": [
+      {
+        "id": "pcatch",
+        "type": "catch_in_act",
+        "target": "obra",
+        "place": "portal",
+        "windowMinutes": 300,
+        "hint": "Pilla a Román en el portal cuando baja a por materiales (14:10–15:30)"
+      }
+    ],
+    "choices": [
+      {
+        "id": "horarios",
+        "label": "Pacto: horarios y felpudo",
+        "hint": "Obra de 10 a 13. Felpudo antipolvo comunitario. Todos ganan",
+        "icon": "handshake",
+        "effects": [
+          {
+            "op": "addRelation",
+            "a": "player",
+            "b": "obra",
+            "affinity": 8,
+            "trust": 4
+          },
+          {
+            "op": "addFunds",
+            "to": "community",
+            "amount": 60
+          },
+          {
+            "op": "addReputation",
+            "resident": "player",
+            "amount": 2
+          },
+          {
+            "op": "toast",
+            "text": "🤝 Román promete taladrar SOLO de mañana y regala el felpudo. La comunidad recauda 60 € de buena vecindad.",
+            "tone": "good"
+          }
+        ]
+      },
+      {
+        "id": "parte",
+        "label": "Parte oficial a la comunidad",
+        "hint": "La multa paga la limpieza. La vecindad, no tanto",
+        "icon": "megaphone",
+        "effects": [
+          {
+            "op": "addRelation",
+            "a": "player",
+            "b": "obra",
+            "affinity": -8
+          },
+          {
+            "op": "addFunds",
+            "to": "community",
+            "amount": 150
+          },
+          {
+            "op": "addReputation",
+            "resident": "player",
+            "amount": 3
+          },
+          {
+            "op": "toast",
+            "text": "📜 Parte incoado: 150 € a la caja. Román te ha mirado como mira una broca: directo.",
+            "tone": "info"
+          }
+        ]
+      }
+    ],
+    "onComplete": [
+      {
+        "op": "startMission",
+        "id": "m_fin_de_obra",
+        "delayMinutes": 1440
+      }
+    ]
+  },
+  {
+    "id": "m_fin_de_obra",
+    "title": "Inauguración oficial del felpudo",
+    "description": "Al día siguiente, Román celebra el fin de la obra en el portal. Habrá aplausos, pastel del bar y una foto para el tablón. O eso, o te escabulles antes de que te asignen cargo.",
+    "roles": {
+      "obra": {
+        "archetype": "electricista"
+      },
+      "invitada": {
+        "archetype": "jubilada"
+      }
+    },
+    "steps": [
+      {
+        "id": "celebrar",
+        "type": "enter",
+        "target": "blk_p0_portal",
+        "hint": "Baja al portal (planta 0): la inauguración te espera"
+      }
+    ],
+    "choices": [
+      {
+        "id": "brindis",
+        "label": "Brindar por la obra (y el felpudo)",
+        "hint": "Refrescos de la comunidad: -25 €",
+        "icon": "coins",
+        "effects": [
+          {
+            "op": "addFunds",
+            "to": "community",
+            "amount": -25
+          },
+          {
+            "op": "addRelation",
+            "a": "player",
+            "b": "obra",
+            "affinity": 6,
+            "trust": 3
+          },
+          {
+            "op": "setParam",
+            "target": "portal",
+            "param": "hype",
+            "delta": 8
+          },
+          {
+            "op": "addReputation",
+            "resident": "player",
+            "amount": 2
+          },
+          {
+            "op": "toast",
+            "text": "🥂 Brindis en el portal. Román dice que tu saludo 'tiene ángulo de broca fina'. El felpudo, oficial, orgullosa.",
+            "tone": "good"
+          }
+        ]
+      },
+      {
+        "id": "escabullirse",
+        "label": "Escabullirse por el garaje",
+        "hint": "Sin pastel, sin cargos, sin polvo",
+        "icon": "spray",
+        "effects": [
+          {
+            "op": "addRelation",
+            "a": "player",
+            "b": "obra",
+            "affinity": -2
+          },
+          {
+            "op": "toast",
+            "text": "🚪 Te has escabullido por el garaje. Román contará tu silla vacía durante meses.",
+            "tone": "info"
+          }
+        ]
+      }
+    ],
+    "onComplete": [
+      {
+        "op": "toast",
+        "text": "🏠 La obra del 5B, historia. El edificio respira (menos polvo) y la caja respira (más fondos).",
+        "tone": "good"
+      }
+    ]
   }
 ]

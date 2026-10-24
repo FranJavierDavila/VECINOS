@@ -7,7 +7,12 @@
     "walkSpeed": 1.7,
     "vendor": {
       "knockPauseSec": 1.4,
-      "floors": [0, 1, 2, 4]
+      "floors": [
+        0,
+        1,
+        2,
+        4
+      ]
     },
     "pet": {
       "walkSpeed": 1.1,
@@ -30,10 +35,18 @@
     "dayIntensity": 0.0,
     "paramThreshold": 35,
     "lampsPerCorridor": 4,
-    "lampSize": [0.16, 0.1, 0.06]
+    "lampSize": [
+      0.16,
+      0.1,
+      0.06
+    ]
   },
   "mood": {
-    "needs": { "sleep": 1, "social": 1, "fun": 1 }
+    "needs": {
+      "sleep": 1,
+      "social": 1,
+      "fun": 1
+    }
   },
   "visuals": {
     "checkSeconds": 1,
@@ -85,6 +98,18 @@
         "count": 1,
         "w": 1.0,
         "h": 0.7
+      },
+      {
+        "id": "polvo_obra",
+        "blockDef": "vivienda_estandar",
+        "param": "dust",
+        "above": 40,
+        "kind": "dirt",
+        "color": "#8a7a5f",
+        "opacity": 0.45,
+        "count": 2,
+        "w": 0.7,
+        "h": 0.55
       }
     ]
   },
@@ -94,10 +119,24 @@
       "kind": "vendor",
       "weight": 1,
       "cooldownTicks": 900,
-      "window": { "from": "10:00", "to": "13:30" },
+      "window": {
+        "from": "10:00",
+        "to": "13:30"
+      },
       "when": [
-        { "weather": ["storm"], "not": true },
-        { "paramAbove": { "block": "portal", "param": "condition", "value": 40 } }
+        {
+          "weather": [
+            "storm"
+          ],
+          "not": true
+        },
+        {
+          "paramAbove": {
+            "block": "portal",
+            "param": "condition",
+            "value": 40
+          }
+        }
       ],
       "vendor": {
         "archetype": "repartidor",
@@ -107,7 +146,11 @@
             "id": "venta",
             "weight": 0.35,
             "effects": [
-              { "op": "addFunds", "to": "community", "amount": 15 }
+              {
+                "op": "addFunds",
+                "to": "community",
+                "amount": 15
+              }
             ],
             "toast": "🌱 El de las semillas coló la caja: macetas para el pasillo. Caja de la comunidad: +15 €."
           },
@@ -115,7 +158,12 @@
             "id": "folletos",
             "weight": 0.3,
             "effects": [
-              { "op": "setParam", "target": "pasillo_planta", "param": "cleanliness", "delta": -6 }
+              {
+                "op": "setParam",
+                "target": "pasillo_planta",
+                "param": "cleanliness",
+                "delta": -6
+              }
             ],
             "toast": "📄 Oferta 2x1 en lechugas… y 40 folletos repartidos por el pasillo. La limpieza lo nota."
           },
@@ -123,7 +171,10 @@
             "id": "encargo",
             "weight": 0.2,
             "effects": [
-              { "op": "startMission", "id": "m_pedido_vecinal" }
+              {
+                "op": "startMission",
+                "id": "m_pedido_vecinal"
+              }
             ],
             "toast": "📦 Un paquete para la comunidad se queda en el portal. Alguien tendrá que bajar."
           },
@@ -141,9 +192,17 @@
       "kind": "vendor",
       "weight": 1,
       "cooldownTicks": 1200,
-      "window": { "from": "17:30", "to": "20:30" },
+      "window": {
+        "from": "17:30",
+        "to": "20:30"
+      },
       "when": [
-        { "weather": ["storm"], "not": true }
+        {
+          "weather": [
+            "storm"
+          ],
+          "not": true
+        }
       ],
       "vendor": {
         "archetype": "repartidor",
@@ -153,8 +212,17 @@
             "id": "venta",
             "weight": 0.4,
             "effects": [
-              { "op": "addFunds", "to": "community", "amount": 10 },
-              { "op": "setParam", "target": "pasillo_planta", "param": "lighting", "delta": 8 }
+              {
+                "op": "addFunds",
+                "to": "community",
+                "amount": 10
+              },
+              {
+                "op": "setParam",
+                "target": "pasillo_planta",
+                "param": "lighting",
+                "delta": 8
+              }
             ],
             "toast": "💡 Bombillas de bajo consumo para el pasillo: +10 € a la caja y luz que acompaña."
           },
@@ -162,7 +230,11 @@
             "id": "timo",
             "weight": 0.3,
             "effects": [
-              { "op": "addFunds", "to": "player", "amount": -10 }
+              {
+                "op": "addFunds",
+                "to": "player",
+                "amount": -10
+              }
             ],
             "toast": "🕵️ 'Bombillas que duran 40 años' a 10 €. A ti te las ha colado. Portero, otro."
           },
@@ -180,16 +252,37 @@
       "kind": "prank",
       "weight": 1,
       "cooldownTicks": 1500,
-      "window": { "from": "16:00", "to": "19:30" },
+      "window": {
+        "from": "16:00",
+        "to": "19:30"
+      },
       "outcomes": [
         {
           "id": "pintadas",
           "weight": 0.5,
           "effects": [
-            { "op": "unlock", "target": "blk_p1_b", "resident": "res_nino_01", "arrival": "trastada" },
-            { "op": "setParam", "target": "nucleo_comunicaciones", "param": "cabin_graffiti", "delta": 12 },
-            { "op": "setParam", "target": "portal", "param": "condition", "delta": -6 },
-            { "op": "startMission", "id": "m_trastada_portal" }
+            {
+              "op": "unlock",
+              "target": "blk_p1_b",
+              "resident": "res_nino_01",
+              "arrival": "trastada"
+            },
+            {
+              "op": "setParam",
+              "target": "nucleo_comunicaciones",
+              "param": "cabin_graffiti",
+              "delta": 12
+            },
+            {
+              "op": "setParam",
+              "target": "portal",
+              "param": "condition",
+              "delta": -6
+            },
+            {
+              "op": "startMission",
+              "id": "m_trastada_portal"
+            }
           ],
           "toast": "🎨 Pinturillas suelto: el portal es su nueva galería de arte urbano. Alguien debería pilarlo."
         },
@@ -197,8 +290,18 @@
           "id": "macetones",
           "weight": 0.3,
           "effects": [
-            { "op": "unlock", "target": "blk_p1_b", "resident": "res_nino_01", "arrival": "trastada" },
-            { "op": "setParam", "target": "portal", "param": "condition", "delta": -8 }
+            {
+              "op": "unlock",
+              "target": "blk_p1_b",
+              "resident": "res_nino_01",
+              "arrival": "trastada"
+            },
+            {
+              "op": "setParam",
+              "target": "portal",
+              "param": "condition",
+              "delta": -8
+            }
           ],
           "toast": "🪴 Carrera de macetones en el portal. Ha ganado la gravedad, como siempre."
         },
@@ -206,7 +309,12 @@
           "id": "nada",
           "weight": 0.2,
           "effects": [
-            { "op": "unlock", "target": "blk_p1_b", "resident": "res_nino_01", "arrival": "trastada" }
+            {
+              "op": "unlock",
+              "target": "blk_p1_b",
+              "resident": "res_nino_01",
+              "arrival": "trastada"
+            }
           ],
           "toast": "🛼 Pinturillas patrulla el portal con el patín y las manos limpias. Por ahora."
         }
@@ -217,18 +325,33 @@
       "kind": "pet",
       "weight": 1,
       "cooldownTicks": 2000,
-      "window": { "from": "09:00", "to": "21:30" },
+      "window": {
+        "from": "09:00",
+        "to": "21:30"
+      },
       "when": [
-        { "residentPresent": "res_jubilada_01" },
-        { "missionState": { "mission": "m_mascota_perdida", "state": "none" } }
+        {
+          "residentPresent": "res_jubilada_01"
+        },
+        {
+          "missionState": {
+            "mission": "m_mascota_perdida",
+            "state": "none"
+          }
+        }
       ],
-      "pet": { "mission": "m_mascota_perdida" },
+      "pet": {
+        "mission": "m_mascota_perdida"
+      },
       "outcomes": [
         {
           "id": "escapa",
           "weight": 1,
           "effects": [
-            { "op": "startMission", "id": "m_mascota_perdida" }
+            {
+              "op": "startMission",
+              "id": "m_mascota_perdida"
+            }
           ],
           "toast": "🐈 Michi, la gata de la 4C, se ha escapado otra vez. Se oyen maullidos por el pasillo."
         }
@@ -239,10 +362,16 @@
       "kind": "blackout",
       "weight": 1,
       "cooldownTicks": 1400,
-      "window": { "from": "23:00", "to": "05:30" },
+      "window": {
+        "from": "23:00",
+        "to": "05:30"
+      },
       "chance": 0.3,
       "blackout": {
-        "durationMinutes": { "min": 150, "max": 300 },
+        "durationMinutes": {
+          "min": 150,
+          "max": 300
+        },
         "corridorBlock": "pasillo_planta",
         "lightingParam": "lighting",
         "restoreTo": 90,
@@ -253,7 +382,12 @@
           "id": "se_va_la_luz",
           "weight": 1,
           "effects": [
-            { "op": "setParam", "target": "pasillo_planta", "param": "lighting", "value": 0 }
+            {
+              "op": "setParam",
+              "target": "pasillo_planta",
+              "param": "lighting",
+              "value": 0
+            }
           ],
           "toast": "🕯️ ¡APAGÓN! Los contadores del pasillo dicen basta. Si sales, suerte con los escalones."
         }
@@ -264,16 +398,29 @@
       "kind": "drift",
       "weight": 1,
       "cooldownTicks": 700,
-      "window": { "from": "01:00", "to": "05:00" },
+      "window": {
+        "from": "01:00",
+        "to": "05:00"
+      },
       "when": [
-        { "weather": ["rain", "storm"] }
+        {
+          "weather": [
+            "rain",
+            "storm"
+          ]
+        }
       ],
       "outcomes": [
         {
           "id": "humedades",
           "weight": 0.35,
           "effects": [
-            { "op": "setParam", "target": "vivienda_estandar", "param": "humidity", "delta": 6 }
+            {
+              "op": "setParam",
+              "target": "vivienda_estandar",
+              "param": "humidity",
+              "delta": 6
+            }
           ],
           "toast": "🌧️ Noche de lluvia: las paredes lo beben todo. Mañana habrá que tapar cubos."
         },
@@ -281,7 +428,12 @@
           "id": "suciedad",
           "weight": 0.3,
           "effects": [
-            { "op": "setParam", "target": "pasillo_planta", "param": "cleanliness", "delta": -4 }
+            {
+              "op": "setParam",
+              "target": "pasillo_planta",
+              "param": "cleanliness",
+              "delta": -4
+            }
           ],
           "toast": "👢 Barro, hojas y huellas: el pasillo amanece con personalidad."
         },
@@ -289,7 +441,12 @@
           "id": "escaleras",
           "weight": 0.2,
           "effects": [
-            { "op": "setParam", "target": "escaleras_planta", "param": "condition", "delta": -3 }
+            {
+              "op": "setParam",
+              "target": "escaleras_planta",
+              "param": "condition",
+              "delta": -3
+            }
           ],
           "toast": "🪜 La escalera cruje más de lo normal. Nadie hará nada, pero TODOS lo han oído."
         },
@@ -306,18 +463,35 @@
       "kind": "drift",
       "weight": 1,
       "cooldownTicks": 1800,
-      "window": { "from": "10:00", "to": "21:00" },
+      "window": {
+        "from": "10:00",
+        "to": "21:00"
+      },
       "when": [
-        { "fundsAbove": 250 },
-        { "moodAbove": 45 }
+        {
+          "fundsAbove": 250
+        },
+        {
+          "moodAbove": 45
+        }
       ],
       "outcomes": [
         {
           "id": "mejorilla",
           "weight": 0.6,
           "effects": [
-            { "op": "setParam", "target": "escaleras_planta", "param": "condition", "delta": 6 },
-            { "op": "setParam", "target": "pasillo_planta", "param": "cleanliness", "delta": 8 }
+            {
+              "op": "setParam",
+              "target": "escaleras_planta",
+              "param": "condition",
+              "delta": 6
+            },
+            {
+              "op": "setParam",
+              "target": "pasillo_planta",
+              "param": "cleanliness",
+              "delta": 8
+            }
           ],
           "toast": "🧹 Jornada de mejorillas: fregona, brocha y orgullo vecinal. La escalera y el pasillo lo agradecen."
         },

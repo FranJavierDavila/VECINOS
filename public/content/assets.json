@@ -292,6 +292,50 @@
         "phone": "phone",
         "sit": "sit"
       }
+    },
+    "electricista": {
+      "model": "actors/electricista.gltf",
+      "nominalHeight": 1.35,
+      "animations": {
+        "idle": "idle",
+        "walk": "walk",
+        "obra": "obra"
+      },
+      "defaultAnimation": "idle",
+      "walkAnimation": "walk",
+      "activityAnimations": {
+        "obra_en_casa": "obra"
+      },
+      "stateAnimations": {
+        "run": "run",
+        "talk": "talk",
+        "laugh": "laugh",
+        "argue": "argue",
+        "phone": "phone",
+        "sit": "sit"
+      }
+    },
+    "sanitaria": {
+      "model": "actors/sanitaria.gltf",
+      "nominalHeight": 1.35,
+      "animations": {
+        "idle": "idle",
+        "walk": "walk",
+        "care": "care"
+      },
+      "defaultAnimation": "idle",
+      "walkAnimation": "walk",
+      "activityAnimations": {
+        "prepara_botiquin": "care"
+      },
+      "stateAnimations": {
+        "run": "run",
+        "talk": "talk",
+        "laugh": "laugh",
+        "argue": "argue",
+        "phone": "phone",
+        "sit": "sit"
+      }
     }
   },
   "blocks": {

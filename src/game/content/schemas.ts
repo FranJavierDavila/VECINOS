@@ -735,6 +735,22 @@ export const emotesCatalogSchema = z.object({
     popMs: z.number().min(0),
     decisionMs: z.number().min(50),
   }),
+  // ── Bocadillos con TEXTO (v1.15): las actividades con líneas `say` del arquetipo se
+  // dicen en un bocadillo legible sobre la cabeza (alternando con el glifo). Opcional:
+  // sin sección, los bocadillos son solo glifos como en v1.10. Todo en JSON.
+  speech: z
+    .object({
+      /** Segundos que se muestra cada línea. */
+      lineSeconds: z.number().positive(),
+      /** Segundos de silencio entre líneas (el glifo vuelve a lucir). */
+      gapSeconds: z.number().min(0),
+      /** Pausa larga (segundos) tras decir TODAS las líneas de la actividad antes de repetir. */
+      cycleGap: z.number().min(0),
+      /** Ancho máximo del bocadillo de texto (px CSS). */
+      maxPx: z.number().positive(),
+      fontSizePx: z.number().min(8),
+    })
+    .optional(),
   mood: z.object({
     needs: z.record(z.string(), z.number()),
   }),

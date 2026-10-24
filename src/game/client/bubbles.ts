@@ -4,19 +4,33 @@ import { B } from './babylon';
 import type { ActorsDirector } from './actors';
 
 /**
- * Bocadillos de expresión (v1.10) — capa de PRESENTACIÓN pura.
+ * Bocadillos de expresión (v1.10) + BOCADILLOS CON TEXTO (v1.15) — capa de PRESENTACIÓN pura.
  *
  * Cada personaje en escena puede lucir un bocadillo sobre la cabeza con la expresión de su
- * estado (ánimo, actividad, gesto social o reacción a un evento del sim). El QUÉ se muestra
- * vive 100% en public/content/emotes.json; este módulo solo decide con esa tabla, proyecta
- * la posición 3D→pantalla y pinta el DOM. Cero datos de gameplay: si el catálogo falta, no
- * hay bocadillos y la partida funciona exactamente igual.
+ * estado (ánimo, actividad, gesto social o reacción a un evento del sim). Además, las
+ * actividades con líneas `say` en el arquetipo se DICEN: un bocadillo de texto legible
+ * cicla las líneas (dice → silencio con glifo → línea siguiente → pausa larga).
+ * El QUÉ se muestra vive 100% en public/content/emotes.json (y las líneas en
+ * archetypes.json); este módulo solo decide con esas tablas, proyecta la posición
+ * 3D→pantalla y pinta el DOM. Cero datos de gameplay: si los catálogos faltan, no hay
+ * bocadillos y la partida funciona exactamente igual.
  */
 
 interface EmotePick {
   emoteId: string;
   glyph: string;
   priority: number;
+  /** Modo TEXTO (v1.15): se pinta esta línea en vez del glifo. */
+  text?: string;
+}
+
+/** Estado del ciclo de habla de un actor (v1.15): qué línea toca y en qué fase. */
+interface SpeechState {
+  activityId: string;
+  lines: string[];
+  idx: number;
+  phase: 'say' | 'gap' | 'cycle';
+  t: number;
 }
 
 interface TransientEmote extends EmotePick {
@@ -27,10 +41,12 @@ interface TransientEmote extends EmotePick {
 interface BubbleView {
   /** Contenedor posicionado (transform = posición en pantalla). */
   el: HTMLDivElement;
-  /** Burbuja visual (glifo + cola); hija de el. */
+  /** Burbuja visual (glifo/texto + cola); hija de el. */
   inner: HTMLDivElement;
-  /** Glifo actualmente pintado (para no re-animar si no cambia). */
-  glyph: string;
+  /** Contenido pintado (glifo o clave de línea): evita re-animar si no cambia. */
+  key: string;
+  /** Modo de estilo activo: glifo circular o texto multilínea. */
+  mode: 'glyph' | 'text';
   hidden: boolean;
 }
 
@@ -86,6 +102,16 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
   const bubbles = new Map<string, BubbleView>();
   const transient = new Map<string, TransientEmote>();
   const cooldown = new Map<string, number>();
+  /** Ciclos de habla activos por actor (solo actividades con líneas say, v1.15). */
+  const speech = new Map<string, SpeechState>();
+  const speechCfg = cfg.speech;
+  /** Líneas say de la actividad en curso del residente (o null). */
+  const sayLinesOf = (r: ResidentInstance): { activityId: string; lines: string[] } | null => {
+    if (!speechCfg || !r.activity) return null;
+    const lines = content.archetypes[r.archetype]?.activities[r.activity]?.say;
+    if (!lines || lines.length === 0) return null;
+    return { activityId: r.activity, lines };
+  };
   /** Ids pendientes de reevaluación INMEDIATA (acaban de recibir un evento). */
   const dirty = new Set<string>();
   let localActorId = world.playerId;
@@ -119,9 +145,34 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
     inner.appendChild(tail);
     el.appendChild(inner);
     layer.appendChild(el);
-    const view: BubbleView = { el, inner, glyph: '', hidden: true };
+    const view: BubbleView = { el, inner, key: '', mode: 'glyph', hidden: true };
     bubbles.set(id, view);
     return view;
+  };
+
+  /** Restilo la burbuja para glifo (círculo) o texto (cápsula multilínea) — v1.15. */
+  const applyMode = (b: BubbleView, mode: 'glyph' | 'text'): void => {
+    b.mode = mode;
+    const span = b.inner.firstChild as HTMLElement;
+    if (mode === 'text' && speechCfg) {
+      b.inner.style.cssText =
+        `display:flex;align-items:center;justify-content:center;` +
+        `max-width:${speechCfg.maxPx}px;background:#fffdf7;border:2px solid #2b2b2b;border-radius:12px;` +
+        `box-shadow:0 2px 6px rgba(0,0,0,.35);font-size:${speechCfg.fontSizePx}px;line-height:1.3;` +
+        `padding:5px 9px;color:#1e1e1e;transform-origin:50% 100%;` +
+        `transition:opacity ${cfg.bubble.popMs}ms ease;position:relative;font-weight:500;`;
+      span.style.cssText = 'font-family:inherit;text-align:center;';
+    } else {
+      b.inner.style.cssText =
+        `display:flex;align-items:center;justify-content:center;` +
+        `width:${cfg.bubble.sizePx + 14}px;height:${cfg.bubble.sizePx + 10}px;` +
+        `background:#fffdf7;border:2px solid #2b2b2b;border-radius:999px;box-shadow:0 2px 6px rgba(0,0,0,.35);` +
+        `font-size:${cfg.bubble.sizePx}px;line-height:1;transform-origin:50% 100%;` +
+        `transition:opacity ${cfg.bubble.popMs}ms ease;position:relative;`;
+      span.style.cssText = 'transform:translateY(-1px);font-family:"Segoe UI Emoji","Noto Color Emoji",sans-serif;';
+    }
+    // La cola vive FUERA del cssText del inner: re-añadirla lo conservaría, pero el inner se
+    // reconstruye por encima... la cola es hija del inner y su estilo no se toca aquí: intacta.
   };
 
   const dropBubble = (id: string): void => {
@@ -158,6 +209,13 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
       const def = gesturesById.get(g);
       if (def) return { emoteId: `gesture:${def.id}`, glyph: def.glyph, priority: def.priority };
     }
+    // HABLA (v1.15): si su actividad tiene líneas `say` y está en fase 'say', TEXTUAL.
+    // Pierde con eventos y gestos (es ambiente) y gana al glifo de actividad (hablar manda).
+    const sp = speech.get(id);
+    if (sp && sp.phase === 'say') {
+      const line = sp.lines[sp.idx];
+      if (line) return { emoteId: `say:${sp.activityId}:${sp.idx}`, glyph: '', priority: 50, text: line };
+    }
     if (r.activity) {
       const def = activitiesById.get(r.activity);
       if (def) return { emoteId: `activity:${def.id}`, glyph: def.glyph, priority: def.priority };
@@ -181,9 +239,13 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
       return;
     }
     const b = ensureBubble(id);
-    if (b.glyph !== pick.glyph) {
-      b.glyph = pick.glyph;
-      (b.inner.firstChild as HTMLElement).textContent = pick.glyph;
+    const isText = pick.text !== undefined;
+    const key = isText ? pick.emoteId : pick.glyph;
+    if (b.key !== key || (isText && b.mode !== 'text') || (!isText && b.mode !== 'glyph')) {
+      const modeChanged = b.mode !== (isText ? 'text' : 'glyph');
+      b.key = key;
+      if (modeChanged) applyMode(b, isText ? 'text' : 'glyph');
+      (b.inner.firstChild as HTMLElement).textContent = isText ? pick.text! : pick.glyph;
       b.hidden = false;
       b.inner.style.opacity = '1';
       pop(b);
@@ -233,6 +295,48 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
 
     update(dt, actorId) {
       localActorId = actorId;
+      // 1.5) CICLO DE HABLA (v1.15): crea/renueva/avanza el turno de palabra de cada actor.
+      // TODO sale del contenido: líneas de archetypes.activities.say, tiempos de emotes.speech.
+      if (speechCfg) {
+        for (const r of Object.values(world.residents)) {
+          const cur = sayLinesOf(r);
+          const st = speech.get(r.id);
+          if (!cur) {
+            if (st) {
+              speech.delete(r.id);
+              dirty.add(r.id); // el glifo vuelve en cuanto refresque
+            }
+            continue;
+          }
+          if (!st || st.activityId !== cur.activityId) {
+            speech.set(r.id, { activityId: cur.activityId, lines: cur.lines, idx: 0, phase: 'say', t: speechCfg.lineSeconds });
+            dirty.add(r.id);
+          }
+        }
+        for (const [id, st] of speech) {
+          if (!world.residents[id] || !sayLinesOf(world.residents[id]!)) continue;
+          st.t -= dt;
+          if (st.t > 0) continue;
+          if (st.phase === 'say') {
+            st.phase = 'gap';
+            st.t = speechCfg.gapSeconds;
+          } else if (st.phase === 'gap') {
+            st.idx += 1;
+            if (st.idx >= st.lines.length) {
+              st.idx = 0;
+              st.phase = 'cycle';
+              st.t = speechCfg.cycleGap;
+            } else {
+              st.phase = 'say';
+              st.t = speechCfg.lineSeconds;
+            }
+          } else {
+            st.phase = 'say';
+            st.t = speechCfg.lineSeconds;
+          }
+          dirty.add(id);
+        }
+      }
       // 1) Reevaluación a cadencia (amortigua parpadeos del sim) + eventos pendientes ya.
       decisionAcc += dt;
       const decisionS = cfg.bubble.decisionMs / 1000;
@@ -283,6 +387,7 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
       bubbles.clear();
       transient.clear();
       cooldown.clear();
+      speech.clear();
       dirty.clear();
     },
   };

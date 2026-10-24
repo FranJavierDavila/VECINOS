@@ -196,6 +196,32 @@
         "wallet": 700,
         "reputation": 40,
         "relations": []
+      },
+      {
+        "id": "res_electricista_01",
+        "archetype": "electricista",
+        "home": "blk_p5_b",
+        "present": true,
+        "controller": {
+          "type": "ai",
+          "profile": "default"
+        },
+        "wallet": 320,
+        "reputation": 30,
+        "relations": []
+      },
+      {
+        "id": "res_sanitaria_01",
+        "archetype": "sanitaria",
+        "home": "blk_p3_a",
+        "present": true,
+        "controller": {
+          "type": "ai",
+          "profile": "default"
+        },
+        "wallet": 950,
+        "reputation": 55,
+        "relations": []
       }
     ],
     "progress": {
@@ -376,6 +402,32 @@
         },
         "wallet": 420,
         "reputation": 45,
+        "relations": []
+      },
+      {
+        "id": "res_electricista_01",
+        "archetype": "electricista",
+        "home": "blk_p5_b",
+        "present": true,
+        "controller": {
+          "type": "ai",
+          "profile": "default"
+        },
+        "wallet": 320,
+        "reputation": 30,
+        "relations": []
+      },
+      {
+        "id": "res_sanitaria_01",
+        "archetype": "sanitaria",
+        "home": "blk_p3_a",
+        "present": true,
+        "controller": {
+          "type": "ai",
+          "profile": "default"
+        },
+        "wallet": 950,
+        "reputation": 55,
         "relations": []
       }
     ],

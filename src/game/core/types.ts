@@ -416,6 +416,24 @@ export interface EmotesCatalog {
     /** Cadencia de reevaluación del estado (ms): amortigua parpadeos del sim. */
     decisionMs: number;
   };
+  /**
+   * Bocadillos con TEXTO (v1.15, opcional): las actividades con líneas `say` del arquetipo
+   * se dicen en un bocadillo legible sobre la cabeza, ciclando por sus líneas
+   * (decir → silencio con glifo → línea siguiente → pausa larga). Sin esta sección,
+   * los bocadillos son solo glifos (v1.10).
+   */
+  speech?: {
+    /** Segundos que se muestra cada línea. */
+    lineSeconds: number;
+    /** Segundos de silencio entre líneas (luce el glifo). */
+    gapSeconds: number;
+    /** Pausa larga tras decir todas las líneas antes de repetir el ciclo. */
+    cycleGap: number;
+    /** Ancho máximo del bocadillo de texto (px CSS). */
+    maxPx: number;
+    /** Tamaño de letra del texto (px CSS). */
+    fontSizePx: number;
+  };
   /** Qué necesidades componen el "ánimo" (media ponderada 0..100) y con qué peso. */
   mood: { needs: Record<string, number> };
   /** Emotes por banda de ánimo: gana el de mayor prioridad cuyo rango [min,max] contenga el ánimo (rangos abiertos si falta min/max). */

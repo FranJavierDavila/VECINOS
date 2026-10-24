@@ -79,7 +79,7 @@ for (const [arch, def] of Object.entries(content.assets?.actors ?? {})) {
   check(`${arch}: zancada walk authorada v1.3 (periodo 0.65 s)`, w !== null && Math.abs(w - 0.65) < 0.01, `periodo ${w?.toFixed(3) ?? '—'}`);
   check(`${arch}: zancada run authorada v1.3 (periodo 0.38 s)`, r !== null && Math.abs(r - 0.38) < 0.01, `periodo ${r?.toFixed(3) ?? '—'}`);
 }
-check('13 arquetipos con modelo en el manifiesto', actorCount === 13, `${actorCount}`);
+check('15 arquetipos con modelo en el manifiesto (13 + electricista + sanitaria v1.15)', actorCount === 15, `${actorCount}`);
 
 // ── 4. Escalera real (v1.4): contrato de geometría, glTF con dos tramos y ruta coherente
 check('rules.view.stairs declarado', !!v.stairs && v.stairs.spanW === 2, JSON.stringify(v.stairs ?? {}));

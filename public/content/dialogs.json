@@ -424,5 +424,22 @@
         "text": "Entre la tarta del 2A, el pastel del 4C y el hielo del 4D, este edificio necesita un cronista. ¿Se ofrece?"
       }
     ]
+  },
+  {
+    "id": "dlg_polvo_aviso",
+    "lines": [
+      {
+        "speaker": "Presidente",
+        "text": "Vecino. Siento decirle que el del 5B está taladrando con una alegría que no le corresponde. El polvo ya pide asiento en la junta."
+      },
+      {
+        "speaker": "Presidente",
+        "text": "Yo lo llamo 'obra ilegal'. Él lo llama 'obra fina'. Mi garganta, que vive una planta más abajo, tiene tercera opinión."
+      },
+      {
+        "speaker": "Presidente",
+        "text": "Hable usted con él o prepárese para el parte oficial. Usted decide: la gente le saluda, aproveche el capital."
+      }
+    ]
   }
 ]

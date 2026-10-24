@@ -592,5 +592,88 @@
         "focus": "player"
       }
     ]
+  },
+  {
+    "id": "cut_mañas_portal",
+    "trigger": {
+      "on": "mission_activated",
+      "mission": "m_negociar_obra"
+    },
+    "beats": [
+      {
+        "type": "cam",
+        "focus": {
+          "block": "portal",
+          "at": "door"
+        }
+      },
+      {
+        "type": "line",
+        "who": "$role.obra",
+        "text": "¿Ve? Polvo sé yo, pero trabajo FINO. El felpudo... eso ya es diplomacia de altos cargos.",
+        "gesture": "talk",
+        "seconds": 3.6
+      },
+      {
+        "type": "cam",
+        "focus": "player"
+      }
+    ]
+  },
+  {
+    "id": "cut_fin_obra",
+    "trigger": {
+      "on": "step_started",
+      "mission": "m_fin_de_obra",
+      "step": "celebrar"
+    },
+    "beats": [
+      {
+        "type": "cam",
+        "focus": {
+          "block": "portal",
+          "at": "door"
+        },
+        "viewH": 2.4
+      },
+      {
+        "type": "walk",
+        "who": "$role.obra",
+        "to": {
+          "block": "portal",
+          "at": "door"
+        }
+      },
+      {
+        "type": "line",
+        "who": "$role.obra",
+        "text": "¡Fin de la obra! Bajé a recibir los aplausos con una brocha en la mano, que es lo elegante.",
+        "gesture": "laugh",
+        "seconds": 3.4
+      },
+      {
+        "type": "line",
+        "who": "$role.invitada",
+        "text": "Yo solo bajé a preguntar la hora. Me quedo por el pastel y por el felpudo.",
+        "gesture": "laugh",
+        "seconds": 3.2
+      },
+      {
+        "type": "walk",
+        "who": "$role.obra",
+        "to": {
+          "block": "portal",
+          "at": "center"
+        }
+      },
+      {
+        "type": "wait",
+        "seconds": 1.2
+      },
+      {
+        "type": "cam",
+        "focus": "player"
+      }
+    ]
   }
 ]

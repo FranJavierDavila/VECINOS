@@ -1,55 +1,334 @@
 {
-  "bubble": { "offsetY": 0.5, "sizePx": 26, "maxDistance": 72, "popMs": 160, "decisionMs": 250 },
-  "mood": { "needs": { "social": 0.6, "fun": 0.4 } },
+  "bubble": {
+    "offsetY": 0.5,
+    "sizePx": 26,
+    "maxDistance": 72,
+    "popMs": 160,
+    "decisionMs": 250
+  },
+  "mood": {
+    "needs": {
+      "social": 0.6,
+      "fun": 0.4
+    }
+  },
   "moods": [
-    { "id": "happy", "glyph": "😊", "priority": 10, "label": "feliz", "min": 62 },
-    { "id": "neutral", "glyph": "🙂", "priority": 5, "label": "tranquilo" },
-    { "id": "sad", "glyph": "😞", "priority": 15, "label": "triste", "max": 34 }
+    {
+      "id": "happy",
+      "glyph": "😊",
+      "priority": 10,
+      "label": "feliz",
+      "min": 62
+    },
+    {
+      "id": "neutral",
+      "glyph": "🙂",
+      "priority": 5,
+      "label": "tranquilo"
+    },
+    {
+      "id": "sad",
+      "glyph": "😞",
+      "priority": 15,
+      "label": "triste",
+      "max": 34
+    }
   ],
   "activities": [
-    { "id": "sleep", "glyph": "😴", "priority": 60, "label": "durmiendo" },
-    { "id": "siesta_mediodia", "glyph": "😴", "priority": 60, "label": "siesta" },
-    { "id": "work", "glyph": "🧐", "priority": 40, "label": "concentrado en el trabajo" },
-    { "id": "study_music", "glyph": "🎸", "priority": 40, "label": "estudiando... con amplificador" },
-    { "id": "tv_loud", "glyph": "📺", "priority": 40, "label": "tele a todo volumen" },
-    { "id": "cocina_guiso", "glyph": "🍲", "priority": 40, "label": "cocinando el guiso" },
-    { "id": "quema_guiso", "glyph": "😱", "priority": 45, "label": "¡el guiso se quema!" },
-    { "id": "copas_bar", "glyph": "🍹", "priority": 40, "label": "toma algo en el bar" },
-    { "id": "party", "glyph": "🎉", "priority": 45, "label": "fiesta en casa" },
-    { "id": "chair", "glyph": "🪑", "priority": 35, "label": "ocupando la silla del pasillo" },
-    { "id": "laundry", "glyph": "🌀", "priority": 40, "label": "pone la lavadora" },
-    { "id": "lavadora_comunal", "glyph": "🧼", "priority": 40, "label": "lava en la comunal" },
-    { "id": "stroll", "glyph": "🚶", "priority": 30, "label": "inspecciona el pasillo" },
-    { "id": "paint_cabin", "glyph": "🎨", "priority": 40, "label": "pinta \"arte\" en la cabina" },
-    { "id": "roam", "glyph": "🛼", "priority": 35, "label": "patrulla la escalera" },
-    { "id": "reforma_creativa", "glyph": "🛠️", "priority": 40, "label": "reforma creativa sin permiso" },
-    { "id": "bateria", "glyph": "🥁", "priority": 40, "label": "ensaya con la batería" },
-    { "id": "concierto_bar", "glyph": "🎤", "priority": 40, "label": "concierto acústico" },
-    { "id": "pintar_mural", "glyph": "🖌️", "priority": 40, "label": "pinta el mural del portal" },
-    { "id": "charla_rodillo", "glyph": "💬", "priority": 45, "label": "charla con el rodillo en la mano" },
-    { "id": "ruta_nocturna", "glyph": "🛵", "priority": 40, "label": "ruta de pedidos nocturna" },
-    { "id": "descarga_en_pasillo", "glyph": "📦", "priority": 40, "label": "deja un paquete" },
-    { "id": "out", "glyph": "🚪", "priority": 30, "label": "sale fuera" }
+    {
+      "id": "sleep",
+      "glyph": "😴",
+      "priority": 60,
+      "label": "durmiendo"
+    },
+    {
+      "id": "siesta_mediodia",
+      "glyph": "😴",
+      "priority": 60,
+      "label": "siesta"
+    },
+    {
+      "id": "work",
+      "glyph": "🧐",
+      "priority": 40,
+      "label": "concentrado en el trabajo"
+    },
+    {
+      "id": "study_music",
+      "glyph": "🎸",
+      "priority": 40,
+      "label": "estudiando... con amplificador"
+    },
+    {
+      "id": "tv_loud",
+      "glyph": "📺",
+      "priority": 40,
+      "label": "tele a todo volumen"
+    },
+    {
+      "id": "cocina_guiso",
+      "glyph": "🍲",
+      "priority": 40,
+      "label": "cocinando el guiso"
+    },
+    {
+      "id": "quema_guiso",
+      "glyph": "😱",
+      "priority": 45,
+      "label": "¡el guiso se quema!"
+    },
+    {
+      "id": "copas_bar",
+      "glyph": "🍹",
+      "priority": 40,
+      "label": "toma algo en el bar"
+    },
+    {
+      "id": "party",
+      "glyph": "🎉",
+      "priority": 45,
+      "label": "fiesta en casa"
+    },
+    {
+      "id": "chair",
+      "glyph": "🪑",
+      "priority": 35,
+      "label": "ocupando la silla del pasillo"
+    },
+    {
+      "id": "laundry",
+      "glyph": "🌀",
+      "priority": 40,
+      "label": "pone la lavadora"
+    },
+    {
+      "id": "lavadora_comunal",
+      "glyph": "🧼",
+      "priority": 40,
+      "label": "lava en la comunal"
+    },
+    {
+      "id": "stroll",
+      "glyph": "🚶",
+      "priority": 30,
+      "label": "inspecciona el pasillo"
+    },
+    {
+      "id": "paint_cabin",
+      "glyph": "🎨",
+      "priority": 40,
+      "label": "pinta \"arte\" en la cabina"
+    },
+    {
+      "id": "roam",
+      "glyph": "🛼",
+      "priority": 35,
+      "label": "patrulla la escalera"
+    },
+    {
+      "id": "reforma_creativa",
+      "glyph": "🛠️",
+      "priority": 40,
+      "label": "reforma creativa sin permiso"
+    },
+    {
+      "id": "bateria",
+      "glyph": "🥁",
+      "priority": 40,
+      "label": "ensaya con la batería"
+    },
+    {
+      "id": "concierto_bar",
+      "glyph": "🎤",
+      "priority": 40,
+      "label": "concierto acústico"
+    },
+    {
+      "id": "pintar_mural",
+      "glyph": "🖌️",
+      "priority": 40,
+      "label": "pinta el mural del portal"
+    },
+    {
+      "id": "charla_rodillo",
+      "glyph": "💬",
+      "priority": 45,
+      "label": "charla con el rodillo en la mano"
+    },
+    {
+      "id": "ruta_nocturna",
+      "glyph": "🛵",
+      "priority": 40,
+      "label": "ruta de pedidos nocturna"
+    },
+    {
+      "id": "descarga_en_pasillo",
+      "glyph": "📦",
+      "priority": 40,
+      "label": "deja un paquete"
+    },
+    {
+      "id": "out",
+      "glyph": "🚪",
+      "priority": 30,
+      "label": "sale fuera"
+    },
+    {
+      "id": "obra_en_casa",
+      "glyph": "🪚",
+      "priority": 40,
+      "label": "obra fina en casa"
+    },
+    {
+      "id": "materiales_portal",
+      "glyph": "🧱",
+      "priority": 40,
+      "label": "baja a por materiales"
+    },
+    {
+      "id": "prepara_botiquin",
+      "glyph": "🧰",
+      "priority": 40,
+      "label": "prepara el botiquín"
+    },
+    {
+      "id": "ronda_sanitaria",
+      "glyph": "🩺",
+      "priority": 40,
+      "label": "ronda sanitaria"
+    }
   ],
   "gestures": [
-    { "id": "talk", "glyph": "💬", "priority": 70, "label": "charlando" },
-    { "id": "laugh", "glyph": "😆", "priority": 70, "label": "risa" },
-    { "id": "argue", "glyph": "😠", "priority": 75, "label": "enfadado" },
-    { "id": "phone", "glyph": "📞", "priority": 72, "label": "al teléfono" },
-    { "id": "sit", "glyph": "😌", "priority": 25, "label": "sentado" }
+    {
+      "id": "talk",
+      "glyph": "💬",
+      "priority": 70,
+      "label": "charlando"
+    },
+    {
+      "id": "laugh",
+      "glyph": "😆",
+      "priority": 70,
+      "label": "risa"
+    },
+    {
+      "id": "argue",
+      "glyph": "😠",
+      "priority": 75,
+      "label": "enfadado"
+    },
+    {
+      "id": "phone",
+      "glyph": "📞",
+      "priority": 72,
+      "label": "al teléfono"
+    },
+    {
+      "id": "sit",
+      "glyph": "😌",
+      "priority": 25,
+      "label": "sentado"
+    }
   ],
   "events": [
-    { "on": "stairs_grumble", "glyph": "😠", "priority": 90, "who": "resident", "seconds": 6, "cooldown": 30 },
-    { "on": "knock_result", "glyph": "👋", "priority": 88, "who": "resident", "seconds": 3.5, "altGlyph": { "when": "asleep", "glyph": "😴" } },
-    { "on": "neighbor_arrived", "glyph": "👋", "priority": 88, "who": "resident", "seconds": 6, "cooldown": 60 },
-    { "on": "noise_complaint", "glyph": "😠", "priority": 85, "who": "blockResidents", "seconds": 5, "cooldown": 30 },
-    { "on": "leak_detected", "glyph": "😨", "priority": 85, "who": "blockResidents", "seconds": 6, "cooldown": 60 },
-    { "on": "choice_required", "glyph": "🤔", "priority": 95, "who": "player", "seconds": 10 },
-    { "on": "door_locked", "glyph": "😕", "priority": 80, "who": "player", "seconds": 3 },
-    { "on": "work_done", "glyph": "😊", "priority": 85, "who": "player", "seconds": 4 },
-    { "on": "mission_completed", "glyph": "🥳", "priority": 86, "who": "player", "seconds": 5 },
-    { "on": "mission_failed", "glyph": "😞", "priority": 86, "who": "player", "seconds": 5 },
-    { "on": "furniture_placed", "glyph": "😃", "priority": 84, "who": "player", "seconds": 3 },
-    { "on": "room_renovated", "glyph": "🤩", "priority": 84, "who": "player", "seconds": 4 }
-  ]
+    {
+      "on": "stairs_grumble",
+      "glyph": "😠",
+      "priority": 90,
+      "who": "resident",
+      "seconds": 6,
+      "cooldown": 30
+    },
+    {
+      "on": "knock_result",
+      "glyph": "👋",
+      "priority": 88,
+      "who": "resident",
+      "seconds": 3.5,
+      "altGlyph": {
+        "when": "asleep",
+        "glyph": "😴"
+      }
+    },
+    {
+      "on": "neighbor_arrived",
+      "glyph": "👋",
+      "priority": 88,
+      "who": "resident",
+      "seconds": 6,
+      "cooldown": 60
+    },
+    {
+      "on": "noise_complaint",
+      "glyph": "😠",
+      "priority": 85,
+      "who": "blockResidents",
+      "seconds": 5,
+      "cooldown": 30
+    },
+    {
+      "on": "leak_detected",
+      "glyph": "😨",
+      "priority": 85,
+      "who": "blockResidents",
+      "seconds": 6,
+      "cooldown": 60
+    },
+    {
+      "on": "choice_required",
+      "glyph": "🤔",
+      "priority": 95,
+      "who": "player",
+      "seconds": 10
+    },
+    {
+      "on": "door_locked",
+      "glyph": "😕",
+      "priority": 80,
+      "who": "player",
+      "seconds": 3
+    },
+    {
+      "on": "work_done",
+      "glyph": "😊",
+      "priority": 85,
+      "who": "player",
+      "seconds": 4
+    },
+    {
+      "on": "mission_completed",
+      "glyph": "🥳",
+      "priority": 86,
+      "who": "player",
+      "seconds": 5
+    },
+    {
+      "on": "mission_failed",
+      "glyph": "😞",
+      "priority": 86,
+      "who": "player",
+      "seconds": 5
+    },
+    {
+      "on": "furniture_placed",
+      "glyph": "😃",
+      "priority": 84,
+      "who": "player",
+      "seconds": 3
+    },
+    {
+      "on": "room_renovated",
+      "glyph": "🤩",
+      "priority": 84,
+      "who": "player",
+      "seconds": 4
+    }
+  ],
+  "speech": {
+    "lineSeconds": 4.5,
+    "gapSeconds": 2.8,
+    "cycleGap": 16,
+    "maxPx": 210,
+    "fontSizePx": 12
+  }
 }

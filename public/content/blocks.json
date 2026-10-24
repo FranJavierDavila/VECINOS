@@ -319,6 +319,14 @@
         "default": 0,
         "tier": 2,
         "label": "Hype del barrio"
+      },
+      "dust": {
+        "type": "number",
+        "min": 0,
+        "max": 100,
+        "default": 8,
+        "tier": 1,
+        "label": "Polvo de obra"
       }
     },
     "view": {

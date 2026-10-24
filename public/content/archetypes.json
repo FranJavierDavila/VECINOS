@@ -950,5 +950,141 @@
       "prop": "phone",
       "height": 1.3
     }
+  },
+  {
+    "id": "electricista",
+    "name": "Román, el Mañas",
+    "tagline": "Reformas finas. El polvo, el necesario.",
+    "traits": {
+      "sociability": 0.45,
+      "tidiness": 0.2,
+      "noisiness": 0.85
+    },
+    "needs": [
+      "sleep",
+      "social",
+      "money"
+    ],
+    "activities": {
+      "idle": {
+        "at": "home"
+      },
+      "sleep": {
+        "anchor": "bed",
+        "at": "home",
+        "label": "😴 duerme"
+      },
+      "obra_en_casa": {
+        "anchor": "desk",
+        "at": "home",
+        "label": "🪚 obra en casa (fina, según él)",
+        "emits": {
+          "polvo": 0.85,
+          "noise": 0.5
+        },
+        "say": [
+          "Un taladro es un instrumento de paz... de MI paz.",
+          "Esto es media reforma. Media, insisto.",
+          "El polvo cae... y la junta de vecinos tiembla."
+        ],
+        "schedule": [
+          {
+            "from": "10:00",
+            "to": "13:30",
+            "chance": 0.75
+          }
+        ]
+      },
+      "materiales_portal": {
+        "at": "def:portal",
+        "label": "🧱 baja a por materiales",
+        "emits": {
+          "chisme": 0.2
+        },
+        "say": [
+          "Cemento, brocas y cero permisos. Todo bajo control.",
+          "¿Afeitar? No. ¿Alicatarnos? Ahora vuelvo."
+        ],
+        "schedule": [
+          {
+            "from": "14:10",
+            "to": "15:30"
+          }
+        ]
+      }
+    },
+    "view": {
+      "color": "#f4a83d",
+      "accent": "#ffc107",
+      "hat": "cap",
+      "prop": "briefcase",
+      "height": 1.32
+    }
+  },
+  {
+    "id": "sanitaria",
+    "name": "Puri, la Sanitaria",
+    "tagline": "Tensión, pastillas y la última del pasillo.",
+    "traits": {
+      "sociability": 0.7,
+      "tidiness": 0.7,
+      "noisiness": 0.15,
+      "generosity": 0.8
+    },
+    "needs": [
+      "sleep",
+      "social",
+      "money"
+    ],
+    "activities": {
+      "idle": {
+        "at": "home"
+      },
+      "sleep": {
+        "anchor": "bed",
+        "at": "home",
+        "label": "😴 duerme"
+      },
+      "prepara_botiquin": {
+        "anchor": "desk",
+        "at": "home",
+        "label": "🧰 prepara el botiquín de la ronda",
+        "say": [
+          "Pastillas por la mañana, comprobación por la tarde.",
+          "A la jubilada de arriba le subo yo misma la tensión... al día."
+        ],
+        "schedule": [
+          {
+            "from": "08:30",
+            "to": "10:00",
+            "chance": 0.5
+          }
+        ]
+      },
+      "ronda_sanitaria": {
+        "at": "corridor",
+        "label": "🩺 ronda sanitaria (y de chisme médico)",
+        "emits": {
+          "chisme": 0.25
+        },
+        "say": [
+          "¿Colesterol? ¿Ruido? Todo me lo cuenta el pasillo.",
+          "Tomo la tensión Y la temperatura del portal."
+        ],
+        "schedule": [
+          {
+            "from": "11:30",
+            "to": "13:00"
+          }
+        ]
+      }
+    },
+    "view": {
+      "color": "#e9ecef",
+      "accent": "#8fae9e",
+      "hat": "bun",
+      "prop": "none",
+      "height": 1.3
+    }
   }
 ]

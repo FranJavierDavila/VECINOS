@@ -158,5 +158,31 @@
         "delta": 6
       }
     }
+  },
+  {
+    "id": "polvo",
+    "channel": "polvo",
+    "label": "Polvo de obra",
+    "emoji": "🏗️",
+    "spread": {
+      "down": 0.9,
+      "horizontal": 0.55,
+      "up": 0.4,
+      "diagonal": 0.2,
+      "corridor": 0.45
+    },
+    "attenuatedBy": "soundproofing",
+    "decayPerTick": 0.05,
+    "threshold": 0.3,
+    "onThreshold": {
+      "emitEvent": "dust_complaint",
+      "uiLog": true,
+      "tone": "bad",
+      "message": "🏗️ Polvo de obra en {block}. Los muebles piden a gritos una funda y los vecinos un parte.",
+      "setParam": {
+        "param": "dust",
+        "delta": 9
+      }
+    }
   }
 ]
