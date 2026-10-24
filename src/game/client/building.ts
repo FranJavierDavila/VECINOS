@@ -1,4 +1,5 @@
 import type { Color3, Color4, Mesh, Scene, StandardMaterial, TransformNode } from '@babylonjs/core';
+import { blockLabel } from '@/game/core/types';
 import type { BlockInstance, Content, World } from '@/game/core/types';
 import { B } from './babylon';
 import { instantiateBlockAsset, type BlockMat } from './assets';
@@ -119,6 +120,30 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       view.front = box(`${b.id}_puerta`, w, h, v.wall, cx, y, frontZ, m);
       view.lock = box(`${b.id}_candado`, 0.3, 0.38, 0.12, cx, view.lockBase.y, frontZ - 0.1, mat(`${b.id}_candado_mat`));
       (view.lock.material as StandardMaterial).diffuseColor = Color3.FromHexString(v.lockColor);
+
+      // ── Cartel numerado (v1.6): rótulo sobre la puerta con el identificador de la vivienda
+      // (blk_p3_c → "3C", blockLabel). Textura dinámica con colores/fuente del catálogo
+      // (rules.view.plaque); se añade a greybox porque la vivienda usa modelo OVERLAY (el
+      // greybox no se oculta) y no entra en mats: es señalización, no tinte ni glow.
+      const pl = v.plaque;
+      const plate = MeshBuilder.CreatePlane(`${b.id}_cartel`, { width: pl.w, height: pl.h, sideOrientation: B().Mesh.DOUBLESIDE }, scene);
+      const tex = new (B().DynamicTexture)(`${b.id}_cartel_tex`, { width: 256, height: 96 }, scene, true);
+      const ctx = tex.getContext() as unknown as CanvasRenderingContext2D;
+      ctx.fillStyle = pl.bg;
+      ctx.fillRect(0, 0, 256, 96);
+      ctx.font = `bold ${pl.fontPx}px Arial, sans-serif`;
+      ctx.fillStyle = pl.text;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(blockLabel(b.id), 128, 52);
+      tex.update(false);
+      const pmat = new StandardMaterial(`${b.id}_cartel_mat`, scene);
+      pmat.diffuseTexture = tex;
+      pmat.emissiveColor = Color3.FromHexString(pl.bg).scale(0.55); // legible en fachada norte
+      pmat.specularColor = new Color3(0, 0, 0);
+      plate.material = pmat;
+      plate.position.set(cx, bottom + pl.y, frontZ + pl.z);
+      view.greybox.push(plate);
 
       // ── Interior 2D (Fase C): tabiques con huecos, suelo por estancia y tapas "en obras". ──
       // TODO sale del layout del catálogo (rects + doorways); sin rects no hay interior 2D.

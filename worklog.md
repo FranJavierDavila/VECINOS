@@ -768,3 +768,19 @@ Stage Summary:
 - El ascensor ya se comporta como un ascensor de vecinos: se le LLAMA, viene, abre puertas, embarca (máx 4), cierra, viaja, desembarca y queda aparcado donde lo dejaron; si está averiado NADIE lo usa (ni jugador ni vecinos), todos van por la escalera de dos tramos y el vecindario murmurá por el registro con pérdida de ánimo social. Cabina y puertas dinámicas sobre un pozo hueco real.
 - BONUS crítico: el service worker ya no sirve código viejo (network-first + versión) — los despliegues se ven a la PRIMERA recarga; esto era el fantasma que hacía dudar de fixes anteriores.
 - Pendiente: Task 31 (carteles numerados sobre cada puerta) y el panel de destino explícito para el jugador (hoy W/S = ±1 planta por llamada, con encadenado manteniendo la tecla).
+
+---
+Task ID: 31
+Agent: main (Z.ai Code)
+Task: v1.6 — Carteles numerados sobre cada puerta de vivienda + ascensor-primero en las rutas de los vecinos
+
+Work Log:
+- CARTEL NUMERADO (rules.view.plaque NUEVO): cada vivienda lleva rótulo sobre la puerta con su identificador (blk_p3_c → "3C" vía blockLabel). DynamicTexture 256×96 (fondo #3b3129, texto #ffd166, fuente del catálogo), plano DOUBLESIDE, material con emissive suave para leerlo en fachada norte. El plano entra en greybox (la vivienda usa modelo overlay: el greybox no se oculta) y NO entra en mats (es señalización: sin tinte de estado ni glow). Tamaño final w 0.85 × h 0.30 a y 2.12 con z −0.13 (SALIENTE): las dos primeras iteraciones eran invisibles por (1) plano de cara única mirando al revés y (2) z-fighting con el marco overlay del glTF a la misma Z — aprendido en QA visual.
+- ASCENSOR-PRIMERO (actors.ts): la presentación ahora elige pozo COMO EL SIM — ascensor operativo siempre (coste 1 < 3), escalera solo de emergencia (averiado). Antes elegía el pozo más cercano y los vecinos de la mitad derecha del pasillo iban por la escalera con el ascensor funcionando.
+- QA: qa-v13 ampliado (+1 check plaque con mínimos de legibilidad). Lint 0; tsc 0 en src/+scripts; regresión completa verde (qa-25d 82, pozos, interior, fasef2, smoke-sim, qa-v13 completo).
+- E2E navegador: carteles "5B"/"5C" legibles en cámara planta (captura v16-5); ascensor verificado en el lote 30 (telemetría FSM + capturas de puertas abiertas con el jugador entrando).
+- LIMITACIÓN CONOCIDA (preexistente, documentada): los viajes MULTIALTURA de NPCs a velocidades altas (3x/10x) siguen terminando en el salto del guard "estado imposible" — el sim salta bloques cada aiHopTicks y el actor persigue posiciones, no rutas. Los vecinos SÍ usan el ascensor en viajes cortos alineados y el jugador siempre; la solución natural es que el actor siga la RUTA del sim (se enmarca en el refactor de locomoción/multijugador robusto, no en este paquete).
+
+Stage Summary:
+- El edificio ya se lee como edificio: cada puerta con su número (3C, 5B…), ascensor de vecinos con semáforo, escalera de dos tramos con barandillas, averiado respetado por todos y con malestar social. Cierre del paquete v1.6 "edificio creíble" (Tasks 28–31).
+- Siguientes naturales: panel de destino explícito del jugador (modal de planta al llamar), seguimiento de RUTA completa para NPCs (adiós saltos multialtura), o el paquete pendiente del Festival (decisión del usuario).

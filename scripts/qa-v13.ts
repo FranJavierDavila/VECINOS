@@ -118,6 +118,7 @@ check('escaleras_planta: nominal acorde al span (spanW·cellW−gapW)', !!escEnt
 // ── 4bis. Ascensor creíble (v1.5): datos del catálogo, pozo hueco y malestar vecinal real
 const ev = v.elevator;
 check('view.elevator declarado (capacidad 4, tiempos de puerta)', ev.capacity === 4 && ev.doorWaitMs === 5000 && ev.doorMoveMs > 0 && ev.floorsPerSecond > 0, JSON.stringify(ev));
+check('view.plaque declarado (cartel sobre puerta, legible)', !!v.plaque && v.plaque.w >= 0.7 && v.plaque.h >= 0.25 && v.plaque.z <= -0.1, JSON.stringify(v.plaque));
 {
   const raw = readFileSync(resolve(actorsDir, '../blocks/nucleo_comunicaciones.gltf'), 'utf8');
   const gltf = JSON.parse(raw) as { nodes?: { name?: string }[] };

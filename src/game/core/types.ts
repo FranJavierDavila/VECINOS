@@ -630,6 +630,8 @@ export interface Rules {
     runMultiplier: number;
     /** Anclas de actividad en las que el vecino se SIENTA (clip "sit") al llegar. */
     seatAnchors: string[];
+    /** Cartel numerado sobre cada puerta de vivienda (v1.6). */
+    plaque: { w: number; h: number; y: number; z: number; bg: string; text: string; fontPx: number };
     roomZ: number;
     /** Calado (profundidad en Z) de las viviendas: doblado en v0.6-b para mobiliario interior. */
     depth: number;

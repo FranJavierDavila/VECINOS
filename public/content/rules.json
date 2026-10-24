@@ -226,6 +226,15 @@
       "brokenColor": "#c1666b",
       "rideZ": 0.35
     },
+    "plaque": {
+      "w": 0.85,
+      "h": 0.3,
+      "y": 2.12,
+      "z": -0.13,
+      "bg": "#3b3129",
+      "text": "#ffd166",
+      "fontPx": 88
+    },
     "seatAnchors": [
       "bed",
       "tv",

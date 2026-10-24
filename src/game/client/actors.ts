@@ -163,7 +163,12 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
     let startZ = node.z;
     if (Math.abs(dest.y - node.y) > 0.05) {
       const floorNow = Math.round(node.y / v.cellH);
-      const here = usableShafts
+      // Como el sim: ASCENSOR primero si funciona (coste 1 < 3 de la escalera); la escalera
+      // es la vía de emergencia cuando el núcleo está averiado (v1.3: solo pozos operativos).
+      const elevHere = usableShafts
+        .filter((s) => s.cell.floor === floorNow && content.blocks[s.defId]!.features!.elevator === true)
+        .sort((s1, s2) => Math.abs(shaftXOf(s1) - startX) - Math.abs(shaftXOf(s2) - startX))[0];
+      const here = elevHere ?? usableShafts
         .filter((s) => s.cell.floor === floorNow)
         .sort((s1, s2) => Math.abs(shaftXOf(s1) - startX) - Math.abs(shaftXOf(s2) - startX))[0];
       if (here) {

@@ -566,6 +566,19 @@ export const rulesSchema = z.object({
         rideZ: z.number().default(0.35),
       })
       .default({ capacity: 4, doorWaitMs: 5000, doorMoveMs: 700, floorsPerSecond: 1.4, cabinColor: '#aeb8c2', doorColor: '#cbd5e1', callColor: '#ffd166', brokenColor: '#c1666b', rideZ: 0.35 }),
+    /** Cartel numerado sobre cada puerta de vivienda (v1.6): el label sale del id del bloque
+     *  (blk_p3_c → "3C") con DynamicTexture; tamaño, posición y colores del catálogo. */
+    plaque: z
+      .object({
+        w: z.number().positive().default(0.62),
+        h: z.number().positive().default(0.24),
+        y: z.number().default(2.18),
+        z: z.number().default(-0.04),
+        bg: z.string().default('#3b3129'),
+        text: z.string().default('#ffd166'),
+        fontPx: z.number().positive().default(64),
+      })
+      .default({ w: 0.62, h: 0.24, y: 2.18, z: -0.04, bg: '#3b3129', text: '#ffd166', fontPx: 64 }),
     /** Velocidad (m/s) a partir de la cual un actor en marcha usa el clip "run". */
     runSpeed: z.number().positive().default(4.2),
     /** Multiplicador de velocidad del jugador mientras corre (Shift / botón del mando). */
