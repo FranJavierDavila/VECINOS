@@ -78,7 +78,7 @@ export interface ActorsDirector {
  * update — residentes nuevos reciben nodo y residentes que ya no existen lo pierden.
  */
 export function createActors(scene: Scene, world: World, content: Content) {
-  const { Color3, MeshBuilder, StandardMaterial, Vector3 } = B();
+  const { Color3, MeshBuilder, Quaternion, StandardMaterial, Vector3 } = B();
   const v = content.rules.view;
   const actors = new Map<string, Actor>();
 
@@ -122,10 +122,18 @@ export function createActors(scene: Scene, world: World, content: Content) {
   };
 
   const goal = new Vector3();
-  /** Pozos verticales del mundo (features stairs/elevator): para rutear los cambios de planta. */
+  /** Pozos verticales del mundo (features stairs/elevator), para el RITMO de los tramos verticales. */
   const shafts = Object.values(world.blocks).filter((b) => {
     const f = content.blocks[b.defId]!.features;
     return !!f && (f.stairs === true || f.elevator === true);
+  });
+  /** Pozos UTILIZABLES para rutear (v1.3): la escalera siempre; el ascensor SOLO si funciona
+   *  (elevator_status 'ok'). Antes la presentación elegía el pozo más cercano sin mirar el
+   *  estado: los vecinos "usaban" el ascensor averiado aunque el sim los mandase a la escalera. */
+  const usableShafts = shafts.filter((b) => {
+    const f = content.blocks[b.defId]!.features!;
+    if (f.stairs === true) return true;
+    return f.elevator === true && b.params.elevator_status === 'ok';
   });
   const shaftXOf = (b: BlockInstance): number => (b.cell.col + b.size.w / 2) * v.cellW;
   /** Calado transitablo del bloque (vivienda 2× o bloque común). */
@@ -145,7 +153,7 @@ export function createActors(scene: Scene, world: World, content: Content) {
     let startZ = node.z;
     if (Math.abs(dest.y - node.y) > 0.05) {
       const floorNow = Math.round(node.y / v.cellH);
-      const here = shafts
+      const here = usableShafts
         .filter((s) => s.cell.floor === floorNow)
         .sort((s1, s2) => Math.abs(shaftXOf(s1) - startX) - Math.abs(shaftXOf(s2) - startX))[0];
       if (here) {
@@ -212,7 +220,6 @@ export function createActors(scene: Scene, world: World, content: Content) {
         if (!a.node.isEnabled()) continue;
         const node = a.node.position;
         const prevX = node.x;
-        const prevY = node.y;
         const prevZ = node.z;
         if (isPlayer) {
           const inside = player.mode === 'inside';
@@ -292,11 +299,14 @@ export function createActors(scene: Scene, world: World, content: Content) {
               const rate = feat?.elevator && shaftHere!.params.elevator_status === 'ok' ? v.cellH / v.elevatorSeconds : v.cellH / v.stairsSeconds;
               node.y += Math.sign(wdy) * Math.min(Math.abs(wdy), rate * dt);
             } else if (wdh > 0.001) {
-              // Tramo horizontal: crucero con llegada suave (frena al acercarse, nunca sobrepasa).
+              // Tramo con componente horizontal: crucero con llegada suave (frena al acercarse,
+              // nunca sobrepasa). Con dy el tramo es 3D (pendiente de escalera, Task 29): el paso
+              // reparte X/Z/Y con la MISMA velocidad de crucero, así la subida es física.
               const step = Math.min(npcSpeed * dt, (0.35 + wdh * 2.5) * dt, wdh);
               const t = step / wdh;
               node.x += (w.x - node.x) * t;
               node.z += (w.z - node.z) * t;
+              node.y += wdy * t;
             }
             // Tramo terminado → siguiente tramo de la ruta.
             if (Math.hypot(w.x - node.x, w.z - node.z) < 0.06 && Math.abs(w.y - node.y) < 0.03) a.path.shift();
@@ -309,6 +319,9 @@ export function createActors(scene: Scene, world: World, content: Content) {
         // (rules.view.actorTurnSpeed). El rumbo queda PENDIENTE hasta rematarse: aunque el actor
         // se pare a mitad de giro, termina de encarar la dirección en la que iba (nadie se queda
         // torcido en una puerta).
+        // Aplicación ROBUSTA (v1.3): si el nodo lleva rotationQuaternion (el loader glTF puede
+        // ponérselo), Babylon IGNORA rotation.y — hay que escribir el cuaternión; si no,
+        // rotation.y de toda la vida. En ambos casos SOLO yaw: nadie se ladea ni se tumba.
         const mdx = node.x - prevX;
         const mdz = node.z - prevZ;
         if (Math.hypot(mdx, mdz) / Math.max(1e-4, dt) > 0.25) a.targetYaw = Math.atan2(-mdz, mdx);
@@ -322,27 +335,37 @@ export function createActors(scene: Scene, world: World, content: Content) {
             a.yaw += dYaw * Math.min(1, dt * v.actorTurnSpeed);
           }
         }
-        a.node.rotation.y = a.yaw;
+        const q = a.node.rotationQuaternion;
+        if (q) Quaternion.RotationYawPitchRollToRef(a.yaw, 0, 0, q);
+        else a.node.rotation.y = a.yaw;
 
-        // ── Animación (solo rigs) por prioridad de estados (v1.2):
-        //   gesto explícito (teléfono/diálogo/cutscene) → run (correr del catálogo) → walk
-        //   (mientras se avanza) → clip de actividad parado → sentado en ancla de asiento → idle.
+        // ── Animación (solo rigs) por prioridad de estados (v1.2) + SINCRONÍA DE ZANCADA (v1.3):
+        //   gesto explícito → run (speed > runSpeed) → walk (mientras se avanza) → clip de
+        //   actividad parado → sentado en ancla → idle. El ratio de playback sale de la
+        //   velocidad PLANA real (m/s en el suelo; la Y no mueve piernas) contra la velocidad
+        //   natural del clip (rules.view.animSync): las piernas acompañan al cuerpo, cero patinaje.
         if (a.gestureT > 0) {
           a.gestureT -= dt;
           if (a.gestureT <= 0) a.gesture = null;
         }
         if (a.rig) {
-          const speed = Math.hypot(node.x - prevX, node.y - prevY, node.z - prevZ) / Math.max(1e-4, dt);
+          const speedH = Math.hypot(node.x - prevX, node.z - prevZ) / Math.max(1e-4, dt);
           const def = content.assets?.actors?.[r.archetype];
           const activityClip = def?.activityAnimations?.[r.activity ?? ''] ?? null;
+          const walkClip = def?.walkAnimation ?? 'walk';
           let clip: string | null;
           if (a.gesture) clip = a.gesture;
-          else if (speed > v.runSpeed) clip = 'run';
-          else if (speed > 0.3) clip = def?.walkAnimation ?? activityClip;
+          else if (speedH > v.runSpeed) clip = 'run';
+          else if (speedH > 0.25) clip = walkClip;
           else if (activityClip) clip = activityClip;
           else if (a.seated && a.path.length === 0) clip = 'sit';
           else clip = null;
-          a.rig.play(clip);
+          const sync = v.animSync;
+          let rate = 1;
+          if (!a.gesture && clip === 'run') rate = speedH / sync.runRefSpeed;
+          else if (!a.gesture && clip === walkClip) rate = speedH / sync.walkRefSpeed;
+          rate = Math.min(sync.maxRate, Math.max(sync.minRate, rate));
+          a.rig.play(clip, rate);
         }
       }
     },

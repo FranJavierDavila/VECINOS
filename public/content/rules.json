@@ -113,8 +113,8 @@
   "view": {
     "cellW": 2.4,
     "cellH": 2.6,
-    "walkSpeed": 3.6,
-    "roomSpeed": 2.6,
+    "walkSpeed": 3.0,
+    "roomSpeed": 2.4,
     "stairsSeconds": 1.6,
     "elevatorSeconds": 0.6,
     "margin": 0.35,
@@ -123,7 +123,7 @@
     "corridorZ": -1.3,
     "corridorDepth": 1.3,
     "corridorRail": 0,
-    "npcWalkSpeed": 2.2,
+    "npcWalkSpeed": 1.9,
     "npcWanderSeconds": 8,
     "roomZ": 0,
     "depth": 2.8,
@@ -190,8 +190,14 @@
     },
     "commonDepth": 1.4,
     "actorTurnSpeed": 10,
-    "runSpeed": 4.2,
+    "runSpeed": 3.9,
     "runMultiplier": 1.75,
+    "animSync": {
+      "walkRefSpeed": 1.15,
+      "runRefSpeed": 2.2,
+      "minRate": 0.6,
+      "maxRate": 2.65
+    },
     "seatAnchors": [
       "bed",
       "tv",

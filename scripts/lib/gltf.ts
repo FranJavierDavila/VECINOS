@@ -259,7 +259,17 @@ export const sinKeys = (T: number, amp: number, base = 0, cycles = 1) => {
  *  La zancada rota brazos/piernas sobre Z (el eje perpendicular al plano de la cámara en
  *  vista lateral): el vaivén es adelante-atrás a lo largo de +X (la dirección a la que
  *  mira el modelo), no hacia/alejándose de la cámara. Con la rotación de yaw del runtime
- *  (v1.2), la misma zancada se ve correcta de perfil, de frente y de espaldas. */
+ *  (v1.2), la misma zancada se ve correcta de perfil, de frente y de espaldas.
+ *
+ *  CONTRATO DE ZANCADA (v1.3, anti-patinaje): el walk se authora con amplitud 0.9 rad y
+ *  periodo 0.65 s → velocidad natural ≈ 2·0.48·sin(0.9)/0.65 ≈ 1.15 m/s a ratio 1. El
+ *  runtime (rules.view.animSync.walkRefSpeed) escala el playback con la velocidad REAL del
+ *  actor: las piernas nunca patinan. Cambiar aquí la amplitud/periodo implica actualizar
+ *  walkRefSpeed en el catálogo (una sola verdad). */
+export const WALK_AMPLITUDE = 0.9;
+export const WALK_PERIOD = 0.65;
+/** Velocidad natural del walk (m/s a ratio 1): la que declara rules.view.animSync.walkRefSpeed. */
+export const WALK_NATURAL_SPEED = 1.15;
 export function addBaseClips(r: AdultRig, period = 2.6): void {
   const { g, hips, headPivot, armL, armR, legL, legR } = r;
   const bob = sinKeys(period, 0.012, 0.52);
@@ -273,9 +283,9 @@ export function addBaseClips(r: AdultRig, period = 2.6): void {
     { node: armR, path: 'rotation', times: swayR.t, values: swayR.v.map((z) => quatAxis(0, 0, 1, z)) },
   ]);
 
-  const t = loopTimes(0.85, 8);
-  const swing = t.map((x) => 0.5 * Math.sin((2 * Math.PI * x) / 0.85));
-  const bounce = t.map((x) => 0.52 + 0.016 * Math.abs(Math.sin((2 * Math.PI * 2 * x) / 0.85)));
+  const t = loopTimes(WALK_PERIOD, 8);
+  const swing = t.map((x) => WALK_AMPLITUDE * Math.sin((2 * Math.PI * x) / WALK_PERIOD));
+  const bounce = t.map((x) => 0.52 + 0.018 * Math.abs(Math.sin((2 * Math.PI * 2 * x) / WALK_PERIOD)));
   g.addAnimation('walk', [
     { node: legL, path: 'rotation', times: t, values: swing.map((s) => quatAxis(0, 0, 1, s)) },
     { node: legR, path: 'rotation', times: t, values: swing.map((s) => quatAxis(0, 0, 1, -s)) },
@@ -302,16 +312,23 @@ export interface RigParts {
   legR: number;
 }
 
+/** Zancada del run (CONTRATO v1.3, anti-patinaje): velocidad natural ≈ 2.2 m/s a ratio 1,
+ *  la que declara rules.view.animSync.runRefSpeed. Cambiar aquí implica cambiar el catálogo. */
+export const RUN_AMPLITUDE = 1.05;
+export const RUN_PERIOD = 0.38;
+export const RUN_NATURAL_SPEED = 2.2;
+
 /** hipBase del rig: 0.52 adulto, 0.45 niño (define a qué altura cae la cadera al sentarse). */
 export function addSocialClips(parts: RigParts, opts: { hipBase?: number } = {}): void {
   const { g, hips, headPivot, armL, armR, legL, legR } = parts;
   const hipBase = opts.hipBase ?? 0.52;
 
-  // run (0.5 s): zancada amplia y rápida, cadera rebotando, torso echado adelante.
+  // run: zancada amplia y rápida (CONTRATO v1.3: velocidad natural ≈ 2.2 m/s a ratio 1 →
+  // rules.view.animSync.runRefSpeed; el runtime escala con la velocidad real, sin patinaje).
   {
-    const t = loopTimes(0.5, 8);
-    const swing = t.map((x) => 0.85 * Math.sin((2 * Math.PI * x) / 0.5));
-    const bounce = t.map((x) => hipBase + 0.022 * Math.abs(Math.sin((2 * Math.PI * 2 * x) / 0.5)));
+    const t = loopTimes(RUN_PERIOD, 8);
+    const swing = t.map((x) => RUN_AMPLITUDE * Math.sin((2 * Math.PI * x) / RUN_PERIOD));
+    const bounce = t.map((x) => hipBase + 0.026 * Math.abs(Math.sin((2 * Math.PI * 2 * x) / RUN_PERIOD)));
     g.addAnimation('run', [
       { node: legL, path: 'rotation', times: t, values: swing.map((s) => quatAxis(0, 0, 1, s)) },
       { node: legR, path: 'rotation', times: t, values: swing.map((s) => quatAxis(0, 0, 1, -s)) },

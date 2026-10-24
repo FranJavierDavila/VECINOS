@@ -62,8 +62,11 @@ export interface ActorRig {
   defaultClip: string | null;
   current: string | null;
   group: AnimationGroup | null;
-  /** Reproduce un clip lógico (null = por defecto). Idempotente. */
-  play(clip: string | null): void;
+  /** Ratio de reproducción vigente (anti-patinaje v1.3: se sincroniza con la velocidad real). */
+  rate: number;
+  /** Reproduce un clip lógico (null = por defecto) con ratio de playback. Idempotente:
+   *  mismo clip con otro ratio solo ajusta speedRatio (sin reiniciar el ciclo de la pierna). */
+  play(clip: string | null, rate?: number): void;
   /** Libera la instancia (nodos y grupos clonados; materiales compartidos, se quedan). */
   dispose(): void;
 }
@@ -101,13 +104,18 @@ export async function instantiateActorAsset(scene: Scene, def: ActorAssetDef, ba
       defaultClip,
       current: null,
       group: null,
-      play(clip) {
+      rate: 1,
+      play(clip, rate = 1) {
         const key = clip && groups.has(clip) ? clip : defaultClip;
-        if (key === rig.current) return;
+        rig.rate = rate;
+        if (key === rig.current) {
+          if (rig.group && Math.abs(rig.group.speedRatio - rate) > 0.01) rig.group.speedRatio = rate;
+          return;
+        }
         rig.group?.stop();
         rig.current = key;
         rig.group = key ? groups.get(key)! : null;
-        rig.group?.start(true);
+        rig.group?.start(true, rate);
       },
       dispose() {
         for (const g of groups.values()) g.dispose();

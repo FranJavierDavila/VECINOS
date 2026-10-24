@@ -513,6 +513,18 @@ export const rulesSchema = z.object({
     npcWanderSeconds: z.number().default(8),
     /** Suavizado del giro del actor hacia su dirección de movimiento (rad/s, 2.5D creíble). */
     actorTurnSpeed: z.number().positive().default(10),
+    /** Anti-patinaje (v1.3): velocidad natural de los clips al ratio 1 (m/s) y límites del
+     *  ratio de playback. El runtime escala la animación con la velocidad PLANA real del
+     *  actor: walkRefSpeed/runRefSpeed deben coincidir con la zancada authorada en los glTF
+     *  (WALK_NATURAL_SPEED / RUN_NATURAL_SPEED de scripts/lib/gltf.ts). */
+    animSync: z
+      .object({
+        walkRefSpeed: z.number().positive().default(1.15),
+        runRefSpeed: z.number().positive().default(2.2),
+        minRate: z.number().positive().default(0.6),
+        maxRate: z.number().positive().default(2.6),
+      })
+      .default({}),
     /** Velocidad (m/s) a partir de la cual un actor en marcha usa el clip "run". */
     runSpeed: z.number().positive().default(4.2),
     /** Multiplicador de velocidad del jugador mientras corre (Shift / botón del mando). */

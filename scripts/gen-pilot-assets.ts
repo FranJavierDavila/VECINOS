@@ -10,7 +10,7 @@
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { Gltf, quatAxis, sinKeys, loopTimes, buildAdult, addBaseClips, addSocialClips, type AdultRig } from './lib/gltf';
+import { Gltf, quatAxis, sinKeys, loopTimes, buildAdult, addBaseClips, addSocialClips, WALK_AMPLITUDE, WALK_PERIOD, type AdultRig } from './lib/gltf';
 
 // ───────────────────────── Pinturillas (nino_grafitero) ─────────────────────────
 
@@ -86,9 +86,11 @@ function buildKid(): Record<string, unknown> {
 
   // ── walk: ciclo de paso (0.8 s) — zancada adelante-atrás (rotación Z, ver lib) ──
   {
-    const t = loopTimes(0.8, 8);
-    const swing = t.map((x) => 0.55 * Math.sin((2 * Math.PI * x) / 0.8));
-    const bounce = t.map((x) => 0.45 + 0.018 * Math.abs(Math.sin((2 * Math.PI * 2 * x) / 0.8)));
+    // Walk del niño con el MISMO contrato de zancada v1.3 que los adultos (anti-patinaje):
+    // con piernas más cortas su velocidad natural es ~1.0 m/s, dentro del margen del catálogo.
+    const t = loopTimes(WALK_PERIOD, 8);
+    const swing = t.map((x) => WALK_AMPLITUDE * Math.sin((2 * Math.PI * x) / WALK_PERIOD));
+    const bounce = t.map((x) => 0.45 + 0.018 * Math.abs(Math.sin((2 * Math.PI * 2 * x) / WALK_PERIOD)));
     g.addAnimation('walk', [
       { node: legL, path: 'rotation', times: t, values: swing.map((s) => quatAxis(0, 0, 1, s)) },
       { node: legR, path: 'rotation', times: t, values: swing.map((s) => quatAxis(0, 0, 1, -s)) },
