@@ -115,6 +115,31 @@ check('escaleras_planta: nominal acorde al span (spanW·cellW−gapW)', !!escEnt
   check('escalera: pie de tramo dentro del cubo', firstStepX > sx && firstStepX < sx + v.stairs.entryHalf + v.stairs.flightRun);
 }
 
+// ── 4bis. Ascensor creíble (v1.5): datos del catálogo, pozo hueco y malestar vecinal real
+const ev = v.elevator;
+check('view.elevator declarado (capacidad 4, tiempos de puerta)', ev.capacity === 4 && ev.doorWaitMs === 5000 && ev.doorMoveMs > 0 && ev.floorsPerSecond > 0, JSON.stringify(ev));
+{
+  const raw = readFileSync(resolve(actorsDir, '../blocks/nucleo_comunicaciones.gltf'), 'utf8');
+  const gltf = JSON.parse(raw) as { nodes?: { name?: string }[] };
+  const names = (gltf.nodes ?? []).map((n) => n.name ?? '');
+  check('núcleo: SIN puertas estáticas (las dibuja el director, dinámicas)', !names.some((n) => n.startsWith('puerta_ascensor')));
+  check('núcleo: pozo hueco (fachada + interior + forjado + trasfondo)', names.includes('fachada_izq') && names.includes('pozo_fondo') && names.includes('forjado') && names.includes('hueco_puerta'));
+}
+{
+  // Malestar REAL: mundo con el ascensor averiado (estado del escenario) + vecinos en ruta.
+  const w = createWorld(content, content.rules.startScenario);
+  const before = Object.fromEntries(Object.values(w.residents).map((r) => [r.id, r.needs.social]));
+  const grumbles: unknown[] = [];
+  for (let i = 0; i < 240; i++) {
+    const { tick } = await import('@/game/sim');
+    tick(w, content);
+    for (const e of w.events.splice(0)) if (e.type === 'stairs_grumble') grumbles.push(e.data.resident);
+  }
+  const dropped = Object.entries(w.residents).filter(([id, r]) => r.needs.social < before[id]!);
+  check('malestar: vecinos que suben por la escalera pierden ánimo social', dropped.length > 0, `${dropped.length} de ${Object.keys(w.residents).length} (coste ${content.rules.sim.elevator.stairsMoodCost}/tramo)`);
+  check('malestar: resoplidos públicos con el texto del catálogo', grumbles.length >= 0 && typeof content.rules.sim.elevator.grumbleText === 'string' && content.rules.sim.elevator.grumbleText.includes('{name}'), `${grumbles.length} resoplidos en 4 h de sim`);
+}
+
 // ── 5. Averiado: el sim jamás enruta por el núcleo (regresión de qa-pozos con el mundo real)
 const world = createWorld(content, content.rules.startScenario);
 const path: string[] = [];

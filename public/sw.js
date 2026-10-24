@@ -2,11 +2,13 @@
  * Service worker de VECINOS (pulido Steam / empaquetado web-installable).
  * Estrategia mínima y honesta:
  *   - Precache del shell (ruta /) + manifest + iconos.
- *   - Cache-first para estáticos inmutables de Next (/_next/static/...) y contenido JSON.
- *   - Network-first para navegaciones: si la red falla, sirve el shell cacheado.
- * El juego guarda partidas vía API (POST): esas peticiones NUNCA se cachean.
+ *   - NETWORK-FIRST para TODO lo que cambia con cada despliegue: navegaciones, chunks de
+ *     Next (/_next/static) y contenido JSON (la "data" del juego). Sin red → caché.
+ *     (v1.5: antes era cache-first para estáticos — un despliegue nuevo servía chunks
+ *     VIEJOS hasta doble recarga; el jugador veía el juego anticuado. Nunca más.)
+ *   - Las peticiones que no son GET (save/load API) NUNCA se cachean.
  */
-const VERSION = 'vecinos-v1.2';
+const VERSION = 'vecinos-v1.5';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const SHELL_ASSETS = ['/', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
@@ -35,26 +37,24 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
-  // Navegación: network-first con fallback al shell (modo avión abre la última versión).
-  // cache:'reload' evita que el HTTP cache del navegador conteste 304 con el HTML viejo:
-  // sin esto, un despliegue nuevo exigía DOBLE recarga para verse.
-  if (req.mode === 'navigate') {
+  // Navegación y estáticos del despliegue: network-first con fallback a caché (modo avión).
+  // cache:'reload' evita que el HTTP cache del navegador conteste 304 con contenido viejo.
+  const deployable = req.mode === 'navigate' || url.pathname.startsWith('/_next/static/') || url.pathname.startsWith('/content/');
+  if (deployable) {
     event.respondWith(
       fetch(req, { cache: 'reload' })
         .then((res) => {
           const copy = res.clone();
-          caches.open(SHELL_CACHE).then((c) => c.put('/', copy));
+          caches.open(req.mode === 'navigate' ? SHELL_CACHE : RUNTIME_CACHE).then((c) => c.put(req, copy));
           return res;
         })
-        .catch(() => caches.match('/').then((hit) => hit ?? Response.error())),
+        .catch(() => caches.match(req).then((hit) => hit ?? (req.mode === 'navigate' ? caches.match('/') : Promise.resolve(null))).then((hit) => hit ?? Response.error())),
     );
     return;
   }
 
-  // Estáticos de Next y contenido: cache-first (los ficheros de /content son la "data" del juego).
-  const cacheable = url.pathname.startsWith('/_next/static/') || url.pathname.startsWith('/content/') || url.pathname.startsWith('/icons/');
-  if (!cacheable) return;
-
+  // Iconos y demás assets estables: cache-first (no cambian entre despliegues).
+  if (!url.pathname.startsWith('/icons/') && !url.pathname.startsWith('/assets/')) return;
   event.respondWith(
     caches.match(req).then(
       (hit) =>

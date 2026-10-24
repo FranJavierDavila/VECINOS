@@ -10,6 +10,7 @@ import { PlayerLogic } from '@/game/player-logic';
 import { createEngine } from './engine';
 import { createBuilding } from './building';
 import { createActors } from './actors';
+import { createElevators, type ElevatorsDirector } from './elevator';
 import { CameraRig, type CamMode } from './camera';
 import { CutscenePlayer, type CutsceneEventCtx } from './cutscene';
 import { B } from './babylon';
@@ -37,6 +38,7 @@ class GameController {
   private logic: PlayerLogic | null = null;
   private building: ReturnType<typeof createBuilding> | null = null;
   private actors: ReturnType<typeof createActors> | null = null;
+  private elevators: ElevatorsDirector | null = null;
   private rig: CameraRig | null = null;
 
   private get content(): Content {
@@ -52,6 +54,8 @@ class GameController {
   private clockAcc = 0;
   private lastHudSync = 0;
   private initializing = false;
+  /** Cronómetro del "paso adentro" del jugador tras abrirse la puerta de la cabina. */
+  private playerBoardT = 0;
 
   private phoneMission = '';
   private phoneLines: { speaker: string; text: string }[] = [];
@@ -573,7 +577,8 @@ class GameController {
     new DirectionalLight('sun', new Vector3(...view.sun.dir), this.scene).intensity = view.sun.intensity;
 
     this.building = createBuilding(this.scene, this.world, this.content);
-    this.actors = createActors(this.scene, this.world, this.content);
+    this.elevators = createElevators(this.scene, this.world, this.content);
+    this.actors = createActors(this.scene, this.world, this.content, this.elevators);
     const blocks = Object.values(this.world.blocks);
     // El cubo de escalera (v1.4) sobresale spanW−1 celdas por la derecha del edificio:
     // el encuadre lo incluye para que la torre no se corte en cámara.
@@ -623,7 +628,7 @@ class GameController {
   // ───────────────────────── Bucle de render ─────────────────────────
 
   private frame = (): void => {
-    if (!this.engine || !this.scene || !this.world || !this.logic || !this.building || !this.actors || !this.rig) return;
+    if (!this.engine || !this.scene || !this.world || !this.logic || !this.building || !this.actors || !this.rig || !this.elevators) return;
     const dt = Math.min(0.1, this.engine.getDeltaTime() / 1000);
     const store = useGameStore.getState();
     const frozen = selectModalOpen(store) || store.paused;
@@ -631,6 +636,41 @@ class GameController {
     let ticked = false;
     if (!frozen) {
       this.logic.update(dt, this.readInput());
+      // Ascensor (v1.5): el director mueve cabinas y puertas; el jugador llama con W/S en el
+      // núcleo y su escalada EXTERNA la gobierna la cabina (espera → embarco → viaje → salida).
+      this.elevators.update(dt);
+      const climb = this.logic.climbInfo();
+      if (climb) {
+        if (!this.logic.externalRequested) {
+          const zone = this.logic.zone();
+          this.elevators.requestRide(this.actorId(), zone.cell.col, climb.from, climb.to);
+          this.logic.externalRequested = true;
+        }
+        const st = this.elevators.status(this.actorId());
+        if (!st) {
+          this.logic.finishClimb(); // fuera de servicio: la escalera manda
+          this.logic.externalRequested = false;
+          this.playerBoardT = 0;
+        } else {
+          this.logic.setClimbProgress(st.phase === 'riding' ? st.progress : 0);
+          const inside = st.phase === 'boarding' || st.phase === 'riding';
+          this.logic.setClimbZ(inside ? this.content.rules.view.roomZ - this.content.rules.view.commonDepth / 2 + this.content.rules.view.elevator.rideZ : null);
+          // El jugador "da un paso" dentro de la cabina un instante tras abrirse la puerta
+          // (el zOverride ya lo acerca); avisar al director para que cierre y viaje.
+          if (st.phase === 'boarding') {
+            this.playerBoardT += dt;
+            if (this.playerBoardT > 1.0) this.elevators.notifyBoarded(this.actorId());
+          } else {
+            this.playerBoardT = 0;
+          }
+          if (st.phase === 'exiting') {
+            this.logic.finishClimb();
+            this.logic.externalRequested = false;
+          }
+        }
+      } else if (this.logic.externalRequested) {
+        this.logic.externalRequested = false;
+      }
       // En remoto el servidor es la autoridad del reloj: nada de ticks locales.
       if (!this.net) {
         this.clockAcc += dt * store.speed;
@@ -794,6 +834,10 @@ class GameController {
           break;
         case 'junta_closed':
           store.setJunta(null);
+          break;
+        case 'stairs_grumble':
+          // Malestar vecinal (v1.5): texto del catálogo con el nombre del vecino que sube a pie.
+          store.pushLog(String(this.content.rules.sim.elevator.grumbleText).replace('{name}', this.nameOf(d.resident)), 'info');
           break;
         case 'minigame_requested': {
           const def = this.content.minigames[String(d.minigame)];

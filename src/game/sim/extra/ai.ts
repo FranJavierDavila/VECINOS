@@ -116,6 +116,24 @@ export function runAI(world: World, content: Content): void {
           r.location = step;
           emit(world, 'resident_moved', { resident: r.id, block: step });
           r.cooldowns['hop'] = world.tick + content.rules.sim.aiHopTicks;
+          // Malestar vecinal (v1.5): si el paso usa la ESCALERA y el ascensor de esa planta
+          // está averiado, subir a pie cuesta ánimo social y, de vez en cuando, resoplido
+          // público. Todo desde el catálogo (rules.sim.elevator): coste, azar y texto.
+          const stepBlock = world.blocks[step]!;
+          const usesStairs = content.blocks[stepBlock.defId]!.features?.stairs === true;
+          const simE = content.rules.sim.elevator;
+          if (usesStairs && simE.stairsMoodCost > 0) {
+            const brokenHere = Object.values(world.blocks).some(
+              (b) => b.cell.floor === stepBlock.cell.floor && b.params.elevator_status !== undefined && b.params.elevator_status !== 'ok',
+            );
+            if (brokenHere) {
+              r.needs.social = Math.max(0, r.needs.social - simE.stairsMoodCost);
+              if (world.tick >= (r.cooldowns['grumble'] ?? 0) && nextRandom(world) < simE.grumbleChance) {
+                emit(world, 'stairs_grumble', { resident: r.id });
+                r.cooldowns['grumble'] = world.tick + simE.grumbleCooldownMinutes;
+              }
+            }
+          }
         }
       }
       // De camino: sin actividad destacable (pasea).

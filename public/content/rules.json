@@ -19,6 +19,12 @@
       "to": "07:30"
     },
     "aiHopTicks": 2,
+    "elevator": {
+      "stairsMoodCost": 0.05,
+      "grumbleChance": 0.05,
+      "grumbleCooldownMinutes": 180,
+      "grumbleText": "🛗 {name} sube por la escalera porque el ascensor sigue averiado. Por el portal ya se oye lo que opina."
+    },
     "missionLoopMax": 4,
     "defaultNeeds": {
       "sleep": 80,
@@ -208,6 +214,17 @@
       "landingX": 0.5,
       "stepCount": 8,
       "climbSpeed": 1.8
+    },
+    "elevator": {
+      "capacity": 4,
+      "doorWaitMs": 5000,
+      "doorMoveMs": 700,
+      "floorsPerSecond": 1.4,
+      "cabinColor": "#aeb8c2",
+      "doorColor": "#cbd5e1",
+      "callColor": "#ffd166",
+      "brokenColor": "#c1666b",
+      "rideZ": 0.35
     },
     "seatAnchors": [
       "bed",

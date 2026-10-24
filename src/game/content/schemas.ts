@@ -487,6 +487,16 @@ export const rulesSchema = z.object({
       moodPenalty: z.number(),
       clamp: z.object({ min: z.number(), max: z.number() }),
     }),
+    /** Malestar vecinal con el ascensor averiado (v1.5): subir por la escalera cuesta ánimo
+     *  social y, de vez en cuando, un resoplido público (evento stairs_grumble, texto del catálogo). */
+    elevator: z
+      .object({
+        stairsMoodCost: z.number().min(0).default(0.05),
+        grumbleChance: z.number().min(0).max(1).default(0.05),
+        grumbleCooldownMinutes: z.number().positive().default(180),
+        grumbleText: z.string().default('🛗 {name} sube por la escalera: el ascensor sigue averiado.'),
+      })
+      .default({ stairsMoodCost: 0.05, grumbleChance: 0.05, grumbleCooldownMinutes: 180, grumbleText: '🛗 {name} sube por la escalera: el ascensor sigue averiado.' }),
   }),
   view: z.object({
     cellW: z.number(),
@@ -541,6 +551,21 @@ export const rulesSchema = z.object({
         climbSpeed: z.number().positive().default(1.8),
       })
       .default({ spanW: 2, doorLocalX: -1.14, entryHalf: 0.45, laneFront: 0.35, laneBack: 1.05, flightRun: 2.19, landingX: 0.5, stepCount: 8, climbSpeed: 1.8 }),
+    /** Ascensor creíble (v1.5, presentación): semáforo de permisos con llamadas, puertas que
+     *  abren/cierran, espera al embarco y capacidad limitada. TODO en el catálogo, nada a pelo. */
+    elevator: z
+      .object({
+        capacity: z.number().int().min(1).default(4),
+        doorWaitMs: z.number().positive().default(5000),
+        doorMoveMs: z.number().positive().default(700),
+        floorsPerSecond: z.number().positive().default(1.4),
+        cabinColor: z.string().default('#aeb8c2'),
+        doorColor: z.string().default('#cbd5e1'),
+        callColor: z.string().default('#ffd166'),
+        brokenColor: z.string().default('#c1666b'),
+        rideZ: z.number().default(0.35),
+      })
+      .default({ capacity: 4, doorWaitMs: 5000, doorMoveMs: 700, floorsPerSecond: 1.4, cabinColor: '#aeb8c2', doorColor: '#cbd5e1', callColor: '#ffd166', brokenColor: '#c1666b', rideZ: 0.35 }),
     /** Velocidad (m/s) a partir de la cual un actor en marcha usa el clip "run". */
     runSpeed: z.number().positive().default(4.2),
     /** Multiplicador de velocidad del jugador mientras corre (Shift / botón del mando). */

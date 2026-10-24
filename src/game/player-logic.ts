@@ -3,6 +3,8 @@ import { dispatch, nextStepTowards } from '@/game/sim';
 import { layoutGeometryOf, roomAt, walkable, type LayoutGeometry } from '@/game/interior';
 import { stairGeomOf, stairPathPoints } from './stairs';
 
+const smooth01 = (k: number): number => k * k * (3 - 2 * k);
+
 export type InteractResult =
   | { type: 'none' }
   | { type: 'entered'; block: string }
@@ -33,7 +35,7 @@ export class PlayerLogic {
   floor: number;
   mode: 'corridor' | 'inside' = 'corridor';
   insideBlock: string | null = null;
-  private climb: { from: number; to: number; t: number; duration: number } | null = null;
+  private climb: { from: number; to: number; t: number; duration: number; external?: boolean; progress?: number; zOverride?: number | null } | null = null;
   /** Escalada REAL por el cubo (v1.4): el jugador recorre los peldaños del contrato
    *  (rules.view.stairs vía src/game/stairs.ts) — tramos con descansillo, X/Z variables. */
   private stairPath: { pts: { x: number; y: number; z: number }[]; i: number; to: number } | null = null;
@@ -51,6 +53,8 @@ export class PlayerLogic {
    * (location !== z.id), no se reenvía el mismo move en cada frame.
    */
   private lastMoveTarget: string | null = null;
+  /** Llamada de ascensor del jugador ya registrada (evita pedir la misma cada frame). */
+  externalRequested = false;
 
   constructor(
     private readonly world: World,
@@ -165,11 +169,43 @@ export class PlayerLogic {
     }
     let floor = this.floor;
     if (this.climb) {
+      if (this.climb.external) {
+        // Viaje en ascensor (v1.5): el progreso lo marca el director de la cabina.
+        const k = smooth01(this.climb.progress ?? 0);
+        floor = this.climb.from + (this.climb.to - this.climb.from) * k;
+        return { x: this.x, z: this.z, floor, mode: this.mode, insideBlock: this.insideBlock, climbing: true, pathZ: this.climb.zOverride ?? null };
+      }
       const k = Math.min(1, this.climb.t / this.climb.duration);
       floor = this.climb.from + (this.climb.to - this.climb.from) * (k * k * (3 - 2 * k));
     }
     return { x: this.x, z: this.z, floor, mode: this.mode, insideBlock: this.insideBlock, climbing: this.climb !== null, pathZ: null };
   }
+
+  /** Info de la escalada en curso para el cableado del ascensor (null si no hay). */
+  climbInfo(): { from: number; to: number } | null {
+    return this.climb?.external ? { from: this.climb.from, to: this.climb.to } : null;
+  }
+
+  /** Progreso del viaje de cabina (0..1, lo pinta el director del ascensor). */
+  setClimbProgress(k: number): void {
+    if (this.climb?.external) this.climb.progress = Math.min(1, Math.max(0, k));
+  }
+
+  /** Z absoluta mientras el jugador "está dentro" de la cabina (null = pasillo de siempre). */
+  setClimbZ(z: number | null): void {
+    if (this.climb?.external) this.climb.zOverride = z;
+  }
+
+  /** Cierra el viaje externo: planta definitiva y sincronización con el sim. */
+  finishClimb(): void {
+    if (this.climb?.external) {
+      this.floor = this.climb.to;
+      this.climb = null;
+      this.sync();
+    }
+  }
+
+
 
   private elevatorWorks(a: number, b: number) {
     const ok = (f: number) => this.elevatorBlock(f)?.params.elevator_status === 'ok';
@@ -225,7 +261,9 @@ export class PlayerLogic {
         return;
       }
     }
-    this.climb = { from: this.floor, to, t: 0, duration: ride ? this.view.elevatorSeconds : this.view.stairsSeconds };
+    this.climb = ride
+      ? { from: this.floor, to, t: 0, duration: 0, external: true, progress: 0, zOverride: null }
+      : { from: this.floor, to, t: 0, duration: this.view.elevatorSeconds };
   }
 
   update(dt: number, input: Input) {
@@ -254,6 +292,7 @@ export class PlayerLogic {
       return;
     }
     if (this.climb) {
+      if (this.climb.external) return; // el director del ascensor marca el progreso
       this.climb.t += dt;
       if (this.climb.t >= this.climb.duration) {
         this.floor = this.climb.to;
@@ -413,6 +452,7 @@ export class PlayerLogic {
     this.insideBlock = null;
     this.z = 0;
     this.approached = null;
+    this.externalRequested = false;
     this.floor = target.cell.floor;
     this.x = this.centerOf(target);
     for (let guard = 0; guard < 24; guard++) {
@@ -435,6 +475,7 @@ export class PlayerLogic {
     const target = blockId !== null ? this.world.blocks[blockId] : undefined;
     this.climb = null;
     this.stairPath = null;
+    this.externalRequested = false;
     this.lastMoveTarget = null;
     if (!target) {
       const c = this.corridor(this.floor);

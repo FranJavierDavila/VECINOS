@@ -567,6 +567,9 @@ export interface Rules {
       moodPenalty: number;
       clamp: { min: number; max: number };
     };
+    /** Malestar vecinal con el ascensor averiado (v1.5): coste social por tramo de escalera
+     *  forzada y resoplido público ocasional (evento stairs_grumble con texto del catálogo). */
+    elevator: { stairsMoodCost: number; grumbleChance: number; grumbleCooldownMinutes: number; grumbleText: string };
   };
   /** Configuración de la presentación placeholder (greybox). El arte final la sustituirá. */
   view: {
@@ -608,6 +611,18 @@ export interface Rules {
       landingX: number;
       stepCount: number;
       climbSpeed: number;
+    };
+    /** Ascensor creíble (v1.5, presentación): llamadas, puertas, espera y capacidad (src/game/client/elevator.ts). */
+    elevator: {
+      capacity: number;
+      doorWaitMs: number;
+      doorMoveMs: number;
+      floorsPerSecond: number;
+      cabinColor: string;
+      doorColor: string;
+      callColor: string;
+      brokenColor: string;
+      rideZ: number;
     };
     /** Velocidad (m/s) a partir de la cual un actor en marcha usa el clip "run". */
     runSpeed: number;

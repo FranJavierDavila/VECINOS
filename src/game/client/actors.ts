@@ -4,11 +4,14 @@ import { B } from './babylon';
 import { instantiateActorAsset, type ActorRig } from './assets';
 import { hash01, interiorRoute, interiorTarget, layoutGeometryOf, type Pt } from '@/game/interior';
 import { stairGeomOf, stairPathPoints } from '@/game/stairs';
+import type { ElevatorsDirector } from './elevator';
 
 /** Plano frontal de las viviendas: z local 0 de los interiores (la cara de la puerta). */
 const frontZOf = (roomZ: number, commonDepth: number): number => roomZ - commonDepth / 2;
 
 interface Actor {
+  /** Residente dueño del nodo (para las rutas de ascensor y depuración). */
+  id: string;
   /** Nodo posicionable: cápsula greybox o raíz del modelo glTF (pivote en pies). */
   node: Mesh | TransformNode;
   height: number;
@@ -39,6 +42,10 @@ interface Actor {
   gestureT: number;
   /** El objetivo interior vigente es un ancla de asiento (rules.view.seatAnchors): se sienta al llegar. */
   seated: boolean;
+  /** Viaje en ascensor registrado (v1.5): { x: puerta; from/to: plantas }. null = sin viaje. */
+  elevatorReq: { x: number; from: number; to: number } | null;
+  /** Fase del viaje que se estaba atendiendo (para detectar transiciones y encolar tramos). */
+  ridePhase: string | null;
   /** Rig del arte final (null mientras carga o si hay fallback greybox). */
   rig: ActorRig | null;
 }
@@ -78,7 +85,7 @@ export interface ActorsDirector {
  * Dinámico (multijugador): la plantilla se sincroniza con world.residents en cada
  * update — residentes nuevos reciben nodo y residentes que ya no existen lo pierden.
  */
-export function createActors(scene: Scene, world: World, content: Content) {
+export function createActors(scene: Scene, world: World, content: Content, elevators?: ElevatorsDirector | null) {
   const { Color3, MeshBuilder, Quaternion, StandardMaterial, Vector3 } = B();
   const v = content.rules.view;
   const actors = new Map<string, Actor>();
@@ -93,7 +100,7 @@ export function createActors(scene: Scene, world: World, content: Content) {
     m.emissiveColor = m.diffuseColor.scale(0.25);
     mesh.material = m;
     mesh.isPickable = false;
-    const a: Actor = { node: mesh, height, pivotY: height / 2, path: [], wanderT: 0, wanderLap: 0, targetLocal: null, lastLoc: null, directed: false, yaw: 0, targetYaw: null, gesture: null, gestureT: 0, seated: false, rig: null };
+    const a: Actor = { id, node: mesh, height, pivotY: height / 2, path: [], wanderT: 0, wanderLap: 0, targetLocal: null, lastLoc: null, directed: false, yaw: 0, targetYaw: null, gesture: null, gestureT: 0, seated: false, elevatorReq: null, ridePhase: null, rig: null };
     actors.set(id, a);
 
     // Arte final (opcional): modelo glTF del manifiesto; cualquier fallo → cápsula.
@@ -123,6 +130,8 @@ export function createActors(scene: Scene, world: World, content: Content) {
   };
 
   const goal = new Vector3();
+  /** true si la fase del viaje cambió desde el último frame (hay que recolocar la cola). */
+  const stalePhase = (a: Actor, phase: string): boolean => a.ridePhase !== phase;
   /** Pozos verticales del mundo (features stairs/elevator), para el RITMO de los tramos verticales. */
   const shafts = Object.values(world.blocks).filter((b) => {
     const f = content.blocks[b.defId]!.features;
@@ -162,14 +171,21 @@ export function createActors(scene: Scene, world: World, content: Content) {
         if (Math.abs(sx - startX) > 0.3) {
           a.path.push({ x: sx, y: node.y, z: v.corridorZ });
         }
-        // Escalera REAL (v1.4): el tramo vertical se sustituye por el recorrido del contrato
-        // (tramo A → descansillo → tramo B en dirección contraria → desembarco): los vecinos
-        // suben y bajan por los peldaños, de perfil, como en una escalera de verdad.
+        // ¿Escalera o ascensor? La escalera REAL (v1.4) va por los peldaños; el ascensor
+        // OPERATIVO (v1.5) registra una LLAMADA: el actor camina a la puerta y espera a la
+        // cabina (capacidad, puertas y semáforo los lleva el director del ascensor).
         const feat = content.blocks[here.defId]!.features!;
-        
         const stairPts = feat.stairs === true ? stairPathPoints(v, sx, node.y, dest.y) : [];
         if (stairPts.length > 1) {
-          for (const p of stairPts) a.path.push({ x: p.x, y: p.y, z: p.z });
+          for (const pt of stairPts) a.path.push({ x: pt.x, y: pt.y, z: pt.z });
+        } else if (elevators && feat.elevator === true) {
+          const from = Math.round(node.y / v.cellH);
+          const to = Math.round(dest.y / v.cellH);
+          if (to !== from) {
+            elevators.requestRide(a.id, here.cell.col, from, to);
+            a.elevatorReq = { x: sx, from, to };
+            a.ridePhase = null;
+          }
         } else {
           a.path.push({ x: sx, y: dest.y, z: v.corridorZ });
         }
@@ -246,9 +262,47 @@ export function createActors(scene: Scene, world: World, content: Content) {
           const home = world.blocks[r.home]!;
           const inRoom = b.kind === 'dwelling';
           const x0 = b.cell.col * v.cellW;
+          // ── Viaje en ascensor (v1.5): mientras hay viaje registrado, el director manda —
+          // esperar ante la puerta, entrar al hueco, ser llevado por la cabina y salir en la
+          // planta de destino. Si el viaje se cancela (avería), status() null → el flujo
+          // normal recaptura destino y la ruta pasará por la escalera.
+          const elev = elevators ?? undefined;
+          const ride = a.elevatorReq && elev ? elev.status(id) : null;
+          if (a.elevatorReq && !ride) {
+            a.elevatorReq = null;
+            a.ridePhase = null;
+            a.path = [];
+          }
+          if (a.elevatorReq && ride) {
+            if (stalePhase(a, ride.phase)) {
+              // Transición de fase: recolocar la cola según a dónde hay que caminar ahora.
+              if (ride.phase === 'boarding') {
+                a.path = [{ x: ride.slotX, y: Math.round(ride.floor) * v.cellH + 0.14 + a.pivotY, z: ride.slotZ }];
+              } else if (ride.phase === 'exiting') {
+                a.path = [{ x: a.elevatorReq.x, y: a.elevatorReq.to * v.cellH + 0.14 + a.pivotY, z: v.corridorZ }];
+              } else {
+                a.path = [];
+              }
+              a.ridePhase = ride.phase;
+            }
+            if (ride.phase === 'waiting') {
+              goal.set(a.elevatorReq.x, a.elevatorReq.from * v.cellH + 0.14 + a.pivotY, v.corridorZ);
+              if (node.lengthSquared() === 0) node.copyFrom(goal);
+              node.addInPlace(goal.subtract(node).scale(Math.min(1, k * 2)));
+            } else if (ride.phase === 'riding') {
+              // La cabina manda: posición directa en el hueco (sin teatro ni interpolación propia).
+              a.path = [];
+              node.set(ride.slotX, ride.floor * v.cellH + 0.14 + a.pivotY, ride.slotZ);
+            } else if (ride.phase === 'boarding' && a.path.length === 0) {
+              elev!.notifyBoarded(id); // ya está en su hueco: la puerta puede cerrar
+            } else if (ride.phase === 'exiting' && a.path.length === 0) {
+              a.elevatorReq = null;
+              a.ridePhase = null;
+            }
+          }
           // Con dirección de cutscene (Fase D) el actor solo consume su cola de tramos:
           // ni objetivo de IA ni captura de ruta (el director ya se la ha dado).
-          if (!a.directed) {
+          if (!a.directed && !a.elevatorReq) {
             let gx = b.layer === 'corridor' ? (home.cell.col + 0.5) * v.cellW : (x0 + b.size.w * v.cellW) / 2;
             let gz = inRoom ? frontZ + 0.6 : v.corridorZ;
             // ── Vida interior (Fase C): en vivienda, el punto lo decide el contenido. La actividad
@@ -409,11 +463,23 @@ export function createActors(scene: Scene, world: World, content: Content) {
         a.gesture = null;
         a.gestureT = 0;
         a.targetYaw = null;
+        // Si estaba esperando el ascensor, se cancela la llamada (el director libera el hueco).
+        if (a.elevatorReq && elevators) {
+          elevators.cancel(a.id);
+          a.elevatorReq = null;
+          a.ridePhase = null;
+        }
       },
       stageAt(id: string, x: number, floor: number, z: number): void {
         const a = actors.get(id);
         if (!a) return;
         a.path = [];
+        // El teatro manda: cualquier viaje en curso se cancela antes de colocar al actor.
+        if (a.elevatorReq && elevators) {
+          elevators.cancel(a.id);
+          a.elevatorReq = null;
+          a.ridePhase = null;
+        }
         a.node.position.set(x, floor * v.cellH + 0.14 + a.pivotY, z);
       },
       walkTo(id: string, dest: { x: number; z: number; floor: number; inside?: { block: string; local: Pt } }): boolean {
@@ -434,7 +500,7 @@ export function createActors(scene: Scene, world: World, content: Content) {
       },
       idle(id: string): boolean {
         const a = actors.get(id);
-        return !a || a.path.length === 0;
+        return !a || (a.path.length === 0 && !a.elevatorReq);
       },
       setGesture(id: string, state: string | null, seconds = 0): void {
         const a = actors.get(id);

@@ -122,34 +122,41 @@ function buildKid(): Record<string, unknown> {
 
 // ───────────────────── Núcleo de comunicaciones (bloque) ─────────────────────
 
+/**
+ * Núcleo de comunicaciones (v1.5): el hueco del ascensor queda ABIERTO (solo marco oscuro y
+ * trasfondo) — las puertas de la cabina son DINÁMICAS, las dibuja el ElevatorDirector
+ * (src/game/client/elevator.ts) para abrirlas/cerrarlas y mover la cabina por planta.
+ */
 function buildNucleo(): Record<string, unknown> {
   const g = new Gltf();
   const mBody = g.addMaterial('hormigon', '#8d99ae', { roughness: 0.95 });
   const mDark = g.addMaterial('hueco', '#343a40');
-  const mMetal = g.addMaterial('puerta_ascensor', '#cbd5e1', { metallic: 0.6, roughness: 0.35 });
   const mFrame = g.addMaterial('marco', '#6c757d');
   const mSign = g.addMaterial('rotulo', '#ffd166');
   const mStrip = g.addMaterial('luz', '#e9ecef');
-  const mRoof = g.addMaterial('cubierta', '#5c677d');
+  const mInt = g.addMaterial('interior_pozo', '#4a5560');
 
   const mesh = (name: string, m: number) => g.addBoxMesh(name, m);
 
-  // Cuerpo completo de la celda 2.4 × 2.6 × 1.4 (base en y=0, centrado en x/z).
-  const root = g.addNode({ name: 'Root', children: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] });
-  g.addNode({ name: 'cuerpo', mesh: mesh('cuerpo', mBody), translation: [0, 1.3, 0], scale: [2.4, 2.6, 1.4] });
-  g.addNode({ name: 'hueco_puerta', mesh: mesh('hueco_puerta', mDark), translation: [0, 1.02, 0.72], scale: [1.16, 2.04, 0.08] });
-  g.addNode({ name: 'puerta_ascensor_izq', mesh: mesh('izq', mMetal), translation: [-0.29, 0.98, 0.76], scale: [0.54, 1.94, 0.07] });
-  g.addNode({ name: 'puerta_ascensor_der', mesh: mesh('der', mMetal), translation: [0.29, 0.98, 0.76], scale: [0.54, 1.94, 0.07] });
+  // Pozo HUECO (v1.5): fachada con hueco de puerta, interior del pozo visible y forjado.
+  // Las puertas y la cabina son DINÁMICAS (ElevatorDirector); el hueco oscuro es el trasfondo
+  // del rellano que se ve cuando las puertas se abren.
+  const root = g.addNode({ name: 'Root', children: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13] });
+  g.addNode({ name: 'fachada_izq', mesh: mesh('fachada_izq', mBody), translation: [-0.89, 1.3, 0.65], scale: [0.62, 2.6, 0.1] });
+  g.addNode({ name: 'fachada_der', mesh: mesh('fachada_der', mBody), translation: [0.89, 1.3, 0.65], scale: [0.62, 2.6, 0.1] });
+  g.addNode({ name: 'fachada_sup', mesh: mesh('fachada_sup', mBody), translation: [0, 2.32, 0.65], scale: [1.16, 0.56, 0.1] });
+  g.addNode({ name: 'pozo_fondo', mesh: mesh('pozo_fondo', mInt), translation: [0, 1.3, -0.65], scale: [2.4, 2.6, 0.1] });
+  g.addNode({ name: 'pozo_izq', mesh: mesh('pozo_izq', mInt), translation: [-1.15, 1.3, 0], scale: [0.1, 2.6, 1.2] });
+  g.addNode({ name: 'pozo_der', mesh: mesh('pozo_der', mInt), translation: [1.15, 1.3, 0], scale: [0.1, 2.6, 1.2] });
+  g.addNode({ name: 'forjado', mesh: mesh('forjado', mBody), translation: [0, 0.035, 0], scale: [2.4, 0.07, 1.4] });
+  g.addNode({ name: 'hueco_puerta', mesh: mesh('hueco_puerta', mDark), translation: [0, 1.02, 0.55], scale: [1.16, 2.04, 0.06] });
   g.addNode({ name: 'marco_izq', mesh: mesh('marco_izq', mFrame), translation: [-0.62, 1.07, 0.74], scale: [0.08, 2.14, 0.09] });
   g.addNode({ name: 'marco_der', mesh: mesh('marco_der', mFrame), translation: [0.62, 1.07, 0.74], scale: [0.08, 2.14, 0.09] });
   g.addNode({ name: 'marco_sup', mesh: mesh('marco_sup', mFrame), translation: [0, 2.12, 0.74], scale: [1.32, 0.08, 0.09] });
   g.addNode({ name: 'rotulo', mesh: mesh('rotulo', mSign), translation: [0, 2.3, 0.75], scale: [0.8, 0.18, 0.06] });
   g.addNode({ name: 'tira_luz', mesh: mesh('tira_luz', mStrip), translation: [0, 2.44, 0.75], scale: [1.7, 0.06, 0.06] });
-  g.addNode({ name: 'cubierta', mesh: mesh('cubierta', mRoof), translation: [0, 2.66, 0], scale: [2.52, 0.12, 1.52] });
-  g.addNode({ name: 'antena', mesh: mesh('antena', mRoof), translation: [0, 2.98, 0], scale: [0.05, 0.52, 0.05] });
-  g.addNode({ name: 'antena_brazo', mesh: mesh('antena_brazo', mRoof), translation: [0, 3.18, 0], scale: [0.44, 0.04, 0.04] });
 
-  return g.finish('vecinos-gen-pilot-assets (nucleo_comunicaciones v1)');
+  return g.finish('vecinos-gen-pilot-assets (nucleo_comunicaciones v2 — pozo abierto, puertas dinámicas)');
 }
 
 function buildDolores(): Record<string, unknown> {
