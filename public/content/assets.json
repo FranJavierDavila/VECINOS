@@ -14,6 +14,14 @@
       "activityAnimations": {
         "paint_cabin": "spray",
         "roam": "walk"
+      },
+      "stateAnimations": {
+        "run": "run",
+        "talk": "talk",
+        "laugh": "laugh",
+        "argue": "argue",
+        "phone": "phone",
+        "sit": "sit"
       }
     },
     "cotilla": {
@@ -28,6 +36,14 @@
       "walkAnimation": "walk",
       "activityAnimations": {
         "watch_corridor": "watch"
+      },
+      "stateAnimations": {
+        "run": "run",
+        "talk": "talk",
+        "laugh": "laugh",
+        "argue": "argue",
+        "phone": "phone",
+        "sit": "sit"
       }
     },
     "fiestero": {
@@ -42,6 +58,14 @@
       "walkAnimation": "walk",
       "activityAnimations": {
         "party": "dance"
+      },
+      "stateAnimations": {
+        "run": "run",
+        "talk": "talk",
+        "laugh": "laugh",
+        "argue": "argue",
+        "phone": "phone",
+        "sit": "sit"
       }
     },
     "jubilada": {
@@ -56,6 +80,14 @@
       "walkAnimation": "walk",
       "activityAnimations": {
         "chair": "knit"
+      },
+      "stateAnimations": {
+        "run": "run",
+        "talk": "talk",
+        "laugh": "laugh",
+        "argue": "argue",
+        "phone": "phone",
+        "sit": "sit"
       }
     },
     "jugador_base": {
@@ -70,6 +102,14 @@
       "walkAnimation": "walk",
       "activityAnimations": {
         "work": "work"
+      },
+      "stateAnimations": {
+        "run": "run",
+        "talk": "talk",
+        "laugh": "laugh",
+        "argue": "argue",
+        "phone": "phone",
+        "sit": "sit"
       }
     },
     "presidente": {
@@ -84,6 +124,14 @@
       "walkAnimation": "walk",
       "activityAnimations": {
         "stroll": "inspect"
+      },
+      "stateAnimations": {
+        "run": "run",
+        "talk": "talk",
+        "laugh": "laugh",
+        "argue": "argue",
+        "phone": "phone",
+        "sit": "sit"
       }
     },
     "estudiante": {
@@ -98,6 +146,14 @@
       "walkAnimation": "walk",
       "activityAnimations": {
         "study_music": "rock"
+      },
+      "stateAnimations": {
+        "run": "run",
+        "talk": "talk",
+        "laugh": "laugh",
+        "argue": "argue",
+        "phone": "phone",
+        "sit": "sit"
       }
     },
     "fondo_buitre": {
@@ -112,6 +168,14 @@
       "walkAnimation": "walk",
       "activityAnimations": {
         "stroll": "appraise"
+      },
+      "stateAnimations": {
+        "run": "run",
+        "talk": "talk",
+        "laugh": "laugh",
+        "argue": "argue",
+        "phone": "phone",
+        "sit": "sit"
       }
     },
     "inquilino": {
@@ -126,6 +190,14 @@
       "walkAnimation": "walk",
       "activityAnimations": {
         "idle": "phone"
+      },
+      "stateAnimations": {
+        "run": "run",
+        "talk": "talk",
+        "laugh": "laugh",
+        "argue": "argue",
+        "phone": "phone",
+        "sit": "sit"
       }
     },
     "okupa": {
@@ -140,6 +212,14 @@
       "walkAnimation": "walk",
       "activityAnimations": {
         "reforma_creativa": "drill"
+      },
+      "stateAnimations": {
+        "run": "run",
+        "talk": "talk",
+        "laugh": "laugh",
+        "argue": "argue",
+        "phone": "phone",
+        "sit": "sit"
       }
     },
     "musico": {
@@ -156,6 +236,14 @@
       "activityAnimations": {
         "bateria": "drums",
         "concierto_bar": "gig"
+      },
+      "stateAnimations": {
+        "run": "run",
+        "talk": "talk",
+        "laugh": "laugh",
+        "argue": "argue",
+        "phone": "phone",
+        "sit": "sit"
       }
     },
     "pintora": {
@@ -171,6 +259,14 @@
       "activityAnimations": {
         "pintar_mural": "paint",
         "charla_rodillo": "idle"
+      },
+      "stateAnimations": {
+        "run": "run",
+        "talk": "talk",
+        "laugh": "laugh",
+        "argue": "argue",
+        "phone": "phone",
+        "sit": "sit"
       }
     },
     "repartidor": {
@@ -187,6 +283,14 @@
         "ruta_nocturna": "ride",
         "descarga_en_pasillo": "idle",
         "siesta_mediodia": "idle"
+      },
+      "stateAnimations": {
+        "run": "run",
+        "talk": "talk",
+        "laugh": "laugh",
+        "argue": "argue",
+        "phone": "phone",
+        "sit": "sit"
       }
     }
   },

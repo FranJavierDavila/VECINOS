@@ -255,7 +255,11 @@ export const sinKeys = (T: number, amp: number, base = 0, cycles = 1) => {
   return { t, v };
 };
 
-/** idle + walk estándar de adulto sobre el rig; devuelve los nodos para el clip extra. */
+/** idle + walk estándar de adulto sobre el rig; devuelve los nodos para el clip extra.
+ *  La zancada rota brazos/piernas sobre Z (el eje perpendicular al plano de la cámara en
+ *  vista lateral): el vaivén es adelante-atrás a lo largo de +X (la dirección a la que
+ *  mira el modelo), no hacia/alejándose de la cámara. Con la rotación de yaw del runtime
+ *  (v1.2), la misma zancada se ve correcta de perfil, de frente y de espaldas. */
 export function addBaseClips(r: AdultRig, period = 2.6): void {
   const { g, hips, headPivot, armL, armR, legL, legR } = r;
   const bob = sinKeys(period, 0.012, 0.52);
@@ -273,10 +277,110 @@ export function addBaseClips(r: AdultRig, period = 2.6): void {
   const swing = t.map((x) => 0.5 * Math.sin((2 * Math.PI * x) / 0.85));
   const bounce = t.map((x) => 0.52 + 0.016 * Math.abs(Math.sin((2 * Math.PI * 2 * x) / 0.85)));
   g.addAnimation('walk', [
-    { node: legL, path: 'rotation', times: t, values: swing.map((s) => quatAxis(1, 0, 0, s)) },
-    { node: legR, path: 'rotation', times: t, values: swing.map((s) => quatAxis(1, 0, 0, -s)) },
-    { node: armL, path: 'rotation', times: t, values: swing.map((s) => quatAxis(1, 0, 0, -s * 0.75)) },
-    { node: armR, path: 'rotation', times: t, values: swing.map((s) => quatAxis(1, 0, 0, s * 0.75)) },
+    { node: legL, path: 'rotation', times: t, values: swing.map((s) => quatAxis(0, 0, 1, s)) },
+    { node: legR, path: 'rotation', times: t, values: swing.map((s) => quatAxis(0, 0, 1, -s)) },
+    { node: armL, path: 'rotation', times: t, values: swing.map((s) => quatAxis(0, 0, 1, -s * 0.75)) },
+    { node: armR, path: 'rotation', times: t, values: swing.map((s) => quatAxis(0, 0, 1, s * 0.75)) },
     { node: hips, path: 'translation', times: t, values: bounce.map((y) => [0, y, 0]) },
   ]);
+}
+
+// ───────────────── Clips sociales genéricos (v1.2, credibilidad 2.5D) ─────────────────
+// Estados que CUALQUIER vecino puede necesitar más allá de su clip de firma:
+// run/talk/laugh/argue/phone/sit. El manifiesto los expone por assets.actors[*].stateAnimations
+// y el runtime los prioriza: gesto > run > walk > sentado > actividad > idle.
+// Mismas convenciones que el resto del catálogo: modelo mira a +X, rotación Z = vaivén
+// adelante-atrás (positivo = hacia delante), Y = girar cabeza, hips baja en Y al sentarse.
+
+export interface RigParts {
+  g: Gltf;
+  hips: number;
+  headPivot: number;
+  armL: number;
+  armR: number;
+  legL: number;
+  legR: number;
+}
+
+/** hipBase del rig: 0.52 adulto, 0.45 niño (define a qué altura cae la cadera al sentarse). */
+export function addSocialClips(parts: RigParts, opts: { hipBase?: number } = {}): void {
+  const { g, hips, headPivot, armL, armR, legL, legR } = parts;
+  const hipBase = opts.hipBase ?? 0.52;
+
+  // run (0.5 s): zancada amplia y rápida, cadera rebotando, torso echado adelante.
+  {
+    const t = loopTimes(0.5, 8);
+    const swing = t.map((x) => 0.85 * Math.sin((2 * Math.PI * x) / 0.5));
+    const bounce = t.map((x) => hipBase + 0.022 * Math.abs(Math.sin((2 * Math.PI * 2 * x) / 0.5)));
+    g.addAnimation('run', [
+      { node: legL, path: 'rotation', times: t, values: swing.map((s) => quatAxis(0, 0, 1, s)) },
+      { node: legR, path: 'rotation', times: t, values: swing.map((s) => quatAxis(0, 0, 1, -s)) },
+      { node: armL, path: 'rotation', times: t, values: swing.map((s) => quatAxis(0, 0, 1, s * 0.9)) },
+      { node: armR, path: 'rotation', times: t, values: swing.map((s) => quatAxis(0, 0, 1, -s * 0.9)) },
+      { node: hips, path: 'translation', times: t, values: bounce.map((y) => [0, y, 0]) },
+      { node: hips, path: 'rotation', times: t, values: t.map(() => quatAxis(0, 0, 1, -0.14)) },
+    ]);
+  }
+
+  // talk (1.6 s): brazo derecho gesticulando, la cabeza asiente y escanea.
+  {
+    const t = loopTimes(1.6, 10);
+    const gest = t.map((x) => 1.15 + 0.3 * Math.sin((2 * Math.PI * x) / 1.6));
+    g.addAnimation('talk', [
+      { node: armR, path: 'rotation', times: t, values: gest.map((z) => quatAxis(0, 0, 1, z)) },
+      { node: armL, path: 'rotation', times: t, values: t.map(() => quatAxis(0, 0, 1, -0.25)) },
+      { node: headPivot, path: 'rotation', times: t, values: t.map((x) => quatAxis(0, 1, 0, 0.22 * Math.sin((2 * Math.PI * 2 * x) / 1.6))) },
+      { node: hips, path: 'translation', times: t, values: t.map((x) => [0, hipBase + 0.006 * Math.sin((2 * Math.PI * 2 * x) / 1.6), 0]) },
+    ]);
+  }
+
+  // laugh (1.4 s): cabeza hacia atrás, hombros y cadera con la risa, mano a la barriga.
+  {
+    const t = loopTimes(1.4, 10);
+    g.addAnimation('laugh', [
+      { node: headPivot, path: 'rotation', times: t, values: t.map((x) => quatAxis(0, 0, 1, 0.28 + 0.05 * Math.sin((2 * Math.PI * 5 * x) / 1.4))) },
+      { node: hips, path: 'translation', times: t, values: t.map((x) => [0, hipBase + 0.016 * Math.abs(Math.sin((2 * Math.PI * 2.5 * x) / 1.4)), 0]) },
+      { node: armL, path: 'rotation', times: t, values: t.map(() => quatAxis(0, 0, 1, -0.55)) },
+      { node: armR, path: 'rotation', times: t, values: t.map((x) => quatAxis(0, 0, 1, -0.35 - 0.3 * Math.abs(Math.sin((2 * Math.PI * 2 * x) / 1.4)))) },
+    ]);
+  }
+
+  // argue (1.8 s): los dos brazos abiertos, la cabeza niega, cuerpo echado adelante.
+  {
+    const t = loopTimes(1.8, 10);
+    const beat = (x: number) => Math.sin((2 * Math.PI * 2 * x) / 1.8);
+    g.addAnimation('argue', [
+      { node: armL, path: 'rotation', times: t, values: t.map((x) => quatAxis(0, 0, 1, -0.75 + 0.3 * beat(x))) },
+      { node: armR, path: 'rotation', times: t, values: t.map((x) => quatAxis(0, 0, 1, 0.9 + 0.3 * beat(x))) },
+      { node: headPivot, path: 'rotation', times: t, values: t.map((x) => quatAxis(0, 1, 0, 0.4 * beat(x))) },
+      { node: hips, path: 'translation', times: t, values: t.map(() => [0.03, hipBase - 0.02, 0]) },
+      { node: hips, path: 'rotation', times: t, values: t.map(() => quatAxis(0, 0, 1, -0.08)) },
+      { node: legL, path: 'rotation', times: t, values: t.map((x) => quatAxis(0, 0, 1, 0.06 * beat(x))) },
+      { node: legR, path: 'rotation', times: t, values: t.map((x) => quatAxis(0, 0, 1, -0.06 * beat(x))) },
+    ]);
+  }
+
+  // phone (2.8 s): mano a la oreja, cabeza ladeada, el peso cambia de pie.
+  {
+    const t = loopTimes(2.8, 10);
+    g.addAnimation('phone', [
+      { node: armR, path: 'rotation', times: t, values: t.map((x) => quatAxis(0, 0, 1, 2.25 + 0.05 * Math.sin((2 * Math.PI * 2 * x) / 2.8))) },
+      { node: headPivot, path: 'rotation', times: t, values: t.map(() => quatAxis(0, 0, 1, 0.16)) },
+      { node: hips, path: 'translation', times: t, values: t.map((x) => [0, hipBase - 0.012 + 0.004 * Math.sin((2 * Math.PI * x) / 2.8), 0]) },
+    ]);
+  }
+
+  // sit (3.2 s): la cadera cae, piernas al frente, respiración tranquila de sentado.
+  {
+    const t = loopTimes(3.2, 10);
+    const sitY = hipBase - 0.2;
+    g.addAnimation('sit', [
+      { node: hips, path: 'translation', times: t, values: t.map((x) => [0, sitY + 0.004 * Math.sin((2 * Math.PI * x) / 3.2), 0]) },
+      { node: legL, path: 'rotation', times: t, values: t.map(() => quatAxis(0, 0, 1, 1.3)) },
+      { node: legR, path: 'rotation', times: t, values: t.map(() => quatAxis(0, 0, 1, 1.3)) },
+      { node: armL, path: 'rotation', times: t, values: t.map(() => quatAxis(0, 0, 1, -0.35)) },
+      { node: armR, path: 'rotation', times: t, values: t.map(() => quatAxis(0, 0, 1, 0.5)) },
+      { node: headPivot, path: 'rotation', times: t, values: t.map(() => quatAxis(0, 0, 1, 0.05)) },
+    ]);
+  }
 }

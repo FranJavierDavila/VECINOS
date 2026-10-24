@@ -357,7 +357,16 @@ export const cutsceneDefSchema = z.object({
     z.discriminatedUnion('type', [
       z.object({ type: z.literal('cam'), focus: z.union([z.literal('wide'), z.literal('player'), cutsceneSpotSchema]), viewH: z.number().positive().optional(), hold: z.number().positive().optional() }),
       z.object({ type: z.literal('walk'), who: z.string().min(1), from: cutsceneSpotSchema.optional(), to: cutsceneSpotSchema, max: z.number().positive().optional() }),
-      z.object({ type: z.literal('line'), speaker: z.string().optional(), text: z.string().min(1), seconds: z.number().positive().optional() }),
+      z.object({
+        type: z.literal('line'),
+        speaker: z.string().optional(),
+        text: z.string().min(1),
+        seconds: z.number().positive().optional(),
+        /** Actor que dice la línea ($event.resident/$role.x/id): hace el gesto mientras habla. */
+        who: z.string().optional(),
+        /** Estado social del gesto (stateAnimations: talk/laugh/argue/phone…); default 'talk'. */
+        gesture: z.string().optional(),
+      }),
       z.object({ type: z.literal('wait'), seconds: z.number().positive() }),
       z.object({ type: z.literal('sound'), id: z.string().min(1) }),
     ]),
@@ -502,6 +511,14 @@ export const rulesSchema = z.object({
     npcWalkSpeed: z.number().default(2.2),
     /** Segundos entre deambulaciones de un vecino en casa sin ancla de actividad (vida interior). */
     npcWanderSeconds: z.number().default(8),
+    /** Suavizado del giro del actor hacia su dirección de movimiento (rad/s, 2.5D creíble). */
+    actorTurnSpeed: z.number().positive().default(10),
+    /** Velocidad (m/s) a partir de la cual un actor en marcha usa el clip "run". */
+    runSpeed: z.number().positive().default(4.2),
+    /** Multiplicador de velocidad del jugador mientras corre (Shift / botón del mando). */
+    runMultiplier: z.number().min(1).default(1.75),
+    /** Anclas de actividad en las que el vecino se SIENTA (clip "sit") al llegar. */
+    seatAnchors: z.array(z.string()).default(['bed', 'tv', 'desk']),
     roomZ: z.number(),
     depth: z.number(),
     commonDepth: z.number().default(1.4),
@@ -604,6 +621,9 @@ export const actorAssetSchema = z.object({
   defaultAnimation: z.string().optional(),
   walkAnimation: z.string().optional(),
   activityAnimations: z.record(z.string(), z.string()).optional(),
+  /** Clips por ESTADO social (run/talk/laugh/argue/phone/sit): el runtime los usa para
+   *  gestos del controlador y cutscenes; un estado sin clip cae al default con elegancia. */
+  stateAnimations: z.record(z.string(), z.string()).optional(),
 });
 
 export const blockAssetSchema = z.object({

@@ -76,7 +76,9 @@
         "type": "line",
         "speaker": "{resident}",
         "text": "¿Quién, yo? Esto es ARTE urbano. Que lo diga la junta.",
-        "seconds": 3.2
+        "seconds": 3.2,
+        "who": "$event.resident",
+        "gesture": "talk"
       },
       {
         "type": "sound",
@@ -182,7 +184,9 @@
         "type": "line",
         "speaker": "Esperanza",
         "text": "Los días impares, la lavadora es MÍA. Lo demás es folclore.",
-        "seconds": 3.2
+        "seconds": 3.2,
+        "who": "$role.abuela",
+        "gesture": "argue"
       },
       {
         "type": "sound",
@@ -228,7 +232,9 @@
         "type": "line",
         "speaker": "Sr. Vulture",
         "text": "El garaje es un activo subexplotado. Mis mejores inversiones empezaron siendo huecos con humedad.",
-        "seconds": 3.4
+        "seconds": 3.4,
+        "who": "$role.vendedor",
+        "gesture": "talk"
       },
       {
         "type": "sound",
@@ -274,7 +280,9 @@
         "type": "line",
         "speaker": "Pinturillas",
         "text": "Cinco latas expuestas y a la sombra. Esto en el Prado no lo tienes.",
-        "seconds": 3
+        "seconds": 3,
+        "who": "$role.vecino",
+        "gesture": "talk"
       },
       {
         "type": "sound",
@@ -388,7 +396,9 @@
         "type": "line",
         "speaker": "El presidente",
         "text": "¡Vecinos! Este portal vuelve a ser una plaza. Bebed, bailad y mañana... ¡junta de derramas!",
-        "seconds": 3.6
+        "seconds": 3.6,
+        "who": "$role.presidente",
+        "gesture": "talk"
       },
       {
         "type": "walk",
@@ -407,7 +417,9 @@
         "type": "line",
         "speaker": "Rita",
         "text": "¡Y ahora sí: percusión en directo! El directo me conoce y me teme.",
-        "seconds": 3.2
+        "seconds": 3.2,
+        "who": "$role.musico",
+        "gesture": "laugh"
       },
       {
         "type": "cam",

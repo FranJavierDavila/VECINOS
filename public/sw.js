@@ -6,7 +6,7 @@
  *   - Network-first para navegaciones: si la red falla, sirve el shell cacheado.
  * El juego guarda partidas vía API (POST): esas peticiones NUNCA se cachean.
  */
-const VERSION = 'vecinos-v1.1';
+const VERSION = 'vecinos-v1.2';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const SHELL_ASSETS = ['/', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
@@ -36,9 +36,11 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return;
 
   // Navegación: network-first con fallback al shell (modo avión abre la última versión).
+  // cache:'reload' evita que el HTTP cache del navegador conteste 304 con el HTML viejo:
+  // sin esto, un despliegue nuevo exigía DOBLE recarga para verse.
   if (req.mode === 'navigate') {
     event.respondWith(
-      fetch(req)
+      fetch(req, { cache: 'reload' })
         .then((res) => {
           const copy = res.clone();
           caches.open(SHELL_CACHE).then((c) => c.put('/', copy));

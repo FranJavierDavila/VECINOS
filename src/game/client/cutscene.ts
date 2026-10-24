@@ -50,6 +50,8 @@ export class CutscenePlayer {
   private t = 0;
   private walk: WalkState | null = null;
   private involved: string[] = [];
+  /** Actor al que la línea actual le puso un gesto: se suelta al entrar el siguiente beat. */
+  private spoken: string | null = null;
 
   constructor(private readonly content: Content) {}
 
@@ -66,6 +68,7 @@ export class CutscenePlayer {
     this.t = 0;
     this.walk = null;
     this.involved = [];
+    this.spoken = null;
     useGameStore.getState().setCutscene({ id: def.id, speaker: null, text: null });
     this.enter(0);
   }
@@ -120,6 +123,10 @@ export class CutscenePlayer {
     this.i = i;
     this.t = 0;
     this.walk = null;
+    if (this.spoken) {
+      this.stage?.actors.setGesture(this.spoken, null);
+      this.spoken = null;
+    }
     if (!this.def || !this.stage) return;
     const beat = this.def.beats[i];
     if (!beat) return this.finish();
@@ -144,6 +151,15 @@ export class CutscenePlayer {
       case 'line': {
         const speaker = beat.speaker ? this.template(beat.speaker) : null;
         useGameStore.getState().setCutscene({ id: this.def.id, speaker, text: this.template(beat.text) });
+        // El actor que habla gesticula mientras dura la línea (v1.2): who + gesture son
+        // opcionales y data-driven; sin who, la línea es solo subtítulo (como siempre).
+        if (beat.who) {
+          const id = this.resolveWho(beat.who);
+          if (id) {
+            this.spoken = id;
+            this.stage.actors.setGesture(id, beat.gesture ?? 'talk', (beat.seconds ?? this.content.rules.cutscene.line) + 0.4);
+          }
+        }
         break;
       }
       case 'sound':
@@ -168,6 +184,10 @@ export class CutscenePlayer {
   private finish(): void {
     for (const id of this.involved) this.stage?.actors.release(id);
     this.involved = [];
+    if (this.spoken) {
+      this.stage?.actors.setGesture(this.spoken, null);
+      this.spoken = null;
+    }
     if (this.stage) this.stage.rig.cinematic = null;
     this.def = null;
     this.stage = null;

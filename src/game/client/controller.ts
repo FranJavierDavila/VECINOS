@@ -46,7 +46,7 @@ class GameController {
 
   private keys = new Set<string>();
   /** Direcciones mantenidas por los mandos virtuales (se combinan con el teclado). */
-  private touch: Input = { left: false, right: false, up: false, down: false };
+  private touch: Input = { left: false, right: false, up: false, down: false, run: false };
   /** Overrides de minijuegos del escenario activo (QA/E2E). */
   private scenarioOverrides: NonNullable<ScenarioDef['minigameOverrides']> = {};
   private clockAcc = 0;
@@ -148,6 +148,7 @@ class GameController {
       right: held('KeyD', 'ArrowRight') || this.touch.right,
       up: held('KeyW', 'ArrowUp') || this.touch.up,
       down: held('KeyS', 'ArrowDown') || this.touch.down,
+      run: held('ShiftLeft', 'ShiftRight') || this.touch.run,
     };
   }
 
@@ -409,6 +410,7 @@ class GameController {
     this.phoneLines = [];
     this.phoneMission = '';
     useGameStore.getState().setPhone(null);
+    this.actors?.director.setGesture(this.actorId(), null); // cuelgas: se suelta el teléfono
     if (this.world && mission) {
       this.sendCommand({ type: 'answer_call', mission });
     }
@@ -420,12 +422,14 @@ class GameController {
     const state = useGameStore.getState();
     const mission = state.choices?.mission;
     state.setChoices(null);
+    this.actors?.director.setGesture(this.actorId(), null); // decisión tomada: se deja de hablar
     if (!this.world || !mission) return;
     this.sendCommand({ type: 'choose', mission, choice: choiceId });
   }
 
   juntaVote(vote: 'yes' | 'no'): void {
     useGameStore.getState().setJunta(null);
+    this.actors?.director.setGesture(this.actorId(), null);
     if (!this.world) return;
     this.sendCommand({ type: 'junta_vote', vote });
   }
@@ -702,6 +706,7 @@ class GameController {
           const choices = (d.choices as { id: string; label: string; hint?: string | null }[] | undefined) ?? [];
           store.setChoices({ mission: String(d.mission), title: String(d.title), choices: choices.map((c) => ({ id: c.id, label: c.label, hint: c.hint ?? null })) });
           store.pushLog(`⚖️ Decisión pendiente: ${String(d.title)}`, 'info');
+          this.actors?.director.setGesture(this.actorId(), 'talk'); // el jugador razona en voz alta
           break;
         }
         case 'door_locked': {
@@ -736,6 +741,8 @@ class GameController {
           break;
         case 'knock_result':
           store.pushToast(`🗣️ ${String(d.name)}: «${String(d.line)}»`, d.asleep ? 'info' : 'good');
+          // El vecino que responde gesticula la réplica unos segundos (v1.2).
+          if (typeof d.resident === 'string') this.actors?.director.setGesture(d.resident, 'talk', 3.5);
           break;
         case 'noise_complaint': // texto data-driven: lo pinta el uiLog del catálogo (case mantenido por compatibilidad de eventos antiguos)
           if (d.uiLog === true) break;
@@ -769,6 +776,7 @@ class GameController {
         case 'junta_requested': {
           const agenda = (d.agenda as { id: string; title: string; description: string; cost: number }[] | undefined) ?? [];
           store.setJunta(agenda.map((i) => ({ id: i.id, title: i.title, description: i.description, cost: i.cost })));
+          this.actors?.director.setGesture(this.actorId(), 'talk'); // defensa del orden del día
           break;
         }
         case 'junta_result':
@@ -880,6 +888,7 @@ class GameController {
     this.phoneMission = mission;
     this.phoneLines = dlg.lines;
     this.phoneLine = 0;
+    this.actors?.director.setGesture(this.actorId(), 'phone'); // el jugador atiende con el móvil a la oreja
     this.showPhoneLine();
   }
 

@@ -62,19 +62,19 @@ check('aterriza en el salón (la puerta cae en el dormitorio, cerrado)', close(l
 check('profundidad de entrada = 0.45', close(logic.position().z, 0.45), `z=${logic.position().z.toFixed(2)}`);
 
 // ── Tabiques: andar a la derecha con el dormitorio cerrado NO cruza (ni por el hueco)
-for (let i = 0; i < 240; i++) logic.update(1 / 60, { left: false, right: true, up: false, down: false });
+for (let i = 0; i < 240; i++) logic.update(1 / 60, { left: false, right: true, up: false, down: false, run: false });
 check('tabique bloquea hacia el dormitorio cerrado', logic.position().x < X0 + 2.31, `x=${logic.position().x.toFixed(2)}`);
 
 // ── Profundidad: acotada por los márgenes del catálogo
-for (let i = 0; i < 600; i++) logic.update(1 / 60, { left: false, right: false, up: true, down: false });
+for (let i = 0; i < 600; i++) logic.update(1 / 60, { left: false, right: false, up: true, down: false, run: false });
 check('z llega al fondo del catálogo (depth − margin)', close(logic.position().z, content.rules.view.depth - content.rules.view.margin), `z=${logic.position().z.toFixed(2)}`);
-for (let i = 0; i < 600; i++) logic.update(1 / 60, { left: false, right: true, up: false, down: false });
+for (let i = 0; i < 600; i++) logic.update(1 / 60, { left: false, right: true, up: false, down: false, run: false });
 check('tampoco cruza al baño cerrado por el fondo', logic.position().x < X0 + 2.31, `x=${logic.position().x.toFixed(2)}`);
 
 // ── Reformar el baño (sim) abre el hueco del fondo: se cruza andando
 const rBano = dispatch(world, content, { type: 'renovate_room', block: HOME, room: 'bano' });
 check('reforma del baño aceptada (cartera 800 €)', rBano.ok);
-for (let i = 0; i < 240; i++) logic.update(1 / 60, { left: false, right: true, up: false, down: false });
+for (let i = 0; i < 240; i++) logic.update(1 / 60, { left: false, right: true, up: false, down: false, run: false });
 check('cruza por el hueco del fondo al baño reformado', logic.position().x > X0 + 2.4, `x=${logic.position().x.toFixed(2)}`);
 
 // ── Rutas interiores de los vecinos: con el baño abierto ya hay ruta por el hueco ──
@@ -129,7 +129,7 @@ logic.teleportTo(HOME);
 logic.interact();
 check('layout sin rects: entra sin geometría 2D (fallback 1D)', logic.position().mode === 'inside');
 const xBefore = logic.position().x;
-for (let i = 0; i < 120; i++) logic.update(1 / 60, { left: false, right: false, up: true, down: false });
+for (let i = 0; i < 120; i++) logic.update(1 / 60, { left: false, right: false, up: true, down: false, run: false });
 check('fallback 1D: W/S no mueve profundidad', close(logic.position().z, 0.45) && close(logic.position().x, xBefore), `z=${logic.position().z.toFixed(2)}`);
 
 // ── Candado (regresión v0.7.1): E delante de una puerta cerrada NO entra ni cambia de modo.

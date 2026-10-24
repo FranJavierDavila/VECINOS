@@ -210,10 +210,12 @@ export class PlayerLogic {
       return;
     }
     const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+    // Correr (v1.2): multiplicador del catálogo (rules.view.runMultiplier); andar es el default.
+    const speedMul = input.run ? this.view.runMultiplier : 1;
     if (this.mode === 'inside') {
       const home = this.world.blocks[this.insideBlock!]!;
-      const dx = dir * this.view.roomSpeed * dt;
-      const dz = ((input.up ? 1 : 0) - (input.down ? 1 : 0)) * this.view.roomSpeed * dt;
+      const dx = dir * this.view.roomSpeed * speedMul * dt;
+      const dz = ((input.up ? 1 : 0) - (input.down ? 1 : 0)) * this.view.roomSpeed * speedMul * dt;
       const geo = this.geometryOf(home);
       if (!geo) {
         // Layout sin geometría 2D (catálogo antiguo): movimiento 1D de siempre.
@@ -236,7 +238,7 @@ export class PlayerLogic {
       if (walkable(geo, cur2, this.x - x0, nz)) this.z = nz;
       return;
     }
-    this.x = Math.min(this.width - this.view.margin, Math.max(this.view.margin, this.x + dir * this.view.walkSpeed * dt));
+    this.x = Math.min(this.width - this.view.margin, Math.max(this.view.margin, this.x + dir * this.view.walkSpeed * speedMul * dt));
     this.sync();
     const door = this.doorInFront()?.id ?? null;
     if (door !== this.approached) {

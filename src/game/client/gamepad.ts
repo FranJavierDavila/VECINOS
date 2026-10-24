@@ -5,6 +5,7 @@
  * Mapeo estándar (mapping 'standard'):
  *   - Stick izquierdo + cruceta            → mover (mismos canales que los mandos táctiles)
  *   - A / Cross (0)                         → interactuar (tecla E virtual; salta cutscenes también)
+ *   - X / Cuadrado (2)                      → correr (canal run; multiplica la velocidad)
  *   - Y / Triángulo (3)                     → ciclar cámara (Edificio → Planta → Estancia)
  *   - Start (9)                             → pausa
  * El controller ya filtra cutscenes/modales en onKeyDown; aquí solo protegemos cámara y pausa.
@@ -18,7 +19,7 @@ const DEADZONE = 0.45;
 let raf = 0;
 let polling = false;
 let prevButtons: boolean[] = [];
-let prevDirs = { left: false, right: false, up: false, down: false };
+let prevDirs = { left: false, right: false, up: false, down: false, run: false };
 
 function poll(): void {
   raf = requestAnimationFrame(poll);
@@ -34,10 +35,10 @@ function poll(): void {
 
   // Mando desconectado: soltar direcciones y empezar de cero (evita pasos fantasma).
   if (!pad) {
-    if (c && (prevDirs.left || prevDirs.right || prevDirs.up || prevDirs.down)) {
-      c.setTouchInput({ left: false, right: false, up: false, down: false });
+    if (c && (prevDirs.left || prevDirs.right || prevDirs.up || prevDirs.down || prevDirs.run)) {
+      c.setTouchInput({ left: false, right: false, up: false, down: false, run: false });
     }
-    prevDirs = { left: false, right: false, up: false, down: false };
+    prevDirs = { left: false, right: false, up: false, down: false, run: false };
     prevButtons = [];
     return;
   }
@@ -46,7 +47,7 @@ function poll(): void {
   const pressed = (i: number) => b(i) && !prevButtons[i];
   const modalOpen = selectModalOpen(useGameStore.getState());
 
-  // 1) Movimiento: stick izquierdo (axes 0/1) + cruceta (botones 12-15).
+  // 1) Movimiento: stick izquierdo (axes 0/1) + cruceta (botones 12-15). X (2) = correr.
   const ax = pad.axes[0] ?? 0;
   const ay = pad.axes[1] ?? 0;
   const dirs = {
@@ -54,8 +55,9 @@ function poll(): void {
     right: ax > DEADZONE || b(15),
     up: ay < -DEADZONE || b(12),
     down: ay > DEADZONE || b(13),
+    run: b(2),
   };
-  if (c && (dirs.left !== prevDirs.left || dirs.right !== prevDirs.right || dirs.up !== prevDirs.up || dirs.down !== prevDirs.down)) {
+  if (c && (dirs.left !== prevDirs.left || dirs.right !== prevDirs.right || dirs.up !== prevDirs.up || dirs.down !== prevDirs.down || dirs.run !== prevDirs.run)) {
     c.setTouchInput(dirs);
   }
   prevDirs = dirs;
@@ -86,7 +88,7 @@ export function startGamepadPolling(): void {
   window.addEventListener('gamepaddisconnected', () => {
     useGameStore.getState().pushToast('🎮 Mando desconectado', 'info');
     prevButtons = [];
-    prevDirs = { left: false, right: false, up: false, down: false };
+    prevDirs = { left: false, right: false, up: false, down: false, run: false };
   });
   raf = requestAnimationFrame(poll);
 }

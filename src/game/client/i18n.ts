@@ -27,7 +27,7 @@ const DICT: Record<string, { es: string; en: string }> = {
     es: 'Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.',
     en: 'Move-ins, noise, smells, wifi, pests, smoke and levies: the neighborhood simulator.',
   },
-  'header.version': { es: 'v1.1 · pulido Steam', en: 'v1.1 · Steam polish' },
+  'header.version': { es: 'v1.2 · credibilidad 2.5D', en: 'v1.2 · 2.5D believability' },
   'footer.text': {
     es: 'VECINOS · prototipo jugable — sim determinista (1 tick = 1 minuto) + render Babylon.js (WebGPU/WebGL2) + editor con drag & drop + catálogo de minijuegos + guardado en SQLite. Construyéndolo por hitos, juntos.',
     en: 'VECINOS · playable prototype — deterministic sim (1 tick = 1 minute) + Babylon.js rendering (WebGPU/WebGL2) + drag & drop editor + minigame catalog + SQLite saves. Built milestone by milestone, together.',

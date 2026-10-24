@@ -14,7 +14,7 @@
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { Gltf, quatAxis, loopTimes, sinKeys, buildAdult, addBaseClips, type AdultRig, type Vec3 } from './lib/gltf';
+import { Gltf, quatAxis, loopTimes, sinKeys, buildAdult, addBaseClips, addSocialClips, type AdultRig, type Vec3 } from './lib/gltf';
 
 /** Pieza de bloque: caja con material, posición y escala. Los children del Root se cablean solos. */
 function box(g: Gltf, name: string, m: number, t: Vec3, s: Vec3): number {
@@ -43,6 +43,7 @@ function buildJugador(): Record<string, unknown> {
   (g.nodes[armR] as { children: number[] }).children.push(phone);
 
   addBaseClips(r, 2.4);
+  addSocialClips(r);
   // work: teclea de pie — brazos al frente alternando, cabeza asintiendo (2.6 s)
   const t = loopTimes(2.6, 12);
   const tapL = t.map((x) => 1.05 + 0.1 * Math.sin((2 * Math.PI * 3 * x) / 2.6));
@@ -74,6 +75,7 @@ function buildPresidente(): Record<string, unknown> {
   (g.nodes[armR] as { children: number[] }).children.push(caseBody, caseHandle, caseClasp);
 
   addBaseClips(r, 2.9);
+  addSocialClips(r);
   // inspect: mira el reloj con el brazo derecho arriba, escanea el pasillo con la cabeza (3.2 s)
   const t = loopTimes(3.2, 12);
   const scan = t.map((x) => 0.45 * Math.sin((2 * Math.PI * x) / 3.2));
@@ -101,6 +103,7 @@ function buildEstudiante(): Record<string, unknown> {
   (g.nodes[headPivot] as { children: number[] }).children.push(band, cupL, cupR);
 
   addBaseClips(r, 2.3);
+  addSocialClips(r);
   // rock: headbanging + guitarra aire (1.4 s)
   const t = loopTimes(1.4, 10);
   const beat = (x: number) => Math.sin((2 * Math.PI * 2 * x) / 1.4);
@@ -132,6 +135,7 @@ function buildBuitre(): Record<string, unknown> {
   (g.nodes[armR] as { children: number[] }).children.push(caseBody, caseHandle, caseClasp);
 
   addBaseClips(r, 2.9);
+  addSocialClips(r);
   // appraise: manos a la espalda, escaneo lento del edificio, asentimientos de tasador (3.6 s)
   const t = loopTimes(3.6, 12);
   const scan = t.map((x) => 0.35 * Math.sin((2 * Math.PI * x) / 3.6));
@@ -160,6 +164,7 @@ function buildInquilino(): Record<string, unknown> {
   (g.nodes[armR] as { children: number[] }).children.push(phone);
 
   addBaseClips(r, 2.5);
+  addSocialClips(r);
   // phone: móvil a la oreja, cabeza inclinada, cambia de peso (2.8 s)
   const t = loopTimes(2.8, 10);
   const sway = t.map((x) => 0.06 * Math.sin((2 * Math.PI * x) / 2.8));
@@ -194,6 +199,7 @@ function buildOkupa(): Record<string, unknown> {
   (g.nodes[armR] as { children: number[] }).children.push(drillBody, drillChuck);
 
   addBaseClips(r, 2.4);
+  addSocialClips(r);
   // drill: taladra la pared — brazo fijo al frente con vibración rápida, cuerpo apoyado (2.0 s)
   const t = loopTimes(2.0, 24);
   const jitter = t.map((x) => 1.3 + 0.07 * Math.sin((2 * Math.PI * 8 * x) / 2.0));
@@ -227,6 +233,7 @@ function buildMusico(): Record<string, unknown> {
   (g.nodes[hips] as { children: number[] }).children.push(guitarBody, guitarNeck);
 
   addBaseClips(r, 2.5);
+  addSocialClips(r);
   // drums: baquetas alternas sobre las pads, groove de cabeza (1.2 s)
   {
     const t = loopTimes(1.2, 10);
@@ -272,6 +279,7 @@ function buildPintora(): Record<string, unknown> {
   (g.nodes[armR] as { children: number[] }).children.push(rollerDrum, rollerPaint, rollerHandle);
 
   addBaseClips(r, 2.4);
+  addSocialClips(r);
   // paint: pasa el rodillo hacia arriba con la mano derecha, escanea la pared con la cabeza (2.4 s)
   const t = loopTimes(2.4, 12);
   const swipe = t.map((x) => (Math.sin((2 * Math.PI * 2 * x) / 2.4) + 1) / 2); // 0..1
@@ -307,6 +315,7 @@ function buildRepartidor(): Record<string, unknown> {
   (g.nodes[armR] as { children: number[] }).children.push(phone);
 
   addBaseClips(r, 2.3);
+  addSocialClips(r);
   // ride: agarra el manillar con los dos brazos al frente, culebreo de moto y cabeza atenta (1.8 s)
   const t = loopTimes(1.8, 12);
   const weave = t.map((x) => 0.09 * Math.sin((2 * Math.PI * 2 * x) / 1.8));

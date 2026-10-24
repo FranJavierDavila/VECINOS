@@ -188,7 +188,15 @@
         }
       ]
     },
-    "commonDepth": 1.4
+    "commonDepth": 1.4,
+    "actorTurnSpeed": 10,
+    "runSpeed": 4.2,
+    "runMultiplier": 1.75,
+    "seatAnchors": [
+      "bed",
+      "tv",
+      "desk"
+    ]
   },
   "demo": {
     "resident": "res_fiestero_01",

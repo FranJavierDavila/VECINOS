@@ -86,6 +86,14 @@ export async function instantiateActorAsset(scene: Scene, def: ActorAssetDef, ba
       if (g) groups.set(logical, g);
       else console.warn(`[assets] ${id}: el clip "${sourceName}" no existe en ${def.model} (disponibles: ${inst.animationGroups.map((x) => x.name).join(', ') || 'ninguno'})`);
     }
+    // Estados sociales (v1.2: run/talk/laugh/argue/phone/sit): mismos grupos bajo otro nombre
+    // lógico; si el modelo no trae el clip, play() cae al default con elegancia (sin warning:
+    // un arquetipo sin 'sit' simplemente nunca se sienta).
+    for (const [state, sourceName] of Object.entries(def.stateAnimations ?? {})) {
+      if (groups.has(state)) continue;
+      const g = findClip(sourceName);
+      if (g) groups.set(state, g);
+    }
     const defaultClip = def.defaultAnimation && groups.has(def.defaultAnimation) ? def.defaultAnimation : null;
     const rig: ActorRig = {
       root,

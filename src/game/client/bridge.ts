@@ -33,7 +33,7 @@ export interface GameControllerApi {
   /** Resultado de un minijuego (el modal lo llama al terminar). */
   completeMinigame(id: string, success: boolean): void;
   /** Mandos virtuales: direcciones mantenidas (se combinan con el teclado). */
-  setTouchInput(v: Partial<{ left: boolean; right: boolean; up: boolean; down: boolean }>): void;
+  setTouchInput(v: Partial<{ left: boolean; right: boolean; up: boolean; down: boolean; run?: boolean }>): void;
   /** Acción de interacción (botón virtual ✋: entrar/salir/usar). */
   interact(): void;
   /** Desde el editor: desplazarse a una de tus viviendas. */

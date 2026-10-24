@@ -377,7 +377,7 @@ export type CutsceneBeat =
   /** Actor: se coloca en `from` (si hay) y anda hasta `to` por pozo/interior (nunca teletransporta). */
   | { type: 'walk'; who: string; from?: CutsceneSpot; to: CutsceneSpot; max?: number }
   /** Subtítulo cinematográfico con marcadores {resident} y {block}. */
-  | { type: 'line'; speaker?: string; text: string; seconds?: number }
+  | { type: 'line'; speaker?: string; text: string; seconds?: number; who?: string; gesture?: string }
   /** Pausa teatral. */
   | { type: 'wait'; seconds: number }
   /** Sonido del catálogo procedural (sounds.json). */
@@ -451,6 +451,9 @@ export interface ActorAssetDef {
   walkAnimation?: string;
   /** Clip lógico por actividad del arquetipo (p. ej. paint_cabin → "spray"). */
   activityAnimations?: Record<string, string>;
+  /** Clip lógico por estado social (run/talk/laugh/argue/phone/sit): gestos de diálogo,
+   *  teléfono, cutscenes y sentado en anclas; si falta un clip, el rig cae al default. */
+  stateAnimations?: Record<string, string>;
 }
 
 /** Entrada de modelo 3D para un tipo de bloque. El runtime lo escala a las dimensiones reales de la celda. */
@@ -583,6 +586,14 @@ export interface Rules {
     npcWalkSpeed: number;
     /** Segundos entre deambulaciones de un vecino en casa sin ancla de actividad (vida interior). */
     npcWanderSeconds: number;
+    /** Suavizado del giro del actor hacia su dirección de movimiento (rad/s, 2.5D creíble). */
+    actorTurnSpeed: number;
+    /** Velocidad (m/s) a partir de la cual un actor en marcha usa el clip "run". */
+    runSpeed: number;
+    /** Multiplicador de velocidad del jugador mientras corre (Shift / botón del mando). */
+    runMultiplier: number;
+    /** Anclas de actividad en las que el vecino se SIENTA (clip "sit") al llegar. */
+    seatAnchors: string[];
     roomZ: number;
     /** Calado (profundidad en Z) de las viviendas: doblado en v0.6-b para mobiliario interior. */
     depth: number;
@@ -813,6 +824,8 @@ export interface Input {
   right: boolean;
   up: boolean;
   down: boolean;
+  /** Correr (Shift / botón del mando): multiplica la velocidad por rules.view.runMultiplier. */
+  run: boolean;
 }
 
 export type InteractTarget =

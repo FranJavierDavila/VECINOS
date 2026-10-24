@@ -10,7 +10,7 @@
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { Gltf, quatAxis, sinKeys, loopTimes, buildAdult, addBaseClips, type AdultRig } from './lib/gltf';
+import { Gltf, quatAxis, sinKeys, loopTimes, buildAdult, addBaseClips, addSocialClips, type AdultRig } from './lib/gltf';
 
 // ───────────────────────── Pinturillas (nino_grafitero) ─────────────────────────
 
@@ -84,16 +84,16 @@ function buildKid(): Record<string, unknown> {
     ]);
   }
 
-  // ── walk: ciclo de paso (0.8 s) ──
+  // ── walk: ciclo de paso (0.8 s) — zancada adelante-atrás (rotación Z, ver lib) ──
   {
     const t = loopTimes(0.8, 8);
     const swing = t.map((x) => 0.55 * Math.sin((2 * Math.PI * x) / 0.8));
     const bounce = t.map((x) => 0.45 + 0.018 * Math.abs(Math.sin((2 * Math.PI * 2 * x) / 0.8)));
     g.addAnimation('walk', [
-      { node: legL, path: 'rotation', times: t, values: swing.map((s) => quatAxis(1, 0, 0, s)) },
-      { node: legR, path: 'rotation', times: t, values: swing.map((s) => quatAxis(1, 0, 0, -s)) },
-      { node: armL, path: 'rotation', times: t, values: swing.map((s) => quatAxis(1, 0, 0, -s * 0.8)) },
-      { node: armR, path: 'rotation', times: t, values: swing.map((s) => quatAxis(1, 0, 0, s * 0.8)) },
+      { node: legL, path: 'rotation', times: t, values: swing.map((s) => quatAxis(0, 0, 1, s)) },
+      { node: legR, path: 'rotation', times: t, values: swing.map((s) => quatAxis(0, 0, 1, -s)) },
+      { node: armL, path: 'rotation', times: t, values: swing.map((s) => quatAxis(0, 0, 1, -s * 0.8)) },
+      { node: armR, path: 'rotation', times: t, values: swing.map((s) => quatAxis(0, 0, 1, s * 0.8)) },
       { node: hips, path: 'translation', times: t, values: bounce.map((y) => [0, y, 0]) },
     ]);
   }
@@ -111,6 +111,9 @@ function buildKid(): Record<string, unknown> {
       { node: hips, path: 'translation', times: loopTimes(1.6, 8), values: hipSway.v.map((y) => [0, y, 0]) },
     ]);
   }
+
+  // Clips sociales genéricos (v1.2): run/talk/laugh/argue/phone/sit.
+  addSocialClips({ g, hips, headPivot, armL, armR, legL, legR }, { hipBase: 0.45 });
 
   return g.finish('vecinos-gen-pilot-assets (nino_grafitero v1)');
 }
@@ -163,6 +166,7 @@ function buildDolores(): Record<string, unknown> {
   (g.nodes[hips] as { children: number[] }).children.push(optL, optR, optBridge);
 
   addBaseClips(r, 2.4);
+  addSocialClips(r);
   // watch: prismáticos a los ojos (brazos al frente con temblor de escaneo) 2.8 s
   const t = loopTimes(2.8, 10);
   const scan = t.map((x) => 1.35 + 0.09 * Math.sin((2 * Math.PI * 2 * x) / 2.8));
@@ -188,6 +192,7 @@ function buildKevin(): Record<string, unknown> {
   (g.nodes[hips] as { children: number[] }).children.push(flower);
 
   addBaseClips(r, 2.2);
+  addSocialClips(r);
   // dance: twist de caderas, puños arriba alternos, cabeza marcando el compás (1.6 s)
   const t = loopTimes(1.6, 12);
   const beat = (x: number) => Math.sin((2 * Math.PI * 2 * x) / 1.6);
@@ -224,6 +229,7 @@ function buildEsperanza(): Record<string, unknown> {
   (g.nodes[root] as { children: number[] }).children.push(cartBarL, cartBarR, cartBag, wheelF, wheelB);
 
   addBaseClips(r, 3.0);
+  addSocialClips(r);
   // knit: teje en la silla — brazos al frente, manos alternando (2.4 s)
   const t = loopTimes(2.4, 10);
   const knitL = t.map((x) => 0.85 + 0.12 * Math.sin((2 * Math.PI * 2 * x) / 2.4));

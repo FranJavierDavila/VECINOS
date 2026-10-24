@@ -27,6 +27,17 @@ interface Actor {
   /** Dirección de cutscenes (Fase D): mientras está activa, la IA normal no captura destinos;
    *  el actor solo consume la cola de tramos que le marca el director (nunca teletransporta). */
   directed: boolean;
+  /** Rumbo actual (rad): el actor MIRA hacia donde camina (v1.2, credibilidad 2.5D).
+   *  0 = el modelo mira +X (perfil); ±π/2 = de espaldas/frente al entrar o salir de casa. */
+  yaw: number;
+  /** Rumbo pendiente de terminar: el actor remata el giro aunque se pare (nunca queda torcido). */
+  targetYaw: number | null;
+  /** Gesto social en curso (stateAnimations: talk/laugh/argue/phone/sit…) o null. */
+  gesture: string | null;
+  /** Cuenta atrás del gesto temporal (0 = persistente hasta que alguien lo quite). */
+  gestureT: number;
+  /** El objetivo interior vigente es un ancla de asiento (rules.view.seatAnchors): se sienta al llegar. */
+  seated: boolean;
   /** Rig del arte final (null mientras carga o si hay fallback greybox). */
   rig: ActorRig | null;
 }
@@ -49,6 +60,12 @@ export interface ActorsDirector {
   walkTo(id: string, dest: { x: number; z: number; floor: number; inside?: { block: string; local: Pt } }): boolean;
   /** true cuando el actor no tiene tramos pendientes (llegó — o no existe). */
   idle(id: string): boolean;
+  /**
+   * Estado social explícito (v1.2): talk/laugh/argue/phone/sit… según stateAnimations del
+   * manifiesto. Con `seconds` > 0 el gesto expira solo (líneas de diálogo); null lo suelta
+   * ya (al colgar el teléfono, al cerrar el modal). El clip que falte cae al default del rig.
+   */
+  setGesture(id: string, state: string | null, seconds?: number): void;
 }
 
 /**
@@ -75,7 +92,7 @@ export function createActors(scene: Scene, world: World, content: Content) {
     m.emissiveColor = m.diffuseColor.scale(0.25);
     mesh.material = m;
     mesh.isPickable = false;
-    const a: Actor = { node: mesh, height, pivotY: height / 2, path: [], wanderT: 0, wanderLap: 0, targetLocal: null, lastLoc: null, directed: false, rig: null };
+    const a: Actor = { node: mesh, height, pivotY: height / 2, path: [], wanderT: 0, wanderLap: 0, targetLocal: null, lastLoc: null, directed: false, yaw: 0, targetYaw: null, gesture: null, gestureT: 0, seated: false, rig: null };
     actors.set(id, a);
 
     // Arte final (opcional): modelo glTF del manifiesto; cualquier fallo → cápsula.
@@ -225,6 +242,7 @@ export function createActors(scene: Scene, world: World, content: Content) {
               a.lastLoc = r.location;
               a.targetLocal = null;
               a.wanderT = 0;
+              a.seated = false;
             }
             if (geo) {
               a.wanderT -= dt;
@@ -232,8 +250,11 @@ export function createActors(scene: Scene, world: World, content: Content) {
                 a.wanderLap += 1;
                 a.wanderT = v.npcWanderSeconds * (0.7 + 0.6 * hash01(id, a.wanderLap));
                 const act = r.activity ? content.archetypes[r.archetype]?.activities[r.activity] : undefined;
-                a.targetLocal = (act?.anchor ? interiorTarget(content, geo, act.anchor, id, 0) : null)
-                  ?? interiorTarget(content, geo, undefined, id, a.wanderLap);
+                const anchorKind = act?.anchor;
+                const anchored = anchorKind ? interiorTarget(content, geo, anchorKind, id, 0) : null;
+                a.targetLocal = anchored ?? interiorTarget(content, geo, undefined, id, a.wanderLap);
+                // Ancla de asiento (catálogo: rules.view.seatAnchors): al llegar se sienta (clip "sit").
+                a.seated = anchored !== null && !!anchorKind && v.seatAnchors.includes(anchorKind);
               }
               localTarget = a.targetLocal;
             }
@@ -282,13 +303,46 @@ export function createActors(scene: Scene, world: World, content: Content) {
           }
         }
 
-        // Animación (solo rigs) por velocidad REAL del nodo: andar mientras se avanza (aunque
-        // el destino cambie), clip de actividad parado (ej. spray), idle por defecto.
+        // ── Rotación 2.5D (v1.2): el actor MIRA hacia donde camina. El pasillo es lateral (eje
+        // X, perfil); entrar/salir de una vivienda es profundidad (eje Z: de espaldas al alejarse,
+        // de frente al acercarse). Giro por el arco corto con el ritmo del catálogo
+        // (rules.view.actorTurnSpeed). El rumbo queda PENDIENTE hasta rematarse: aunque el actor
+        // se pare a mitad de giro, termina de encarar la dirección en la que iba (nadie se queda
+        // torcido en una puerta).
+        const mdx = node.x - prevX;
+        const mdz = node.z - prevZ;
+        if (Math.hypot(mdx, mdz) / Math.max(1e-4, dt) > 0.25) a.targetYaw = Math.atan2(-mdz, mdx);
+        if (a.targetYaw !== null) {
+          let dYaw = a.targetYaw - a.yaw;
+          dYaw = ((dYaw + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+          if (Math.abs(dYaw) < 0.02) {
+            a.yaw = a.targetYaw; // rematado
+            a.targetYaw = null;
+          } else {
+            a.yaw += dYaw * Math.min(1, dt * v.actorTurnSpeed);
+          }
+        }
+        a.node.rotation.y = a.yaw;
+
+        // ── Animación (solo rigs) por prioridad de estados (v1.2):
+        //   gesto explícito (teléfono/diálogo/cutscene) → run (correr del catálogo) → walk
+        //   (mientras se avanza) → clip de actividad parado → sentado en ancla de asiento → idle.
+        if (a.gestureT > 0) {
+          a.gestureT -= dt;
+          if (a.gestureT <= 0) a.gesture = null;
+        }
         if (a.rig) {
           const speed = Math.hypot(node.x - prevX, node.y - prevY, node.z - prevZ) / Math.max(1e-4, dt);
           const def = content.assets?.actors?.[r.archetype];
           const activityClip = def?.activityAnimations?.[r.activity ?? ''] ?? null;
-          a.rig.play(speed > 0.3 ? (def?.walkAnimation ?? activityClip) : activityClip);
+          let clip: string | null;
+          if (a.gesture) clip = a.gesture;
+          else if (speed > v.runSpeed) clip = 'run';
+          else if (speed > 0.3) clip = def?.walkAnimation ?? activityClip;
+          else if (activityClip) clip = activityClip;
+          else if (a.seated && a.path.length === 0) clip = 'sit';
+          else clip = null;
+          a.rig.play(clip);
         }
       }
     },
@@ -304,6 +358,7 @@ export function createActors(scene: Scene, world: World, content: Content) {
         if (!actors.has(id)) ensureActor(id, r.archetype);
         const a = actors.get(id)!;
         a.directed = true;
+        a.seated = false;
         a.node.setEnabled(true);
         return true;
       },
@@ -314,6 +369,10 @@ export function createActors(scene: Scene, world: World, content: Content) {
         a.path = [];
         a.targetLocal = null;
         a.wanderT = 0;
+        a.seated = false;
+        a.gesture = null;
+        a.gestureT = 0;
+        a.targetYaw = null;
       },
       stageAt(id: string, x: number, floor: number, z: number): void {
         const a = actors.get(id);
@@ -340,6 +399,12 @@ export function createActors(scene: Scene, world: World, content: Content) {
       idle(id: string): boolean {
         const a = actors.get(id);
         return !a || a.path.length === 0;
+      },
+      setGesture(id: string, state: string | null, seconds = 0): void {
+        const a = actors.get(id);
+        if (!a) return;
+        a.gesture = state;
+        a.gestureT = state && seconds > 0 ? seconds : 0;
       },
     },
   };

@@ -13,7 +13,7 @@ import { PwaRegister } from '@/components/game/PwaRegister';
 import { getController } from '@/game/client/bridge';
 import { useT } from '@/game/client/i18n';
 
-/** VECINOS v1.1: pulido Steam (opciones, gamepad, i18n, PWA) + contenido F (festival, chisme, vecinos nuevos). */
+/** VECINOS v1.2: credibilidad 2.5D (rotación de actores por dirección, clips sociales run/talk/laugh/argue/phone/sit, correr con Shift/mando). */
 export default function Home() {
   const t = useT();
   const g = () => getController();
