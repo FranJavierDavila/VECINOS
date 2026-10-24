@@ -1,0 +1,773 @@
+     1→import { z } from 'zod';
+     2→import type { ActivityDef, Condition, Effect } from '@/game/core/types';
+     3→
+     4→/**
+     5→ * Schemas Zod de los catálogos de contenido. Son la única puerta de entrada:
+     6→ * todo JSON de /content/ se valida aquí antes de tocar el sim o la vista.
+     7→ */
+     8→
+     9→const paramValue = z.union([z.string(), z.number()]);
+    10→
+    11→export const paramDefSchema = z.object({
+    12→  type: z.enum(['number', 'enum']),
+    13→  min: z.number().optional(),
+    14→  max: z.number().optional(),
+    15→  values: z.array(z.string()).optional(),
+    16→  default: paramValue,
+    17→  tier: z.number().optional(),
+    18→  label: z.string().optional(),
+    19→});
+    20→
+    21→const viewSchema = z.object({ color: z.string(), altColor: z.string().optional() });
+    22→
+    23→export const blockDefSchema = z.object({
+    24→  id: z.string(),
+    25→  kind: z.enum(['common', 'dwelling', 'commercial', 'infrastructure']),
+    26→  /** Nombre visible para el prompt/HUD (p. ej. 'la lavandería'). */
+    27→  label: z.string().optional(),
+    28→  layer: z.enum(['main', 'corridor']),
+    29→  size: z.object({ w: z.number(), h: z.number() }),
+    30→  traversable: z.boolean().optional(),
+    31→  alignGroup: z.string().optional(),
+    32→  features: z
+    33→    .object({
+    34→      stairs: z.boolean().optional(),
+    35→      elevator: z.boolean().optional(),
+    36→      mailboxes: z.boolean().optional(),
+    37→      noticeboard: z.boolean().optional(),
+    38→      bench: z.boolean().optional(),
+    39→    })
+    40→    .optional(),
+    41→  params: z.record(z.string(), paramDefSchema).optional(),
+    42→  container: z.object({ childKind: z.string(), layout: z.string() }).optional(),
+    43→  view: viewSchema,
+    44→});
+    45→
+    46→/**
+    47→ * Ranura de mobiliario. `pos` = [x, z] en metros LOCALES a la estancia (0,0 = esquina
+    48→ * frontal-izquierda del rect de la estancia en el layout). `y` opcional = altura del punto
+    49→ * de anclaje sobre el suelo (muebles de pared); sin y, el mueble se apoya en el suelo.
+    50→ */
+    51→export const furnitureSlotSchema = z.object({
+    52→  id: z.string(),
+    53→  kind: z.string(),
+    54→  pos: z.tuple([z.number(), z.number()]),
+    55→  y: z.number().optional(),
+    56→});
+    57→
+    58→export const roomDefSchema = z.object({
+    59→  id: z.string(),
+    60→  kind: z.literal('room'),
+    61→  label: z.string().optional(),
+    62→  size: z.object({ w: z.number(), h: z.number() }),
+    63→  params: z.record(z.string(), paramDefSchema).optional(),
+    64→  furnitureSlots: z.array(furnitureSlotSchema).optional(),
+    65→  /**
+    66→   * Fijaciones interactivas de la estancia (no son muebles del editor): portátil, cama…
+    67→   * `pos` = [x, z] en metros locales al rect de la estancia; el jugador las usa por
+    68→   * proximidad 2D (rules.view.itemRadius). Solo responden en la vivienda propia.
+    69→   */
+    70→  interactables: z
+    71→    .array(z.object({ id: z.string(), kind: z.enum(['laptop', 'bed']), pos: z.tuple([z.number(), z.number()]) }))
+    72→    .optional(),
+    73→  /**
+    74→   * Anclas de actividad de los vecinos (no interactivas para el jugador): dónde se colocan
+    75→   * dentro de la estancia las actividades que declaran `anchor` con ese kind en el arquetipo
+    76→   * (tv, stove, desk, amp…). `pos` = [x, z] en metros locales al rect de la estancia.
+    77→   */
+    78→  anchors: z.array(z.object({ id: z.string(), kind: z.string(), pos: z.tuple([z.number(), z.number()]) })).optional(),
+    79→  view: viewSchema,
+    80→});
+    81→
+    82→export const furnitureDefSchema = z.object({
+    83→  id: z.string(),
+    84→  name: z.string(),
+    85→  description: z.string(),
+    86→  emoji: z.string().optional(),
+    87→  price: z.number(),
+    88→  slots: z.array(z.string()),
+    89→  emits: z.record(z.string(), z.number()).optional(),
+    90→  params: z.array(z.object({ param: z.string(), delta: z.number() })).optional(),
+    91→  view: z.object({ color: z.string(), size: z.tuple([z.number(), z.number(), z.number()]) }),
+    92→});
+    93→
+    94→/**
+    95→ * Layout interior de una vivienda (Fase C, 100% data-driven). Cada estancia ocupa un rect
+    96→ * en metros LOCALES a la planta de la vivienda: x desde la pared izquierda, z desde el
+    97→ * plano frontal (la puerta). Los rects deben teselar la huella (size.w * view.cellW de ancho
+    98→ * × view.depth de calado para viviendas). Sin rects, el layout cae al comportamiento 1D
+    99→ * antiguo (bandas) — compatibilidad con catálogos previos.
+   100→ * `doorways`: huecos en los tabiques entre pares de estancias. `axis` = eje QUE CORRE el
+   101→ * tabique ('z' = tabique perpendicular a X, se cruza andando en X; 'x' = perpendicular a Z);
+   102→ * `at` = coordenada del centro del hueco según ese eje; `width` = anchura del hueco.
+   103→ * Entrar en una estancia cerrada (access locked) está bloqueado tenga o no hueco.
+   104→ */
+   105→export const layoutDefSchema = z.object({
+   106→  id: z.string(),
+   107→  rooms: z.array(
+   108→    z.object({
+   109→      key: z.string(),
+   110→      defId: z.string(),
+   111→      startsUnlocked: z.boolean(),
+   112→      rect: z.object({ x: z.number(), z: z.number(), w: z.number(), d: z.number() }).optional(),
+   113→    }),
+   114→  ),
+   115→  doorways: z
+   116→    .array(z.object({ a: z.string(), b: z.string(), axis: z.enum(['x', 'z']), at: z.number(), width: z.number() }))
+   117→    .optional(),
+   118→});
+   119→
+   120→export const influenceRuleSchema = z.object({
+   121→  id: z.string(),
+   122→  channel: z.string(),
+   123→  label: z.string().optional(),
+   124→  emoji: z.string().optional(),
+   125→  spread: z.record(z.string(), z.number()),
+   126→  attenuatedBy: z.string().optional(),
+   127→  decayPerTick: z.number(),
+   128→  threshold: z.number(),
+   129→  onThreshold: z
+   130→    .object({
+   131→      emitEvent: z.string(),
+   132→      message: z.string().optional(),
+   133→      tone: z.enum(['info', 'good', 'bad']).optional(),
+   134→      uiLog: z.boolean().optional(),
+   135→      setParam: z.object({ param: z.string(), delta: z.number() }).optional(),
+   136→    })
+   137→    .optional(),
+   138→});
+   139→
+   140→const scheduleWindowSchema = z.object({
+   141→  from: z.string(),
+   142→  to: z.string().optional(),
+   143→  chance: z.number().optional(),
+   144→  days: z.enum(['all', 'even', 'odd']).optional(),
+   145→});
+   146→
+   147→const archetypeViewSchema = z.object({
+   148→  color: z.string(),
+   149→  accent: z.string(),
+   150→  hat: z.enum(['cap', 'bun', 'sunglasses', 'headphones', 'none']),
+   151→  prop: z.enum(['binoculars', 'guitar', 'briefcase', 'cart', 'spray', 'phone', 'none']),
+   152→  height: z.number(),
+   153→});
+   154→
+   155→// ───────────────────────── Efectos (unión discriminada, recursiva por openJunta) ─────────────────────────
+   156→
+   157→const availabilitySchema = z.object({ mode: z.literal('for_sale'), price: z.number() });
+   158→
+   159→const effectSchema: z.ZodType<Effect> = z.lazy(() =>
+   160→  z.discriminatedUnion('op', [
+   161→    z.object({ op: z.literal('setParam'), target: z.string(), param: z.string().optional(), value: paramValue.optional(), delta: z.number().optional() }),
+   162→    z.object({
+   163→      op: z.literal('unlock'),
+   164→      target: z.string(),
+   165→      occupancy: z.enum(['vacant', 'occupied', 'under_works']).optional(),
+   166→      resident: z.string().optional(),
+   167→      arrival: z.string().optional(),
+   168→      availability: availabilitySchema.optional(),
+   169→      lockReason: z.string().optional(),
+   170→    }),
+   171→    z.object({ op: z.literal('buy'), target: z.string(), price: z.number() }),
+   172→    z.object({ op: z.literal('addReputation'), resident: z.string(), amount: z.number() }),
+   173→    z.object({ op: z.literal('addRelation'), a: z.string(), b: z.string(), affinity: z.number().optional(), trust: z.number().optional() }),
+   174→    z.object({ op: z.literal('startMission'), id: z.string(), delayMinutes: z.number().optional() }),
+   175→    z.object({ op: z.literal('startMinigame'), id: z.string() }),
+   176→    z.object({ op: z.literal('grantFavor'), from: z.string(), count: z.number() }),
+   177→    z.object({
+   178→      op: z.literal('openJunta'),
+   179→      agenda: z.array(
+   180→        z.object({
+   181→          id: z.string(),
+   182→          title: z.string(),
+   183→          description: z.string(),
+   184→          cost: z.number(),
+   185→          effects: z.array(effectSchema),
+   186→        }),
+   187→      ),
+   188→    }),
+   189→    z.object({ op: z.literal('addFunds'), to: z.string(), amount: z.number() }),
+   190→    z.object({ op: z.literal('revealParams'), tier: z.number().optional(), params: z.array(z.string()).optional() }),
+   191→    z.object({ op: z.literal('hideParams'), tier: z.number().optional(), params: z.array(z.string()).optional() }),
+   192→    z.object({ op: z.literal('toast'), text: z.string(), tone: z.enum(['info', 'good', 'bad']).optional() }),
+   193→    z.object({ op: z.literal('finale'), text: z.string() }),
+   194→  ]),
+   195→);
+   196→
+   197→const effects = z.array(effectSchema);
+   198→
+   199→export const minigameDefSchema = z.discriminatedUnion('type', [
+   200→  z.object({
+   201→    id: z.string(),
+   202→    name: z.string(),
+   203→    description: z.string(),
+   204→    emoji: z.string().optional(),
+   205→    instruction: z.string().optional(),
+   206→    type: z.literal('timing_bar'),
+   207→    config: z.object({
+   208→      rounds: z.number(),
+   209→      cursorSpeed: z.number(),
+   210→      zoneWidth: z.number(),
+   211→      zones: z.array(z.number()),
+   212→      accelPerRound: z.number(),
+   213→      lives: z.number(),
+   214→    }),
+   215→    onSuccess: effects,
+   216→    onFail: effects,
+   217→  }),
+   218→  z.object({
+   219→    id: z.string(),
+   220→    name: z.string(),
+   221→    description: z.string(),
+   222→    emoji: z.string().optional(),
+   223→    instruction: z.string().optional(),
+   224→    type: z.literal('tap_sequence'),
+   225→    config: z.object({
+   226→      rounds: z.number(),
+   227→      pads: z.array(z.string()),
+   228→      sequenceStart: z.number(),
+   229→      sequenceGrow: z.number(),
+   230→      showMs: z.number(),
+   231→      gapMs: z.number(),
+   232→      inputTimeoutMs: z.number(),
+   233→      lives: z.number(),
+   234→    }),
+   235→    onSuccess: effects,
+   236→    onFail: effects,
+   237→  }),
+   238→  z.object({
+   239→    id: z.string(),
+   240→    name: z.string(),
+   241→    description: z.string(),
+   242→    emoji: z.string().optional(),
+   243→    instruction: z.string().optional(),
+   244→    type: z.literal('reflex_targets'),
+   245→    config: z.object({
+   246→      targets: z.number(),
+   247→      spawnIntervalMs: z.number(),
+   248→      targetLifeMs: z.number(),
+   249→      radiusPct: z.number(),
+   250→      missesAllowed: z.number(),
+   251→      lives: z.number(),
+   252→      emoji: z.string(),
+   253→      decoyEmoji: z.string().optional(),
+   254→      decoyChance: z.number().optional(),
+   255→    }),
+   256→    onSuccess: effects,
+   257→    onFail: effects,
+   258→  }),
+   259→  z.object({
+   260→    id: z.string(),
+   261→    name: z.string(),
+   262→    description: z.string(),
+   263→    emoji: z.string().optional(),
+   264→    instruction: z.string().optional(),
+   265→    type: z.literal('memory_pairs'),
+   266→    config: z.object({
+   267→      items: z.array(z.string()),
+   268→      lives: z.number(),
+   269→    }),
+   270→    onSuccess: effects,
+   271→    onFail: effects,
+   272→  }),
+   273→]);
+   274→
+   275→export const archetypeDefSchema = z.object({
+   276→  id: z.string(),
+   277→  name: z.string(),
+   278→  tagline: z.string(),
+   279→  traits: z.object({
+   280→    gossip: z.number().optional(),
+   281→    sociability: z.number().optional(),
+   282→    tidiness: z.number().optional(),
+   283→    noisiness: z.number().optional(),
+   284→    generosity: z.number().optional(),
+   285→    mischief: z.number().optional(),
+   286→  }),
+   287→  voteBias: z.number().optional(),
+   288→  needs: z.array(z.string()),
+   289→  activities: z.record(
+   290→    z.string(),
+   291→    z.object({
+   292→      label: z.string().optional(),
+   293→      /** Destino: 'home'|'corridor'|'core'|'stairs'|'out', o 'def:<blockDefId>' para ir a un bloque por tipo (bar, lavandería…). */
+   294→      at: z
+   295→        .union([z.enum(['home', 'corridor', 'core', 'stairs', 'out']), z.string().regex(/^def:[\w-]+$/, 'debe ser def:<blockDefId>')])
+   296→        .optional() as z.ZodType<ActivityDef['at']>,
+   297→      /** Kind de ancla de estancia donde ocurre (cama, tv, stove…): vida interior de los vecinos. */
+   298→      anchor: z.string().optional(),
+   299→      say: z.array(z.string()).optional(),
+   300→      emits: z.record(z.string(), z.number()).optional(),
+   301→      schedule: z.array(scheduleWindowSchema).optional(),
+   302→      onStart: effects.optional(),
+   303→    }),
+   304→  ),
+   305→  view: archetypeViewSchema,
+   306→});
+   307→
+   308→export const dialogDefSchema = z.object({
+   309→  id: z.string(),
+   310→  lines: z.array(z.object({ speaker: z.string(), text: z.string() })),
+   311→});
+   312→
+   313→// ───────────────────────── Misiones ─────────────────────────
+   314→
+   315→const conditionSchema: z.ZodType<Condition> = z.union([
+   316→  z.object({ param: z.string(), eq: paramValue.optional(), gte: z.number().optional(), lte: z.number().optional() }),
+   317→  z.object({ role: z.string(), exists: z.boolean() }),
+   318→  z.object({ mission: z.string(), state: z.enum(['active', 'done']) }),
+   319→  z.object({ time: z.object({ after: z.string(), before: z.string().optional() }) }),
+   320→  z.object({ dayMin: z.number() }),
+   321→]);
+   322→
+   323→const missionStepSchema = z.discriminatedUnion('type', [
+   324→  z.object({ id: z.string(), type: z.literal('phone_call'), dialog: z.string(), hint: z.string().optional() }),
+   325→  z.object({ id: z.string(), type: z.literal('reach'), target: z.object({ block: z.string(), slot: z.string().optional() }), hint: z.string().optional() }),
+   326→  z.object({ id: z.string(), type: z.literal('enter'), target: z.string(), hint: z.string().optional() }),
+   327→  z.object({ id: z.string(), type: z.literal('catch_in_act'), target: z.string(), place: z.string(), windowMinutes: z.number(), hint: z.string().optional() }),
+   328→]);
+   329→
+   330→export const missionDefSchema = z.object({
+   331→  id: z.string(),
+   332→  title: z.string(),
+   333→  description: z.string(),
+   334→  roles: z.record(
+   335→    z.string(),
+   336→    z.object({ archetype: z.string().optional(), relation: z.literal('parentOf').optional(), of: z.string().optional() }),
+   337→  ).optional(),
+   338→  trigger: z.object({ all: z.array(conditionSchema).optional(), any: z.array(conditionSchema).optional() }).optional(),
+   339→  steps: z.array(missionStepSchema),
+   340→  choices: z.array(z.object({ id: z.string(), label: z.string(), hint: z.string().optional(), icon: z.string().optional(), effects })).optional(),
+   341→  onComplete: effects.optional(),
+   342→});
+   343→
+   344→// ───────────────────────── Cutscenes (Fase D) ─────────────────────────
+   345→
+   346→/** Punto de escenario: bloque (literal o $home/$entry/$event.block) y punto dentro de él. */
+   347→const cutsceneSpotSchema = z.object({ block: z.string().min(1), at: z.enum(['door', 'center']) });
+   348→
+   349→export const cutsceneDefSchema = z.object({
+   350→  id: z.string(),
+   351→  trigger: z.object({
+   352→    on: z.enum(['neighbor_arrived', 'mission_activated', 'step_started', 'step_completed', 'mission_completed', 'mission_failed']),
+   353→    mission: z.string().optional(),
+   354→    step: z.string().optional(),
+   355→  }),
+   356→  beats: z.array(
+   357→    z.discriminatedUnion('type', [
+   358→      z.object({ type: z.literal('cam'), focus: z.union([z.literal('wide'), z.literal('player'), cutsceneSpotSchema]), viewH: z.number().positive().optional(), hold: z.number().positive().optional() }),
+   359→      z.object({ type: z.literal('walk'), who: z.string().min(1), from: cutsceneSpotSchema.optional(), to: cutsceneSpotSchema, max: z.number().positive().optional(), viewH: z.number().positive().optional() }),
+   360→      z.object({
+   361→        type: z.literal('line'),
+   362→        speaker: z.string().optional(),
+   363→        text: z.string().min(1),
+   364→        seconds: z.number().positive().optional(),
+   365→        /** Actor que dice la línea ($event.resident/$role.x/id): hace el gesto mientras habla. */
+   366→        who: z.string().optional(),
+   367→        /** Estado social del gesto (stateAnimations: talk/laugh/argue/phone…); default 'talk'. */
+   368→        gesture: z.string().optional(),
+   369→      }),
+   370→      z.object({ type: z.literal('wait'), seconds: z.number().positive() }),
+   371→      z.object({ type: z.literal('sound'), id: z.string().min(1) }),
+   372→    ]),
+   373→  ),
+   374→});
+   375→
+   376→export const templateDefSchema = z.object({
+   377→  id: z.string(),
+   378→  grid: z.object({ cols: z.number(), floors: z.number() }),
+   379→  rows: z.array(z.object({ floors: z.tuple([z.number(), z.number()]), blocks: z.array(z.object({ col: z.number(), defId: z.string(), tag: z.string() })) })),
+   380→});
+   381→
+   382→const controllerSchema = z.union([
+   383→  z.object({ type: z.literal('human'), playerId: z.string() }),
+   384→  z.object({ type: z.literal('ai'), profile: z.string() }),
+   385→  z.object({ type: z.literal('script') }),
+   386→]);
+   387→
+   388→export const scenarioDefSchema = z.object({
+   389→  id: z.string(),
+   390→  world: z.object({
+   391→    seed: z.number(),
+   392→    clock: z.object({ day: z.number(), minute: z.number() }),
+   393→    timeScale: z.number(),
+   394→    weather: z.object({ state: z.enum(['sunny', 'cloudy', 'rain', 'storm']), nextChangeMinute: z.number() }),
+   395→  }),
+   396→  building: z.object({
+   397→    id: z.string(),
+   398→    template: z.string(),
+   399→    community: z.object({ funds: z.number(), presidentId: z.string().nullable() }),
+   400→    stateByDef: z.record(z.string(), z.object({ params: z.record(z.string(), paramValue).optional() })).optional(),
+   401→  }),
+   402→  player: z.object({
+   403→    residentId: z.string(),
+   404→    archetype: z.string(),
+   405→    startBlock: z.string(),
+   406→    homeCandidates: z.array(z.string()),
+   407→    wallet: z.number(),
+   408→    reputation: z.number(),
+   409→  }),
+   410→  residents: z.array(
+   411→    z.object({
+   412→      id: z.string(),
+   413→      archetype: z.string(),
+   414→      home: z.string(),
+   415→      present: z.boolean(),
+   416→      controller: controllerSchema,
+   417→      wallet: z.number(),
+   418→      reputation: z.number(),
+   419→      relations: z.array(z.object({ with: z.string(), affinity: z.number(), trust: z.number() })),
+   420→      parentOf: z.array(z.string()).optional(),
+   421→      needs: z.record(z.string(), z.number()).optional(),
+   422→    }),
+   423→  ),
+   424→  progress: z.object({ revealedTier: z.number() }),
+   425→  startMissions: z.array(z.string()),
+   426→  multiplayer: z.object({ guestArchetype: z.string().optional(), guestWallet: z.number().optional() }).optional(),
+   427→  minigameOverrides: z
+   428→    .record(
+   429→      z.string(),
+   430→      z.object({
+   431→        cursorSpeed: z.number().optional(),
+   432→        zoneWidth: z.number().optional(),
+   433→        rounds: z.number().optional(),
+   434→        lives: z.number().optional(),
+   435→        accelPerRound: z.number().optional(),
+   436→        inputTimeoutMs: z.number().optional(),
+   437→        showMs: z.number().optional(),
+   438→        gapMs: z.number().optional(),
+   439→        sequenceStart: z.number().optional(),
+   440→        sequenceGrow: z.number().optional(),
+   441→        targets: z.number().optional(),
+   442→        spawnIntervalMs: z.number().optional(),
+   443→        targetLifeMs: z.number().optional(),
+   444→        radiusPct: z.number().optional(),
+   445→        missesAllowed: z.number().optional(),
+   446→        decoyChance: z.number().optional(),
+   447→      }),
+   448→    )
+   449→    .optional(),
+   450→});
+   451→
+   452→export const rulesSchema = z.object({
+   453→  startScenario: z.string(),
+   454→  multiplayer: z.object({
+   455→    guestArchetype: z.string(),
+   456→    guestWallet: z.number(),
+   457→    maxPlayers: z.number(),
+   458→    tickSecondsPerTick: z.number(),
+   459→    joinToast: z.string(),
+   460→    leaveToast: z.string(),
+   461→    texts: z.object({ sessionFull: z.string(), noVacant: z.string(), remoteSaveDisabled: z.string() }),
+   462→  }),
+   463→  sim: z.object({
+   464→    night: scheduleWindowSchema,
+   465→    aiHopTicks: z.number(),
+   466→    missionLoopMax: z.number(),
+   467→    defaultNeeds: z.record(z.string(), z.number()),
+   468→    economy: z.object({
+   469→      rentMinute: z.string(),
+   470→      corridorDirtParam: z.string(),
+   471→      corridorDirtPerTick: z.number(),
+   472→      needDrift: z.record(z.string(), z.object({ base: z.number(), activity: z.record(z.string(), z.number()) })),
+   473→    }),
+   474→    work: z.object({ pay: z.number(), cooldownTicks: z.number(), funCost: z.number(), toastCooldown: z.string(), toastDone: z.string() }),
+   475→    knock: z.object({ affinityGain: z.number(), asleepLine: z.string(), fallbackLines: z.array(z.string()) }),
+   476→    sleep: z.object({ restore: z.record(z.string(), z.number()), toastDone: z.string() }),
+   477→    weather: z.object({
+   478→      cycle: z.array(z.object({ state: z.enum(['sunny', 'cloudy', 'rain', 'storm']), weight: z.number() })),
+   479→      durationMinutes: z.object({ min: z.number(), max: z.number() }),
+   480→    }),
+   481→    junta: z.object({
+   482→      baseYes: z.number(),
+   483→      affinityDivisor: z.number(),
+   484→      generosityFactor: z.number(),
+   485→      defaultGenerosity: z.number(),
+   486→      moodThreshold: z.number(),
+   487→      moodPenalty: z.number(),
+   488→      clamp: z.object({ min: z.number(), max: z.number() }),
+   489→    }),
+   490→    /** Malestar vecinal con el ascensor averiado (v1.5): subir por la escalera cuesta ánimo
+   491→     *  social y, de vez en cuando, un resoplido público (evento stairs_grumble, texto del catálogo). */
+   492→    elevator: z
+   493→      .object({
+   494→        stairsMoodCost: z.number().min(0).default(0.05),
+   495→        grumbleChance: z.number().min(0).max(1).default(0.05),
+   496→        grumbleCooldownMinutes: z.number().positive().default(180),
+   497→        grumbleText: z.string().default('🛗 {name} sube por la escalera: el ascensor sigue averiado.'),
+   498→      })
+   499→      .default({ stairsMoodCost: 0.05, grumbleChance: 0.05, grumbleCooldownMinutes: 180, grumbleText: '🛗 {name} sube por la escalera: el ascensor sigue averiado.' }),
+   500→  }),
+   501→  view: z.object({
+   502→    cellW: z.number(),
+   503→    cellH: z.number(),
+   504→    walkSpeed: z.number(),
+   505→    roomSpeed: z.number(),
+   506→    stairsSeconds: z.number(),
+   507→    elevatorSeconds: z.number(),
+   508→    margin: z.number(),
+   509→    nearRadius: z.number(),
+   510→    /** @deprecated sustituido por interactables del catálogo de estancias (Fase C). */
+   511→    laptopOffset: z.number().optional(),
+   512→    /** @deprecated sustituido por interactables del catálogo de estancias (Fase C). */
+   513→    bedOffset: z.number().optional(),
+   514→    itemRadius: z.number(),
+   515→    corridorZ: z.number(),
+   516→    /** Calado del pasillo exterior (tiras transitables): saliente hacia la calle. */
+   517→    corridorDepth: z.number().default(0.5),
+   518→    /** Altura de la barandilla del pasillo (0 = sin barandilla). */
+   519→    corridorRail: z.number().default(0),
+   520→    /** Velocidad de crucero de los vecinos (IA) en m/s: la interpolación nunca "teletransporta". */
+   521→    npcWalkSpeed: z.number().default(2.2),
+   522→    /** Segundos entre deambulaciones de un vecino en casa sin ancla de actividad (vida interior). */
+   523→    npcWanderSeconds: z.number().default(8),
+   524→    /** Suavizado del giro del actor hacia su dirección de movimiento (rad/s, 2.5D creíble). */
+   525→    actorTurnSpeed: z.number().positive().default(10),
+   526→    /** Anti-patinaje (v1.3): velocidad natural de los clips al ratio 1 (m/s) y límites del
+   527→     *  ratio de playback. El runtime escala la animación con la velocidad PLANA real del
+   528→     *  actor: walkRefSpeed/runRefSpeed deben coincidir con la zancada authorada en los glTF
+   529→     *  (WALK_NATURAL_SPEED / RUN_NATURAL_SPEED de scripts/lib/gltf.ts). */
+   530→    animSync: z
+   531→      .object({
+   532→        walkRefSpeed: z.number().positive().default(1.15),
+   533→        runRefSpeed: z.number().positive().default(2.2),
+   534→        minRate: z.number().positive().default(0.6),
+   535→        maxRate: z.number().positive().default(2.65),
+   536→      })
+   537→      .default({ walkRefSpeed: 1.15, runRefSpeed: 2.2, minRate: 0.6, maxRate: 2.65 }),
+   538→    /** Escalera de vecinos (v1.4): geometría compartida por la authoría glTF y el runtime
+   539→     *  (src/game/stairs.ts). Metros; spanW en celdas; doorLocalX respecto al centro del cubo
+   540→     *  visual; carriles desde el plano frontal del bloque. */
+   541→    stairs: z
+   542→      .object({
+   543→        spanW: z.number().int().min(1).default(2),
+   544→        doorLocalX: z.number().default(-1.14),
+   545→        entryHalf: z.number().positive().default(0.45),
+   546→        laneFront: z.number().positive().default(0.35),
+   547→        laneBack: z.number().positive().default(1.05),
+   548→        flightRun: z.number().positive().default(2.19),
+   549→        landingX: z.number().positive().default(0.5),
+   550→        stepCount: z.number().int().min(4).default(8),
+   551→        climbSpeed: z.number().positive().default(1.8),
+   552→      })
+   553→      .default({ spanW: 2, doorLocalX: -1.14, entryHalf: 0.45, laneFront: 0.35, laneBack: 1.05, flightRun: 2.19, landingX: 0.5, stepCount: 8, climbSpeed: 1.8 }),
+   554→    /** Ascensor creíble (v1.5, presentación): semáforo de permisos con llamadas, puertas que
+   555→     *  abren/cierran, espera al embarco y capacidad limitada. TODO en el catálogo, nada a pelo. */
+   556→    elevator: z
+   557→      .object({
+   558→        capacity: z.number().int().min(1).default(4),
+   559→        doorWaitMs: z.number().positive().default(5000),
+   560→        doorMoveMs: z.number().positive().default(700),
+   561→        floorsPerSecond: z.number().positive().default(1.4),
+   562→        /** Aceleración de la cabina (plantas/s², v1.12): perfil trapezoidal acelerar→crucero→frenar.
+   563→         *  Los viajes cortos ni llegan al crucero (triangulares); la duración SIEMPRE crece con la
+   564→         *  distancia — nunca un teletransporte entre plantas. */
+   565→        accelFloorsPerSecond2: z.number().positive().default(1.2),
+   566→        cabinColor: z.string().default('#aeb8c2'),
+   567→        doorColor: z.string().default('#cbd5e1'),
+   568→        callColor: z.string().default('#ffd166'),
+   569→        brokenColor: z.string().default('#c1666b'),
+   570→        rideZ: z.number().default(0.35),
+   571→      })
+   572→      .default({ capacity: 4, doorWaitMs: 5000, doorMoveMs: 700, floorsPerSecond: 1.4, accelFloorsPerSecond2: 1.2, cabinColor: '#aeb8c2', doorColor: '#cbd5e1', callColor: '#ffd166', brokenColor: '#c1666b', rideZ: 0.35 }),
+   573→    /** Cartel numerado sobre cada puerta de vivienda (v1.6): el label sale del id del bloque
+   574→     *  (blk_p3_c → "3C") con DynamicTexture; tamaño, posición y colores del catálogo. */
+   575→    plaque: z
+   576→      .object({
+   577→        w: z.number().positive().default(0.62),
+   578→        h: z.number().positive().default(0.24),
+   579→        y: z.number().default(2.18),
+   580→        z: z.number().default(-0.04),
+   581→        bg: z.string().default('#3b3129'),
+   582→        text: z.string().default('#ffd166'),
+   583→        fontPx: z.number().positive().default(64),
+   584→      })
+   585→      .default({ w: 0.62, h: 0.24, y: 2.18, z: -0.04, bg: '#3b3129', text: '#ffd166', fontPx: 64 }),
+   586→    /** Velocidad (m/s) a partir de la cual un actor en marcha usa el clip "run". */
+   587→    runSpeed: z.number().positive().default(4.2),
+   588→    /** Multiplicador de velocidad del jugador mientras corre (Shift / botón del mando). */
+   589→    runMultiplier: z.number().min(1).default(1.75),
+   590→    /** Anclas de actividad en las que el vecino se SIENTA (clip "sit") al llegar. */
+   591→    seatAnchors: z.array(z.string()).default(['bed', 'tv', 'desk']),
+   592→    roomZ: z.number(),
+   593→    depth: z.number(),
+   594→    commonDepth: z.number().default(1.4),
+   595→    wall: z.number(),
+   596→    gapW: z.number(),
+   597→    gapH: z.number(),
+   598→    slab: z.number(),
+   599→    sky: z.object({ r: z.number(), g: z.number(), b: z.number() }),
+   600→    ambient: z.object({ dir: z.tuple([z.number(), z.number(), z.number()]), intensity: z.number() }),
+   601→    sun: z.object({ dir: z.tuple([z.number(), z.number(), z.number()]), intensity: z.number() }),
+   602→    lockedColor: z.string(),
+   603→    vacantTint: z.number(),
+   604→    brokenColor: z.string(),
+   605→    lockColor: z.string(),
+   606→    homeEdge: z.string(),
+   607→    channelGlow: z.record(z.string(), z.string()),
+   608→    actorFallbackColor: z.string(),
+   609→    actorFallbackHeight: z.number(),
+   610→    actorRadius: z.number(),
+   611→    lod: z.object({
+   612→      enabled: z.boolean(),
+   613→      focus: z.literal('player'),
+   614→      levels: z.array(z.object({ dist: z.number(), hide: z.array(z.enum(['edges', 'glow', 'panels'])) })),
+   615→    }),
+   616→  }),
+   617→  demo: z.object({ resident: z.string(), block: z.string(), noise: z.number(), toast: z.string() }),
+   618→  cutscene: z.object({
+   619→    hold: z.number().positive(),
+   620→    line: z.number().positive(),
+   621→    walkMax: z.number().positive(),
+   622→    focusViewH: z.number().positive(),
+   623→    walkViewH: z.number().positive().default(6.4),
+   624→  }),
+   625→  furniture: z.object({
+   626→    refundRatio: z.number(),
+   627→    roomUnlock: z.object({ price: z.number(), toast: z.string() }),
+   628→    errors: z.record(z.string(), z.string()),
+   629→  }),
+   630→  minigames: z.object({
+   631→    winLine: z.string(),
+   632→    loseLine: z.string(),
+   633→    hitLine: z.string(),
+   634→    failLines: z.array(z.string()),
+   635→    introByType: z.record(z.string(), z.string()),
+   636→  }),
+   637→  touch: z.object({
+   638→    deadzone: z.number(),
+   639→    stick: z.object({ base: z.number(), thumb: z.number() }),
+   640→    labels: z.object({ interact: z.string(), camera: z.string(), move: z.string() }),
+   641→    hint: z.string(),
+   642→  }),
+   643→  labels: z.object({ weather: z.record(z.string(), z.string()), elevator: z.record(z.string(), z.string()).default({ ok: 'funciona' }) }),
+   644→  interact: z.object({
+   645→    exit: z.string(),
+   646→    doorEnter: z.string(),
+   647→    doorLocked: z.string(),
+   648→    greet: z.string(),
+   649→    laptop: z.string(),
+   650→    bed: z.string(),
+   651→    stairs: z.string(),
+   652→    elevator: z.string(),
+   653→    elevatorBroken: z.string(),
+   654→    mailbox: z.object({ prompt: z.string(), lines: z.array(z.string()).min(1) }),
+   655→    noticeboard: z.object({ prompt: z.string(), template: z.string() }),
+   656→  }),
+   657→});
+   658→
+   659→// ───────────────────────── Catálogo de sonido (procedural, Web Audio) ─────────────────────────
+   660→
+   661→const soundStepSchema = z.object({
+   662→  wave: z.enum(['sine', 'square', 'triangle', 'sawtooth']).default('sine'),
+   663→  freq: z.number(),
+   664→  freqEnd: z.number().optional(),
+   665→  durMs: z.number(),
+   666→  gain: z.number(),
+   667→  attackMs: z.number().default(5),
+   668→  atMs: z.number().default(0),
+   669→});
+   670→
+   671→export const soundsCatalogSchema = z.object({
+   672→  masterGain: z.number(),
+   673→  sounds: z.record(
+   674→    z.string(),
+   675→    z.discriminatedUnion('kind', [
+   676→      soundStepSchema.extend({ kind: z.literal('tone') }),
+   677→      z.object({ kind: z.literal('noise'), durMs: z.number(), gain: z.number(), filterHz: z.number().default(1200), atMs: z.number().default(0) }),
+   678→      z.object({ kind: z.literal('seq'), steps: z.array(soundStepSchema) }),
+   679→    ]),
+   680→  ),
+   681→  events: z.record(z.string(), z.array(z.string())),
+   682→});
+   683→
+   684→export type SoundsCatalog = z.infer<typeof soundsCatalogSchema>;
+   685→
+   686→// ───────────────────────── Manifiesto de assets (arte final sustituible, opcional) ─────────────────────────
+   687→
+   688→export const actorAssetSchema = z.object({
+   689→  model: z.string().min(1),
+   690→  nominalHeight: z.number().positive(),
+   691→  animations: z.record(z.string(), z.string()).optional(),
+   692→  defaultAnimation: z.string().optional(),
+   693→  walkAnimation: z.string().optional(),
+   694→  activityAnimations: z.record(z.string(), z.string()).optional(),
+   695→  /** Clips por ESTADO social (run/talk/laugh/argue/phone/sit): el runtime los usa para
+   696→   *  gestos del controlador y cutscenes; un estado sin clip cae al default con elegancia. */
+   697→  stateAnimations: z.record(z.string(), z.string()).optional(),
+   698→});
+   699→
+   700→export const blockAssetSchema = z.object({
+   701→  model: z.string().min(1),
+   702→  nominal: z.object({ w: z.number().positive(), h: z.number().positive(), d: z.number().positive() }),
+   703→  tintStrength: z.number().min(0).max(1).optional(),
+   704→  /** Ancho visual en celdas (v1.4, cubo de escalera): escala a spanW·cellW−gapW y ancla al
+   705→   *  borde izquierdo de la celda lógica (la torre sobresale por la derecha del edificio). */
+   706→  spanW: z.number().int().min(1).optional(),
+   707→  /** Overlay: decora sin ocultar el greybox (marcos de puerta sobre el corte interior). */
+   708→  overlay: z.boolean().optional(),
+   709→  /** Clonar materiales por instancia (default true): tinte/glow por bloque sin contaminar hermanos. */
+   710→  cloneMaterials: z.boolean().optional(),
+   711→});
+   712→
+   713→export const assetsCatalogSchema = z.object({
+   714→  base: z.string().min(1),
+   715→  actors: z.record(z.string(), actorAssetSchema).optional(),
+   716→  blocks: z.record(z.string(), blockAssetSchema).optional(),
+   717→});
+   718→
+   719→export type AssetsCatalogParsed = z.infer<typeof assetsCatalogSchema>;
+   720→
+   721→// ───────────────────────── Bocadillos de expresión (v1.10, opcional) ─────────────────────────
+   722→
+   723→const emoteDefSchema = z.object({
+   724→  id: z.string().min(1),
+   725→  glyph: z.string().min(1),
+   726→  priority: z.number(),
+   727→  label: z.string().optional(),
+   728→});
+   729→
+   730→export const emotesCatalogSchema = z.object({
+   731→  bubble: z.object({
+   732→    offsetY: z.number().min(0),
+   733→    sizePx: z.number().min(8),
+   734→    maxDistance: z.number().positive(),
+   735→    popMs: z.number().min(0),
+   736→    decisionMs: z.number().min(50),
+   737→  }),
+   738→  mood: z.object({
+   739→    needs: z.record(z.string(), z.number()),
+   740→  }),
+   741→  moods: z.array(emoteDefSchema.extend({ min: z.number().optional(), max: z.number().optional() })),
+   742→  activities: z.array(emoteDefSchema),
+   743→  gestures: z.array(emoteDefSchema),
+   744→  events: z.array(
+   745→    z.object({
+   746→      on: z.string().min(1),
+   747→      glyph: z.string().min(1),
+   748→      priority: z.number(),
+   749→      who: z.enum(['resident', 'player', 'blockResidents']),
+   750→      seconds: z.number().positive(),
+   751→      altGlyph: z.object({ when: z.string().min(1), glyph: z.string().min(1) }).optional(),
+   752→      cooldown: z.number().min(0).optional(),
+   753→    }),
+   754→  ),
+   755→});
+   756→
+   757→export type EmotesCatalogParsed = z.infer<typeof emotesCatalogSchema>;
+   758→
+   759→// ───────────────────────── Listas (los ficheros JSON son arrays; el Content las indexa) ─────────────────────────
+   760→
+   761→export const blockListSchema = z.array(blockDefSchema);
+   762→export const roomListSchema = z.array(roomDefSchema);
+   763→export const furnitureListSchema = z.array(furnitureDefSchema);
+   764→export const minigameListSchema = z.array(minigameDefSchema);
+   765→export const layoutListSchema = z.array(layoutDefSchema);
+   766→export const influenceListSchema = z.array(influenceRuleSchema);
+   767→export const archetypeListSchema = z.array(archetypeDefSchema);
+   768→export const dialogListSchema = z.array(dialogDefSchema);
+   769→export const missionListSchema = z.array(missionDefSchema);
+   770→export const cutsceneListSchema = z.array(cutsceneDefSchema);
+   771→export const templateListSchema = z.array(templateDefSchema);
+   772→export const scenarioListSchema = z.array(scenarioDefSchema);
+   773→

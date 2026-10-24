@@ -2,8 +2,9 @@ import type { Mesh, Scene, TransformNode } from '@babylonjs/core';
 import type { BlockInstance, Content, PlayerPosition, World } from '@/game/core/types';
 import { B } from './babylon';
 import { instantiateActorAsset, type ActorRig } from './assets';
-import { hash01, interiorRoute, interiorTarget, layoutGeometryOf, type Pt } from '@/game/interior';
+import { hash01, interiorTarget, layoutGeometryOf, type Pt } from '@/game/interior';
 import { stairGeomOf, stairPathPoints } from '@/game/stairs';
+import { horizontalLegs } from '@/game/routing';
 import type { ElevatorsDirector } from './elevator';
 
 /** Plano frontal de las viviendas: z local 0 de los interiores (la cara de la puerta). */
@@ -168,14 +169,29 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
   const depthOfBlock = (b: BlockInstance): number => (b.kind === 'dwelling' ? v.depth : v.commonDepth);
   /** Plano frontal de las viviendas: z local 0 de los interiores y origen del pasillo. */
   const frontZ = frontZOf(v.roomZ, v.commonDepth);
+  /** Bloque main bajo los pies (v1.14): para salir de la banda de viviendas por SU puerta. */
+  const hostSpanAt = (x: number, floor: number): { x0: number; w: number } | null => {
+    for (const b of Object.values(world.blocks)) {
+      if (b.cell.floor !== floor || b.layer !== 'main') continue;
+      const x0 = b.cell.col * v.cellW;
+      const w = b.size.w * v.cellW;
+      if (x >= x0 && x <= x0 + w) return { x0, w };
+    }
+    return null;
+  };
 
   /**
    * Ruta (cola de tramos) del nodo actual al destino: cambio de planta → pozo más cercano
-   * (andar hasta él, subir/bajar, salir), y dentro de una vivienda con geometría 2D la ruta
-   * pasa por los huecos del catálogo (nunca a través de tabiques). La comparten la IA normal
-   * y el director de cutscenes: una sola verdad de locomoción.
-   * Devuelve false SOLO cuando el destino exige cambiar de planta y no hay pozo utilizable
-   * (estado imposible: el llamador decide si recoloca sin teatro).
+   * (andar hasta él por el pasillo, subir/bajar, salir), y dentro de una vivienda con
+   * geometría 2D la ruta pasa por los huecos del catálogo (nunca a través de tabiques).
+   * La comparten la IA normal y el director de cutscenes: una sola verdad de locomoción.
+   *
+   * v1.14 — LEY DEL PASILLO (rutas blindadas): todo el tramo horizontal lo calcula
+   * horizontalLegs() (@/game/routing): el avance en X solo ocurre sobre la línea del
+   * pasillo y la banda de bloques solo se entra/sale en vertical en la x del bloque
+   * propio — jamás una diagonal atravesando el 2C (o el núcleo del ascensor) para
+   * llegar al 2B. Devuelve false SOLO cuando el destino exige cambiar de planta y no
+   * hay pozo utilizable (estado imposible: el llamador decide si recoloca sin teatro).
    */
   const buildRoute = (a: Actor, dest: { x: number; y: number; z: number; inside?: { block: BlockInstance; local: Pt } | null }): boolean => {
     const node = a.node.position;
@@ -194,8 +210,10 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
         .sort((s1, s2) => Math.abs(shaftXOf(s1) - startX) - Math.abs(shaftXOf(s2) - startX))[0];
       if (here) {
         const sx = shaftXOf(here);
-        if (Math.abs(sx - startX) > 0.3) {
-          a.path.push({ x: sx, y: node.y, z: v.corridorZ });
+        // Salir del interior por la puerta propia (si procede) y andar hasta el pozo SOLO
+        // por la línea del pasillo: la diagonal directa cruzaba viviendas vecinas.
+        for (const l of horizontalLegs({ view: v, from: { x: startX, z: startZ }, dest: { x: sx, z: v.corridorZ }, hostSpan: hostSpanAt(startX, floorNow) })) {
+          a.path.push({ x: l.x, y: node.y, z: l.z });
         }
         // ¿Escalera o ascensor? La escalera REAL (v1.4) va por los peldaños; el ascensor
         // OPERATIVO (v1.5) registra una LLAMADA: el actor camina a la puerta y espera a la
@@ -221,28 +239,19 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
         verticalOk = false;
       }
     }
-    const legs: Pt[] = [];
-    if (dest.inside) {
-      const b = dest.inside.block;
-      const geo = layoutGeometryOf(content, b);
-      if (geo) {
-        const x0 = b.cell.col * v.cellW;
-        const outside = startZ < frontZ - 0.01;
-        const fromLocal: Pt = outside
-          ? { x: Math.min(b.size.w * v.cellW - v.margin, Math.max(v.margin, startX - x0)), z: 0.45 }
-          : { x: startX - x0, z: startZ - frontZ };
-        const route = interiorRoute(geo, fromLocal, dest.inside.local);
-        if (route) {
-          if (outside) legs.push({ x: x0 + fromLocal.x, z: frontZ + 0.45 });
-          for (const p of route) legs.push({ x: x0 + p.x, z: frontZ + p.z });
-        } else {
-          legs.push({ x: (x0 + b.size.w * v.cellW) / 2, z: frontZ + 0.6 }); // sin ruta legal: al frente
-        }
-      } else {
-        legs.push({ x: dest.x, z: dest.z });
-      }
-    }
-    if (legs.length === 0) legs.push({ x: dest.x, z: dest.z });
+    // Tramos horizontales al destino bajo la ley del pasillo (misma función que el enfoque
+    // al pozo: entrada al bloque solo en vertical, en la x del destino, o ruta interior).
+    const destGeo = dest.inside ? layoutGeometryOf(content, dest.inside.block) : null;
+    const legs = horizontalLegs({
+      view: v,
+      from: { x: startX, z: startZ },
+      dest: { x: dest.x, z: dest.z },
+      destInside:
+        dest.inside && destGeo
+          ? { x0: dest.inside.block.cell.col * v.cellW, w: dest.inside.block.size.w * v.cellW, geo: destGeo, target: dest.inside.local }
+          : null,
+      hostSpan: hostSpanAt(startX, Math.round(dest.y / v.cellH)),
+    });
     for (const p of legs) a.path.push({ x: p.x, y: dest.y, z: p.z });
     return verticalOk;
   };

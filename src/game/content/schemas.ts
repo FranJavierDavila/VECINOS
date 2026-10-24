@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { ActivityDef, Condition, Effect } from '@/game/core/types';
+import type { ActivityDef, Condition, Effect, EcosystemEvent, EcosystemOutcome, EcosystemWhen } from '@/game/core/types';
 
 /**
  * Schemas Zod de los catálogos de contenido. Son la única puerta de entrada:
@@ -755,6 +755,119 @@ export const emotesCatalogSchema = z.object({
 });
 
 export type EmotesCatalogParsed = z.infer<typeof emotesCatalogSchema>;
+
+// ───────────────────────── Ecosistema del edificio (v1.14) ─────────────────────────
+
+const weatherState = z.enum(['sunny', 'cloudy', 'rain', 'storm']);
+
+export const ecoWhenSchema: z.ZodType<EcosystemWhen> = z.union([
+  z.object({ weather: z.union([weatherState, z.array(weatherState)]), not: z.boolean().optional() }),
+  z.object({ paramAbove: z.object({ block: z.string().min(1), param: z.string().min(1), value: z.number() }) }),
+  z.object({ paramBelow: z.object({ block: z.string().min(1), param: z.string().min(1), value: z.number() }) }),
+  z.object({ fundsAbove: z.number() }),
+  z.object({ fundsBelow: z.number() }),
+  z.object({ moodAbove: z.number() }),
+  z.object({ moodBelow: z.number() }),
+  z.object({ residentPresent: z.string().min(1) }),
+  z.object({ missionState: z.object({ mission: z.string().min(1), state: z.enum(['none', 'active', 'awaiting_choice', 'done', 'failed']) }) }),
+]);
+
+export const ecoOutcomeSchema: z.ZodType<EcosystemOutcome> = z.object({
+  id: z.string().min(1),
+  weight: z.number().positive(),
+  when: z.array(ecoWhenSchema).optional(),
+  effects,
+  toast: z.string().min(1).optional(),
+});
+
+export const ecoEventSchema: z.ZodType<EcosystemEvent> = z
+  .object({
+    id: z.string().min(1),
+    kind: z.enum(['vendor', 'prank', 'pet', 'blackout', 'drift']),
+    weight: z.number().positive(),
+    cooldownTicks: z.number().int().min(0),
+    window: z.object({ from: z.string().min(1), to: z.string().min(1) }).optional(),
+    chance: z.number().min(0).max(1).optional(),
+    when: z.array(ecoWhenSchema).optional(),
+    vendor: z
+      .object({
+        archetype: z.string().min(1),
+        doors: z.number().int().min(1),
+        perKnockOutcomes: z.array(ecoOutcomeSchema).min(1),
+      })
+      .optional(),
+    pet: z.object({ mission: z.string().min(1) }).optional(),
+    blackout: z
+      .object({
+        durationMinutes: z.object({ min: z.number().positive(), max: z.number().positive() }),
+        corridorBlock: z.string().min(1),
+        lightingParam: z.string().min(1),
+        restoreTo: z.number(),
+        restoreToast: z.string().min(1),
+      })
+      .optional(),
+    outcomes: z.array(ecoOutcomeSchema).optional(),
+  })
+  .superRefine((ev, ctx) => {
+    if (ev.kind === 'vendor' && !ev.vendor) ctx.addIssue({ code: 'custom', message: 'un evento vendor necesita su bloque vendor' });
+    if (ev.kind === 'pet' && !ev.pet) ctx.addIssue({ code: 'custom', message: 'un evento pet necesita su bloque pet (misión)' });
+    if (ev.kind === 'blackout' && !ev.blackout) ctx.addIssue({ code: 'custom', message: 'un evento blackout necesita su bloque blackout' });
+    if ((ev.kind === 'prank' || ev.kind === 'drift' || ev.kind === 'blackout') && (!ev.outcomes || ev.outcomes.length === 0))
+      ctx.addIssue({ code: 'custom', message: `un evento ${ev.kind} necesita outcomes ponderados` });
+  });
+
+export const ecosystemContentSchema = z.object({
+  schemaVersion: z.literal(1),
+  scheduler: z.object({ evalEveryTicks: z.number().int().min(1) }),
+  extras: z.object({
+    walkSpeed: z.number().positive(),
+    vendor: z.object({ knockPauseSec: z.number().positive(), floors: z.array(z.number().int().min(0)) }),
+    pet: z.object({
+      walkSpeed: z.number().positive(),
+      strollSeconds: z.number().positive(),
+      pauseSeconds: z.number().min(0),
+      stainFadeSec: z.number().positive(),
+      stainW: z.number().positive(),
+      stainH: z.number().positive(),
+      stainOpacity: z.number().min(0).max(1),
+      color: z.string().min(1),
+      bodyW: z.number().positive(),
+      bodyH: z.number().positive(),
+      headScale: z.number().positive(),
+    }),
+  }),
+  lights: z.object({
+    color: z.string().min(1),
+    nightIntensity: z.number().min(0),
+    blackoutOccupiedIntensity: z.number().min(0),
+    dayIntensity: z.number().min(0),
+    paramThreshold: z.number().min(0).max(100),
+    lampsPerCorridor: z.number().int().min(1),
+    lampSize: z.tuple([z.number().positive(), z.number().positive(), z.number().positive()]),
+  }),
+  mood: z.object({ needs: z.record(z.string(), z.number()) }),
+  visuals: z.object({
+    checkSeconds: z.number().positive(),
+    deterioration: z.array(
+      z.object({
+        id: z.string().min(1),
+        blockDef: z.string().min(1),
+        param: z.string().min(1),
+        below: z.number().optional(),
+        above: z.number().optional(),
+        kind: z.enum(['cracks', 'dirt', 'damp', 'soot']),
+        color: z.string().min(1),
+        opacity: z.number().min(0).max(1),
+        count: z.number().int().min(1),
+        w: z.number().positive(),
+        h: z.number().positive(),
+      }),
+    ),
+  }),
+  events: z.array(ecoEventSchema),
+});
+
+export type EcosystemContentParsed = z.infer<typeof ecosystemContentSchema>;
 
 // ───────────────────────── Listas (los ficheros JSON son arrays; el Content las indexa) ─────────────────────────
 

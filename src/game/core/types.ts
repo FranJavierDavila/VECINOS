@@ -538,6 +538,168 @@ export interface AssetsCatalog {
   blocks?: Record<string, BlockAssetDef>;
 }
 
+// ───────────────────────── Ecosistema del edificio (v1.14) ─────────────────────────
+
+/**
+ * Catálogo de "El edificio está vivo" (public/content/ecosystem.json). El cerebro puro
+ * (src/game/ecosystem.ts) evalúa eventos a cadencia y aplica consecuencias SOLO a través
+ * del motor de efectos del sim; la capa visual ejecuta el staging del report.
+ * Cero datos de gameplay en código: pesos, ventanas, umbrales y colores viven aquí.
+ */
+
+/** Estados de una misión tal como los ve el ecosistema ('none' = no existe en el mundo). */
+export type EcosystemMissionState = 'none' | 'active' | 'awaiting_choice' | 'done' | 'failed';
+
+/**
+ * Condición del ecosistema. `when` de eventos y outcomes es la lista de estas condiciones
+ * (todas deben cumplirse). Las condiciones son DEL CEREBRO: nunca amplían el sim.
+ */
+export type EcosystemWhen =
+  | { weather: Weather | Weather[]; not?: boolean }
+  | { paramAbove: { block: string; param: string; value: number } }
+  | { paramBelow: { block: string; param: string; value: number } }
+  | { fundsAbove: number }
+  | { fundsBelow: number }
+  | { moodAbove: number }
+  | { moodBelow: number }
+  | { residentPresent: string }
+  | { missionState: { mission: string; state: EcosystemMissionState } };
+
+/** Rama ponderada de un evento: impredecibilidad declarada en JSON (pesos, no código). */
+export interface EcosystemOutcome {
+  id: string;
+  /** Peso del sorteo ponderado (relative, 0..∞). */
+  weight: number;
+  /** Condiciones extra que debe cumplir SOLO esta rama para ser sorteable. */
+  when?: EcosystemWhen[];
+  /** Vocabulario Effect EXACTO del sim (setParam/unlock/addFunds/startMission/toast…). */
+  effects: Effect[];
+  /** Texto de aviso vecinal aplicado como efecto toast (tono info). */
+  toast?: string;
+}
+
+/** Configuración de un evento `vendor`: extra que entra y llama a N puertas. */
+export interface EcosystemVendorEvent {
+  /** Arquetipo del vendedor (modelo en assets.actors o cápsula de fallback). */
+  archetype: string;
+  /** Puertas que llama por visita (se recortan a las disponibles de la planta). */
+  doors: number;
+  /** Sorteo PONDERADO POR CADA LLAMADA: los efectos se aplican al instante (autoridad del sim). */
+  perKnockOutcomes: EcosystemOutcome[];
+}
+
+/** Configuración de un evento `pet`: la mascota vive mientras su misión esté abierta. */
+export interface EcosystemPetEvent {
+  /** Misión "mascota perdida" que el cerebro arranca (reach/enter declara el bloque). */
+  mission: string;
+}
+
+/** Configuración de un evento `blackout`: apagón nocturno con restauración garantizada. */
+export interface EcosystemBlackoutEvent {
+  /** Duración sorteada del apagón en minutos de juego. */
+  durationMinutes: { min: number; max: number };
+  /** Bloque (id o defId) del pasillo cuyo param de luz se apaga. */
+  corridorBlock: string;
+  /** Param de iluminación del pasillo (autoridad del sim). */
+  lightingParam: string;
+  /** Valor de catálogo al que se restaura al expirar. */
+  restoreTo: number;
+  /** Aviso al restaurar la luz. */
+  restoreToast: string;
+}
+
+export type EcosystemEventKind = 'vendor' | 'prank' | 'pet' | 'blackout' | 'drift';
+
+export interface EcosystemEvent {
+  id: string;
+  kind: EcosystemEventKind;
+  /** Peso entre eventos candidatos de la misma evaluación. */
+  weight: number;
+  /** Ticks que el evento queda en silencio tras dispararse. */
+  cooldownTicks: number;
+  /** Ventana horaria (minutos del reloj del mundo; `to` ≤ `from` cruza medianoche). */
+  window?: { from: string; to: string };
+  /** Probabilidad por evaluación (0..1) una vez pasados cooldown/ventana/when. */
+  chance?: number;
+  /** Condiciones (todas) que deben cumplirse para que el evento sea candidato. */
+  when?: EcosystemWhen[];
+  vendor?: EcosystemVendorEvent;
+  pet?: EcosystemPetEvent;
+  blackout?: EcosystemBlackoutEvent;
+  /** Ramas ponderadas (prank/drift/pet/blackout); vendor usa perKnockOutcomes. */
+  outcomes?: EcosystemOutcome[];
+}
+
+/** Regla de deterioro visual: lee params REALES del world y pinta decals cuando se cumplen. */
+export interface EcosystemDeteriorationRule {
+  id: string;
+  /** defId de bloque (todas sus instancias se vigilan). */
+  blockDef: string;
+  /** Param del bloque que hace de verdad (condition, cleanliness, humidity, soot…). */
+  param: string;
+  /** La regla se cumple si el param baja de `below` o sube de `above`. */
+  below?: number;
+  above?: number;
+  /** Tipo de decal y su teatro (posición determinista por hash). */
+  kind: 'cracks' | 'dirt' | 'damp' | 'soot';
+  color: string;
+  opacity: number;
+  count: number;
+  w: number;
+  h: number;
+}
+
+/** Catálogo del ecosistema. Opcional: sin el fichero, la partida funciona igual (patrón emotes). */
+export interface EcosystemContent {
+  schemaVersion: 1;
+  scheduler: {
+    /** Ticks entre evaluaciones del cerebro. */
+    evalEveryTicks: number;
+  };
+  extras: {
+    /** Velocidad de crucero de los extras (vendedor), m/s. */
+    walkSpeed: number;
+    /** Segundos de pausa teatral al llamar a una puerta. */
+    vendor: { knockPauseSec: number; floors: number[] };
+    /** Mascota: paseo, pausas, manchas y cuerpecito (todo del catálogo). */
+    pet: {
+      walkSpeed: number;
+      strollSeconds: number;
+      pauseSeconds: number;
+      stainFadeSec: number;
+      stainW: number;
+      stainH: number;
+      stainOpacity: number;
+      color: string;
+      bodyW: number;
+      bodyH: number;
+      headScale: number;
+    };
+  };
+  lights: {
+    color: string;
+    nightIntensity: number;
+    blackoutOccupiedIntensity: number;
+    dayIntensity: number;
+    /** El param lighting del pasillo manda: por debajo de este umbral, lámpara apagada. */
+    paramThreshold: number;
+    /** Lamparitas por bloque de pasillo. */
+    lampsPerCorridor: number;
+    /** Tamaño (w,h,d en m) de cada lamparita. */
+    lampSize: [number, number, number];
+  };
+  mood: {
+    /** Pesos de necesidades para la media de ánimo de los residentes presentes. */
+    needs: Record<string, number>;
+  };
+  visuals: {
+    /** Segundos entre comprobaciones de deterioro (la creación de decals es perezosa). */
+    checkSeconds: number;
+    deterioration: EcosystemDeteriorationRule[];
+  };
+  events: EcosystemEvent[];
+}
+
 export interface Content {
   rules: Rules;
   blocks: Record<string, BlockDef>;
@@ -557,6 +719,8 @@ export interface Content {
   emotes?: EmotesCatalog;
   /** Manifiesto de arte final (opcional): modelos glTF por arquetipo/bloque con fallback greybox. */
   assets?: AssetsCatalog;
+  /** Ecosistema del edificio (v1.14, opcional): eventos vivos, luces y deterioro visual. */
+  ecosystem?: EcosystemContent;
 }
 
 // ───────────────────────── Reglas y ajustes (catálogo rules.json) ─────────────────────────

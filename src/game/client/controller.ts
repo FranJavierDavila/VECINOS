@@ -12,6 +12,7 @@ import { createBuilding } from './building';
 import { createActors } from './actors';
 import { createElevators, type ElevatorsDirector } from './elevator';
 import { createBubbles, type BubblesDirector } from './bubbles';
+import { createEcosystem, type EcosystemDirector } from './ecosystem';
 import { CameraRig, type CamMode } from './camera';
 import { CutscenePlayer, type CutsceneEventCtx } from './cutscene';
 import { B } from './babylon';
@@ -42,6 +43,7 @@ class GameController {
   private actors: ReturnType<typeof createActors> | null = null;
   private elevators: ElevatorsDirector | null = null;
   private bubbles: BubblesDirector | null = null;
+  private ecosystem: EcosystemDirector | null = null;
   private rig: CameraRig | null = null;
 
   private get content(): Content {
@@ -115,6 +117,8 @@ class GameController {
     this.net = null;
     this.bubbles?.dispose();
     this.bubbles = null;
+    this.ecosystem?.dispose();
+    this.ecosystem = null;
     this.engine?.stopRenderLoop(this.frame);
     this.scene?.dispose();
     this.engine?.dispose();
@@ -609,13 +613,18 @@ class GameController {
     this.building = createBuilding(this.scene, this.world, this.content);
     this.elevators = createElevators(this.scene, this.world, this.content);
     this.actors = createActors(this.scene, this.world, this.content, this.elevators);
+    // Ecosistema del edificio (v1.14): cerebro data-driven + teatro de extras. Se recrea con
+    // cada mundo (referencia al World vivo) y sigue la posición del jugador para las luces.
+    this.ecosystem?.dispose();
+    this.ecosystem = createEcosystem(this.scene, this.world, this.content, () => this.logic!.position());
     // Sonda de QA (SOLO dev): escena y controlador accesibles para el E2E automatizado.
     // En producción no se expone nada (la partida queda encapsulada igual que siempre).
     if (process.env.NODE_ENV !== 'production') {
-      (window as unknown as { __vecinosQA?: { scene: unknown; controller: unknown; elevators: unknown } }).__vecinosQA = {
+      (window as unknown as { __vecinosQA?: { scene: unknown; controller: unknown; elevators: unknown; ecosystem: unknown } }).__vecinosQA = {
         scene: this.scene,
         controller: this,
         elevators: this.elevators,
+        ecosystem: this.ecosystem,
       };
     }
     // Bocadillos de expresión (v1.10): capa DOM sobre el canvas, recreada con el mundo
@@ -744,6 +753,9 @@ class GameController {
     this.cutscenePlayer?.update(dt);
     // Bocadillos (v1.10): después de actores y cámara — proyectan la posición FINAL del frame.
     this.bubbles?.update(dt, this.actorId());
+    // Ecosistema (v1.14): cerebro a cadencia + extras + luces + deterioro. En multijugador
+    // queda en pausa (el servidor es la autoridad; mismo criterio que partyDemo).
+    if (!this.net) this.ecosystem?.update(dt);
     // Si la cutscene acaba y queda cola, encadena la siguiente aquí: no dependemos de que el sim
     // genere otro evento para descolgar la siguiente (durante el teatro el sim está congelado).
     if (this.cutsceneQueue.length > 0 && !this.cutscenePlayer?.active) this.pumpCutscene();

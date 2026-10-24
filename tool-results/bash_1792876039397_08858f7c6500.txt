@@ -1,0 +1,942 @@
+     1→/**
+     2→ * VECINOS — Contrato central de tipos.
+     3→ * Única fuente de verdad para simulación, presentación (Babylon.js) e interfaz (React).
+     4→ * Basado en el modelo de datos v0.2 del equipo (hito 1), extendido para el prototipo jugable.
+     5→ */
+     6→
+     7→// ───────────────────────── Valores básicos ─────────────────────────
+     8→
+     9→export type Access = 'locked' | 'unlocked';
+    10→export type Occupancy = 'vacant' | 'occupied' | 'under_works';
+    11→export type Weather = 'sunny' | 'cloudy' | 'rain' | 'storm';
+    12→export type ParamValue = string | number;
+    13→export type Direction = 'horizontal' | 'up' | 'down' | 'diagonal' | 'corridor';
+    14→export type Vote = 'yes' | 'no';
+    15→
+    16→// ───────────────────────── Definiciones (catálogo) ─────────────────────────
+    17→
+    18→export interface ParamDef {
+    19→  type: 'number' | 'enum';
+    20→  min?: number;
+    21→  max?: number;
+    22→  values?: string[];
+    23→  default: ParamValue;
+    24→  /** Nivel de progreso a partir del cual la interfaz lo muestra. Sin tier = oculto hasta revealParams. */
+    25→  tier?: number;
+    26→  label?: string;
+    27→}
+    28→
+    29→export interface BlockView {
+    30→  color: string;
+    31→  /** Colores alternativos para variedad visual entre viviendas. */
+    32→  altColor?: string;
+    33→}
+    34→
+    35→export interface BlockDef {
+    36→  id: string;
+    37→  /** Nombre visible para prompt/HUD. */
+    38→  label?: string;
+    39→  kind: 'common' | 'dwelling' | 'commercial' | 'infrastructure';
+    40→  layer: 'main' | 'corridor';
+    41→  size: { w: number; h: number };
+    42→  traversable?: boolean;
+    43→  alignGroup?: string;
+    44→  features?: { stairs?: boolean; elevator?: boolean; mailboxes?: boolean; noticeboard?: boolean; bench?: boolean };
+    45→  params?: Record<string, ParamDef>;
+    46→  container?: { childKind: string; layout: string };
+    47→  view: BlockView;
+    48→}
+    49→
+    50→export interface RoomDef {
+    51→  id: string;
+    52→  kind: 'room';
+    53→  /** Nombre visible en la interfaz (catálogo). */
+    54→  label?: string;
+    55→  size: { w: number; h: number };
+    56→  params?: Record<string, ParamDef>;
+    57→  /** Ranuras del editor de interiores: posición [x,z] local a la estancia, categoría y qué cabe en cada una. */
+    58→  furnitureSlots?: FurnitureSlotDef[];
+    59→  /**
+    60→   * Fijaciones interactivas de la estancia (portátil, cama…): pos [x,z] local al rect;
+    61→   * el jugador las usa por proximidad 2D y solo responden en su vivienda.
+    62→   */
+    63→  interactables?: { id: string; kind: 'laptop' | 'bed'; pos: [number, number] }[];
+    64→  /** Anclas de actividad de los vecinos (no interactivas): pos [x,z] local al rect de la estancia. */
+    65→  anchors?: { id: string; kind: string; pos: [number, number] }[];
+    66→  view: BlockView;
+    67→}
+    68→
+    69→/** Vista placeholder de un mueble (greybox sustituible por arte final). Tamaño en metros [w, h, d]. */
+    70→export interface FurnitureView {
+    71→  color: string;
+    72→  size: [number, number, number];
+    73→}
+    74→
+    75→/** Mueble del editor de interiores: precio, ranuras compatibles, emisiones y efectos de parámetros. */
+    76→export interface FurnitureDef {
+    77→  id: string;
+    78→  name: string;
+    79→  description: string;
+    80→  emoji?: string;
+    81→  price: number;
+    82→  /** Categorías de ranura compatibles (RoomDef.furnitureSlots[].kind). */
+    83→  slots: string[];
+    84→  /** Emisiones persistentes por canal. Valores negativos = absorben (p. ej. un difusor). */
+    85→  emits?: Record<string, number>;
+    86→  /** Deltas de parámetros aplicados al colocar (a la estancia si el parámetro vive ahí, si no al bloque). */
+    87→  params?: { param: string; delta: number }[];
+    88→  view: FurnitureView;
+    89→}
+    90→
+    91→/** Minijuego tipo "barra de precisión": totalmente data-driven, el tipo vive en el catálogo. */
+    92→export interface MinigameTimingBarConfig {
+    93→  rounds: number;
+    94→  /** Velocidad del cursor (pasadas completas por segundo). */
+    95→  cursorSpeed: number;
+    96→  /** Ancho de las zonas buenas (fracción de la barra 0..1). */
+    97→  zoneWidth: number;
+    98→  /** Centros de las zonas buenas (0..1). */
+    99→  zones: number[];
+   100→  /** Aceleración del cursor por ronda (multiplicador). */
+   101→  accelPerRound: number;
+   102→  /** Intentos fallidos permitidos. */
+   103→  lives: number;
+   104→}
+   105→
+   106→/** Minijuego tipo "secuencia" (Simón): memoriza y repite pads del catálogo. */
+   107→export interface MinigameTapSequenceConfig {
+   108→  /** Secuencias que hay que completar para ganar. */
+   109→  rounds: number;
+   110→  /** Etiquetas/emojis de los pads (el tablero sale del catálogo, no del código). */
+   111→  pads: string[];
+   112→  /** Longitud de la primera secuencia. */
+   113→  sequenceStart: number;
+   114→  /** Pads que crece la secuencia por ronda. */
+   115→  sequenceGrow: number;
+   116→  /** Duración del destello de cada pad (ms) y pausa entre pads (ms). */
+   117→  showMs: number;
+   118→  gapMs: number;
+   119→  /** Tiempo máximo para completar la repetición (ms). */
+   120→  inputTimeoutMs: number;
+   121→  /** Errores permitidos. */
+   122→  lives: number;
+   123→}
+   124→
+   125→/** Minijuego tipo "reflejos": objetivos que aparecen y desaparecen (con señuelos opcionales). */
+   126→export interface MinigameReflexTargetsConfig {
+   127→  /** Aciertos necesarios para ganar. */
+   128→  targets: number;
+   129→  spawnIntervalMs: number;
+   130→  /** Tiempo que vive cada objetivo antes de escapar (ms). */
+   131→  targetLifeMs: number;
+   132→  /** Tamaño del objetivo como radio, % del ancho del tablero. */
+   133→  radiusPct: number;
+   134→  /** Objetivos que pueden escaparse antes de perder. */
+   135→  missesAllowed: number;
+   136→  /** Errores permitidos (tocar un señuelo). */
+   137→  lives: number;
+   138→  /** Emoji del objetivo y del señuelo (catálogo). */
+   139→  emoji: string;
+   140→  decoyEmoji?: string;
+   141→  /** Probabilidad (0..1) de que un spawn sea señuelo. */
+   142→  decoyChance?: number;
+   143→}
+   144→
+   145→/** Minijuego tipo "parejas" (memoria): voltear fichas hasta emparejarlas todas. */
+   146→export interface MinigameMemoryPairsConfig {
+   147→  /** Un emoji por pareja: el mazo son dos copias barajadas de cada uno. */
+   148→  items: string[];
+   149→  /** Parejas fallidas permitidas. */
+   150→  lives: number;
+   151→}
+   152→
+   153→export type MinigameType = 'timing_bar' | 'tap_sequence' | 'reflex_targets' | 'memory_pairs';
+   154→
+   155→/**
+   156→ * Overrides numéricos de configuración de minijuegos, por escenario (QA/E2E: facilitar
+   157→ * el win-path sin tocar el catálogo de producción). Solo campos numéricos comunes;
+   158→ * los emojis/zonas/textos siguen saliendo del catálogo.
+   159→ */
+   160→export interface MinigameOverrides {
+   161→  cursorSpeed?: number;
+   162→  zoneWidth?: number;
+   163→  rounds?: number;
+   164→  lives?: number;
+   165→  accelPerRound?: number;
+   166→  inputTimeoutMs?: number;
+   167→  showMs?: number;
+   168→  gapMs?: number;
+   169→  sequenceStart?: number;
+   170→  sequenceGrow?: number;
+   171→  targets?: number;
+   172→  spawnIntervalMs?: number;
+   173→  targetLifeMs?: number;
+   174→  radiusPct?: number;
+   175→  missesAllowed?: number;
+   176→  decoyChance?: number;
+   177→}
+   178→
+   179→export type MinigameConfig =
+   180→  | MinigameTimingBarConfig
+   181→  | MinigameTapSequenceConfig
+   182→  | MinigameReflexTargetsConfig
+   183→  | MinigameMemoryPairsConfig;
+   184→
+   185→/** Unión discriminada por `type`: cada runner recibe su config ya estrechada. */
+   186→export type MinigameDef = {
+   187→  id: string;
+   188→  name: string;
+   189→  description: string;
+   190→  emoji?: string;
+   191→  /** Cómo se juega, en una frase (si falta, usa rules.minigames.introByType del catálogo). */
+   192→  instruction?: string;
+   193→  onSuccess: Effect[];
+   194→  onFail: Effect[];
+   195→} & (
+   196→  | { type: 'timing_bar'; config: MinigameTimingBarConfig }
+   197→  | { type: 'tap_sequence'; config: MinigameTapSequenceConfig }
+   198→  | { type: 'reflex_targets'; config: MinigameReflexTargetsConfig }
+   199→  | { type: 'memory_pairs'; config: MinigameMemoryPairsConfig }
+   200→);
+   201→
+   202→export interface LayoutDef {
+   203→  id: string;
+   204→  rooms: {
+   205→    key: string;
+   206→    defId: string;
+   207→    startsUnlocked: boolean;
+   208→    /** Rect de la estancia en metros locales a la vivienda (x desde pared izquierda, z desde plano frontal). */
+   209→    rect?: { x: number; z: number; w: number; d: number };
+   210→  }[];
+   211→  /** Huecos en los tabiques entre pares de estancias (Fase C). */
+   212→  doorways?: { a: string; b: string; axis: 'x' | 'z'; at: number; width: number }[];
+   213→}
+   214→
+   215→export interface InfluenceRule {
+   216→  id: string;
+   217→  channel: string;
+   218→  /** Etiqueta y emoji para la interfaz (catálogo, no código). */
+   219→  label?: string;
+   220→  emoji?: string;
+   221→  spread: Partial<Record<Direction, number>>;
+   222→  attenuatedBy?: string;
+   223→  decayPerTick: number;
+   224→  threshold: number;
+   225→  onThreshold?: {
+   226→    emitEvent: string;
+   227→    /** Texto para el registro de la interfaz, con {block} como marcador. Si uiLog, la UI lo muestra. */
+   228→    message?: string;
+   229→    tone?: 'info' | 'good' | 'bad';
+   230→    uiLog?: boolean;
+   231→    setParam?: { param: string; delta: number };
+   232→  };
+   233→}
+   234→
+   235→/** Ranura de amueblado de una estancia (editor de interiores). Posición en unidades de estancia. */
+   236→export interface FurnitureSlotDef {
+   237→  id: string;
+   238→  /** Categoría de ranura: los muebles declaran qué categorías encajan (furniture.slots). */
+   239→  kind: string;
+   240→  /** [x, z] en metros locales a la estancia (rect del layout); y opcional = altura de anclaje. */
+   241→  pos: [number, number];
+   242→  y?: number;
+   243→}
+   244→
+   245→/** Pistas de vista para el renderer: color, complemento y accesorio del personaje. */
+   246→export interface ArchetypeView {
+   247→  color: string;
+   248→  accent: string;
+   249→  hat: 'cap' | 'bun' | 'sunglasses' | 'headphones' | 'none';
+   250→  prop: 'binoculars' | 'guitar' | 'briefcase' | 'cart' | 'spray' | 'phone' | 'none';
+   251→  height: number;
+   252→}
+   253→
+   254→/** Ventana horaria de una actividad (HH:MM; si `to` ≤ `from`, cruza medianoche). */
+   255→export interface ScheduleWindow {
+   256→  from: string;
+   257→  to?: string;
+   258→  /** Probabilidad por tick de elegir la actividad mientras la ventana está abierta. */
+   259→  chance?: number;
+   260→  days?: 'all' | 'even' | 'odd';
+   261→}
+   262→
+   263→/** Actividad de un arquetipo: qué emite, dónde ocurre, cuándo (schedule) y qué dice. */
+   264→export interface ActivityDef {
+   265→  /** Etiqueta para el registro de la interfaz (con emoji si procede). */
+   266→  label?: string;
+   267→  /** Destino: sitio nominal o `def:<blockDefId>` (p. ej. def:local_comercial → el bar del bajo). */
+   268→  at?: 'home' | 'corridor' | 'core' | 'stairs' | 'out' | `def:${string}`;
+   269→  /** Kind de ancla de estancia donde ocurre (cama, tv, stove…): vida interior de los vecinos. */
+   270→  anchor?: string;
+   271→  say?: string[];
+   272→  emits?: Record<string, number>;
+   273→  schedule?: ScheduleWindow[];
+   274→  /** Efectos aplicados una vez al empezar la actividad (p. ej. pintar la cabina). */
+   275→  onStart?: Effect[];
+   276→}
+   277→
+   278→export interface ArchetypeDef {
+   279→  id: string;
+   280→  name: string;
+   281→  tagline: string;
+   282→  traits: Partial<{ gossip: number; sociability: number; tidiness: number; noisiness: number; generosity: number; mischief: number }>;
+   283→  /** Sesgo propio en las votaciones de junta (p. ej. el presidente vota que sí). */
+   284→  voteBias?: number;
+   285→  needs: string[];
+   286→  activities: Record<string, ActivityDef>;
+   287→  view: ArchetypeView;
+   288→}
+   289→
+   290→export interface DialogDef {
+   291→  id: string;
+   292→  lines: { speaker: string; text: string }[];
+   293→}
+   294→
+   295→// ───────────────────────── Efectos y misiones ─────────────────────────
+   296→
+   297→export type Effect =
+   298→  | { op: 'setParam'; target: string; param?: string; value?: ParamValue; delta?: number }
+   299→  | { op: 'unlock'; target: string; occupancy?: Occupancy; resident?: string; arrival?: string; availability?: { mode: 'for_sale'; price: number }; lockReason?: string }
+   300→  | { op: 'buy'; target: string; price: number }
+   301→  | { op: 'addReputation'; resident: string; amount: number }
+   302→  | { op: 'addRelation'; a: string; b: string; affinity?: number; trust?: number }
+   303→  | { op: 'startMission'; id: string; delayMinutes?: number }
+   304→  | { op: 'startMinigame'; id: string }
+   305→  | { op: 'grantFavor'; from: string; count: number }
+   306→  | { op: 'openJunta'; agenda: JuntaItem[] }
+   307→  | { op: 'addFunds'; to: 'community' | string; amount: number }
+   308→  | { op: 'revealParams'; tier?: number; params?: string[] }
+   309→  | { op: 'hideParams'; tier?: number; params?: string[] }
+   310→  | { op: 'toast'; text: string; tone?: 'info' | 'good' | 'bad' }
+   311→  | { op: 'finale'; text: string };
+   312→
+   313→export interface JuntaItem {
+   314→  id: string;
+   315→  title: string;
+   316→  description: string;
+   317→  cost: number;
+   318→  effects: Effect[];
+   319→}
+   320→
+   321→export type Condition =
+   322→  | { param: string; eq?: ParamValue; gte?: number; lte?: number }
+   323→  | { role: string; exists: boolean }
+   324→  | { mission: string; state: 'active' | 'done' }
+   325→  | { time: { after: string; before?: string } }
+   326→  | { dayMin: number };
+   327→
+   328→export interface MissionRoleDef {
+   329→  archetype?: string;
+   330→  relation?: 'parentOf';
+   331→  of?: string;
+   332→}
+   333→
+   334→export type MissionStepDef =
+   335→  | { id: string; type: 'phone_call'; dialog: string; hint?: string }
+   336→  | { id: string; type: 'reach'; target: { block: string; slot?: string }; hint?: string }
+   337→  | { id: string; type: 'enter'; target: string; hint?: string }
+   338→  | { id: string; type: 'catch_in_act'; target: string; place: string; windowMinutes: number; hint?: string };
+   339→
+   340→export interface ChoiceDef {
+   341→  id: string;
+   342→  label: string;
+   343→  hint?: string;
+   344→  icon?: string;
+   345→  effects: Effect[];
+   346→}
+   347→
+   348→export interface MissionDef {
+   349→  id: string;
+   350→  title: string;
+   351→  description: string;
+   352→  roles?: Record<string, MissionRoleDef>;
+   353→  trigger?: { all?: Condition[]; any?: Condition[] };
+   354→  steps: MissionStepDef[];
+   355→  choices?: ChoiceDef[];
+   356→  onComplete?: Effect[];
+   357→}
+   358→
+   359→// ───────────────────────── Cutscenes (Fase D) ─────────────────────────
+   360→
+   361→/**
+   362→ * Punto de escenario de una cutscene. `block` acepta ids literales y referencias
+   363→ * (`$home`, `$entry`, `$event.block`); `at` elige el punto del bloque.
+   364→ */
+   365→export interface CutsceneSpot {
+   366→  block: string;
+   367→  at: 'door' | 'center';
+   368→}
+   369→
+   370→/**
+   371→ * Beat de cutscene: la unión mínima para teatralizar misiones. Todo lo temporal
+   372→ * es opcional y cae a rules.cutscene (defaults del catálogo).
+   373→ */
+   374→export type CutsceneBeat =
+   375→  /** Cámara: vuela al encuadre (edificio entero, jugador o bloque) y aguanta `hold` s. */
+   376→  | { type: 'cam'; focus: 'wide' | 'player' | CutsceneSpot; viewH?: number; hold?: number }
+   377→  /** Actor: se coloca en `from` (si hay) y anda hasta `to` por pozo/interior (nunca teletransporta).
+   378→   *  Mientras camina, la cámara le SIGUE (travelling); viewH ajusta lo cerrado del plano. */
+   379→  | { type: 'walk'; who: string; from?: CutsceneSpot; to: CutsceneSpot; max?: number; viewH?: number }
+   380→  /** Subtítulo cinematográfico con marcadores {resident} y {block}. */
+   381→  | { type: 'line'; speaker?: string; text: string; seconds?: number; who?: string; gesture?: string }
+   382→  /** Pausa teatral. */
+   383→  | { type: 'wait'; seconds: number }
+   384→  /** Sonido del catálogo procedural (sounds.json). */
+   385→  | { type: 'sound'; id: string };
+   386→
+   387→/**
+   388→ * Cutscene data-driven (Fase D): teatro de presentación sobre eventos del sim.
+   389→ * El trigger filtra por tipo de evento y (opcional) misión/paso; el resto es secuencia
+   390→ * de beats. Cero lógica de juego: al acabar, el mundo sigue exactamente igual.
+   391→ */
+   392→export interface CutsceneDef {
+   393→  id: string;
+   394→  trigger: { on: 'neighbor_arrived' | 'mission_activated' | 'step_started' | 'step_completed' | 'mission_completed' | 'mission_failed'; mission?: string; step?: string };
+   395→  beats: CutsceneBeat[];
+   396→}
+   397→
+   398→// ───────────────────── Bocadillos de expresión (v1.10) ─────────────────────
+   399→
+   400→/**
+   401→ * Catálogo de bocadillos (public/content/emotes.json): qué expresión muestra cada
+   402→ * personaje sobre su cabeza según su estado — ánimo, actividad, gesto social o eventos
+   403→ * del sim. 100% data-driven: el código de presentación solo recita este catálogo.
+   404→ */
+   405→export interface EmotesCatalog {
+   406→  /** Ajustes visuales del bocadillo (proyección, tamaño y ritmo de decisión). */
+   407→  bubble: {
+   408→    /** Altura del bocadillo sobre la cabeza (m). */
+   409→    offsetY: number;
+   410→    /** Tamaño del glifo en píxeles CSS. */
+   411→    sizePx: number;
+   412→    /** Distancia máxima a la cámara (m) para mostrar el bocadillo. */
+   413→    maxDistance: number;
+   414→    /** Duración de la animación de aparición (ms). */
+   415→    popMs: number;
+   416→    /** Cadencia de reevaluación del estado (ms): amortigua parpadeos del sim. */
+   417→    decisionMs: number;
+   418→  };
+   419→  /** Qué necesidades componen el "ánimo" (media ponderada 0..100) y con qué peso. */
+   420→  mood: { needs: Record<string, number> };
+   421→  /** Emotes por banda de ánimo: gana el de mayor prioridad cuyo rango in,max] contenga el ánimo (rangos abiertos si falta min/max). */
+   422→  moods: { id: string; glyph: string; priority: number; label?: string; min?: number; max?: number }[];
+   423→  /** Emote por actividad del arquetipo (id de actividad → glifo). Las no listadas no muestran bocadillo. */
+   424→  activities: { id: string; glyph: string; priority: number; label?: string }[];
+   425→  /** Emote por gesto social en curso (stateAnimations: talk/laugh/argue/phone…). */
+   426→  gestures: { id: string; glyph: string; priority: number; label?: string }[];
+   427→  /** Emotes temporales por evento del sim (bocadillo que aparece y expira solo). */
+   428→  events: {
+   429→    /** Tipo de evento del sim (p. ej. stairs_grumble, knock_result). */
+   430→    on: string;
+   431→    glyph: string;
+   432→    priority: number;
+   433→    /** A quién le aparece: el residente del evento, el jugador, o los vecinos del bloque. */
+   434→    who: 'resident' | 'player' | 'blockResidents';
+   435→    /** Segundos que dura el bocadillo. */
+   436→    seconds: number;
+   437→    /** Glifo alternativo si un campo del evento es truthy (p. ej. asleep en knock_result). */
+   438→    altGlyph?: { when: string; glyph: string };
+   439→    /** Enfriamiento por residente y emote (s): evita bocadillos en cadena del mismo evento. */
+   440→    cooldown?: number;
+   441→  }[];
+   442→}
+   443→
+   444→export interface TemplateRow {
+   445→  floors: [number, number];
+   446→  blocks: { col: number; defId: string; tag: string }[];
+   447→}
+   448→
+   449→export interface TemplateDef {
+   450→  id: string;
+   451→  grid: { cols: number; floors: number };
+   452→  rows: TemplateRow[];
+   453→}
+   454→
+   455→export interface ScenarioResidentDef {
+   456→  id: string;
+   457→  archetype: string;
+   458→  home: string;
+   459→  present: boolean;
+   460→  controller: { type: 'human'; playerId: string } | { type: 'ai'; profile: string } | { type: 'script' };
+   461→  wallet: number;
+   462→  reputation: number;
+   463→  relations: { with: string; affinity: number; trust: number }[];
+   464→  parentOf?: string[];
+   465→  needs?: Record<string, number>;
+   466→}
+   467→
+   468→export interface ScenarioDef {
+   469→  id: string;
+   470→  world: { seed: number; clock: { day: number; minute: number }; timeScale: number; weather: { state: Weather; nextChangeMinute: number } };
+   471→  building: { id: string; template: string; community: { funds: number; presidentId: string | null }; stateByDef?: Record<string, { params?: Record<string, ParamValue> }> };
+   472→  player: { residentId: string; archetype: string; startBlock: string; homeCandidates: string[]; wallet: number; reputation: number };
+   473→  residents: ScenarioResidentDef[];
+   474→  progress: { revealedTier: number };
+   475→  startMissions: string[];
+   476→  /** Overrides de dificultad de minijuegos para este escenario (QA/E2E). */
+   477→  minigameOverrides?: Record<string, MinigameOverrides>;
+   478→  /** Ajustes de multijugador del escenario (invitados); si falta, usa rules.multiplayer. */
+   479→  multiplayer?: { guestArchetype?: string; guestWallet?: number };
+   480→}
+   481→
+   482→// ───────────────────── Manifiesto de assets (arte final) ─────────────────────
+   483→
+   484→/**
+   485→ * Entrada de modelo 3D para un arquetipo (personaje). Fichero glTF 2.0 con clips de
+   486→ * animación por nombre. El greybox (cápsula) es el fallback cuando no hay entrada o falla la carga.
+   487→ */
+   488→export interface ActorAssetDef {
+   489→  /** Ruta del fichero relativa al `base` del manifiesto (.gltf/.glb). */
+   490→  model: string;
+   491→  /** Altura nominal con la que se authoró el modelo (metros). El runtime escala a ArchetypeView.height. */
+   492→  nominalHeight: number;
+   493→  /** Clips de animación del fichero, por nombre lógico → nombre del clip en el fichero. */
+   494→  animations?: Record<string, string>;
+   495→  /** Clip lógico por defecto cuando el residente no hace nada visible (normalmente "idle"). */
+   496→  defaultAnimation?: string;
+   497→  /** Clip lógico mientras el residente se desplaza (normalmente "walk"). */
+   498→  walkAnimation?: string;
+   499→  /** Clip lógico por actividad del arquetipo (p. ej. paint_cabin → "spray"). */
+   500→  activityAnimations?: Record<string, string>;
+   501→  /** Clip lógico por estado social (run/talk/laugh/argue/phone/sit): gestos de diálogo,
+   502→   *  teléfono, cutscenes y sentado en anclas; si falta un clip, el rig cae al default. */
+   503→  stateAnimations?: Record<string, string>;
+   504→}
+   505→
+   506→/** Entrada de modelo 3D para un tipo de bloque. El runtime lo escala a las dimensiones reales de la celda. */
+   507→export interface BlockAssetDef {
+   508→  model: string;
+   509→  /** Dimensiones nominales del modelo (metros): el modelo se authora a este tamaño y se escala a la celda. */
+   510→  nominal: { w: number; h: number; d: number };
+   511→  /** 0..1: cuánto se tiñe el modelo con el color de estado (roto/cerrado/vacío) en paint(). */
+   512→  tintStrength?: number;
+   513→  /**
+   514→   * Ancho visual en CELDAS (v1.4, cubo de escalera): el modelo se escala a spanW·cellW−gapW
+   515→   * y se ancla al borde izquierdo de la celda lógica (sobresale por la derecha del edificio).
+   516→   * Default = el ancho del bloque (sin span).
+   517→   */
+   518→  spanW?: number;
+   519→  /**
+   520→   * Overlay: el modelo DECORA sin sustituir la caja greybox (no se oculta nada, el edge de
+   521→   * vivienda del jugador se conserva). Pensado para marcos de puerta sobre el corte interior.
+   522→   */
+   523→  overlay?: boolean;
+   524→  /**
+   525→   * Clonar materiales por instancia (default true): cada bloque pinta su tinte de estado y su
+   526→   * glow de canales SIN contaminar a los hermanos del mismo tipo. false = materiales compartidos.
+   527→   */
+   528→  cloneMaterials?: boolean;
+   529→}
+   530→
+   531→/** Manifiesto del arte final (public/content/assets.json). Opcional: sin él, greybox puro. */
+   532→export interface AssetsCatalog {
+   533→  /** Base de las rutas de modelos (p. ej. "/assets/"). */
+   534→  base: string;
+   535→  /** Modelos por arquetipo. */
+   536→  actors?: Record<string, ActorAssetDef>;
+   537→  /** Modelos por definición de bloque. */
+   538→  blocks?: Record<string, BlockAssetDef>;
+   539→}
+   540→
+   541→export interface Content {
+   542→  rules: Rules;
+   543→  blocks: Record<string, BlockDef>;
+   544→  rooms: Record<string, RoomDef>;
+   545→  layouts: Record<string, LayoutDef>;
+   546→  influences: Record<string, InfluenceRule>;
+   547→  archetypes: Record<string, ArchetypeDef>;
+   548→  missions: Record<string, MissionDef>;
+   549→  dialogs: Record<string, DialogDef>;
+   550→  templates: Record<string, TemplateDef>;
+   551→  scenarios: Record<string, ScenarioDef>;
+   552→  furniture: Record<string, FurnitureDef>;
+   553→  minigames: Record<string, MinigameDef>;
+   554→  /** Cutscenes de misión (Fase D): teatro de presentación data-driven. */
+   555→  cutscenes: Record<string, CutsceneDef>;
+   556→  /** Bocadillos de expresión (v1.10, opcional): emotes por ánimo/actividad/gesto/evento. */
+   557→  emotes?: EmotesCatalog;
+   558→  /** Manifiesto de arte final (opcional): modelos glTF por arquetipo/bloque con fallback greybox. */
+   559→  assets?: AssetsCatalog;
+   560→}
+   561→
+   562→// ───────────────────────── Reglas y ajustes (catálogo rules.json) ─────────────────────────
+   563→
+   564→/**
+   565→ * Hoja de balance y configuración de presentación. CERO números de gameplay en código:
+   566→ * todo lo tunable vive aquí y se recarga con el resto del contenido.
+   567→ */
+   568→/** Nivel de LOD (nivel de detalle): a partir de `dist` (en metros del foco) se oculta lo marcado. */
+   569→export interface LodLevel {
+   570→  dist: number;
+   571→  hide: ('edges' | 'glow' | 'panels')[];
+   572→}
+   573→
+   574→export interface Rules {
+   575→  /** Escenario con el que arranca el juego por defecto. */
+   576→  startScenario: string;
+   577→  /** Multijugador: creación de invitados y textos de la sesión (todo data-driven). */
+   578→  multiplayer: {
+   579→    /** Arquetipo con el que nace un jugador invitado. */
+   580→    guestArchetype: string;
+   581→    /** Cartera inicial de un invitado. */
+   582→    guestWallet: number;
+   583→    /** Máximo de jugadores humanos por sesión (incluido el anfitrión). */
+   584→    maxPlayers: number;
+   585→    /** Segundos reales por tick de juego en el servidor autoritativo. */
+   586→    tickSecondsPerTick: number;
+   587→    /** Aviso al unirse un invitado ({name} y {block} como marcadores). */
+   588→    joinToast: string;
+   589→    /** Aviso cuando un invitado se desconecta ({name}). */
+   590→    leaveToast: string;
+   591→    texts: { sessionFull: string; noVacant: string; remoteSaveDisabled: string };
+   592→  };
+   593→  sim: {
+   594→    /** Ventana nocturna: si existe actividad "sleep", se impone durante esta ventana. */
+   595→    night: ScheduleWindow;
+   596→    aiHopTicks: number;
+   597→    missionLoopMax: number;
+   598→    defaultNeeds: Record<string, number>;
+   599→    economy: {
+   600→      rentMinute: string;
+   601→      corridorDirtParam: string;
+   602→      corridorDirtPerTick: number;
+   603→      needDrift: Record<string, { base: number; activity: Record<string, number> }>;
+   604→    };
+   605→    work: { pay: number; cooldownTicks: number; funCost: number; toastCooldown: string; toastDone: string };
+   606→    knock: { affinityGain: number; asleepLine: string; fallbackLines: string[] };
+   607→    /** Siesta (comando `sleep`): necesidades restauradas (delta con tope 100) y su texto. */
+   608→    sleep: { restore: Record<string, number>; toastDone: string };
+   609→    weather: { cycle: { state: Weather; weight: number }[]; durationMinutes: { min: number; max: number } };
+   610→    junta: {
+   611→      baseYes: number;
+   612→      affinityDivisor: number;
+   613→      generosityFactor: number;
+   614→      defaultGenerosity: number;
+   615→      moodThreshold: number;
+   616→      moodPenalty: number;
+   617→      clamp: { min: number; max: number };
+   618→    };
+   619→    /** Malestar vecinal con el ascensor averiado (v1.5): coste social por tramo de escalera
+   620→     *  forzada y resoplido público ocasional (evento stairs_grumble con texto del catálogo). */
+   621→    elevator: { stairsMoodCost: number; grumbleChance: number; grumbleCooldownMinutes: number; grumbleText: string };
+   622→  };
+   623→  /** Configuración de la presentación placeholder (greybox). El arte final la sustituirá. */
+   624→  view: {
+   625→    cellW: number;
+   626→    cellH: number;
+   627→    walkSpeed: number;
+   628→    roomSpeed: number;
+   629→    stairsSeconds: number;
+   630→    elevatorSeconds: number;
+   631→    margin: number;
+   632→    nearRadius: number;
+   633→    /** @deprecated sustituido por interactables del catálogo de estancias (Fase C). */
+   634→    laptopOffset?: number;
+   635→    /** @deprecated sustituido por interactables del catálogo de estancias (Fase C). */
+   636→    bedOffset?: number;
+   637→    itemRadius: number;
+   638→    corridorZ: number;
+   639→    /** Calado del pasillo exterior (tiras transitables): saliente hacia la calle. */
+   640→    corridorDepth: number;
+   641→    /** Altura de la barandilla del pasillo (0 = sin barandilla). */
+   642→    corridorRail: number;
+   643→    /** Velocidad de crucero de los vecinos (IA) en m/s: la interpolación nunca "teletransporta". */
+   644→    npcWalkSpeed: number;
+   645→    /** Segundos entre deambulaciones de un vecino en casa sin ancla de actividad (vida interior). */
+   646→    npcWanderSeconds: number;
+   647→    /** Suavizado del giro del actor hacia su dirección de movimiento (rad/s, 2.5D creíble). */
+   648→    actorTurnSpeed: number;
+   649→    /** Anti-patinaje (v1.3): velocidad natural de los clips (m/s al ratio 1) y límites del playback. */
+   650→    animSync: { walkRefSpeed: number; runRefSpeed: number; minRate: number; maxRate: number };
+   651→    /** Escalera de vecinos (v1.4): geometría compartida por la authoría glTF y el runtime
+   652→     *  (src/game/stairs.ts). El cubo visual ocupa spanW celdas; la celda lógica queda a la izquierda. */
+   653→    stairs: {
+   654→      spanW: number;
+   655→      doorLocalX: number;
+   656→      entryHalf: number;
+   657→      laneFront: number;
+   658→      laneBack: number;
+   659→      flightRun: number;
+   660→      landingX: number;
+   661→      stepCount: number;
+   662→      climbSpeed: number;
+   663→    };
+   664→    /** Ascensor creíble (v1.5, presentación): llamadas, puertas, espera y capacidad (src/game/client/elevator.ts). */
+   665→    elevator: {
+   666→      capacity: number;
+   667→      doorWaitMs: number;
+   668→      doorMoveMs: number;
+   669→      floorsPerSecond: number;
+   670→      /** Aceleración de cabina (plantas/s², v1.12): perfil trapezoidal del viaje según distancia. */
+   671→      accelFloorsPerSecond2: number;
+   672→      cabinColor: string;
+   673→      doorColor: string;
+   674→      callColor: string;
+   675→      brokenColor: string;
+   676→      rideZ: number;
+   677→    };
+   678→    /** Velocidad (m/s) a partir de la cual un actor en marcha usa el clip "run". */
+   679→    runSpeed: number;
+   680→    /** Multiplicador de velocidad del jugador mientras corre (Shift / botón del mando). */
+   681→    runMultiplier: number;
+   682→    /** Anclas de actividad en las que el vecino se SIENTA (clip "sit") al llegar. */
+   683→    seatAnchors: string[];
+   684→    /** Cartel numerado sobre cada puerta de vivienda (v1.6). */
+   685→    plaque: { w: number; h: number; y: number; z: number; bg: string; text: string; fontPx: number };
+   686→    roomZ: number;
+   687→    /** Calado (profundidad en Z) de las viviendas: doblado en v0.6-b para mobiliario interior. */
+   688→    depth: number;
+   689→    /** Calado de los bloques comunes (portal, núcleo, trasteros): mantiene el glTF del núcleo a escala 1. */
+   690→    commonDepth: number;
+   691→    wall: number;
+   692→    gapW: number;
+   693→    gapH: number;
+   694→    slab: number;
+   695→    sky: { r: number; g: number; b: number };
+   696→    ambient: { dir: [number, number, number]; intensity: number };
+   697→    sun: { dir: [number, number, number]; intensity: number };
+   698→    lockedColor: string;
+   699→    vacantTint: number;
+   700→    brokenColor: string;
+   701→    lockColor: string;
+   702→    homeEdge: string;
+   703→    channelGlow: Record<string, string>;
+   704→    actorFallbackColor: string;
+   705→    actorFallbackHeight: number;
+   706→    actorRadius: number;
+   707→    /** Niveles de detalle por distancia (Vista: "prefab por bloque y LOD por distancia"). */
+   708→    lod: { enabled: boolean; focus: 'player'; levels: LodLevel[] };
+   709→  };
+   710→  /** Defaults de las cutscenes de misión (Fase D): ritmos que no quieren repetirse en cada beat. */
+   711→  cutscene: {
+   712→    /** Segundos por defecto de aguante de un encuadre de cámara. */
+   713→    hold: number;
+   714→    /** Segundos por defecto de un subtítulo. */
+   715→    line: number;
+   716→    /** Tope de seguridad de un beat walk (nunca cuelga la partida). */
+   717→    walkMax: number;
+   718→    /** Alto de encuadre (m) por defecto al enfocar un bloque o al jugador. */
+   719→    focusViewH: number;
+   720→    /** Alto de encuadre (m) del travelling que sigue a un actor durante un beat walk. */
+   721→    walkViewH: number;
+   722→  };
+   723→  /** Datos del botón de demostración "Fiesta" (solo dev/debug, también en catálogo). */
+   724→  demo: { resident: string; block: string; noise: number; toast: string };
+   725→  /** Reglas del editor de interiores (catálogo, cero números de gameplay en código). */
+   726→  furniture: {
+   727→    /** Parte del precio que se devuelve al quitar un mueble (0..1). */
+   728→    refundRatio: number;
+   729→    roomUnlock: { price: number; toast: string };
+   730→    /** Textos de error de los comandos de muebles (razón → mensaje). */
+   731→    errors: Record<string, string>;
+   732→  };
+   733→  /** Textos de la interfaz de minijuegos (catálogo; el código no escribe humor, lo recita). */
+   734→  minigames: {
+   735→    winLine: string;
+   736→    loseLine: string;
+   737→    hitLine: string;
+   738→    failLines: string[];
+   739→    /** Instrucción por defecto por tipo de minijuego (la def.instruction del catálogo tiene prioridad). */
+   740→    introByType: Partial<Record<MinigameType, string>>;
+   741→  };
+   742→  /** Controles táctiles (catálogo; el componente virtual lee de aquí, cero constantes en código). */
+   743→  touch: {
+   744→    /** Radio muerto del stick como fracción de su recorrido (0..1). */
+   745→    deadzone: number;
+   746→    /** Tamaños del pad en píxeles (base y pulgar). */
+   747→    stick: { base: number; thumb: number };
+   748→    /** Etiquetas/emojis de los botones virtuales. */
+   749→    labels: { interact: string; camera: string; move: string };
+   750→    /** Texto del aviso cuando se activan a mano en desktop. */
+   751→    hint: string;
+   752→  };
+   753→  labels: { weather: Record<string, string>; elevator: Record<string, string> };
+   754→  /** Interacción con la tecla E: prompts y lecturas (buzón/tablón) del catálogo, cero textos en código. */
+   755→  interact: {
+   756→    exit: string;
+   757→    doorEnter: string;
+   758→    doorLocked: string;
+   759→    greet: string;
+   760→    laptop: string;
+   761→    bed: string;
+   762→    stairs: string;
+   763→    elevator: string;
+   764→    elevatorBroken: string;
+   765→    mailbox: { prompt: string; lines: string[] };
+   766→    noticeboard: { prompt: string; template: string };
+   767→  };
+   768→}
+   769→
+   770→// ───────────────────────── Instancias (estado) ─────────────────────────
+   771→
+   772→export interface RoomInstance {
+   773→  key: string;
+   774→  defId: string;
+   775→  access: Access;
+   776→  /** Parámetros propios de la estancia (p. ej. comfort). */
+   777→  params: Record<string, ParamValue>;
+   778→  /** Ranura → id de mueble ('' = vacía). */
+   779→  furniture: Record<string, string>;
+   780→}
+   781→
+   782→export interface BlockInstance {
+   783→  id: string;
+   784→  defId: string;
+   785→  kind: 'common' | 'dwelling' | 'commercial' | 'infrastructure';
+   786→  layer: 'main' | 'corridor';
+   787→  cell: { col: number; floor: number };
+   788→  size: { w: number; h: number };
+   789→  access: Access;
+   790→  lockReason: string | null;
+   791→  occupancy: Occupancy;
+   792→  ownerId: string | null;
+   793→  availability: { mode: 'for_sale'; price: number } | null;
+   794→  params: Record<string, ParamValue>;
+   795→  rooms: RoomInstance[];
+   796→}
+   797→
+   798→export interface Relation {
+   799→  with: string;
+   800→  affinity: number;
+   801→  trust: number;
+   802→}
+   803→
+   804→export type Controller = { type: 'human'; playerId: string } | { type: 'ai'; profile: string } | { type: 'script' };
+   805→
+   806→export interface ResidentInstance {
+   807→  id: string;
+   808→  archetype: string;
+   809→  controller: Controller;
+   810→  home: string;
+   811→  present: boolean;
+   812→  /** Bloque en el que está ahora (null si aún no ha llegado o está fuera del edificio). */
+   813→  location: string | null;
+   814→  /** Actividad en curso (id del arquetipo), p. ej. "party", "sleep", "laundry". */
+   815→  activity: string | null;
+   816→  parentOf: string[];
+   817→  wallet: number;
+   818→  reputation: number;
+   819→  needs: Record<string, number>;
+   820→  relations: Relation[];
+   821→  /** Tick hasta el que no puede repetir una acción (p. ej. "work"). */
+   822→  cooldowns: Record<string, number>;
+   823→}
+   824→
+   825→export interface GameEvent {
+   826→  tick: number;
+   827→  type: string;
+   828→  data: Record<string, unknown>;
+   829→}
+   830→
+   831→export type MissionState = 'pending' | 'active' | 'awaiting_choice' | 'done' | 'failed';
+   832→
+   833→export interface ActiveMission {
+   834→  id: string;
+   835→  state: MissionState;
+   836→  startAtTick: number;
+   837→  step: number;
+   838→  roles: Record<string, string>;
+   839→  until: number | null;
+   840→  choice: string | null;
+   841→}
+   842→
+   843→export interface JuntaState {
+   844→  agenda: JuntaItem[];
+   845→  /** Votos registrados: IA y todos los humanos (multijugador) votan por su id de residente. */
+   846→  votes: Record<string, Vote>;
+   847→  /** true cuando la votación ya se ha cerrado y resuelto. */
+   848→  playerVoted: boolean;
+   849→}
+   850→
+   851→export interface World {
+   852→  schemaVersion: 1;
+   853→  scenarioId: string;
+   854→  seed: number;
+   855→  rngState: number;
+   856→  tick: number;
+   857→  clock: { day: number; minute: number };
+   858→  playerId: string;
+   859→  /** Bloque de entrada al edificio (de ahí salen y entran los vecinos IA). */
+   860→  entry: string;
+   861→  community: { funds: number; presidentId: string | null };
+   862→  weather: { state: Weather; nextChangeMinute: number };
+   863→  blocks: Record<string, BlockInstance>;
+   864→  residents: Record<string, ResidentInstance>;
+   865→  channels: Record<string, Record<string, number>>;
+   866→  progress: { revealedTier: number; revealedParams: string[]; hiddenParams: string[] };
+   867→  missions: ActiveMission[];
+   868→  favors: Record<string, number>;
+   869→  junta: JuntaState | null;
+   870→  events: GameEvent[];
+   871→}
+   872→
+   873→// ───────────────────────── Comandos ─────────────────────────
+   874→
+   875→/**
+   876→ * Comandos del jugador (o de un jugador invitado en multijugador).
+   877→ * `actor` identifica quién actúa: si falta, el núcleo usa world.playerId
+   878→ * (partida en solitario, comportamiento idéntico al clásico).
+   879→ */
+   880→export type Command =
+   881→  | { type: 'move'; resident: string; to: string }
+   882→  | { type: 'approach'; resident: string; block: string }
+   883→  | { type: 'answer_call'; mission: string; actor?: string }
+   884→  | { type: 'choose'; mission: string; choice: string; actor?: string }
+   885→  | { type: 'work'; actor?: string }
+   886→  | { type: 'sleep'; actor?: string }
+   887→  | { type: 'buy_block'; block: string; actor?: string }
+   888→  | { type: 'junta_vote'; vote: Vote; actor?: string }
+   889→  | { type: 'knock'; block: string; actor?: string }
+   890→  | { type: 'place_furniture'; block: string; room: string; slot: string; item: string; actor?: string }
+   891→  | { type: 'remove_furniture'; block: string; room: string; slot: string; actor?: string }
+   892→  | { type: 'renovate_room'; block: string; room: string; actor?: string }
+   893→  | { type: 'complete_minigame'; id: string; success: boolean; actor?: string };
+   894→
+   895→export interface CommandResult {
+   896→  ok: boolean;
+   897→  reason?: string;
+   898→}
+   899→
+   900→// ───────────────────────── Posición del jugador (cliente) ─────────────────────────
+   901→
+   902→export interface PlayerPosition {
+   903→  x: number;
+   904→  /** Profundidad en metros dentro de la vivienda (0 = plano frontal de la puerta; solo mode 'inside'). */
+   905→  z: number;
+   906→  /** Altura en unidades de planta (fraccionaria mientras sube o baja). */
+   907→  floor: number;
+   908→  mode: 'corridor' | 'inside';
+   909→  insideBlock: string | null;
+   910→  climbing: boolean;
+   911→  /**
+   912→   * Z absoluta del recorrido de escalera (v1.4): mientras el jugador sube por el cubo, la X
+   913→   * y la Z varían (tramos y descansillo); null fuera de la escalada (el pasillo manda).
+   914→   */
+   915→  pathZ: number | null;
+   916→}
+   917→
+   918→export interface Input {
+   919→  left: boolean;
+   920→  right: boolean;
+   921→  up: boolean;
+   922→  down: boolean;
+   923→  /** Correr (Shift / botón del mando): multiplica la velocidad por rules.view.runMultiplier. */
+   924→  run: boolean;
+   925→}
+   926→
+   927→export type InteractTarget =
+   928→  | { kind: 'door'; blockId: string }
+   929→  | { kind: 'resident'; residentId: string }
+   930→  | { kind: 'mailbox' }
+   931→  | { kind: 'noticeboard' }
+   932→  | { kind: 'laptop' }
+   933→  | { kind: 'bed' };
+   934→
+   935→// ───────────────────────── Etiquetas ─────────────────────────
+   936→
+   937→/** "blk_p1_b" → "1B"; los demás ids se devuelven tal cual. */
+   938→export function blockLabel(id: string): string {
+   939→  const m = /^blk_p(\d+)_([a-d])$/.exec(id);
+   940→  return m ? `${m[1]}${m[2]!.toUpperCase()}` : id;
+   941→}
+   942→

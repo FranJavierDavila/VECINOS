@@ -3501,5 +3501,185 @@
         "tone": "good"
       }
     ]
+  },
+  {
+    "id": "m_mascota_perdida",
+    "title": "Michi se ha escapado",
+    "description": "La gata de la 4C anda suelta por el pasillo de la cuarta planta, dejando manchas y dignidad por el camino. Su dueña no puede con ella.",
+    "roles": {
+      "owner": {
+        "archetype": "jubilada"
+      }
+    },
+    "steps": [
+      {
+        "id": "siguela",
+        "type": "enter",
+        "target": "blk_p4_pasillo",
+        "hint": "Sigue los maullidos hasta el pasillo de la 4ª planta"
+      }
+    ],
+    "choices": [
+      {
+        "id": "devolverla",
+        "label": "Devolverla a su dueña",
+        "hint": "Dolores te lo agradecerá (y Michi bufará)",
+        "icon": "handshake",
+        "effects": [
+          {
+            "op": "addRelation",
+            "a": "player",
+            "b": "owner",
+            "affinity": 8,
+            "trust": 4
+          },
+          {
+            "op": "grantFavor",
+            "from": "owner",
+            "count": 1
+          },
+          {
+            "op": "toast",
+            "text": "🐈 Michi devuelta en brazos, ronroneo incluido. Dolores te debe un favor (y un bizcocho).",
+            "tone": "good"
+          }
+        ]
+      },
+      {
+        "id": "dejarla",
+        "label": "Dejarla vivir su aventura",
+        "hint": "El pasillo paga los platos rotos",
+        "icon": "question",
+        "effects": [
+          {
+            "op": "setParam",
+            "target": "pasillo_planta",
+            "param": "cleanliness",
+            "delta": -5
+          },
+          {
+            "op": "toast",
+            "text": "🐾 Michi, libre como el viento. El pasillo, cubierto de huellas y bolas de pelo.",
+            "tone": "bad"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "m_trastada_portal",
+    "title": "Trastadas en el portal",
+    "description": "A Pinturillas se le ha ido el pin en el portal. Las latas de spray no se usan solas... o eso dirá él.",
+    "roles": {
+      "kid": {
+        "archetype": "nino_grafitero"
+      }
+    },
+    "steps": [
+      {
+        "id": "infraganti",
+        "type": "catch_in_act",
+        "target": "kid",
+        "place": "portal",
+        "windowMinutes": 150,
+        "hint": "Pilla al crío en el portal antes de que suelte la lata"
+      }
+    ],
+    "choices": [
+      {
+        "id": "reganina",
+        "label": "Regañarle con cariño",
+        "hint": "El portal recupera algo de dignidad",
+        "icon": "megaphone",
+        "effects": [
+          {
+            "op": "setParam",
+            "target": "portal",
+            "param": "condition",
+            "delta": 4
+          },
+          {
+            "op": "addReputation",
+            "resident": "player",
+            "amount": 2
+          },
+          {
+            "op": "toast",
+            "text": "🗣️ Sermón vecinal aplicado. El portal sonríe y tu reputación también.",
+            "tone": "good"
+          }
+        ]
+      },
+      {
+        "id": "dejarlo",
+        "label": "Dejarlo crear",
+        "hint": "El arte urbano no se puede parar... dicen",
+        "icon": "brush",
+        "effects": [
+          {
+            "op": "startMission",
+            "id": "m_pintadas_ascensor",
+            "delayMinutes": 360
+          },
+          {
+            "op": "toast",
+            "text": "🎨 El crío ha quedado inspirado. El ascensor despertará con 'arte' nuevo.",
+            "tone": "bad"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "m_pedido_vecinal",
+    "title": "El paquete de la comunidad",
+    "description": "El vendedor ha dejado un paquete para la comunidad en el portal. Nadie ha firmado. Nadie sabe qué es. El misterio baja en ascensor.",
+    "steps": [
+      {
+        "id": "recoger",
+        "type": "enter",
+        "target": "blk_p0_portal",
+        "hint": "Baja al portal a recoger el paquete de la comunidad"
+      }
+    ],
+    "choices": [
+      {
+        "id": "comprar",
+        "label": "Pagarlo y aceptarlo",
+        "hint": "15 € del bolsillo, bombillas para el pasillo",
+        "icon": "lightbulb",
+        "effects": [
+          {
+            "op": "addFunds",
+            "to": "player",
+            "amount": -15
+          },
+          {
+            "op": "setParam",
+            "target": "pasillo_planta",
+            "param": "lighting",
+            "delta": 8
+          },
+          {
+            "op": "toast",
+            "text": "💡 Resulta que eran bombillas para el pasillo. Tu bolsillo llora, el rellano brilla.",
+            "tone": "good"
+          }
+        ]
+      },
+      {
+        "id": "rechazar",
+        "label": "Rechazar el paquete",
+        "hint": "En esta comunidad no firmamos nada sin leer",
+        "icon": "hand",
+        "effects": [
+          {
+            "op": "toast",
+            "text": "📦 Paquete devuelto al repartidor. El misterio se marcha tal y como llegó: por el portal.",
+            "tone": "info"
+          }
+        ]
+      }
+    ]
   }
 ]

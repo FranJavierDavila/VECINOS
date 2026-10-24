@@ -1,8 +1,9 @@
-import type { AssetsCatalog, Content, EmotesCatalog } from '@/game/core/types';
+import type { AssetsCatalog, Content, EcosystemContent, Effect, EmotesCatalog } from '@/game/core/types';
 import {
   blockListSchema,
   cutsceneListSchema,
   dialogListSchema,
+  ecosystemContentSchema,
   emotesCatalogSchema,
   furnitureListSchema,
   influenceListSchema,
@@ -81,6 +82,16 @@ export async function loadContent(baseUrl: string = '/content/'): Promise<{ cont
       throw new Error(`emotes.json (bocadillos de expresión) inválido: ${e instanceof Error ? e.message : String(e)}`);
     }
 
+    // Ecosistema del edificio (v1.14, OPCIONAL): sin el fichero, el edificio no "vive" pero
+    // la partida funciona exactamente igual (patrón emotes).
+    let ecosystem: EcosystemContent | undefined;
+    try {
+      const res = await fetch(`${baseUrl}ecosystem.json`);
+      if (res.ok) ecosystem = ecosystemContentSchema.parse(await res.json()) as EcosystemContent;
+    } catch (e) {
+      throw new Error(`ecosystem.json (ecosistema del edificio) inválido: ${e instanceof Error ? e.message : String(e)}`);
+    }
+
     const content: Content = {
       rules,
       blocks: indexById(blocks),
@@ -97,6 +108,7 @@ export async function loadContent(baseUrl: string = '/content/'): Promise<{ cont
       minigames: indexById(minigames),
       assets,
       emotes,
+      ecosystem,
     };
 
     const issues = validateContent(content);
@@ -240,6 +252,33 @@ export function validateContent(c: Content): Issue[] {
     }
     for (const id of Object.keys(c.assets.blocks ?? {}))
       if (!c.blocks[id]) err(`assets/blocks/${id}`, `definición de bloque desconocida: ${id}`);
+  }
+
+  // Ecosistema (v1.14): referencias de eventos (arquetipos, misiones, params de bloque y
+  // misiones encadenadas desde los outcomes). Indulgente en targets dinámicos (los efectos
+  // del sim ya avisan en runtime con effect_unresolved).
+  if (c.ecosystem) {
+    const eco = c.ecosystem;
+    const checkOutcome = (where: string, o: { id: string; effects: Effect[] }) => {
+      for (const e of o.effects) {
+        if (e.op === 'startMission' && !c.missions[e.id]) err(`${where}/${o.id}`, `misión desconocida: ${e.id}`);
+        if (e.op === 'startMinigame' && !c.minigames[e.id]) err(`${where}/${o.id}`, `minijuego desconocido: ${e.id}`);
+      }
+    };
+    for (const ev of eco.events) {
+      const where = `ecosystem/events/${ev.id}`;
+      if (ev.vendor && !c.archetypes[ev.vendor.archetype]) err(where, `arquetipo desconocido: ${ev.vendor.archetype}`);
+      if (ev.pet && !c.missions[ev.pet.mission]) err(where, `misión de mascota desconocida: ${ev.pet.mission}`);
+      if (ev.blackout && !c.blocks[ev.blackout.corridorBlock]) err(where, `bloque de pasillo desconocido: ${ev.blackout.corridorBlock}`);
+      for (const o of ev.outcomes ?? []) checkOutcome(`${where}/outcomes`, o);
+      for (const o of ev.vendor?.perKnockOutcomes ?? []) checkOutcome(`${where}/perKnockOutcomes`, o);
+      for (const rule of eco.visuals.deterioration) {
+        const bd = c.blocks[rule.blockDef];
+        if (!bd) err(`ecosystem/visuals/${rule.id}`, `definición de bloque desconocida: ${rule.blockDef}`);
+        else if (!bd.params?.[rule.param]) err(`ecosystem/visuals/${rule.id}`, `param desconocido en ${rule.blockDef}: ${rule.param}`);
+        if (rule.below === undefined && rule.above === undefined) err(`ecosystem/visuals/${rule.id}`, 'necesita below o above');
+      }
+    }
   }
 
   return issues;
