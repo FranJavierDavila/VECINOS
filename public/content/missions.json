@@ -2686,5 +2686,101 @@
         ]
       }
     ]
+  },
+  {
+    "id": "m_manitas_ascensor",
+    "title": "Plan B: el primo del administrador",
+    "description": "El ascensor sigue muerto y la junta no movió un dedo. Menos mal que existe Manolo. Esta vez el ascensor se arregla sí o sí.",
+    "trigger": {
+      "all": [
+        {
+          "mission": "m_ascensor",
+          "state": "done"
+        },
+        {
+          "param": "nucleo.elevator_status",
+          "eq": "broken"
+        }
+      ]
+    },
+    "steps": [
+      {
+        "id": "aviso",
+        "type": "phone_call",
+        "dialog": "dlg_manitas_ascensor",
+        "hint": "El administrador tiene un plan B"
+      }
+    ],
+    "choices": [
+      {
+        "id": "tecnico_barato",
+        "label": "Contratar a Manolo (300 €)",
+        "hint": "Factura creativa, resultado real",
+        "icon": "coins",
+        "effects": [
+          {
+            "op": "addFunds",
+            "to": "player",
+            "amount": -300
+          },
+          {
+            "op": "setParam",
+            "target": "nucleo.elevator_status",
+            "value": "ok"
+          },
+          {
+            "op": "setParam",
+            "target": "nucleo.condition",
+            "delta": 10
+          },
+          {
+            "op": "addReputation",
+            "resident": "player",
+            "amount": 2
+          },
+          {
+            "op": "toast",
+            "text": "Manolo ha hecho su magia (y su ruido). El ascensor vuelve a la vida: bienvenue, cabina. La junta te mira con envidia.",
+            "tone": "good"
+          }
+        ]
+      },
+      {
+        "id": "bricolaje",
+        "label": "Modo bricolaje: destornillador y cinta americana",
+        "hint": "Gratis. El ascensor vuelve; la garantía, no",
+        "icon": "spray",
+        "effects": [
+          {
+            "op": "setParam",
+            "target": "nucleo.elevator_status",
+            "value": "ok"
+          },
+          {
+            "op": "setParam",
+            "target": "nucleo.condition",
+            "delta": -15
+          },
+          {
+            "op": "addRelation",
+            "a": "player",
+            "b": "presidente",
+            "affinity": -5
+          },
+          {
+            "op": "toast",
+            "text": "Lo has apagado, le has dado tres golpes buenos y lo has vuelto a encender. FUNCIONA. Nadie hable de esto jamás.",
+            "tone": "info"
+          }
+        ]
+      }
+    ],
+    "onComplete": [
+      {
+        "op": "addFunds",
+        "to": "player",
+        "amount": 75
+      }
+    ]
   }
 ]

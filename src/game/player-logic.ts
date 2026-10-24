@@ -198,10 +198,50 @@ export class PlayerLogic {
 
   /** Cierra el viaje externo: planta definitiva y sincronización con el sim. */
   finishClimb(): void {
-    if (this.climb?.external) {
-      this.floor = this.climb.to;
-      this.climb = null;
-      this.sync();
+    if (!this.climb?.external) return;
+    this.finishRide(this.climb.to);
+  }
+
+  /**
+   * Fin de viaje externo por AVERÍA a mitad de ruta (el director canceló la cabina): el jugador
+   * aterriza en la planta MÁS CERCANA al progreso alcanzado — nunca un teletransporte a destino.
+   */
+  finishClimbAtNearest(): void {
+    if (!this.climb?.external) return;
+    const { from, to, progress } = this.climb;
+    const nearest = Math.round(from + (to - from) * (progress ?? 0));
+    this.finishRide(nearest);
+  }
+
+  /** Aterriza el viaje externo en `landing` y sincroniza el desplazamiento vertical con el sim. */
+  private finishRide(landing: number): void {
+    const floor = Math.max(0, Math.min(this.topFloor, landing));
+    this.climb = null;
+    this.floor = floor;
+    this.syncRideFloors(floor);
+  }
+
+  /**
+   * Sincroniza la location del sim tras un viaje multialtura (v1.11): el comando `move` solo
+   * admite saltos contiguos, así que un aterrizaje a N plantas de golpe se traduce en una
+   * CADENA de moves calculada con el router del propio sim (nextStepTowards): por el pozo si
+   * el ascensor está operativo, por la escalera si no — siempre saltos legales de 1 en 1.
+   * Sin esto, la location del sim quedaba anclada a la planta de origen (desync permanente
+   * tras cualquier viaje multialtura). Si un eslabón no procede, la cadena se detiene y el
+   * sync normal de caminar seguirá acercando la location desde la última planta confirmada.
+   */
+  private syncRideFloors(landed: number): void {
+    const col = this.zone().cell.col;
+    const target = this.onFloor(landed).find((b) => b.layer === 'main' && b.cell.col === col && this.content.blocks[b.defId]!.features?.elevator);
+    if (!target) return;
+    this.lastMoveTarget = null;
+    for (let guard = 0; guard < 32; guard++) {
+      const loc = this.location;
+      if (!loc || loc === target.id) return;
+      const next = nextStepTowards(this.world, this.content, loc, target.id);
+      if (!next) return;
+      const r = this.exec({ type: 'move', resident: this.actorId, to: next });
+      if (r && !r.ok) return;
     }
   }
 

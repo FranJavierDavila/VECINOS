@@ -683,7 +683,7 @@ class GameController {
         }
         const st = this.elevators.status(this.actorId());
         if (!st) {
-          this.logic.finishClimb(); // fuera de servicio: la escalera manda
+          this.logic.finishClimbAtNearest(); // fuera de servicio: aterriza en la planta más cercana (sin teletransporte)
           this.logic.externalRequested = false;
           this.playerBoardT = 0;
         } else {

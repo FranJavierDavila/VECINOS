@@ -342,5 +342,22 @@
         "text": "📧 Aviso de la administración: «de nuevo una carta con ventana para el 4D. El cartero insiste. El 4D también en que no la espera. Resolvedlo como pueblo»."
       }
     ]
+  },
+  {
+    "id": "dlg_manitas_ascensor",
+    "lines": [
+      {
+        "speaker": "Administrador de fincas",
+        "text": "Vuelvo a la carga con lo del ascensor: la junta no hizo NADA o votó que las rodillas son un invento moderno. Pero tengo un plan B con acento levantino."
+      },
+      {
+        "speaker": "Administrador de fincas",
+        "text": "Mi primo Manolo arregla ascensores. No preguntes cómo. Cobra la mitad que la empresa y no rellena formularios: directamente los DOBLA y los mete en la cabina."
+      },
+      {
+        "speaker": "Administrador de fincas",
+        "text": "Esta vez el ascensor se arregla sí o sí: con Manolo (300 €) o contigo, un destornillador y la cinta americana de tu padre. ¡Vamos a devolverle la verticalidad al edificio!"
+      }
+    ]
   }
 ]

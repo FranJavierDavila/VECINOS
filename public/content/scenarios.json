@@ -17,7 +17,7 @@
       "id": "bld_principal",
       "template": "edificio_9x8_nucleo_central",
       "community": {
-        "funds": 500,
+        "funds": 800,
         "presidentId": "res_presidente_01"
       },
       "stateByDef": {
@@ -223,7 +223,7 @@
       "id": "bld_principal",
       "template": "edificio_9x8_nucleo_central",
       "community": {
-        "funds": 500,
+        "funds": 800,
         "presidentId": "res_presidente_01"
       },
       "stateByDef": {

@@ -165,5 +165,37 @@ check('rules.cutscene.walkViewH declarado (travelling de beats walk)', typeof co
   check('prompt del ascensor anuncia el panel (texto del catálogo)', content.rules.interact.elevator.includes('E ·') && content.rules.interact.elevator.includes('panel'), content.rules.interact.elevator);
 }
 
+// ── 7. v1.11: el ascensor SIEMPRE se puede arreglar (junta viable + red de seguridad)
+{
+  for (const [id, sc] of Object.entries(content.scenarios)) {
+    check(`escenario ${id}: fondos de comunidad cubren la reparación (≥800)`, sc.building.community.funds >= 800, `${sc.building.community.funds} €`);
+  }
+  const manitas = content.missions['m_manitas_ascensor'];
+  check('m_manitas_ascensor: red de seguridad declarada', !!manitas, manitas?.description ?? 'ausente');
+  check('m_manitas_ascensor: trigger = m_ascensor done + pozo broken', JSON.stringify(manitas?.trigger ?? {}).includes('elevator_status') && JSON.stringify(manitas?.trigger ?? {}).includes('m_ascensor'));
+  check('m_manitas_ascensor: al menos una elección repara el pozo (setParam ok)', !!manitas?.choices?.some((c) => c.effects.some((e) => e.op === 'setParam' && e.target === 'nucleo.elevator_status' && e.value === 'ok')));
+  check('dlg_manitas_ascensor cargado', !!content.dialogs['dlg_manitas_ascensor']);
+  // Sim E2E: m_ascensor terminada SIN reparar → la red de seguridad salta y el bricolaje deja el pozo 'ok'
+  const w2 = createWorld(content, content.rules.startScenario);
+  w2.missions.push({ id: 'm_ascensor', state: 'done', startAtTick: 0, step: 0, roles: {}, until: null, choice: 'bajar_andando' });
+  w2.tick += 1;
+  const { advanceMissions } = await import('@/game/sim');
+  advanceMissions(w2, content);
+  const m2 = w2.missions.find((x) => x.id === 'm_manitas_ascensor');
+  check('sim: sin reparación → m_manitas_ascensor se dispara', m2?.state === 'active' || m2?.state === 'awaiting_choice', m2?.state ?? 'ausente');
+  const { dispatch } = await import('@/game/sim');
+  const a1 = dispatch(w2, content, { type: 'answer_call', mission: 'm_manitas_ascensor' });
+  const a2 = dispatch(w2, content, { type: 'choose', mission: 'm_manitas_ascensor', choice: 'bricolaje' });
+  const fixed = Object.values(w2.blocks).filter((b) => b.params.elevator_status !== undefined).every((b) => b.params.elevator_status === 'ok');
+  check('sim: bricolaje deja TODOS los pozos del núcleo en ok', a1.ok && a2.ok && fixed, `answer ${a1.ok} · choose ${a2.ok} · pozos ok=${fixed}`);
+  // Y una vez reparado, la red de seguridad NO se vuelve a disparar (idempotente)
+  const w3 = createWorld(content, content.rules.startScenario);
+  w3.missions.push({ id: 'm_ascensor', state: 'done', startAtTick: 0, step: 0, roles: {}, until: null, choice: 'pagar_de_bolsillo' });
+  for (const b of Object.values(w3.blocks)) if (b.params.elevator_status !== undefined) b.params.elevator_status = 'ok';
+  w3.tick += 1;
+  advanceMissions(w3, content);
+  check('sim: con el pozo ok la red de seguridad NO se activa', !w3.missions.some((x) => x.id === 'm_manitas_ascensor'));
+}
+
 console.log(fails === 0 ? '\nQA v1.3 OK · movimiento creíble' : `\nQA v1.3 FALLÓ: ${fails} checks`);
 process.exit(fails === 0 ? 0 : 1);
