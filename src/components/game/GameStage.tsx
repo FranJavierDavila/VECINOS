@@ -10,6 +10,7 @@ import { JuntaModal } from './JuntaModal';
 import { MinigameModal } from './MinigameModal';
 import { FinaleModal } from './FinaleModal';
 import { CutsceneOverlay } from './CutsceneOverlay';
+import { OptionsModal } from './OptionsModal';
 import { ToastStack } from './ToastStack';
 import { TouchControls } from './TouchControls';
 
@@ -24,6 +25,8 @@ export default function GameStage() {
   const ready = useGameStore((s) => s.ready);
   const engineError = useGameStore((s) => s.engineError);
   const modalOpen = useGameStore(selectModalOpen);
+  const fpsVisible = useGameStore((s) => s.fpsVisible);
+  const fps = useGameStore((s) => s.fps);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -90,6 +93,12 @@ export default function GameStage() {
         </div>
       )}
 
+      {ready && fpsVisible && (
+        <div className="pointer-events-none absolute left-2 top-2 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-amber-200" role="status" aria-live="off">
+          {fps} FPS
+        </div>
+      )}
+
       {ready && prompt && !modalOpen && (
         <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-xs font-medium text-amber-200 shadow" role="status">
           {prompt}
@@ -98,6 +107,7 @@ export default function GameStage() {
 
       <PhoneModal onNext={() => getController()?.phoneNext()} />
       <CutsceneOverlay />
+      <OptionsModal />
       <ChoicesModal onChoose={(choiceId) => getController()?.choose(choiceId)} />
       <JuntaModal onVote={(vote) => getController()?.juntaVote(vote)} />
       <MinigameModal />

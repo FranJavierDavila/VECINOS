@@ -137,7 +137,7 @@
       "w": 1,
       "h": 1
     },
-    "traversable": false,
+    "traversable": true,
     "params": {
       "mystery": {
         "type": "number",
@@ -159,7 +159,7 @@
       "w": 1,
       "h": 1
     },
-    "traversable": false,
+    "traversable": true,
     "params": {
       "condition": {
         "type": "number",

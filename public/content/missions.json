@@ -1929,5 +1929,425 @@
     "tone": "good"
    }
   ]
+ },
+ {
+  "id": "m_garaje_despacho",
+  "title": "El garaje no es un despacho",
+  "description": "El Sr. Vulture ha montado una 'sala de operaciones de inversión' en el garaje comunal. Con folios, un sello y muchas intenciones.",
+  "roles": {
+   "vendedor": {
+    "archetype": "fondo_buitre"
+   }
+  },
+  "trigger": {
+   "all": [
+    {
+     "mission": "m_llegada_buitre",
+     "state": "done"
+    },
+    {
+     "dayMin": 2
+    }
+   ]
+  },
+  "steps": [
+   {
+    "id": "aviso",
+    "type": "phone_call",
+    "dialog": "dlg_garaje",
+    "hint": "El administrador llama con letra pequeña"
+   },
+   {
+    "id": "bajar",
+    "type": "reach",
+    "target": {
+     "block": "blk_p0_garaje",
+     "slot": "door"
+    },
+    "hint": "Ve al garaje (planta 0) y mira el cartel"
+   }
+  ],
+  "choices": [
+   {
+    "id": "acta",
+    "label": "Convocar junta: acta de desalojo",
+    "hint": "El garaje vuelve a la comunidad, con multa incluida",
+    "icon": "vote",
+    "effects": [
+     {
+      "op": "openJunta",
+      "agenda": [
+       {
+        "id": "garaje_acta",
+        "title": "Desalojo del despacho ilegal del garaje",
+        "description": "El Sr. Vulture saca su sala de operaciones y abona 250 € de uso indebido. La caja comunitaria respira.",
+        "cost": 0,
+        "effects": [
+         {
+          "op": "addFunds",
+          "to": "community",
+          "amount": 250
+         },
+         {
+          "op": "addRelation",
+          "a": "player",
+          "b": "fondo_buitre",
+          "affinity": -15
+         },
+         {
+          "op": "addReputation",
+          "resident": "player",
+          "amount": 8
+         },
+         {
+          "op": "toast",
+          "text": "Acta firmada: el garaje vuelve a ser un garaje. Vulture se ha llevado el sello a otra comunidad.",
+          "tone": "good"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "op": "addReputation",
+      "resident": "player",
+      "amount": 2
+     }
+    ]
+   },
+   {
+    "id": "alquilar",
+    "label": "Alquilarle media plaza al Vulture (150 €)",
+    "hint": "Oficialmente 'storage financiero'. La caja, mejor",
+    "icon": "coins",
+    "effects": [
+     {
+      "op": "addFunds",
+      "to": "player",
+      "amount": 150
+     },
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "jubilada",
+      "affinity": -10
+     },
+     {
+      "op": "toast",
+      "text": "Contrato firmado. Esperanza ha pasado por delante y ha dicho exactamente lo que piensa sin abrir la boca.",
+      "tone": "bad"
+     }
+    ]
+   },
+   {
+    "id": "farol",
+    "label": "Farol: 'Ya lo hablamos en junta...'",
+    "hint": "Sonreír y esperar a que se canse solo",
+    "icon": "volume-off",
+    "effects": [
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "fondo_buitre",
+      "affinity": 6
+     },
+     {
+      "op": "toast",
+      "text": "Vulture entiende faroles: es su idioma nativo. Seguimos compartiendo enchufe.",
+      "tone": "info"
+     }
+    ]
+   }
+  ],
+  "onComplete": [
+   {
+    "op": "addFunds",
+    "to": "player",
+    "amount": 80
+   },
+   {
+    "op": "toast",
+    "text": "El garaje, resuelto. El administrador te ha felicitado con la misma voz con la que sube las derramas.",
+    "tone": "good"
+   }
+  ]
+ },
+ {
+  "id": "m_trastero_pinturillas",
+  "title": "El trastero 7",
+  "description": "Pinturillas lo llama 'galería'; Doña Marisa, 'problema con cajas del bar'. El trastero comunal necesita un árbitro con criterio.",
+  "roles": {
+   "vecino": {
+    "archetype": "nino_grafitero"
+   }
+  },
+  "trigger": {
+   "all": [
+    {
+     "mission": "m_garaje_despacho",
+     "state": "done"
+    },
+    {
+     "dayMin": 3
+    }
+   ]
+  },
+  "steps": [
+   {
+    "id": "aviso",
+    "type": "phone_call",
+    "dialog": "dlg_trastero",
+    "hint": "El contestador acumula mensajes"
+   },
+   {
+    "id": "bajar",
+    "type": "reach",
+    "target": {
+     "block": "blk_p0_trasteros",
+     "slot": "door"
+    },
+    "hint": "Ve a los trasteros (planta 0)"
+   }
+  ],
+  "choices": [
+   {
+    "id": "mediar",
+    "label": "Mediar: latas arriba, cajas abajo",
+    "hint": "Camarotes: la galería en el estante alto",
+    "icon": "vote",
+    "effects": [
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "nino_grafitero",
+      "affinity": 12
+     },
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "presidente",
+      "affinity": 8
+     },
+     {
+      "op": "addReputation",
+      "resident": "player",
+      "amount": 6
+     },
+     {
+      "op": "toast",
+      "text": "Trastero compartido: la galería sube al estante, las cajas del bar ocupan el suelo. Pinturillas ya habla de 'sede' oficial.",
+      "tone": "good"
+     }
+    ]
+   },
+   {
+    "id": "ceder",
+    "label": "Cedérselo al bar (120 € de alquiler)",
+    "hint": "Las cajas del Rincón necesitan casa",
+    "icon": "coins",
+    "effects": [
+     {
+      "op": "addFunds",
+      "to": "player",
+      "amount": 120
+     },
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "nino_grafitero",
+      "affinity": -10
+     },
+     {
+      "op": "toast",
+      "text": "El trastero es del bar. Pinturillas ha recogido sus latas en silencio y el silencio pesa.",
+      "tone": "bad"
+     }
+    ]
+   },
+   {
+    "id": "museo",
+    "label": "Declararlo 'sala de exposiciones'",
+    "hint": "Cartel, horario de visitas y toda la polémica",
+    "icon": "spray",
+    "effects": [
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "nino_grafitero",
+      "affinity": 15
+     },
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "presidente",
+      "affinity": -12
+     },
+     {
+      "op": "toast",
+      "text": "Cartel colocado: 'Trastero 7 — Galería de Arte Moderno'. Marisa ya busca el número del ayuntamiento.",
+      "tone": "info"
+     }
+    ]
+   }
+  ],
+  "onComplete": [
+   {
+    "op": "addFunds",
+    "to": "player",
+    "amount": 70
+   },
+   {
+    "op": "toast",
+    "text": "Paz en el trastero. Pinturillas ha dejado una lata firmada a la puerta como gesto de buena voluntad.",
+    "tone": "good"
+   }
+  ]
+ },
+ {
+  "id": "m_wifi_antena",
+  "title": "La antena del hámster",
+  "description": "Nico (4A) lleva tres días sin streamings y ya filosofa. La antena de los noventa pide jubilación por los buenos años.",
+  "roles": {
+   "vecino": {
+    "archetype": "estudiante"
+   }
+  },
+  "trigger": {
+   "all": [
+    {
+     "mission": "m_bienvenida",
+     "state": "done"
+    },
+    {
+     "dayMin": 2
+    }
+   ]
+  },
+  "steps": [
+   {
+    "id": "aviso",
+    "type": "phone_call",
+    "dialog": "dlg_wifi",
+    "hint": "Nico (4A) llama en modo dramático"
+   },
+   {
+    "id": "portal",
+    "type": "reach",
+    "target": {
+     "block": "blk_p0_portal",
+     "slot": "door"
+    },
+    "hint": "Sal al portal y mira la antena con Nico"
+   }
+  ],
+  "choices": [
+   {
+    "id": "antena_nueva",
+    "label": "Antena nueva de tu bolsillo (180 €)",
+    "hint": "Wifi decente hoy mismo, fama eterna mañana",
+    "icon": "coins",
+    "effects": [
+     {
+      "op": "addFunds",
+      "to": "player",
+      "amount": -180
+     },
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "estudiante",
+      "affinity": 15
+     },
+     {
+      "op": "addReputation",
+      "resident": "player",
+      "amount": 4
+     },
+     {
+      "op": "toast",
+      "text": "Antena nueva instalada. Nico ha recuperado la fe en la humanidad y en el ping a 12 ms.",
+      "tone": "good"
+     }
+    ]
+   },
+   {
+    "id": "junta",
+    "label": "Sacarlo a junta: caja comunitaria",
+    "hint": "Lo comunitario se paga entre todos",
+    "icon": "vote",
+    "effects": [
+     {
+      "op": "openJunta",
+      "agenda": [
+       {
+        "id": "antena_junta",
+        "title": "Antena nueva para todo el edificio",
+        "description": "Se acabó la era del hámster: antena comunitaria de 180 € pagada por la caja. La señal llega hasta la azotea y más allá.",
+        "cost": 180,
+        "effects": [
+         {
+          "op": "addFunds",
+          "to": "community",
+          "amount": -180
+         },
+         {
+          "op": "addRelation",
+          "a": "player",
+          "b": "estudiante",
+          "affinity": 12
+         },
+         {
+          "op": "addReputation",
+          "resident": "player",
+          "amount": 6
+         },
+         {
+          "op": "toast",
+          "text": "Antena nueva por acuerdo de junta. El tablón recoge los votos y Nico los subtitula.",
+          "tone": "good"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "op": "addReputation",
+      "resident": "player",
+      "amount": 2
+     }
+    ]
+   },
+   {
+    "id": "ignorar",
+    "label": "Que aprenda del 3G",
+    "hint": "Cada vecino con sus calvarios modernos",
+    "icon": "volume-off",
+    "effects": [
+     {
+      "op": "addRelation",
+      "a": "player",
+      "b": "estudiante",
+      "affinity": -12
+     },
+     {
+      "op": "toast",
+      "text": "Nico te ha mirado como se mira a una antena de los noventa. No era una mirada buena.",
+      "tone": "bad"
+     }
+    ]
+   }
+  ],
+  "onComplete": [
+   {
+    "op": "addFunds",
+    "to": "player",
+    "amount": 60
+   },
+   {
+    "op": "toast",
+    "text": "Caso wifi cerrado. Desde el 4A se oyen streamings de victoria.",
+    "tone": "good"
+   }
+  ]
  }
 ]

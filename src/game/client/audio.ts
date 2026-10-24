@@ -8,6 +8,7 @@
  */
 
 import { soundsCatalogSchema, type SoundsCatalog } from '@/game/content/schemas';
+import { loadOptions, saveOptionsPartial } from './options';
 
 const MUTE_KEY = 'vecinos.muted';
 
@@ -21,6 +22,14 @@ let master: GainNode | null = null;
 let catalog: SoundsCatalog | null = null;
 let loading: Promise<void> | null = null;
 let muted = false;
+/** Volumen maestro del jugador (0..1); multiplica el masterGain del catálogo (pulido Steam). */
+let volume = loadOptions().volume;
+
+/** Ganancia efectiva del bus: mando de volumen × masterGain del catálogo (0 si silenciado). */
+function effectiveGain(): number {
+  const base = catalog?.masterGain ?? 0.4;
+  return muted ? 0 : Math.max(0, Math.min(1, volume)) * base;
+}
 
 try {
   muted = localStorage.getItem(MUTE_KEY) === '1';
@@ -37,7 +46,7 @@ function ensureCtx(): AudioContext | null {
     try {
       ctx = new Ctor();
       master = ctx.createGain();
-      master.gain.value = catalog ? catalog.masterGain : 0.4;
+      master.gain.value = effectiveGain();
       master.connect(ctx.destination);
     } catch {
       ctx = null;
@@ -58,7 +67,7 @@ async function loadCatalog(): Promise<void> {
       const parsed = soundsCatalogSchema.safeParse(await res.json());
       if (parsed.success) {
         catalog = parsed.data;
-        if (master && ctx) master.gain.value = muted ? 0 : catalog.masterGain;
+        if (master && ctx) master.gain.value = effectiveGain();
       } else {
         console.warn('sounds.json inválido: el juego corre sin sonido', parsed.error.issues.slice(0, 3));
       }
@@ -151,7 +160,18 @@ export function setMuted(v: boolean): void {
   } catch {
     /* preferencia solo en sesión */
   }
-  if (master && ctx) master.gain.value = v ? 0 : catalog?.masterGain ?? 0.4;
+  if (master && ctx) master.gain.value = effectiveGain();
+}
+
+/** Volumen maestro del jugador (0..1): aplica en vivo y persiste en las opciones. */
+export function setVolume(v: number): void {
+  volume = Math.max(0, Math.min(1, v));
+  saveOptionsPartial({ volume });
+  if (master && ctx) master.gain.value = effectiveGain();
+}
+
+export function getVolume(): number {
+  return volume;
 }
 
 /** Precarga temprana del catálogo (el controller la llama al inicializar). */

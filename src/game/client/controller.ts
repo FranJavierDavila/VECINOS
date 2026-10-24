@@ -14,6 +14,8 @@ import { CameraRig, type CamMode } from './camera';
 import { CutscenePlayer, type CutsceneEventCtx } from './cutscene';
 import { B } from './babylon';
 import { eventSound, preloadSounds } from './audio';
+import { QUALITY_SCALE, loadOptions, type QualityLevel } from './options';
+import { startGamepadPolling } from './gamepad';
 import { NetSession, type SessionStatePayload } from './net';
 import { setController } from './bridge';
 import { selectModalOpen, useGameStore, type Speed, type Tone } from './store';
@@ -83,12 +85,14 @@ class GameController {
         useGameStore.getState().pushToast(`Contenido inválido: ${issues.length} errores de validación`, 'bad');
       }
 
-      // 2) Motor de render (WebGPU con fallback WebGL2).
+      // 2) Motor de render (WebGPU con fallback WebGL2). La calidad la elige el jugador en Opciones.
       const { engine, backend } = await createEngine(canvas);
       this.engine = engine;
+      engine.setHardwareScalingLevel(QUALITY_SCALE[loadOptions().quality]);
       window.addEventListener('resize', this.onResize);
       await this.restart();
       useGameStore.getState().markReady(backend);
+      startGamepadPolling();
       engine.runRenderLoop(this.frame);
       // Gancho de depuración/pruebas E2E (no lo usa la UI).
       (window as unknown as { __vecinos?: unknown }).__vecinos = { store: useGameStore, controller: this };
@@ -167,6 +171,18 @@ class GameController {
   setCamMode(mode: CamMode): void {
     if (this.rig) this.rig.mode = mode;
     useGameStore.getState().setCamMode(mode);
+  }
+
+  /** Siguiente cámara de la rueda Edificio → Planta → Estancia (teclado 1/2/3 y mando Y). */
+  cycleCam(): void {
+    const order: CamMode[] = ['edificio', 'planta', 'estancia'];
+    const cur = order.indexOf(useGameStore.getState().camMode);
+    this.setCamMode(order[(cur + 1) % order.length]!);
+  }
+
+  /** Calidad gráfica (pulido Steam): resolución de render vía hardware scaling. Solo presentación. */
+  applyQuality(q: QualityLevel): void {
+    this.engine?.setHardwareScalingLevel(QUALITY_SCALE[q]);
   }
 
   /** Botón "Fiesta demo": datos en rules.demo (residente, bloque y ruido) → canal de ruido en acción. */
@@ -626,6 +642,7 @@ class GameController {
     const now = performance.now();
     if (now - this.lastHudSync > 200) {
       this.lastHudSync = now;
+      useGameStore.getState().setFps(Math.round(this.engine.getFps()));
       this.syncHud();
     }
 

@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import type { Access, MinigameDef, Weather } from '@/game/core/types';
 import { isMuted } from './audio';
+import { loadOptions } from './options';
 
 // ───────────────────────── Tipos de la interfaz ─────────────────────────
 
@@ -153,6 +154,11 @@ interface GameState {
   touchVisible: boolean;
   /** Sonido silenciado (persistido por el motor de audio). */
   soundMuted: boolean;
+  /** Menú de opciones abierto (pulido Steam). */
+  optionsOpen: boolean;
+  /** Contador de FPS visible (opción de gráficos) y último valor medido. */
+  fpsVisible: boolean;
+  fps: number;
   /** Aviso del catálogo al activar los mandos a mano (rules.touch.hint). */
   touchHint: string;
   clock: { day: number; minute: number };
@@ -194,6 +200,9 @@ interface GameState {
   setCamMode: (m: CamMode) => void;
   setTouchControls: (v: boolean) => void;
   setSoundMuted: (v: boolean) => void;
+  setOptionsOpen: (v: boolean) => void;
+  setFpsVisible: (v: boolean) => void;
+  setFps: (n: number) => void;
   syncHud: (h: HudSnapshot) => void;
   pushToast: (text: string, tone?: Tone) => void;
   dropToast: (id: number) => void;
@@ -229,6 +238,9 @@ export const useGameStore = create<GameState>((set) => ({
   camMode: 'edificio',
   touchVisible: false,
   soundMuted: isMuted(),
+  optionsOpen: false,
+  fpsVisible: loadOptions().fpsVisible,
+  fps: 0,
   touchHint: '',
   clock: { day: 1, minute: 480 },
   weather: 'sunny',
@@ -276,6 +288,9 @@ export const useGameStore = create<GameState>((set) => ({
     set({ touchVisible: v });
   },
   setSoundMuted: (v) => set({ soundMuted: v }),
+  setOptionsOpen: (optionsOpen) => set({ optionsOpen }),
+  setFpsVisible: (fpsVisible) => set({ fpsVisible }),
+  setFps: (fps) => set({ fps }),
   syncHud: (h) => set(h),
   pushToast: (text, tone = 'info') => {
     const id = nextId++;

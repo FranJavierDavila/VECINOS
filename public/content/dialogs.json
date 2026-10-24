@@ -231,5 +231,56 @@
     "text": "Dos vecinos, una lavandería y cero consenso. Baja a echar un ojo antes de que esto salga en el tablón."
    }
   ]
+ },
+ {
+  "id": "dlg_garaje",
+  "lines": [
+   {
+    "speaker": "Administrador de fincas",
+    "text": "Llama para avisar: el Sr. Vulture ha registrado el garaje como 'sala de operaciones de inversión privada'. Con papel timbrado y todo."
+   },
+   {
+    "speaker": "Administrador de fincas",
+    "text": "Técnicamente no es ilegal hasta que la junta diga lo contrario. Y la junta, ya sabe, es usted y tres dormilanos."
+   },
+   {
+    "speaker": "Administrador de fincas",
+    "text": "Baje al garaje, mire el cartel con cara de gravedad y decida: acta, alquiler o farol. Yo cobro igual por las tres."
+   }
+  ]
+ },
+ {
+  "id": "dlg_trastero",
+  "lines": [
+   {
+    "speaker": "Contestador de la junta",
+    "text": "Mensaje de Pinturillas (1B): 'El trastero 7 es MI galería de latas. Tengo expuestos hasta cinco botes y una critica muy favorable de mi madre.'"
+   },
+   {
+    "speaker": "Contestador de la junta",
+    "text": "Mensaje de Doña Marisa: 'Las cajas del bar no caben en el bar. Ese trastero es de la COMUNIDAD, no del Museo Municipal del Grafiti.'"
+   },
+   {
+    "speaker": "Contestador de la junta",
+    "text": "Dos frentes, un trastero y cero acuerdos. Baje a arbitrar antes de que aparezcan las notas adhesivas."
+   }
+  ]
+ },
+ {
+  "id": "dlg_wifi",
+  "lines": [
+   {
+    "speaker": "Nico (4A)",
+    "text": "¿Tienes cinco segundos? Mi wifi se cae cada vez que lavo los platos. He cronometrado: la señal y yo no nos respetamos."
+   },
+   {
+    "speaker": "Nico (4A)",
+    "text": "La antena es de los noventa. Envía la señal a través de un hámster que corre dentro, según el de la tienda."
+   },
+   {
+    "speaker": "Nico (4A)",
+    "text": "Sube al portal, mira la antena conmigo y decidimos: antena nueva, junta o que aprenda a vivir del 3G como un hombre."
+   }
+  ]
  }
 ]

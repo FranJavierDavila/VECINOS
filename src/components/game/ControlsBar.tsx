@@ -13,6 +13,7 @@ import {
   Play,
   Save,
   Hand,
+  Settings,
   Users,
   Volume2,
   VolumeX,
@@ -234,6 +235,17 @@ export function ControlsBar({
         >
           {muted ? <VolumeX aria-hidden /> : <Volume2 aria-hidden />}
           {muted ? 'Silencio' : 'Sonido'}
+        </Button>
+
+        {/* Opciones */}
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => useGameStore.getState().setOptionsOpen(true)}
+          aria-label="Abrir opciones del juego"
+        >
+          <Settings aria-hidden />
+          Opciones
         </Button>
 
         {/* Multijugador */}
