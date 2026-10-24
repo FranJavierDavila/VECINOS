@@ -46,6 +46,9 @@ interface Actor {
   elevatorReq: { x: number; from: number; to: number } | null;
   /** Fase del viaje que se estaba atendiendo (para detectar transiciones y encolar tramos). */
   ridePhase: string | null;
+  /** Estaba habilitado el frame anterior (v1.10): la REAPARICIÓN coloca al actor donde dice el
+   *  sim (vuelve de la calle), nunca caminando desde su última posición visible por la pared. */
+  enabledPrev: boolean;
   /** Rig del arte final (null mientras carga o si hay fallback greybox). */
   rig: ActorRig | null;
 }
@@ -68,6 +71,12 @@ export interface ActorsDirector {
   walkTo(id: string, dest: { x: number; z: number; floor: number; inside?: { block: string; local: Pt } }): boolean;
   /** true cuando el actor no tiene tramos pendientes (llegó — o no existe). */
   idle(id: string): boolean;
+  /** Punto sobre la cabeza del actor (bocadillos v1.10); null si no está en escena. */
+  headOf(id: string): { x: number; y: number; z: number } | null;
+  /** Gesto social en curso (stateAnimations: talk/laugh/argue/phone…) o null. */
+  gestureOf(id: string): string | null;
+  /** true si el actor está tomado por el director de cutscenes (el staging manda). */
+  isDirected(id: string): boolean;
   /**
    * Estado social explícito (v1.2): talk/laugh/argue/phone/sit… según stateAnimations del
    * manifiesto. Con `seconds` > 0 el gesto expira solo (líneas de diálogo); null lo suelta
@@ -100,7 +109,7 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
     m.emissiveColor = m.diffuseColor.scale(0.25);
     mesh.material = m;
     mesh.isPickable = false;
-    const a: Actor = { id, node: mesh, height, pivotY: height / 2, path: [], wanderT: 0, wanderLap: 0, targetLocal: null, lastLoc: null, directed: false, yaw: 0, targetYaw: null, gesture: null, gestureT: 0, seated: false, elevatorReq: null, ridePhase: null, rig: null };
+    const a: Actor = { id, node: mesh, height, pivotY: height / 2, path: [], wanderT: 0, wanderLap: 0, targetLocal: null, lastLoc: null, directed: false, yaw: 0, targetYaw: null, gesture: null, gestureT: 0, seated: false, elevatorReq: null, ridePhase: null, enabledPrev: false, rig: null };
     actors.set(id, a);
 
     // Arte final (opcional): modelo glTF del manifiesto; cualquier fallo → cápsula.
@@ -118,6 +127,14 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
           rig.dispose(); // el residente se fue (o ya llegó otro rig): no dejar basura
           return;
         }
+        // PRESERVAR POSE (v1.10): el modelo puede terminar de cargar EN PLENO paseo (los assets
+        // llegan async). Sin esto, el swap cápsula→rig recolocaba el nodo a origen y el actor
+        // "saltaba" (el guard antiguo lo enmascaraba con OTRO teletransporte al objetivo: la
+        // vecina con la maleta cambiando de planta de golpe). Pies y rumbo se conservan 1:1.
+        const feetY = cur.node.position.y - cur.pivotY;
+        rig.root.position.set(cur.node.position.x, feetY + 0.02, cur.node.position.z);
+        if (rig.root.rotationQuaternion) Quaternion.RotationYawPitchRollToRef(cur.yaw, 0, 0, rig.root.rotationQuaternion);
+        else rig.root.rotation.y = cur.yaw;
         // El modelo se authora a nominalHeight: escala uniforme a la altura del arquetipo.
         rig.root.scaling.setAll(height / def.nominalHeight);
         cur.node.dispose(false, true); // cápsula fuera (libera también su material propio)
@@ -137,14 +154,15 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
     const f = content.blocks[b.defId]!.features;
     return !!f && (f.stairs === true || f.elevator === true);
   });
-  /** Pozos UTILIZABLES para rutear (v1.3): la escalera siempre; el ascensor SOLO si funciona
-   *  (elevator_status 'ok'). Antes la presentación elegía el pozo más cercano sin mirar el
-   *  estado: los vecinos "usaban" el ascensor averiado aunque el sim los mandase a la escalera. */
-  const usableShafts = shafts.filter((b) => {
+  /** ¿Pozo UTILIZABLE para rutear EN ESTE MOMENTO? (v1.10) La escalera siempre; el ascensor
+   *  SOLO si funciona (elevator_status 'ok'). Se comprueba EN CADA RUTA porque el estado del
+   *  sim cambia en vivo (avería/reparación): un filtro estático enlazaría llamadas al pozo
+   *  averiado que el director cancela al frame siguiente (bucle llamada/cancelación). */
+  const shaftUsable = (b: BlockInstance): boolean => {
     const f = content.blocks[b.defId]!.features!;
     if (f.stairs === true) return true;
     return f.elevator === true && b.params.elevator_status === 'ok';
-  });
+  };
   const shaftXOf = (b: BlockInstance): number => (b.cell.col + b.size.w / 2) * v.cellW;
   /** Calado transitablo del bloque (vivienda 2× o bloque común). */
   const depthOfBlock = (b: BlockInstance): number => (b.kind === 'dwelling' ? v.depth : v.commonDepth);
@@ -156,20 +174,23 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
    * (andar hasta él, subir/bajar, salir), y dentro de una vivienda con geometría 2D la ruta
    * pasa por los huecos del catálogo (nunca a través de tabiques). La comparten la IA normal
    * y el director de cutscenes: una sola verdad de locomoción.
+   * Devuelve false SOLO cuando el destino exige cambiar de planta y no hay pozo utilizable
+   * (estado imposible: el llamador decide si recoloca sin teatro).
    */
-  const buildRoute = (a: Actor, dest: { x: number; y: number; z: number; inside?: { block: BlockInstance; local: Pt } | null }): void => {
+  const buildRoute = (a: Actor, dest: { x: number; y: number; z: number; inside?: { block: BlockInstance; local: Pt } | null }): boolean => {
     const node = a.node.position;
     let startX = node.x;
     let startZ = node.z;
+    let verticalOk = true;
     if (Math.abs(dest.y - node.y) > 0.05) {
       const floorNow = Math.round(node.y / v.cellH);
       // Como el sim: ASCENSOR primero si funciona (coste 1 < 3 de la escalera); la escalera
-      // es la vía de emergencia cuando el núcleo está averiado (v1.3: solo pozos operativos).
-      const elevHere = usableShafts
-        .filter((s) => s.cell.floor === floorNow && content.blocks[s.defId]!.features!.elevator === true)
+      // es la vía de emergencia cuando el núcleo está averiado (v1.10: estado comprobado EN VIVO).
+      const elevHere = shafts
+        .filter((s) => s.cell.floor === floorNow && content.blocks[s.defId]!.features!.elevator === true && s.params.elevator_status === 'ok')
         .sort((s1, s2) => Math.abs(shaftXOf(s1) - startX) - Math.abs(shaftXOf(s2) - startX))[0];
-      const here = elevHere ?? usableShafts
-        .filter((s) => s.cell.floor === floorNow)
+      const here = elevHere ?? shafts
+        .filter((s) => s.cell.floor === floorNow && shaftUsable(s))
         .sort((s1, s2) => Math.abs(shaftXOf(s1) - startX) - Math.abs(shaftXOf(s2) - startX))[0];
       if (here) {
         const sx = shaftXOf(here);
@@ -196,6 +217,8 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
         }
         startX = sx;
         startZ = v.corridorZ;
+      } else {
+        verticalOk = false;
       }
     }
     const legs: Pt[] = [];
@@ -221,6 +244,7 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
     }
     if (legs.length === 0) legs.push({ x: dest.x, z: dest.z });
     for (const p of legs) a.path.push({ x: p.x, y: dest.y, z: p.z });
+    return verticalOk;
   };
 
   return {
@@ -245,12 +269,19 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
       const k = 1 - Math.exp(-dt * 10);
       // Ritmos del catálogo (rules.view): crucero de vecinos y subida por pozo.
       const npcSpeed = v.npcWalkSpeed;
-      const width = Math.max(...Object.values(world.blocks).map((b) => (b.cell.col + b.size.w) * v.cellW));
       for (const [id, a] of actors) {
         const r = world.residents[id]!;
         const isPlayer = id === playerResidentId;
-        a.node.setEnabled(isPlayer || (r.present && r.location !== null));
-        if (!a.node.isEnabled()) continue;
+        const nowEnabled = isPlayer || (r.present && r.location !== null);
+        a.node.setEnabled(nowEnabled);
+        if (!nowEnabled) {
+          a.enabledPrev = false;
+          continue;
+        }
+        // En escena lo coloca el director (v1.10): marcar habilitado SIN snap — si no, al soltar
+        // al actor tras una cutscene, el primer frame normal lo trataría como "reaparición"
+        // y lo teletransportaría al objetivo en vez de rutear desde donde está.
+        if (a.directed) a.enabledPrev = true;
         const node = a.node.position;
         const prevX = node.x;
         const prevZ = node.z;
@@ -342,20 +373,25 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
               gz = frontZ + localTarget.z;
             }
             goal.set(gx, b.cell.floor * v.cellH + 0.14 + a.pivotY, gz);
-            // ── Locomoción interpolada (nada de teletransportes): el destino del sim se recorre a
-            // velocidad de crucero del catálogo, tramo a tramo. Los saltos del sim (IA cada aiHopTicks)
-            // se encolan: el actor agota su ruta (pozo incluido) y SOLO THEN captura el destino nuevo.
-            if (node.lengthSquared() === 0) node.copyFrom(goal);
-            const dh = Math.hypot(goal.x - node.x, goal.z - node.z);
-            const dy = Math.abs(goal.y - node.y);
-            if (dh > width + 2 || dy > v.cellH * 1.6) {
-              // Estado imposible (aparición/carga/reconciliación): sin teatro.
+            // Reaparición (v1.10): el vecino vuelve de la calle o entra en escena — aparece
+            // DONDE DICE EL SIM, no caminando desde su última posición visible (por la pared).
+            if (!a.enabledPrev) {
+              a.enabledPrev = true;
               node.copyFrom(goal);
               a.path = [];
-            } else if (a.path.length === 0) {
-              // Captura compartida (pozo más cercano + ruta interior por huecos): la misma
-              // que usa el director de cutscenes — una sola verdad de locomoción.
-              buildRoute(a, { x: goal.x, y: goal.y, z: goal.z, inside: geo && localTarget ? { block: b, local: localTarget } : null });
+            }
+            // ── Locomoción interpolada (nada de teletransportes): el destino del sim se recorre a
+            // velocidad de crucero del catálogo, tramo a tramo. El sim adelanta a los vecinos a
+            // saltos del grafo (varias plantas de golpe): la ruta se RECALCULA DESDE EL PUNTO
+            // ACTUAL (andar al pozo → subir/bajar → salir) y el viaje se ve entero, pieza a pieza.
+            // Solo un estado realmente imposible (cambio de planta sin pozo utilizable, v1.10)
+            // recoloca sin teatro. Con ruta en curso se consume SIEMPRE hasta el final.
+            if (a.path.length === 0) {
+              const routed = buildRoute(a, { x: goal.x, y: goal.y, z: goal.z, inside: geo && localTarget ? { block: b, local: localTarget } : null });
+              if (!routed) {
+                node.copyFrom(goal);
+                a.path = [];
+              }
             }
           }
           if (a.path.length > 0) {
@@ -506,6 +542,18 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
       idle(id: string): boolean {
         const a = actors.get(id);
         return !a || (a.path.length === 0 && !a.elevatorReq);
+      },
+      headOf(id: string): { x: number; y: number; z: number } | null {
+        const a = actors.get(id);
+        if (!a || !a.node.isEnabled()) return null;
+        const p = a.node.position;
+        return { x: p.x, y: p.y + a.height + 0.18, z: p.z };
+      },
+      gestureOf(id: string): string | null {
+        return actors.get(id)?.gesture ?? null;
+      },
+      isDirected(id: string): boolean {
+        return actors.get(id)?.directed ?? false;
       },
       setGesture(id: string, state: string | null, seconds = 0): void {
         const a = actors.get(id);

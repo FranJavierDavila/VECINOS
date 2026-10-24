@@ -714,6 +714,44 @@ export const assetsCatalogSchema = z.object({
 
 export type AssetsCatalogParsed = z.infer<typeof assetsCatalogSchema>;
 
+// ───────────────────────── Bocadillos de expresión (v1.10, opcional) ─────────────────────────
+
+const emoteDefSchema = z.object({
+  id: z.string().min(1),
+  glyph: z.string().min(1),
+  priority: z.number(),
+  label: z.string().optional(),
+});
+
+export const emotesCatalogSchema = z.object({
+  bubble: z.object({
+    offsetY: z.number().min(0),
+    sizePx: z.number().min(8),
+    maxDistance: z.number().positive(),
+    popMs: z.number().min(0),
+    decisionMs: z.number().min(50),
+  }),
+  mood: z.object({
+    needs: z.record(z.string(), z.number()),
+  }),
+  moods: z.array(emoteDefSchema.extend({ min: z.number().optional(), max: z.number().optional() })),
+  activities: z.array(emoteDefSchema),
+  gestures: z.array(emoteDefSchema),
+  events: z.array(
+    z.object({
+      on: z.string().min(1),
+      glyph: z.string().min(1),
+      priority: z.number(),
+      who: z.enum(['resident', 'player', 'blockResidents']),
+      seconds: z.number().positive(),
+      altGlyph: z.object({ when: z.string().min(1), glyph: z.string().min(1) }).optional(),
+      cooldown: z.number().min(0).optional(),
+    }),
+  ),
+});
+
+export type EmotesCatalogParsed = z.infer<typeof emotesCatalogSchema>;
+
 // ───────────────────────── Listas (los ficheros JSON son arrays; el Content las indexa) ─────────────────────────
 
 export const blockListSchema = z.array(blockDefSchema);

@@ -395,6 +395,52 @@ export interface CutsceneDef {
   beats: CutsceneBeat[];
 }
 
+// ───────────────────── Bocadillos de expresión (v1.10) ─────────────────────
+
+/**
+ * Catálogo de bocadillos (public/content/emotes.json): qué expresión muestra cada
+ * personaje sobre su cabeza según su estado — ánimo, actividad, gesto social o eventos
+ * del sim. 100% data-driven: el código de presentación solo recita este catálogo.
+ */
+export interface EmotesCatalog {
+  /** Ajustes visuales del bocadillo (proyección, tamaño y ritmo de decisión). */
+  bubble: {
+    /** Altura del bocadillo sobre la cabeza (m). */
+    offsetY: number;
+    /** Tamaño del glifo en píxeles CSS. */
+    sizePx: number;
+    /** Distancia máxima a la cámara (m) para mostrar el bocadillo. */
+    maxDistance: number;
+    /** Duración de la animación de aparición (ms). */
+    popMs: number;
+    /** Cadencia de reevaluación del estado (ms): amortigua parpadeos del sim. */
+    decisionMs: number;
+  };
+  /** Qué necesidades componen el "ánimo" (media ponderada 0..100) y con qué peso. */
+  mood: { needs: Record<string, number> };
+  /** Emotes por banda de ánimo: gana el de mayor prioridad cuyo rango [min,max] contenga el ánimo (rangos abiertos si falta min/max). */
+  moods: { id: string; glyph: string; priority: number; label?: string; min?: number; max?: number }[];
+  /** Emote por actividad del arquetipo (id de actividad → glifo). Las no listadas no muestran bocadillo. */
+  activities: { id: string; glyph: string; priority: number; label?: string }[];
+  /** Emote por gesto social en curso (stateAnimations: talk/laugh/argue/phone…). */
+  gestures: { id: string; glyph: string; priority: number; label?: string }[];
+  /** Emotes temporales por evento del sim (bocadillo que aparece y expira solo). */
+  events: {
+    /** Tipo de evento del sim (p. ej. stairs_grumble, knock_result). */
+    on: string;
+    glyph: string;
+    priority: number;
+    /** A quién le aparece: el residente del evento, el jugador, o los vecinos del bloque. */
+    who: 'resident' | 'player' | 'blockResidents';
+    /** Segundos que dura el bocadillo. */
+    seconds: number;
+    /** Glifo alternativo si un campo del evento es truthy (p. ej. asleep en knock_result). */
+    altGlyph?: { when: string; glyph: string };
+    /** Enfriamiento por residente y emote (s): evita bocadillos en cadena del mismo evento. */
+    cooldown?: number;
+  }[];
+}
+
 export interface TemplateRow {
   floors: [number, number];
   blocks: { col: number; defId: string; tag: string }[];
@@ -507,6 +553,8 @@ export interface Content {
   minigames: Record<string, MinigameDef>;
   /** Cutscenes de misión (Fase D): teatro de presentación data-driven. */
   cutscenes: Record<string, CutsceneDef>;
+  /** Bocadillos de expresión (v1.10, opcional): emotes por ánimo/actividad/gesto/evento. */
+  emotes?: EmotesCatalog;
   /** Manifiesto de arte final (opcional): modelos glTF por arquetipo/bloque con fallback greybox. */
   assets?: AssetsCatalog;
 }

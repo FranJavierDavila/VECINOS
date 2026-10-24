@@ -1,8 +1,9 @@
-import type { AssetsCatalog, Content } from '@/game/core/types';
+import type { AssetsCatalog, Content, EmotesCatalog } from '@/game/core/types';
 import {
   blockListSchema,
   cutsceneListSchema,
   dialogListSchema,
+  emotesCatalogSchema,
   furnitureListSchema,
   influenceListSchema,
   layoutListSchema,
@@ -71,6 +72,15 @@ export async function loadContent(baseUrl: string = '/content/'): Promise<{ cont
       throw new Error(`assets.json (manifiesto de arte final) inválido: ${e instanceof Error ? e.message : String(e)}`);
     }
 
+    // Bocadillos de expresión (v1.10, OPCIONAL): sin el fichero, la partida funciona sin emotes.
+    let emotes: EmotesCatalog | undefined;
+    try {
+      const res = await fetch(`${baseUrl}emotes.json`);
+      if (res.ok) emotes = emotesCatalogSchema.parse(await res.json());
+    } catch (e) {
+      throw new Error(`emotes.json (bocadillos de expresión) inválido: ${e instanceof Error ? e.message : String(e)}`);
+    }
+
     const content: Content = {
       rules,
       blocks: indexById(blocks),
@@ -86,6 +96,7 @@ export async function loadContent(baseUrl: string = '/content/'): Promise<{ cont
       furniture: indexById(furniture),
       minigames: indexById(minigames),
       assets,
+      emotes,
     };
 
     const issues = validateContent(content);
@@ -204,6 +215,16 @@ export function validateContent(c: Content): Issue[] {
     if (!c.archetypes[s.player.archetype]) err(`scenarios/${s.id}`, `arquetipo del jugador desconocido: ${s.player.archetype}`);
     for (const r of s.residents) if (!c.archetypes[r.archetype]) err(`scenarios/${s.id}`, `arquetipo desconocido: ${r.archetype}`);
     for (const m of s.startMissions) if (!c.missions[m]) err(`scenarios/${s.id}`, `misión inicial desconocida: ${m}`);
+  }
+
+  // Bocadillos (v1.10): las actividades emoteadas deben existir en algún arquetipo (indulgente
+  // con gestos/eventos, que son estados de presentación y no ids del sim).
+  if (c.emotes) {
+    const activityIds = new Set(Object.values(c.archetypes).flatMap((a) => Object.keys(a.activities)));
+    for (const e of c.emotes.activities)
+      if (!activityIds.has(e.id)) err(`emotes/activities/${e.id}`, `actividad desconocida en los arquetipos: ${e.id}`);
+    for (const e of c.emotes.events)
+      if (e.who === 'blockResidents' && e.on === 'resident_moved') err(`emotes/events/${e.on}`, 'blockResidents sobre resident_moved dispararía bocadillos en cada paso: usa otro evento');
   }
 
   // Manifiesto de assets: claves que deben existir y animaciones/actividades bien referenciadas.

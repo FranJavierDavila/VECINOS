@@ -11,6 +11,7 @@ import { createEngine } from './engine';
 import { createBuilding } from './building';
 import { createActors } from './actors';
 import { createElevators, type ElevatorsDirector } from './elevator';
+import { createBubbles, type BubblesDirector } from './bubbles';
 import { CameraRig, type CamMode } from './camera';
 import { CutscenePlayer, type CutsceneEventCtx } from './cutscene';
 import { B } from './babylon';
@@ -40,6 +41,7 @@ class GameController {
   private building: ReturnType<typeof createBuilding> | null = null;
   private actors: ReturnType<typeof createActors> | null = null;
   private elevators: ElevatorsDirector | null = null;
+  private bubbles: BubblesDirector | null = null;
   private rig: CameraRig | null = null;
 
   private get content(): Content {
@@ -111,6 +113,8 @@ class GameController {
     window.removeEventListener('resize', this.onResize);
     this.net?.disconnect();
     this.net = null;
+    this.bubbles?.dispose();
+    this.bubbles = null;
     this.engine?.stopRenderLoop(this.frame);
     this.scene?.dispose();
     this.engine?.dispose();
@@ -605,6 +609,11 @@ class GameController {
     this.building = createBuilding(this.scene, this.world, this.content);
     this.elevators = createElevators(this.scene, this.world, this.content);
     this.actors = createActors(this.scene, this.world, this.content, this.elevators);
+    // Bocadillos de expresión (v1.10): capa DOM sobre el canvas, recreada con el mundo
+    // (referencia al World vivo). Sin emotes.json en el catálogo, director nulo sin capa.
+    this.bubbles?.dispose();
+    const stage = this.canvas?.parentElement;
+    this.bubbles = stage && this.actors ? createBubbles(stage, this.scene, this.engine, this.world, this.content, this.actors.director) : null;
     const blocks = Object.values(this.world.blocks);
     // El cubo de escalera (v1.4) sobresale spanW−1 celdas por la derecha del edificio:
     // el encuadre lo incluye para que la torre no se corte en cámara.
@@ -724,6 +733,8 @@ class GameController {
     this.actors.update(dt, pos, this.actorId());
     // Cutscene (Fase D): sus beats mueven cámara/actores DESPUÉS de los eventos y ANTES del render.
     this.cutscenePlayer?.update(dt);
+    // Bocadillos (v1.10): después de actores y cámara — proyectan la posición FINAL del frame.
+    this.bubbles?.update(dt, this.actorId());
     // Si la cutscene acaba y queda cola, encadena la siguiente aquí: no dependemos de que el sim
     // genere otro evento para descolgar la siguiente (durante el teatro el sim está congelado).
     if (this.cutsceneQueue.length > 0 && !this.cutscenePlayer?.active) this.pumpCutscene();
@@ -902,6 +913,8 @@ class GameController {
       }
       // Cutscenes (Fase D): después del reparto, ¿alguna quiere este evento como disparador?
       this.maybeCutscene(e);
+      // Bocadillos (v1.10): reacciones expresivas al evento según emotes.json del catálogo.
+      this.bubbles?.onEvent(e);
     }
     this.pumpCutscene();
   }
