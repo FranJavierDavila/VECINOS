@@ -455,10 +455,13 @@ function buildLavanderia(): Record<string, unknown> {
   box(g, 'cristal_2', mCentro, [0, 0.55, 0.81], [0.2, 0.2, 0.04]);
   box(g, 'cristal_3', mCentro, [1.5, 0.55, 0.81], [0.2, 0.2, 0.04]);
   box(g, 'rotulo', mSign, [0, 2.2, 0.75], [1.9, 0.22, 0.06]);
-  box(g, 'cuerda', mLine, [0.9, 1.76, 0.8], [1.4, 0.025, 0.02]);
-  box(g, 'toalla_a', mTowelA, [0.55, 1.45, 0.79], [0.45, 0.55, 0.03]);
-  box(g, 'toalla_b', mTowelB, [1.25, 1.45, 0.79], [0.45, 0.55, 0.03]);
-  box(g, 'tubo_descarga', mPipe, [-2.15, 0.55, 0.5], [0.09, 1.1, 0.09]);
+  // Tendal y tubo: valores ESPEJADOS en X a propósito — el loader glTF de Babylon voltea X y Z
+  // (convención RH→LH, documentada en buildEscalera); autorando ya espejado, el arte aterrice
+  // donde fue diseñado: tendal a la derecha del local, tubo de descarga en la esquina izquierda.
+  box(g, 'cuerda', mLine, [-0.9, 1.76, 0.8], [1.4, 0.025, 0.02]);
+  box(g, 'toalla_a', mTowelA, [-0.55, 1.45, 0.79], [0.45, 0.55, 0.03]);
+  box(g, 'toalla_b', mTowelB, [-1.25, 1.45, 0.79], [0.45, 0.55, 0.03]);
+  box(g, 'tubo_descarga', mPipe, [2.15, 0.55, 0.5], [0.09, 1.1, 0.09]);
   wireRoot(g);
   return g.finish('vecinos-gen-fase-e (lavanderia_comunal v1)');
 }

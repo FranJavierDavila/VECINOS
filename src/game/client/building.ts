@@ -136,7 +136,9 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(blockLabel(b.id), 128, 52);
-      tex.update(false);
+      // update(true): el flag es invertY. Con false el canvas se sube SIN voltear y el texto
+      // sale CABEZA ABAJO (la "A" se ve como "V"; B/C/D pasan por simétricas y esquivan el ojo).
+      tex.update(true);
       const pmat = new StandardMaterial(`${b.id}_cartel_mat`, scene);
       pmat.diffuseTexture = tex;
       pmat.emissiveColor = Color3.FromHexString(pl.bg).scale(0.55); // legible en fachada norte

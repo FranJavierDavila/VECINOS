@@ -8,7 +8,7 @@
  *     VIEJOS hasta doble recarga; el jugador veía el juego anticuado. Nunca más.)
  *   - Las peticiones que no son GET (save/load API) NUNCA se cachean.
  */
-const VERSION = 'vecinos-v1.5';
+const VERSION = 'vecinos-v1.7';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const SHELL_ASSETS = ['/', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];

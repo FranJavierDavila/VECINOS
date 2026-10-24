@@ -296,6 +296,11 @@ function buildPortal(): Record<string, unknown> {
  * runtime en src/game/stairs.ts): cubo visual de spanW celdas anclado a la celda lógica
  * (sobresale por la derecha del edificio, como torre de escalera), puerta en el centro de la
  * celda lógica, carril de puerta (+z autorado) y carril trasero (−z).
+ * CONVENCIÓN DE CARGA (medida en Babylon 8, loader glTF RH→LH): el loader VOLTEA X y Z del
+ * archivo (equivale a rotarlo 180° en Y). El frente se autoró en +z local para que aterrice
+ * en −z mundo (calle); la X también se espeja al final de esta función — la escalera es el
+ * primer bloque ASIMÉTRICO en X y sin el espejo aterrizaba puerta a la derecha y tramos
+ * al revés (bug visto en el QA v1.7). Los bloques simétricos en X no lo necesitan.
  * Niveles: 16 subidas por planta (cellH/16); tramo A = 7, descansillo = la 8.ª (forjado),
  * tramo B = 7 y la 16.ª es el forjado de la planta superior (desembarco).
  */
@@ -310,8 +315,13 @@ function buildEscalera(): Record<string, unknown> {
   const halfW = W / 2;
   const halfD = 1.4 / 2;
   const doorX = st.doorLocalX; // -1.14 (centro de la celda lógica)
-  const zF = st.laneFront; // carril de puerta (autorado +z → mundo −z, junto al pasillo)
-  const zB = -st.laneBack; // carril trasero (autorado −z → mundo +z, al fondo del cubo)
+  // Carriles en el frame del MODELO: world_z = (frontZ + nominal.d/2) − z_autorado, así que el
+  // carril que el runtime quiere a world frontZ+lane se autoró a z = halfD − lane. Con el
+  // catálogo actual: tramo A (frontal, junto al pasillo) +0.35 → mundo −0.35; tramo B
+  // (trasero) −0.35 → mundo +0.35. (Antes zB era −laneBack = −1.05 → mundo +1.05: el tramo B
+  // quedaba FUERA del cubo, detrás del muro del fondo a +0.63 — bug visto en el QA v1.7.)
+  const zF = halfD - st.laneFront; // carril de puerta (autorado +z → mundo −z, junto al pasillo)
+  const zB = halfD - st.laneBack; // carril trasero (autorado −z → mundo +z, al fondo del cubo)
   const laneHalf = 0.33; // media anchura de carril (0.66 m: cabe el actor con holgura)
   const stepRise = v.cellH / (st.stepCount * 2); // 0.1625
   const entryTop = v.slab * 2; // canto del forjado de entrada (0.14)
@@ -376,7 +386,7 @@ function buildEscalera(): Record<string, unknown> {
   g.addNode({ name: 'barandilla_a', mesh: g.addBoxMesh('railA', mRail), translation: [(x0 + x1) / 2, entryTop + railY + (st.stepCount * stepRise - entryTop) / 2, zF + laneHalf - 0.02], scale: [lenA, railThick, railThick], rotation: quatAxis(0, 0, 1, slopeA) });
   const slopeB = Math.atan2(15 * stepRise + entryTop - landTop, st.flightRun);
   const lenB = Math.hypot(st.flightRun, 15 * stepRise + entryTop - landTop);
-  g.addNode({ name: 'barandilla_b', mesh: g.addBoxMesh('railB', mRail), translation: [(x0 + x1) / 2, landTop + railY + (15 * stepRise + entryTop - landTop) / 2, zB - laneHalf + 0.02], scale: [lenB, railThick, railThick], rotation: quatAxis(0, 0, 1, -slopeB) });
+  g.addNode({ name: 'barandilla_b', mesh: g.addBoxMesh('railB', mRail), translation: [(x0 + x1) / 2, landTop + railY + (15 * stepRise + entryTop - landTop) / 2, zB + laneHalf - 0.02], scale: [lenB, railThick, railThick], rotation: quatAxis(0, 0, 1, -slopeB) });
   // Postes del tramo A (sobre la cara abierta)
   const postA = (i: number) => {
     const px = x0 + (i / (st.stepCount - 1)) * st.flightRun;
@@ -390,7 +400,7 @@ function buildEscalera(): Record<string, unknown> {
   const postB = (i: number) => {
     const px = x1 - (i / (st.stepCount - 1)) * st.flightRun;
     const base = landTop + (i / (st.stepCount - 1)) * (15 * stepRise + entryTop - landTop);
-    box(`poste_b${i}`, mRail, [px, base + railY / 2, zB - laneHalf + 0.02], [railThick * 0.8, railY, railThick * 0.8]);
+    box(`poste_b${i}`, mRail, [px, base + railY / 2, zB + laneHalf - 0.02], [railThick * 0.8, railY, railThick * 0.8]);
   };
   postB(0);
   postB(Math.floor((st.stepCount - 1) / 2));
@@ -406,7 +416,18 @@ function buildEscalera(): Record<string, unknown> {
 
   // Cierra el Root con TODOS los nodos creados (convención del generador).
   (g.nodes[0] as { children: number[] }).children = g.nodes.map((_, i) => i).slice(1);
-  return g.finish('vecinos-gen-pilot-assets (escaleras_planta v2 — dos tramos + descansillo)');
+  // ── ESPEJO X (convención de carga): el loader glTF voltea X y Z. La Z ya se compensó
+  // autorando el frente en +z; la X se espeja aquí: translation[0] = −x y, para las
+  // barandillas giradas según Z, ángulo opuesto (rotation[2] = −z del cuaternión). Así el
+  // cubo aterrice EXACTO al contrato del runtime: puerta a la IZQUIERDA (world sx), tramo A
+  // subiendo hacia +x mundo por el carril frontal, descansillo a la derecha y tramo B
+  // volviendo sobre el carril trasero. Root no lleva transform: no se toca.
+  for (const n of g.nodes) {
+    const node = n as { translation?: number[]; rotation?: number[] };
+    if (node.translation) node.translation[0] = -node.translation[0]!;
+    if (node.rotation) node.rotation[2] = -node.rotation[2]!;
+  }
+  return g.finish('vecinos-gen-pilot-assets (escaleras_planta v3 — espejo X + carril B dentro del cubo)');
 }
 
 // ───────────────────────── Escritura ─────────────────────────
