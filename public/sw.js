@@ -3,12 +3,18 @@
  * Estrategia mínima y honesta:
  *   - Precache del shell (ruta /) + manifest + iconos.
  *   - NETWORK-FIRST para TODO lo que cambia con cada despliegue: navegaciones, chunks de
- *     Next (/_next/static) y contenido JSON (la "data" del juego). Sin red → caché.
+ *     Next (/_next/static), contenido JSON (la "data" del juego) y ASSETS glTF/audio.
+ *     Sin red → caché.
  *     (v1.5: antes era cache-first para estáticos — un despliegue nuevo servía chunks
- *     VIEJOS hasta doble recarga; el jugador veía el juego anticuado. Nunca más.)
+ *     VIEJOS hasta doble recarga. v1.8: /assets/ pasa a network-first por la misma razón —
+ *     el glTF de la escalera v3 tardó en llegar y el jugador siguió viendo la torre vieja.
+ *     Nunca más: si hay red, lo que se sirve es lo del despliegue actual.)
+ *   - Message SKIP_WAITING (lo manda PwaRegister cuando hay SW esperando) + skipWaiting
+ *     en install + clients.claim en activate: un SW nuevo toma el mando de inmediato y la
+ *     página se recarga UNA vez sola (guardada en PwaRegister). Adiós a la doble recarga manual.
  *   - Las peticiones que no son GET (save/load API) NUNCA se cachean.
  */
-const VERSION = 'vecinos-v1.7';
+const VERSION = 'vecinos-v1.8';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const SHELL_ASSETS = ['/', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
@@ -20,6 +26,17 @@ self.addEventListener('install', (event) => {
       .then((cache) => cache.addAll(SHELL_ASSETS))
       .then(() => self.skipWaiting()),
   );
+});
+
+self.addEventListener('message', (event) => {
+  // PwaRegister avisa de que hay un SW esperando mientras la pestaña sigue viva:
+  // tomamos el mando ya (activate purga cachés viejas y claim controla la página).
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
+  // Handshake de versión: la página compara VERSION con la del build actual y decide
+  // si hace falta UNA recarga (SW viejo controlando → assets potencialmente viejos).
+  if (event.data && event.data.type === 'GET_VERSION' && event.source) {
+    event.source.postMessage({ type: 'VERSION', version: VERSION });
+  }
 });
 
 self.addEventListener('activate', (event) => {
@@ -39,7 +56,13 @@ self.addEventListener('fetch', (event) => {
 
   // Navegación y estáticos del despliegue: network-first con fallback a caché (modo avión).
   // cache:'reload' evita que el HTTP cache del navegador conteste 304 con contenido viejo.
-  const deployable = req.mode === 'navigate' || url.pathname.startsWith('/_next/static/') || url.pathname.startsWith('/content/');
+  // /assets/ incluido (v1.8): los glTF sí cambian entre despliegues — cache-first sirvió
+  // la escalera vieja (v2) días después de deployar la v3.
+  const deployable =
+    req.mode === 'navigate' ||
+    url.pathname.startsWith('/_next/static/') ||
+    url.pathname.startsWith('/content/') ||
+    url.pathname.startsWith('/assets/');
   if (deployable) {
     event.respondWith(
       fetch(req, { cache: 'reload' })
@@ -53,8 +76,8 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Iconos y demás assets estables: cache-first (no cambian entre despliegues).
-  if (!url.pathname.startsWith('/icons/') && !url.pathname.startsWith('/assets/')) return;
+  // Iconos: cache-first (no cambian entre despliegues).
+  if (!url.pathname.startsWith('/icons/')) return;
   event.respondWith(
     caches.match(req).then(
       (hit) =>
