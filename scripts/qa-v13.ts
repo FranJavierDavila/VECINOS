@@ -10,10 +10,11 @@
  *  4. Ascensor averiado: la ruta del sim portal→3C jamás pasa por el núcleo (regresión de qa-pozos).
  */
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { loadContent, formatIssues } from '@/game/content';
 import { createWorld, buildCirculation, travelMinutes, nextStepTowards } from '@/game/sim';
-import { WALK_NATURAL_SPEED, RUN_NATURAL_SPEED, WALK_AMPLITUDE, RUN_AMPLITUDE } from './lib/gltf';
+import { WALK_NATURAL_SPEED, RUN_NATURAL_SPEED } from './lib/gltf';
 
 const baseUrl = new URL('../public/content/', import.meta.url).href;
 const { content, issues } = await loadContent(baseUrl);
@@ -47,7 +48,7 @@ check('umbral runSpeed NO dispara el run andando por el pasillo', v.runSpeed > v
 check('vecinos nunca disparan el run paseando', v.runSpeed > v.npcWalkSpeed, `${v.runSpeed} > ${v.npcWalkSpeed}`);
 
 // ── 3. Zancada authorada en los 13 actores: huella del periodo de los clips de piernas
-const actorsDir = resolve(import.meta.dir, '../public/assets/actors');
+const actorsDir = resolve(dirname(fileURLToPath(import.meta.url)), '../public/assets/actors');
 let actorCount = 0;
 for (const [arch, def] of Object.entries(content.assets?.actors ?? {})) {
   actorCount++;
@@ -80,7 +81,41 @@ for (const [arch, def] of Object.entries(content.assets?.actors ?? {})) {
 }
 check('13 arquetipos con modelo en el manifiesto', actorCount === 13, `${actorCount}`);
 
-// ── 4. Averiado: el sim jamás enruta por el núcleo (regresión de qa-pozos con el mundo real)
+// ── 4. Escalera real (v1.4): contrato de geometría, glTF con dos tramos y ruta coherente
+check('rules.view.stairs declarado', !!v.stairs && v.stairs.spanW === 2, JSON.stringify(v.stairs ?? {}));
+const escEntry = content.assets?.blocks?.escaleras_planta;
+check('escaleras_planta: nominal acorde al span (spanW·cellW−gapW)', !!escEntry && Math.abs(escEntry.nominal.w - (v.stairs.spanW * v.cellW - v.gapW)) < 0.001 && escEntry.spanW === 2, `w=${escEntry?.nominal.w}`);
+{
+  const raw = readFileSync(resolve(actorsDir, '../blocks/escaleras_planta.gltf'), 'utf8');
+  const gltf = JSON.parse(raw) as { nodes?: { name?: string }[] };
+  const names = (gltf.nodes ?? []).map((n) => n.name ?? '');
+  const stepsA = names.filter((n) => n.startsWith('peldano_a')).length;
+  const stepsB = names.filter((n) => n.startsWith('peldano_b')).length;
+  check('escalera: tramo A con 7 peldaños', stepsA === 7, `${stepsA}`);
+  check('escalera: tramo B con 7 peldaños (dirección contraria)', stepsB === 7, `${stepsB}`);
+  check('escalera: descansillo presente', names.includes('descansillo'));
+  check('escalera: barandillas (A, B, descansillo, unión)', names.includes('barandilla_a') && names.includes('barandilla_b') && names.includes('barandilla_desc') && names.includes('union_tramos'));
+  check('escalera: muros que flanquean el cubo', names.includes('muro_izq') && names.includes('muro_der') && names.includes('muro_fondo'));
+  // Ruta del contrato: 16 subidas monotónicas, carriles y desembarco correctos
+  const { stairPathPoints, frontPlaneZ } = await import('../src/game/stairs');
+  const sx = 22.8;
+  const y0 = 0.14;
+  const y1 = y0 + v.cellH;
+  const up = stairPathPoints(v, sx, y0, y1);
+  const down = stairPathPoints(v, sx, y1, y0);
+  check('escalera: ruta de subida con 14 puntos', up.length === 14, `${up.length}`);
+  let mono = true;
+  for (let i = 1; i < up.length; i++) if (up[i]!.y < up[i - 1]!.y - 1e-9) mono = false;
+  check('escalera: subida monotónica (sin descuidos)', mono);
+  check('escalera: desembarco en el pasillo de la planta superior', Math.abs(up[up.length - 1]!.y - y1) < 1e-9 && up[up.length - 1]!.z === v.corridorZ);
+  check('escalera: entrada por el carril frontal', Math.abs(up[0]!.z - (frontPlaneZ(v) + v.stairs.laneFront)) < 1e-9);
+  check('escalera: bajada = subida al revés', down.length === up.length && down[0]!.y === y1 && down[down.length - 1]!.y === y0);
+  // Coherencia authoría↔ruta: el pie del tramo A (ruta) coincide con el primer peldaño (glTF)
+  const firstStepX = sx + v.stairs.entryHalf + (v.stairs.flightRun / 7) * 0.5;
+  check('escalera: pie de tramo dentro del cubo', firstStepX > sx && firstStepX < sx + v.stairs.entryHalf + v.stairs.flightRun);
+}
+
+// ── 5. Averiado: el sim jamás enruta por el núcleo (regresión de qa-pozos con el mundo real)
 const world = createWorld(content, content.rules.startScenario);
 const path: string[] = [];
 let cur: string | null = world.entry;

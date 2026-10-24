@@ -237,15 +237,18 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         }
         // Dimensiones reales de la celda: el pasillo (tira saliente) tiene geometría propia,
         // espejo exacto de su greybox (ancho completo, canto slab*2, calado corridorDepth).
+        // Con spanW (v1.4, cubo de escalera) el modelo escala a spanW celdas y se ancla al
+        // borde IZQUIERDO de la celda lógica: sobresale por la derecha como torre real.
         const isCorridor = b.layer === 'corridor';
-        const w = isCorridor ? b.size.w * v.cellW : b.size.w * v.cellW - v.gapW;
+        const spanCells = entry.spanW ?? b.size.w;
+        const w = isCorridor ? b.size.w * v.cellW : spanCells * v.cellW - v.gapW;
         const h = isCorridor ? v.slab * 2 : v.cellH - v.gapH;
         const d = isCorridor ? v.corridorDepth : depthOf(b);
         const cz = isCorridor ? frontZ - d / 2 : frontZ + d / 2;
         const y = isCorridor ? b.cell.floor * v.cellH + v.slab : b.cell.floor * v.cellH;
         // El modelo se authora a dimensiones nominales con la base en y=0 y centrado en x/z.
         model.root.scaling.set(w / entry.nominal.w, h / entry.nominal.h, d / entry.nominal.d);
-        model.root.position.set((b.cell.col + b.size.w / 2) * v.cellW, y, cz);
+        model.root.position.set(b.cell.col * v.cellW + w / 2, y, cz);
         view.model = model.root;
         if (entry.overlay) {
           // Overlay (marco de puerta sobre el corte interior): DECORA — el greybox estructural

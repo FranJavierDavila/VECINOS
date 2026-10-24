@@ -316,10 +316,11 @@
     "escaleras_planta": {
       "model": "blocks/escaleras_planta.gltf",
       "nominal": {
-        "w": 2.28,
+        "w": 4.68,
         "h": 2.46,
         "d": 1.4
       },
+      "spanW": 2,
       "tintStrength": 0.5
     },
     "pasillo_planta": {

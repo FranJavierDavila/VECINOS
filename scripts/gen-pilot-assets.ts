@@ -8,7 +8,7 @@
  * public/content/assets.json apunta a las rutas y el runtime escala por dimensiones nominales.
  */
 
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { Gltf, quatAxis, sinKeys, loopTimes, buildAdult, addBaseClips, addSocialClips, WALK_AMPLITUDE, WALK_PERIOD, type AdultRig } from './lib/gltf';
 
@@ -282,32 +282,124 @@ function buildPortal(): Record<string, unknown> {
   return g.finish('vecinos-gen-pilot-assets (portal v1)');
 }
 
-/** Caja de escalera (1 celda): portillo abierto con peldaños zigzag visibles, barandilla y rótulo. */
+/**
+ * Cubo de escalera REAL (v1.4): dos tramos de 7 peldaños con descansillo intermedio y tramos
+ * en dirección contraria, barandillas en los lados abiertos, hueco de entrada con marco y
+ * rótulo. La geometría sale del CONTRATO de rules.view.stairs (la misma verdad que usa el
+ * runtime en src/game/stairs.ts): cubo visual de spanW celdas anclado a la celda lógica
+ * (sobresale por la derecha del edificio, como torre de escalera), puerta en el centro de la
+ * celda lógica, carril de puerta (+z autorado) y carril trasero (−z).
+ * Niveles: 16 subidas por planta (cellH/16); tramo A = 7, descansillo = la 8.ª (forjado),
+ * tramo B = 7 y la 16.ª es el forjado de la planta superior (desembarco).
+ */
 function buildEscalera(): Record<string, unknown> {
+  const rules = JSON.parse(readFileSync(resolve(process.cwd(), 'public/content/rules.json'), 'utf8')) as {
+    view: { cellW: number; cellH: number; gapW: number; gapH: number; slab: number; wall: number; stairs: { spanW: number; doorLocalX: number; entryHalf: number; laneFront: number; laneBack: number; flightRun: number; landingX: number; stepCount: number } };
+  };
+  const v = rules.view;
+  const st = v.stairs;
+  const W = st.spanW * v.cellW - v.gapW; // 4.68
+  const H = v.cellH - v.gapH; // 2.46
+  const halfW = W / 2;
+  const halfD = 1.4 / 2;
+  const doorX = st.doorLocalX; // -1.14 (centro de la celda lógica)
+  const zF = st.laneFront; // carril de puerta (autorado +z → mundo −z, junto al pasillo)
+  const zB = -st.laneBack; // carril trasero (autorado −z → mundo +z, al fondo del cubo)
+  const laneHalf = 0.33; // media anchura de carril (0.66 m: cabe el actor con holgura)
+  const stepRise = v.cellH / (st.stepCount * 2); // 0.1625
+  const entryTop = v.slab * 2; // canto del forjado de entrada (0.14)
+  const stepRun = st.flightRun / (st.stepCount - 1); // 7 peldaños por tramo
+  const x0 = doorX + st.entryHalf; // pie del tramo A
+  const x1 = x0 + st.flightRun; // pie del descansillo
+  const landTop = entryTop + st.stepCount * stepRise; // nivel del descansillo (1.44)
+
   const g = new Gltf();
+  // NODO 0 = Root (sin mesh): si el primer box ocupara el índice 0, wireRoot colgaría el resto
+  // como SUS hijos y heredarían su escala (escalera achatada — bug visto en el QA visual).
+  g.addNode({ name: 'Root', children: [] });
   const mBody = g.addMaterial('hormigon', '#b8c0a8', { roughness: 0.95 });
   const mDark = g.addMaterial('hueco', '#2f353b');
   const mStep = g.addMaterial('peldano', '#8f9779');
   const mRail = g.addMaterial('barandilla', '#5c677d', { metallic: 0.5, roughness: 0.4 });
+  // Muro interior CLARO + tira de luz con emissive: el cubo mira a −z (casi sin sol) y sin
+  // esto el interior se pierde contra el cielo nocturno (aprendido en el QA visual v1.4).
+  const mWall = g.addMaterial('muro', '#efe9dc');
+  const mLamp = g.addMaterial('lamp_tramo', '#fff6de', { emissive: '#ffedbe' });
   const mSign = g.addMaterial('rotulo', '#f2e8cf');
   const mStrip = g.addMaterial('luz', '#e9ecef');
 
-  const mesh = (name: string, m: number) => g.addBoxMesh(name, m);
-  g.addNode({ name: 'Root', children: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] });
-  // Nominal 2.28 × 2.46 × 1.4 (w1 · cellH · commonDepth), base y=0, frente = +Z (ver lib).
-  g.addNode({ name: 'cuerpo', mesh: mesh('cuerpo', mBody), translation: [0, 1.23, 0], scale: [2.28, 2.46, 1.4] });
-  g.addNode({ name: 'hueco', mesh: mesh('hueco', mDark), translation: [0, 1.02, 0.72], scale: [1.5, 2.04, 0.08] });
-  g.addNode({ name: 'peldano_1', mesh: mesh('p1', mStep), translation: [-0.24, 0.36, 0.58], scale: [0.86, 0.15, 0.26] });
-  g.addNode({ name: 'peldano_2', mesh: mesh('p2', mStep), translation: [0.26, 0.72, 0.62], scale: [0.86, 0.15, 0.26] });
-  g.addNode({ name: 'peldano_3', mesh: mesh('p3', mStep), translation: [-0.24, 1.08, 0.66], scale: [0.86, 0.15, 0.26] });
-  g.addNode({ name: 'peldano_4', mesh: mesh('p4', mStep), translation: [0.26, 1.44, 0.58], scale: [0.86, 0.15, 0.26] });
-  g.addNode({ name: 'barandilla', mesh: mesh('rail', mRail), translation: [0.34, 1.2, 0.4], scale: [0.05, 0.05, 1.1] });
-  g.addNode({ name: 'poste_1', mesh: mesh('poste1', mRail), translation: [0.34, 0.9, 0.72], scale: [0.04, 0.62, 0.04] });
-  g.addNode({ name: 'poste_2', mesh: mesh('poste2', mRail), translation: [0.34, 1.42, 0.1], scale: [0.04, 0.5, 0.04] });
-  g.addNode({ name: 'rotulo', mesh: mesh('rotulo', mSign), translation: [0, 2.2, 0.75], scale: [0.9, 0.16, 0.05] });
-  g.addNode({ name: 'tira_luz', mesh: mesh('tira_luz', mStrip), translation: [0, 2.34, 0.75], scale: [1.2, 0.05, 0.05] });
-  g.addNode({ name: 'cubierta', mesh: mesh('cubierta', mBody), translation: [0, 2.5, 0], scale: [2.36, 0.1, 1.48] });
-  return g.finish('vecinos-gen-pilot-assets (escaleras_planta v1)');
+  const box = (name: string, m: number, t: [number, number, number], s: [number, number, number]) => g.addNode({ name, mesh: g.addBoxMesh(name, m), translation: t, scale: s });
+
+  // ── Estructura del cubo ──
+  box('forjado_entrada', mBody, [doorX, entryTop / 2, 0], [st.entryHalf * 2 + 0.04, entryTop, halfD * 2 - 0.04]);
+  box('muro_izq', mWall, [-halfW + v.wall / 2, H / 2, 0], [v.wall, H, halfD * 2]);
+  box('muro_der', mWall, [halfW - v.wall / 2, H / 2, 0], [v.wall, H, halfD * 2]);
+  box('muro_fondo', mWall, [0, H / 2, -halfD + v.wall / 2], [W, H, v.wall]);
+  // Tira de luz interior sobre el muro del fondo (visible desde el pasillo, planta tras planta).
+  box('luz_interior', mLamp, [0, H - 0.35, -halfD + v.wall + 0.03], [W - 0.5, 0.08, 0.04]);
+  // Hueco oscuro tras la entrada + marco (jambas y dintel) en la cara abierta (+z)
+  box('hueco', mDark, [doorX, (entryTop + 1.98) / 2, halfD - 0.14], [st.entryHalf * 2 - 0.04, 1.98 - entryTop, 0.06]);
+  box('jamba_izq', mDark, [doorX - st.entryHalf - 0.02, 0.99, halfD - 0.05], [0.08, 1.98, 0.1]);
+  box('jamba_der', mDark, [doorX + st.entryHalf + 0.02, 0.99, halfD - 0.05], [0.08, 1.98, 0.1]);
+  box('dintel', mDark, [doorX, 2.02, halfD - 0.05], [st.entryHalf * 2 + 0.16, 0.08, 0.1]);
+
+  // ── Tramo A (carril de puerta, sube hacia +x): 7 peldaños sólidos ──
+  for (let i = 1; i <= st.stepCount - 1; i++) {
+    const cx = x0 + (i - 0.5) * stepRun;
+    const top = entryTop + i * stepRise;
+    box(`peldano_a${i}`, mStep, [cx, top / 2, zF], [stepRun + 0.015, top, laneHalf * 2]);
+  }
+  // ── Descansillo (forjado intermedio) + apoyo bajo el carril trasero ──
+  const landW = halfW - 0.02 - x1;
+  box('descansillo', mStep, [x1 + landW / 2, landTop - stepRise / 2, 0], [landW, stepRise, laneHalf * 4 + 0.04]);
+  box('apoyo_descansillo', mBody, [x1 + landW / 2, (landTop - stepRise) / 2, zB], [landW * 0.6, landTop - stepRise, laneHalf * 2]);
+
+  // ── Tramo B (carril trasero, sube hacia −x, dirección contraria): 7 peldaños sólidos ──
+  for (let i = 1; i <= st.stepCount - 1; i++) {
+    const cx = x1 - (i - 0.5) * stepRun;
+    const top = landTop + i * stepRise;
+    box(`peldano_b${i}`, mStep, [cx, top / 2, zB], [stepRun + 0.015, top, laneHalf * 2]);
+  }
+
+  // ── Barandillas (métal): tramo A cara abierta, tramo B borde interior, descansillo y unión ──
+  const railThick = 0.05;
+  const railY = 0.9; // altura del pasamanos sobre el peldaño
+  const slopeA = Math.atan2(st.stepCount * stepRise - entryTop, st.flightRun);
+  const lenA = Math.hypot(st.flightRun, st.stepCount * stepRise - entryTop);
+  g.addNode({ name: 'barandilla_a', mesh: g.addBoxMesh('railA', mRail), translation: [(x0 + x1) / 2, entryTop + railY + (st.stepCount * stepRise - entryTop) / 2, zF + laneHalf - 0.02], scale: [lenA, railThick, railThick], rotation: quatAxis(0, 0, 1, slopeA) });
+  const slopeB = Math.atan2(15 * stepRise + entryTop - landTop, st.flightRun);
+  const lenB = Math.hypot(st.flightRun, 15 * stepRise + entryTop - landTop);
+  g.addNode({ name: 'barandilla_b', mesh: g.addBoxMesh('railB', mRail), translation: [(x0 + x1) / 2, landTop + railY + (15 * stepRise + entryTop - landTop) / 2, zB - laneHalf + 0.02], scale: [lenB, railThick, railThick], rotation: quatAxis(0, 0, 1, -slopeB) });
+  // Postes del tramo A (sobre la cara abierta)
+  const postA = (i: number) => {
+    const px = x0 + (i / (st.stepCount - 1)) * st.flightRun;
+    const base = entryTop + (i / (st.stepCount - 1)) * (st.stepCount * stepRise - entryTop);
+    box(`poste_a${i}`, mRail, [px, base + railY / 2, zF + laneHalf - 0.02], [railThick * 0.8, railY, railThick * 0.8]);
+  };
+  postA(0);
+  postA(Math.floor((st.stepCount - 1) / 2));
+  postA(st.stepCount - 1);
+  // Postes del tramo B (borde interior, sobre el vacío del tramo A)
+  const postB = (i: number) => {
+    const px = x1 - (i / (st.stepCount - 1)) * st.flightRun;
+    const base = landTop + (i / (st.stepCount - 1)) * (15 * stepRise + entryTop - landTop);
+    box(`poste_b${i}`, mRail, [px, base + railY / 2, zB - laneHalf + 0.02], [railThick * 0.8, railY, railThick * 0.8]);
+  };
+  postB(0);
+  postB(Math.floor((st.stepCount - 1) / 2));
+  postB(st.stepCount - 1);
+  // Barandilla del descansillo (cara abierta) + unión lateral entre tramos
+  box('barandilla_desc', mRail, [x1 + landW / 2, landTop + railY, zF + laneHalf - 0.02], [landW, railThick, railThick]);
+  box('poste_desc', mRail, [x1 + landW * 0.5, landTop + railY / 2, zF + laneHalf - 0.02], [railThick * 0.8, railY, railThick * 0.8]);
+  box('union_tramos', mRail, [x1, landTop + railY, (zF + zB) / 2], [railThick, railThick, laneHalf * 4 - 0.02]);
+
+  // ── Rótulo y tira de luz sobre la entrada ──
+  box('rotulo', mSign, [doorX, 2.2, halfD - 0.03], [0.9, 0.16, 0.05]);
+  box('tira_luz', mStrip, [doorX, 2.34, halfD - 0.03], [1.2, 0.05, 0.05]);
+
+  // Cierra el Root con TODOS los nodos creados (convención del generador).
+  (g.nodes[0] as { children: number[] }).children = g.nodes.map((_, i) => i).slice(1);
+  return g.finish('vecinos-gen-pilot-assets (escaleras_planta v2 — dos tramos + descansillo)');
 }
 
 // ───────────────────────── Escritura ─────────────────────────

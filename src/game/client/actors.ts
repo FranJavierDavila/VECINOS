@@ -3,6 +3,7 @@ import type { BlockInstance, Content, PlayerPosition, World } from '@/game/core/
 import { B } from './babylon';
 import { instantiateActorAsset, type ActorRig } from './assets';
 import { hash01, interiorRoute, interiorTarget, layoutGeometryOf, type Pt } from '@/game/interior';
+import { stairGeomOf, stairPathPoints } from '@/game/stairs';
 
 /** Plano frontal de las viviendas: z local 0 de los interiores (la cara de la puerta). */
 const frontZOf = (roomZ: number, commonDepth: number): number => roomZ - commonDepth / 2;
@@ -157,11 +158,22 @@ export function createActors(scene: Scene, world: World, content: Content) {
         .filter((s) => s.cell.floor === floorNow)
         .sort((s1, s2) => Math.abs(shaftXOf(s1) - startX) - Math.abs(shaftXOf(s2) - startX))[0];
       if (here) {
-        if (Math.abs(shaftXOf(here) - startX) > 0.3) {
-          a.path.push({ x: shaftXOf(here), y: node.y, z: v.corridorZ });
+        const sx = shaftXOf(here);
+        if (Math.abs(sx - startX) > 0.3) {
+          a.path.push({ x: sx, y: node.y, z: v.corridorZ });
         }
-        a.path.push({ x: shaftXOf(here), y: dest.y, z: v.corridorZ });
-        startX = shaftXOf(here);
+        // Escalera REAL (v1.4): el tramo vertical se sustituye por el recorrido del contrato
+        // (tramo A → descansillo → tramo B en dirección contraria → desembarco): los vecinos
+        // suben y bajan por los peldaños, de perfil, como en una escalera de verdad.
+        const feat = content.blocks[here.defId]!.features!;
+        
+        const stairPts = feat.stairs === true ? stairPathPoints(v, sx, node.y, dest.y) : [];
+        if (stairPts.length > 1) {
+          for (const p of stairPts) a.path.push({ x: p.x, y: p.y, z: p.z });
+        } else {
+          a.path.push({ x: sx, y: dest.y, z: v.corridorZ });
+        }
+        startX = sx;
         startZ = v.corridorZ;
       }
     }
@@ -223,8 +235,9 @@ export function createActors(scene: Scene, world: World, content: Content) {
         const prevZ = node.z;
         if (isPlayer) {
           const inside = player.mode === 'inside';
-          // Dentro de la vivienda el actor sigue la posición 2D (x + profundidad z del layout).
-          const z = inside ? frontZ + Math.min(Math.max(player.z, 0), v.depth) : v.corridorZ;
+          // Dentro de la vivienda el actor sigue la posición 2D (x + profundidad z del layout);
+          // en el cubo de escalera (v1.4) manda la Z absoluta del recorrido (pathZ).
+          const z = inside ? frontZ + Math.min(Math.max(player.z, 0), v.depth) : (player.pathZ ?? v.corridorZ);
           goal.set(player.x, player.floor * v.cellH + (inside ? 0.12 : 0.14) + a.pivotY, z);
           if (node.lengthSquared() === 0) node.copyFrom(goal);
           node.addInPlace(goal.subtract(node).scale(Math.min(1, k * 2)));

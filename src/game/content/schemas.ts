@@ -522,9 +522,25 @@ export const rulesSchema = z.object({
         walkRefSpeed: z.number().positive().default(1.15),
         runRefSpeed: z.number().positive().default(2.2),
         minRate: z.number().positive().default(0.6),
-        maxRate: z.number().positive().default(2.6),
+        maxRate: z.number().positive().default(2.65),
       })
-      .default({}),
+      .default({ walkRefSpeed: 1.15, runRefSpeed: 2.2, minRate: 0.6, maxRate: 2.65 }),
+    /** Escalera de vecinos (v1.4): geometría compartida por la authoría glTF y el runtime
+     *  (src/game/stairs.ts). Metros; spanW en celdas; doorLocalX respecto al centro del cubo
+     *  visual; carriles desde el plano frontal del bloque. */
+    stairs: z
+      .object({
+        spanW: z.number().int().min(1).default(2),
+        doorLocalX: z.number().default(-1.14),
+        entryHalf: z.number().positive().default(0.45),
+        laneFront: z.number().positive().default(0.35),
+        laneBack: z.number().positive().default(1.05),
+        flightRun: z.number().positive().default(2.19),
+        landingX: z.number().positive().default(0.5),
+        stepCount: z.number().int().min(4).default(8),
+        climbSpeed: z.number().positive().default(1.8),
+      })
+      .default({ spanW: 2, doorLocalX: -1.14, entryHalf: 0.45, laneFront: 0.35, laneBack: 1.05, flightRun: 2.19, landingX: 0.5, stepCount: 8, climbSpeed: 1.8 }),
     /** Velocidad (m/s) a partir de la cual un actor en marcha usa el clip "run". */
     runSpeed: z.number().positive().default(4.2),
     /** Multiplicador de velocidad del jugador mientras corre (Shift / botón del mando). */
@@ -642,6 +658,9 @@ export const blockAssetSchema = z.object({
   model: z.string().min(1),
   nominal: z.object({ w: z.number().positive(), h: z.number().positive(), d: z.number().positive() }),
   tintStrength: z.number().min(0).max(1).optional(),
+  /** Ancho visual en celdas (v1.4, cubo de escalera): escala a spanW·cellW−gapW y ancla al
+   *  borde izquierdo de la celda lógica (la torre sobresale por la derecha del edificio). */
+  spanW: z.number().int().min(1).optional(),
   /** Overlay: decora sin ocultar el greybox (marcos de puerta sobre el corte interior). */
   overlay: z.boolean().optional(),
   /** Clonar materiales por instancia (default true): tinte/glow por bloque sin contaminar hermanos. */

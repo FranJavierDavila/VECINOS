@@ -575,10 +575,14 @@ class GameController {
     this.building = createBuilding(this.scene, this.world, this.content);
     this.actors = createActors(this.scene, this.world, this.content);
     const blocks = Object.values(this.world.blocks);
+    // El cubo de escalera (v1.4) sobresale spanW−1 celdas por la derecha del edificio:
+    // el encuadre lo incluye para que la torre no se corte en cámara.
+    const hasStairs = blocks.some((b) => this.content.blocks[b.defId]?.features?.stairs === true);
+    const cols = Math.max(...blocks.map((b) => b.cell.col + b.size.w)) + (hasStairs ? this.content.rules.view.stairs.spanW - 1 : 0);
     this.rig = new CameraRig(
       new UniversalCamera('cam', new Vector3(0, 0, -30), this.scene),
       this.engine,
-      Math.max(...blocks.map((b) => b.cell.col + b.size.w)),
+      cols,
       Math.max(...blocks.map((b) => b.cell.floor)) + 1,
       view.cellW,
       view.cellH,

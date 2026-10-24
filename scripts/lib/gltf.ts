@@ -128,7 +128,10 @@ export class Gltf {
     return this.meshes.length - 1;
   }
 
-  addMaterial(name: string, hex: string, opts: { metallic?: number; roughness?: number } = {}): number {
+  addMaterial(name: string, hex: string, opts: { metallic?: number; roughness?: number; emissive?: string } = {}): number {
+    const emissive = opts.emissive
+      ? { emissiveFactor: colorLinear(opts.emissive).slice(0, 3) as [number, number, number] }
+      : {};
     this.materials.push({
       name,
       pbrMetallicRoughness: {
@@ -136,6 +139,7 @@ export class Gltf {
         metallicFactor: opts.metallic ?? 0,
         roughnessFactor: opts.roughness ?? 0.85,
       },
+      ...emissive,
     });
     return this.materials.length - 1;
   }

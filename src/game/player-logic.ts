@@ -1,6 +1,7 @@
 import type { BlockInstance, Command, CommandResult, Content, Input, InteractTarget, PlayerPosition, World } from '@/game/core/types';
 import { dispatch, nextStepTowards } from '@/game/sim';
 import { layoutGeometryOf, roomAt, walkable, type LayoutGeometry } from '@/game/interior';
+import { stairGeomOf, stairPathPoints } from './stairs';
 
 export type InteractResult =
   | { type: 'none' }
@@ -33,6 +34,10 @@ export class PlayerLogic {
   mode: 'corridor' | 'inside' = 'corridor';
   insideBlock: string | null = null;
   private climb: { from: number; to: number; t: number; duration: number } | null = null;
+  /** Escalada REAL por el cubo (v1.4): el jugador recorre los peldaños del contrato
+   *  (rules.view.stairs vía src/game/stairs.ts) — tramos con descansillo, X/Z variables. */
+  private stairPath: { pts: { x: number; y: number; z: number }[]; i: number; to: number } | null = null;
+  private climbPos = { x: 0, y: 0, z: 0 };
   private approached: string | null = null;
   private readonly width: number;
   private readonly topFloor: number;
@@ -145,12 +150,25 @@ export class PlayerLogic {
   }
 
   position(): PlayerPosition {
+    // En el cubo de escalera (v1.4) la posición la marca el recorrido: X y Z absolutas del
+    // tramo actual y planta fraccionaria derivada de la altura de pies (nodo = floor·cellH + canto).
+    if (this.stairPath) {
+      return {
+        x: this.climbPos.x,
+        z: 0,
+        floor: (this.climbPos.y - this.view.slab * 2) / this.view.cellH,
+        mode: 'corridor',
+        insideBlock: null,
+        climbing: true,
+        pathZ: this.climbPos.z,
+      };
+    }
     let floor = this.floor;
     if (this.climb) {
       const k = Math.min(1, this.climb.t / this.climb.duration);
       floor = this.climb.from + (this.climb.to - this.climb.from) * (k * k * (3 - 2 * k));
     }
-    return { x: this.x, z: this.z, floor, mode: this.mode, insideBlock: this.insideBlock, climbing: this.climb !== null };
+    return { x: this.x, z: this.z, floor, mode: this.mode, insideBlock: this.insideBlock, climbing: this.climb !== null, pathZ: null };
   }
 
   private elevatorWorks(a: number, b: number) {
@@ -181,10 +199,10 @@ export class PlayerLogic {
   }
 
   /**
-   * Subir/bajar depende del pozo en el que estés: en un bloque con ascensor operativo el viaje
-   * es elevatorSeconds; en un bloque con escalera, stairsSeconds. Un núcleo averiado (solo
-   * features.elevator) no da gesto ninguno: hay que ir a la escalera. Si un bloque tuviera
-   * ambos features, manda el ascensor y la escalera queda de emergencia.
+   * Subir/bajar depende del pozo en el que estés. Escalera (v1.4): recorrido REAL por el cubo
+   * (tramo A, descansillo, tramo B en dirección contraria) con el ritmo del catálogo
+   * (stairs.climbSpeed). Ascensor operativo: viaje elevatorSeconds (cabina real en Task 30);
+   * núcleo averiado no da gesto: hay que ir a la escalera.
    */
   private startClimb(delta: 1 | -1) {
     const to = this.floor + delta;
@@ -196,10 +214,45 @@ export class PlayerLogic {
     if (!ride && feat.stairs !== true) return;
     const [a, zz] = this.rangeOf(z);
     this.x = (a + zz) / 2;
+    const geom = !ride && feat.stairs === true ? stairGeomOf(this.view) : null;
+    if (geom) {
+      const y0 = this.floor * this.view.cellH + this.view.slab * 2;
+      const y1 = to * this.view.cellH + this.view.slab * 2;
+      const pts = stairPathPoints(this.view, this.x, y0, y1);
+      if (pts.length > 1) {
+        this.stairPath = { pts, i: 1, to };
+        this.climbPos = { x: pts[0]!.x, y: pts[0]!.y, z: pts[0]!.z };
+        return;
+      }
+    }
     this.climb = { from: this.floor, to, t: 0, duration: ride ? this.view.elevatorSeconds : this.view.stairsSeconds };
   }
 
   update(dt: number, input: Input) {
+    // Escalada real por el cubo (v1.4): avanzar por los peldaños al ritmo del catálogo.
+    if (this.stairPath) {
+      const sp = this.stairPath;
+      let budget = this.view.stairs.climbSpeed * dt;
+      while (budget > 0 && sp.i < sp.pts.length) {
+        const b = sp.pts[sp.i]!;
+        const d = Math.hypot(b.x - this.climbPos.x, b.y - this.climbPos.y, b.z - this.climbPos.z);
+        if (d <= budget + 1e-6) {
+          this.climbPos = { x: b.x, y: b.y, z: b.z };
+          budget -= d;
+          sp.i += 1;
+        } else {
+          const t = budget / d;
+          this.climbPos = { x: this.climbPos.x + (b.x - this.climbPos.x) * t, y: this.climbPos.y + (b.y - this.climbPos.y) * t, z: this.climbPos.z + (b.z - this.climbPos.z) * t };
+          budget = 0;
+        }
+      }
+      if (sp.i >= sp.pts.length) {
+        this.floor = sp.to;
+        this.stairPath = null;
+        this.sync();
+      }
+      return;
+    }
     if (this.climb) {
       this.climb.t += dt;
       if (this.climb.t >= this.climb.duration) {
@@ -355,7 +408,7 @@ export class PlayerLogic {
    */
   teleportTo(blockId: string): boolean {
     const target = this.world.blocks[blockId];
-    if (!target || this.climb) return false;
+    if (!target || this.climb || this.stairPath) return false;
     this.mode = 'corridor';
     this.insideBlock = null;
     this.z = 0;
@@ -381,6 +434,7 @@ export class PlayerLogic {
   forceLocation(blockId: string | null): void {
     const target = blockId !== null ? this.world.blocks[blockId] : undefined;
     this.climb = null;
+    this.stairPath = null;
     this.lastMoveTarget = null;
     if (!target) {
       const c = this.corridor(this.floor);

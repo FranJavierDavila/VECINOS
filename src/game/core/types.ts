@@ -464,6 +464,12 @@ export interface BlockAssetDef {
   /** 0..1: cuánto se tiñe el modelo con el color de estado (roto/cerrado/vacío) en paint(). */
   tintStrength?: number;
   /**
+   * Ancho visual en CELDAS (v1.4, cubo de escalera): el modelo se escala a spanW·cellW−gapW
+   * y se ancla al borde izquierdo de la celda lógica (sobresale por la derecha del edificio).
+   * Default = el ancho del bloque (sin span).
+   */
+  spanW?: number;
+  /**
    * Overlay: el modelo DECORA sin sustituir la caja greybox (no se oculta nada, el edge de
    * vivienda del jugador se conserva). Pensado para marcos de puerta sobre el corte interior.
    */
@@ -588,6 +594,21 @@ export interface Rules {
     npcWanderSeconds: number;
     /** Suavizado del giro del actor hacia su dirección de movimiento (rad/s, 2.5D creíble). */
     actorTurnSpeed: number;
+    /** Anti-patinaje (v1.3): velocidad natural de los clips (m/s al ratio 1) y límites del playback. */
+    animSync: { walkRefSpeed: number; runRefSpeed: number; minRate: number; maxRate: number };
+    /** Escalera de vecinos (v1.4): geometría compartida por la authoría glTF y el runtime
+     *  (src/game/stairs.ts). El cubo visual ocupa spanW celdas; la celda lógica queda a la izquierda. */
+    stairs: {
+      spanW: number;
+      doorLocalX: number;
+      entryHalf: number;
+      laneFront: number;
+      laneBack: number;
+      flightRun: number;
+      landingX: number;
+      stepCount: number;
+      climbSpeed: number;
+    };
     /** Velocidad (m/s) a partir de la cual un actor en marcha usa el clip "run". */
     runSpeed: number;
     /** Multiplicador de velocidad del jugador mientras corre (Shift / botón del mando). */
@@ -817,6 +838,11 @@ export interface PlayerPosition {
   mode: 'corridor' | 'inside';
   insideBlock: string | null;
   climbing: boolean;
+  /**
+   * Z absoluta del recorrido de escalera (v1.4): mientras el jugador sube por el cubo, la X
+   * y la Z varían (tramos y descansillo); null fuera de la escalada (el pasillo manda).
+   */
+  pathZ: number | null;
 }
 
 export interface Input {

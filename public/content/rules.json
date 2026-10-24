@@ -198,6 +198,17 @@
       "minRate": 0.6,
       "maxRate": 2.65
     },
+    "stairs": {
+      "spanW": 2,
+      "doorLocalX": -1.14,
+      "entryHalf": 0.45,
+      "laneFront": 0.35,
+      "laneBack": 1.05,
+      "flightRun": 2.19,
+      "landingX": 0.5,
+      "stepCount": 8,
+      "climbSpeed": 1.8
+    },
     "seatAnchors": [
       "bed",
       "tv",
