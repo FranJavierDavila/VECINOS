@@ -609,6 +609,15 @@ class GameController {
     this.building = createBuilding(this.scene, this.world, this.content);
     this.elevators = createElevators(this.scene, this.world, this.content);
     this.actors = createActors(this.scene, this.world, this.content, this.elevators);
+    // Sonda de QA (SOLO dev): escena y controlador accesibles para el E2E automatizado.
+    // En producción no se expone nada (la partida queda encapsulada igual que siempre).
+    if (process.env.NODE_ENV !== 'production') {
+      (window as unknown as { __vecinosQA?: { scene: unknown; controller: unknown; elevators: unknown } }).__vecinosQA = {
+        scene: this.scene,
+        controller: this,
+        elevators: this.elevators,
+      };
+    }
     // Bocadillos de expresión (v1.10): capa DOM sobre el canvas, recreada con el mundo
     // (referencia al World vivo). Sin emotes.json en el catálogo, director nulo sin capa.
     this.bubbles?.dispose();

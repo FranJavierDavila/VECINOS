@@ -2782,5 +2782,724 @@
         "amount": 75
       }
     ]
+  },
+  {
+    "id": "m_visita_merienda",
+    "title": "La jubilada merienda en 2A",
+    "description": "Dolores baja al 2A con una tartera: merienda con el vecino del piso comunitario. Lo dicen las malas lenguas y el olor a tarta en el rellano.",
+    "roles": {
+      "visitante": {
+        "archetype": "jubilada"
+      },
+      "anfitrion": {
+        "archetype": "okupa"
+      }
+    },
+    "trigger": {
+      "all": [
+        {
+          "mission": "m_bienvenida",
+          "state": "done"
+        },
+        {
+          "dayMin": 1
+        },
+        {
+          "time": {
+            "after": "17:00",
+            "before": "19:30"
+          }
+        }
+      ]
+    },
+    "steps": [
+      {
+        "id": "saludar",
+        "type": "reach",
+        "target": {
+          "block": "blk_p2_a"
+        },
+        "hint": "Acércate a la puerta del 2A mientras dura la merienda"
+      }
+    ],
+    "choices": [
+      {
+        "id": "quedarse",
+        "label": "Quedarte a merendar",
+        "hint": "Tarta de manzana y cotilleo fino",
+        "icon": "chair",
+        "effects": [
+          {
+            "op": "addRelation",
+            "a": "player",
+            "b": "visitante",
+            "affinity": 8,
+            "trust": 4
+          },
+          {
+            "op": "addRelation",
+            "a": "player",
+            "b": "anfitrion",
+            "affinity": 8
+          },
+          {
+            "op": "addFunds",
+            "to": "community",
+            "amount": 15
+          },
+          {
+            "op": "toast",
+            "text": "🧺 Merienda legendaria: tarta de Dolores y una teoría nueva sobre la humedad del 3º.",
+            "tone": "good"
+          },
+          {
+            "op": "startMission",
+            "id": "m_acta_humedad",
+            "delayMinutes": 1440
+          }
+        ]
+      },
+      {
+        "id": "discreto",
+        "label": "Saludar y seguir",
+        "hint": "Que no se diga que estabas allí",
+        "icon": "handshake",
+        "effects": [
+          {
+            "op": "addRelation",
+            "a": "player",
+            "b": "anfitrion",
+            "affinity": 2
+          },
+          {
+            "op": "toast",
+            "text": "👋 Saludos en la puerta. Nadie sabe nada, pero todos sospechan algo.",
+            "tone": "info"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "m_visita_pastel",
+    "title": "El músico lleva el pastel",
+    "description": "Tomás sube al 4C con un pastel: cumpleaños de Dolores. Media planta lo sabe; la otra media lo sospecha.",
+    "roles": {
+      "visitante": {
+        "archetype": "musico"
+      },
+      "anfitrion": {
+        "archetype": "jubilada"
+      }
+    },
+    "trigger": {
+      "all": [
+        {
+          "mission": "m_bienvenida",
+          "state": "done"
+        },
+        {
+          "dayMin": 2
+        },
+        {
+          "time": {
+            "after": "11:00",
+            "before": "13:30"
+          }
+        }
+      ]
+    },
+    "steps": [
+      {
+        "id": "saludar",
+        "type": "reach",
+        "target": {
+          "block": "blk_p4_c"
+        },
+        "hint": "Sube al pasillo de la 4ª planta: el pastel no espera"
+      }
+    ],
+    "choices": [
+      {
+        "id": "cantar",
+        "label": "Acompañar con la guitarra",
+        "hint": "Cumpleaños con banda sonora",
+        "icon": "guitar",
+        "effects": [
+          {
+            "op": "addRelation",
+            "a": "player",
+            "b": "visitante",
+            "affinity": 8
+          },
+          {
+            "op": "addRelation",
+            "a": "player",
+            "b": "anfitrion",
+            "affinity": 6
+          },
+          {
+            "op": "addFunds",
+            "to": "community",
+            "amount": 10
+          },
+          {
+            "op": "startMission",
+            "id": "m_seranata",
+            "delayMinutes": 720
+          },
+          {
+            "op": "toast",
+            "text": "🎂 Cumpleaños con guitarra en el 4C. Tres vecinos han aplaudido; dos han apretado los dientes.",
+            "tone": "good"
+          }
+        ]
+      },
+      {
+        "id": "pasar",
+        "label": "Pasar de largo",
+        "hint": "Tú ya tienes bastante ruido en la cabeza",
+        "icon": "headphones",
+        "effects": [
+          {
+            "op": "addRelation",
+            "a": "player",
+            "b": "anfitrion",
+            "affinity": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "m_visita_lavadora",
+    "title": "Lavadora y confidencias",
+    "description": "Dolores baja a la lavandería comunal. Quien aparezca por allí con una cesta vuelve sabiendo tres cosas nuevas.",
+    "roles": {
+      "visitante": {
+        "archetype": "jubilada"
+      }
+    },
+    "trigger": {
+      "all": [
+        {
+          "dayMin": 1
+        },
+        {
+          "time": {
+            "after": "10:30",
+            "before": "11:20"
+          }
+        }
+      ]
+    },
+    "steps": [
+      {
+        "id": "cogerla",
+        "type": "catch_in_act",
+        "target": "visitante",
+        "place": "lavanderia_comunal",
+        "windowMinutes": 70,
+        "hint": "Pilla a Dolores en la lavandería del bajo antes de que se marche"
+      }
+    ],
+    "choices": [
+      {
+        "id": "echar_mano",
+        "label": "Echar una mano con el tendal",
+        "hint": "Karma y confidencias",
+        "icon": "handshake",
+        "effects": [
+          {
+            "op": "addRelation",
+            "a": "player",
+            "b": "visitante",
+            "affinity": 10,
+            "trust": 5
+          },
+          {
+            "op": "grantFavor",
+            "from": "visitante",
+            "count": 1
+          },
+          {
+            "op": "addFunds",
+            "to": "community",
+            "amount": 10
+          },
+          {
+            "op": "toast",
+            "text": "🧺 Dolores te debe una. Y te ha contado DOS.",
+            "tone": "good"
+          }
+        ]
+      },
+      {
+        "id": "cotillear",
+        "label": "Solo cotillear un rato",
+        "hint": "La información es poder",
+        "icon": "megaphone",
+        "effects": [
+          {
+            "op": "addRelation",
+            "a": "player",
+            "b": "visitante",
+            "affinity": 4
+          },
+          {
+            "op": "startMission",
+            "id": "m_chisme_lavadora",
+            "delayMinutes": 240
+          },
+          {
+            "op": "toast",
+            "text": "🗣️ Te llevas dos chismes y una teoría sobre el agua caliente.",
+            "tone": "info"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "m_visita_fiesta",
+    "title": "Pre-fiesta en el 4D",
+    "description": "Kevin sube al 4D con dos bolsas de hielo y malas ideas: ensayo general de la fiesta en el salón del músico.",
+    "roles": {
+      "visitante": {
+        "archetype": "fiestero"
+      },
+      "anfitrion": {
+        "archetype": "musico"
+      }
+    },
+    "trigger": {
+      "all": [
+        {
+          "mission": "m_bar_inaugura",
+          "state": "done"
+        },
+        {
+          "time": {
+            "after": "20:00",
+            "before": "22:30"
+          }
+        }
+      ]
+    },
+    "steps": [
+      {
+        "id": "saludar",
+        "type": "reach",
+        "target": {
+          "block": "blk_p4_d"
+        },
+        "hint": "La puerta del 4D, donde el hielo no puede esperar"
+      }
+    ],
+    "choices": [
+      {
+        "id": "apuntarse",
+        "label": "Apuntarte al pre-fiesta",
+        "hint": "Traes el limón, te cae bien",
+        "icon": "party",
+        "effects": [
+          {
+            "op": "addRelation",
+            "a": "player",
+            "b": "visitante",
+            "affinity": 6
+          },
+          {
+            "op": "addRelation",
+            "a": "player",
+            "b": "anfitrion",
+            "affinity": 6
+          },
+          {
+            "op": "startMission",
+            "id": "m_resaca_comunitaria",
+            "delayMinutes": 1080
+          },
+          {
+            "op": "toast",
+            "text": "🎉 Pre-fiesta en el 4D. El edificio aún no lo sabe; lo saberá a las 23:00.",
+            "tone": "good"
+          }
+        ]
+      },
+      {
+        "id": "tapones",
+        "label": "Ponerse los tapones",
+        "hint": "Mañana hay que madrugar",
+        "icon": "headphones",
+        "effects": [
+          {
+            "op": "toast",
+            "text": "🎧 Tapones puestos. La pared del 4D seguirá siendo una sugestión.",
+            "tone": "info"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "m_acta_humedad",
+    "title": "El acta de la merienda",
+    "description": "El presidente ha leído el acta de la merienda del 2A: constan manchas en el techo del 3C. Como siempre, lo resuelve el teléfono.",
+    "steps": [
+      {
+        "id": "llamada",
+        "type": "phone_call",
+        "dialog": "dlg_acta_humedad",
+        "hint": "El administrador tiene el teléfono caliente"
+      }
+    ],
+    "choices": [
+      {
+        "id": "actuar",
+        "label": "Revisar el techo del 3C ya",
+        "hint": "240 € de la comunidad",
+        "icon": "wrench",
+        "effects": [
+          {
+            "op": "addFunds",
+            "to": "community",
+            "amount": -240
+          },
+          {
+            "op": "setParam",
+            "target": "blk_p3_c.humidity",
+            "delta": -10
+          },
+          {
+            "op": "addRelation",
+            "a": "player",
+            "b": "presidente",
+            "affinity": 6
+          },
+          {
+            "op": "toast",
+            "text": "🔧 Fontanero abajo, techo revisado. La humedad retrocede (y el saldo también).",
+            "tone": "good"
+          }
+        ]
+      },
+      {
+        "id": "esperar",
+        "label": "Que no será para tanto",
+        "hint": "El techo aguanta… ¿o no?",
+        "icon": "question",
+        "effects": [
+          {
+            "op": "setParam",
+            "target": "blk_p3_c.humidity",
+            "delta": 14
+          },
+          {
+            "op": "toast",
+            "text": "💧 El techo del 3C gotea en silencio. Los silencios mojan más.",
+            "tone": "bad"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "m_seranata",
+    "title": "La serenata que se movió",
+    "description": "Trámite oficial: 'guitarra festiva a deshoras en la planta cuarta'. Firma: media comunidad. Anexo: dos aplausos.",
+    "steps": [
+      {
+        "id": "llamada",
+        "type": "phone_call",
+        "dialog": "dlg_seranata",
+        "hint": "El administrador, con el acta por delante"
+      }
+    ],
+    "choices": [
+      {
+        "id": "mediar",
+        "label": "Mediar con Tomás",
+        "hint": "Buen rollo y horario de silencio",
+        "icon": "guitar",
+        "effects": [
+          {
+            "op": "addRelation",
+            "a": "player",
+            "b": "musico",
+            "affinity": 8
+          },
+          {
+            "op": "addFunds",
+            "to": "community",
+            "amount": 15
+          },
+          {
+            "op": "toast",
+            "text": "🎸 Tomás toca ahora de 20:00 a 22:00. La comunidad recauda una 'propina artística'.",
+            "tone": "good"
+          }
+        ]
+      },
+      {
+        "id": "multar",
+        "label": "Que pague la multa",
+        "hint": "60 € y cara de pocos amigos",
+        "icon": "stamp",
+        "effects": [
+          {
+            "op": "addFunds",
+            "to": "community",
+            "amount": 60
+          },
+          {
+            "op": "addRelation",
+            "a": "player",
+            "b": "musico",
+            "affinity": -12
+          },
+          {
+            "op": "toast",
+            "text": "🧾 Multa impuesta. Tomás toca ahora SOLO para su pared.",
+            "tone": "bad"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "m_resaca_comunitaria",
+    "title": "Resaca comunitaria",
+    "description": "El pasillo del 4º amanece con vasos, limones y un cartel que dice 'gracias por todo'. El edificio exige respuestas.",
+    "steps": [
+      {
+        "id": "llamada",
+        "type": "phone_call",
+        "dialog": "dlg_resaca",
+        "hint": "El administrador, con fotos del pasillo"
+      }
+    ],
+    "choices": [
+      {
+        "id": "limpiar",
+        "label": "Contratar limpieza",
+        "hint": "25 € y paz vecinal",
+        "icon": "spray",
+        "effects": [
+          {
+            "op": "addFunds",
+            "to": "community",
+            "amount": -25
+          },
+          {
+            "op": "addRelation",
+            "a": "player",
+            "b": "presidente",
+            "affinity": 6
+          },
+          {
+            "op": "toast",
+            "text": "🧹 Pasillo impoluto. En el acta: 'instalación efímera desmontada'.",
+            "tone": "good"
+          }
+        ]
+      },
+      {
+        "id": "callar",
+        "label": "Dejarlo como instalación",
+        "hint": "El arte no se recoge",
+        "icon": "question",
+        "effects": [
+          {
+            "op": "setParam",
+            "target": "blk_p0_portal.hype",
+            "delta": 8
+          },
+          {
+            "op": "toast",
+            "text": "🖼️ El portal presume de 'happening vecinal'. El hype sube; la moqueta, no.",
+            "tone": "info"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "m_chisme_lavadora",
+    "title": "Se movió información",
+    "description": "El administrador ha oído que en la lavandería se debatió política de comunidad, cenas y pasillos. Quiere fuentes.",
+    "steps": [
+      {
+        "id": "llamada",
+        "type": "phone_call",
+        "dialog": "dlg_chisme_lavadora",
+        "hint": "El teléfono vuelve a sonar"
+      }
+    ],
+    "choices": [
+      {
+        "id": "compartir",
+        "label": "Compartir lo que oíste",
+        "hint": "El acta lo agradece",
+        "icon": "megaphone",
+        "effects": [
+          {
+            "op": "setParam",
+            "target": "blk_p2_a.hype",
+            "delta": 8
+          },
+          {
+            "op": "addRelation",
+            "a": "player",
+            "b": "presidente",
+            "affinity": 4
+          },
+          {
+            "op": "toast",
+            "text": "🗣️ El chisme entra en el acta. El 2A, en boca de todos.",
+            "tone": "info"
+          }
+        ]
+      },
+      {
+        "id": "silencio",
+        "label": "Guardar silencio de lavandería",
+        "hint": "Lo que pasa en la lavandería…",
+        "icon": "lock",
+        "effects": [
+          {
+            "op": "addRelation",
+            "a": "player",
+            "b": "jubilada",
+            "affinity": 6
+          },
+          {
+            "op": "toast",
+            "text": "🤐 Silencio guardado. Dolores lo sabe y lo agradece.",
+            "tone": "good"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "m_eco_visitas",
+    "title": "Eco de correvezas",
+    "description": "La vecina del 1B ha oído tres cosas en el pasillo. Una de ellas moja. Las otras dos son peores.",
+    "roles": {
+      "chismosa": {
+        "archetype": "cotilla"
+      }
+    },
+    "trigger": {
+      "all": [
+        {
+          "mission": "m_bienvenida",
+          "state": "done"
+        },
+        {
+          "dayMin": 2
+        },
+        {
+          "time": {
+            "after": "12:00",
+            "before": "21:00"
+          }
+        }
+      ]
+    },
+    "steps": [
+      {
+        "id": "llamada",
+        "type": "phone_call",
+        "dialog": "dlg_eco_visitas",
+        "hint": "La vecina del 1B, con primicias"
+      }
+    ],
+    "choices": [
+      {
+        "id": "seguir",
+        "label": "Seguir el chisme",
+        "hint": "Conocimiento es poder vecinal",
+        "icon": "megaphone",
+        "effects": [
+          {
+            "op": "setParam",
+            "target": "blk_p2_a.hype",
+            "delta": 8
+          },
+          {
+            "op": "setParam",
+            "target": "blk_p4_c.hype",
+            "delta": 6
+          },
+          {
+            "op": "addRelation",
+            "a": "player",
+            "b": "chismosa",
+            "affinity": 6
+          },
+          {
+            "op": "toast",
+            "text": "🗺️ Ahora tienes el mapa completo de quién visita a quién. Úsalo con sabiduría.",
+            "tone": "info"
+          }
+        ]
+      },
+      {
+        "id": "no_enterarse",
+        "label": "No enterarse de nada",
+        "hint": "La vida tranquila",
+        "icon": "headphones",
+        "effects": [
+          {
+            "op": "addRelation",
+            "a": "player",
+            "b": "chismosa",
+            "affinity": -4
+          },
+          {
+            "op": "toast",
+            "text": "🎧 Descolgado sin información. La vecina del 1B tomará nota.",
+            "tone": "info"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "m_qa_visita",
+    "title": "QA · visita catch_in_act",
+    "description": "Misión de QA: verifica que una visita con catch_in_act se completa al entrar el jugador en el bloque con el visitante dentro.",
+    "roles": {
+      "visitante": {
+        "archetype": "jubilada"
+      }
+    },
+    "trigger": {
+      "all": [
+        {
+          "param": "blk_p0_nucleo.qa_mode",
+          "gte": 6
+        }
+      ]
+    },
+    "steps": [
+      {
+        "id": "cogerla",
+        "type": "catch_in_act",
+        "target": "visitante",
+        "place": "lavanderia_comunal",
+        "windowMinutes": 240,
+        "hint": "QA: entra en la lavandería con Dolores dentro"
+      }
+    ],
+    "onComplete": [
+      {
+        "op": "toast",
+        "text": "QA OK · catch_in_act de visita completado",
+        "tone": "good"
+      }
+    ]
   }
 ]

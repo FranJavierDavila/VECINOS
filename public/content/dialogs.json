@@ -359,5 +359,70 @@
         "text": "Esta vez el ascensor se arregla sí o sí: con Manolo (300 €) o contigo, un destornillador y la cinta americana de tu padre. ¡Vamos a devolverle la verticalidad al edificio!"
       }
     ]
+  },
+  {
+    "id": "dlg_acta_humedad",
+    "lines": [
+      {
+        "speaker": "Administrador",
+        "text": "Buenas, aquí el administrador. En el acta de la merienda del 2A consta un punto nuevo: manchas en el techo del 3C."
+      },
+      {
+        "speaker": "Administrador",
+        "text": "Los vecinos merenderos piden acto. Yo puyo presupuesto. Usted decide: revisamos o esperamos."
+      }
+    ]
+  },
+  {
+    "id": "dlg_seranata",
+    "lines": [
+      {
+        "speaker": "Administrador",
+        "text": "Buenas. Queja oficial en el acta: 'guitarra festiva a deshoras en la cuarta planta'. Firmas: varias. Aplausos: dos."
+      },
+      {
+        "speaker": "Administrador",
+        "text": "Puedo mediar con Tomás o aplicar tarifa de serenata. Lo dejo en sus manos, como manda el reglamento."
+      }
+    ]
+  },
+  {
+    "id": "dlg_resaca",
+    "lines": [
+      {
+        "speaker": "Administrador",
+        "text": "Buenas. El pasillo del 4º amanece con vasos, limones y un cartel que dice 'gracias por todo'."
+      },
+      {
+        "speaker": "Administrador",
+        "text": "O contratamos limpieza o lo damos por instalación artística. No hay tercera vía. Bueno, la hay, pero asusta."
+      }
+    ]
+  },
+  {
+    "id": "dlg_chisme_lavadora",
+    "lines": [
+      {
+        "speaker": "Administrador",
+        "text": "Buenas. Me llega que en la lavandería se ha debatido política de comunidad, cenas y pasillos."
+      },
+      {
+        "speaker": "Administrador",
+        "text": "Sin acta no hay acta. ¿Fuiste fuente o espectador? Necesito saber qué firmo."
+      }
+    ]
+  },
+  {
+    "id": "dlg_eco_visitas",
+    "lines": [
+      {
+        "speaker": "Vecina del 1B",
+        "text": "Vecino… he oído TRES cosas esta mañana en el pasillo. Una de ellas moja. Las otras dos son peores."
+      },
+      {
+        "speaker": "Vecina del 1B",
+        "text": "Entre la tarta del 2A, el pastel del 4C y el hielo del 4D, este edificio necesita un cronista. ¿Se ofrece?"
+      }
+    ]
   }
 ]

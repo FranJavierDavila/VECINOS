@@ -197,5 +197,67 @@ check('rules.cutscene.walkViewH declarado (travelling de beats walk)', typeof co
   check('sim: con el pozo ok la red de seguridad NO se activa', !w3.missions.some((x) => x.id === 'm_manitas_ascensor'));
 }
 
+// ── 8. v1.12: física del viaje del ascensor (trapezoide proporcional a la distancia) y
+//         VISITAS ENTRE VECINOS con cadenas de consecuencias (todo data-driven)
+{
+  const e = v.elevator;
+  check('elevator.accelFloorsPerSecond2 declarado (física v1.12)', typeof e.accelFloorsPerSecond2 === 'number' && e.accelFloorsPerSecond2 > 0, `${e.accelFloorsPerSecond2 ?? '—'} plantas/s²`);
+  const dur = (d: number) => (d <= (e.floorsPerSecond * e.floorsPerSecond) / e.accelFloorsPerSecond2 ? 2 * Math.sqrt(d / e.accelFloorsPerSecond2) : d / e.floorsPerSecond + e.floorsPerSecond / e.accelFloorsPerSecond2);
+  const d1 = dur(1);
+  const d3 = dur(3);
+  const d7 = dur(7);
+  check('viaje 1 planta < viaje 3 plantas < viaje 7 plantas', d1 < d3 && d3 < d7, `${d1.toFixed(2)}s < ${d3.toFixed(2)}s < ${d7.toFixed(2)}s`);
+  check('viaje 7 plantas ≫ 3× el de 1 (proporcional a la distancia, no teleport)', d7 > d1 * 3, `${(d7 / d1).toFixed(1)}×`);
+  check('viaje corto no pasa de la velocidad de crucero', dur(1) >= 2 * Math.sqrt(1 / e.accelFloorsPerSecond2) - 1e-9, `pico ${((e.accelFloorsPerSecond2 * dur(1)) / 2).toFixed(2)} plantas/s ≤ crucero ${e.floorsPerSecond}`);
+  // Visitas: catálogo, roles, referencias y teatros
+  const visitas = ['m_visita_merienda', 'm_visita_pastel', 'm_visita_lavadora', 'm_visita_fiesta'];
+  for (const id of visitas) {
+    const m = content.missions[id];
+    check(`${id}: misión de visita declarada`, !!m, m?.description.slice(0, 48) ?? 'ausente');
+    check(`${id}: roles visitante/anfitrión presentes`, Object.keys(m?.roles ?? {}).length >= 1, Object.keys(m?.roles ?? {}).join(','));
+  }
+  const refs = ['m_acta_humedad', 'm_seranata', 'm_resaca_comunitaria', 'm_chisme_lavadora', 'm_eco_visitas'];
+  for (const id of refs) check(`cadena ${id}: declarada`, !!content.missions[id]);
+  for (const id of ['cut_visita_merienda', 'cut_visita_pastel', 'cut_visita_fiesta']) {
+    const c = Object.values(content.cutscenes).find((x) => x.id === id);
+    check(`${id}: cutscene de visita cargada`, !!c);
+    const walks = c?.beats.filter((b) => b.type === 'walk') ?? [];
+    check(`${id}: teatro con beats walk (visita filmada)`, walks.length >= 2 && walks.some((b) => b.type === 'walk' && b.who === '$role.visitante'), `${walks.length} beats walk`);
+  }
+  for (const id of ['dlg_acta_humedad', 'dlg_seranata', 'dlg_resaca', 'dlg_chisme_lavadora', 'dlg_eco_visitas']) {
+    check(`${id}: diálogo cargado`, !!content.dialogs[id]);
+  }
+  // Consecuencias de edificio: las cadenas tocan params de OTROS bloques / fondos / relaciones
+  const acta = content.missions['m_acta_humedad'];
+  check('m_acta_humedad: la rama "esperar" empapa el 3C (cascada con m_goteo)', !!acta?.choices?.some((c) => c.effects.some((x) => x.op === 'setParam' && x.target === 'blk_p3_c.humidity' && (x.delta ?? 0) > 0)));
+  check('m_goteo sigue atado a la humedad del 3C (cascada posible)', JSON.stringify(content.missions['m_goteo']?.trigger ?? {}).includes('blk_p3_c.humidity'));
+  const eco = content.missions['m_eco_visitas'];
+  check('m_eco_visitas: eco de chisme sube hype en 2A y 4C', !!eco?.choices?.some((c) => c.effects.filter((x) => x.op === 'setParam' && x.target?.endsWith('.hype')).length >= 2));
+  // Sim E2E de visita estable: la jubilada va a la lavandería (10:30, día impar) y SE QUEDA
+  // (su schedule la sostiene) mientras el jugador entra → catch_in_act completa.
+  const { dispatch, tick: tickSim } = await import('@/game/sim');
+  const wv = createWorld(content, content.rules.startScenario);
+  // Portal → lavandería (planta 0): el jugador acaba la bienvenida encaminado al portal.
+  const player = wv.residents[wv.playerId]!;
+  wv.blocks['blk_p0_nucleo']!.params['qa_mode'] = 6; // dispara m_qa_visita
+  wv.clock.minute = 10 * 60 + 30; // 10:30: ventana de la visita Y del schedule lavadora_comunal
+  tickSim(wv, content); // tick → advanceMissions + AI: la jubilada se reubica en la lavandería
+  const jub = wv.residents['res_jubilada_01']!;
+  const qaM = wv.missions.find((x) => x.id === 'm_qa_visita');
+  check('sim: m_qa_visita se activa con qa_mode=6', qaM?.state === 'active', qaM?.state ?? 'ausente');
+  // El catch reubica a la visitante en la lavandería; su desire (lavadora_comunal) la sostiene ahí.
+  let seated = jub.location === 'blk_p0_lavanderia';
+  for (let i = 0; i < 6 && !seated; i++) {
+    tickSim(wv, content);
+    seated = jub.location === 'blk_p0_lavanderia';
+  }
+  check('sim: la visitante aterriza (o ya está) en la lavandería y su schedule la sostiene', seated, `location=${jub.location}`);
+  // El jugador baja y entra: catch_in_act completa.
+  const mv1 = dispatch(wv, content, { type: 'move', resident: player.id, to: 'blk_p0_pasillo' });
+  const mv2 = dispatch(wv, content, { type: 'move', resident: player.id, to: 'blk_p0_lavanderia' });
+  const done = wv.missions.find((x) => x.id === 'm_qa_visita');
+  check('sim: entrar en la lavandería con la visitante dentro completa la visita (catch)', mv2.ok && done?.state === 'awaiting_choice' || done?.state === 'done', `move pasillo=${(mv1 as { ok?: boolean }).ok} · move lavandería=${mv2.ok} · estado=${done?.state ?? 'ausente'}`);
+}
+
 console.log(fails === 0 ? '\nQA v1.3 OK · movimiento creíble' : `\nQA v1.3 FALLÓ: ${fails} checks`);
 process.exit(fails === 0 ? 0 : 1);

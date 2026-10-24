@@ -427,5 +427,170 @@
         "hold": 0.7
       }
     ]
+  },
+  {
+    "id": "cut_visita_merienda",
+    "trigger": {
+      "on": "step_started",
+      "mission": "m_visita_merienda",
+      "step": "saludar"
+    },
+    "beats": [
+      {
+        "type": "cam",
+        "focus": {
+          "block": "blk_p2_a",
+          "at": "door"
+        }
+      },
+      {
+        "type": "walk",
+        "who": "$role.visitante",
+        "to": {
+          "block": "blk_p2_a",
+          "at": "door"
+        }
+      },
+      {
+        "type": "line",
+        "who": "$role.visitante",
+        "text": "Toc, toc. ¿Estás en casa? Traigo tarta y dos cotilleos.",
+        "gesture": "talk",
+        "seconds": 3.4
+      },
+      {
+        "type": "line",
+        "who": "$role.anfitrion",
+        "text": "¡Dolores! Pasa, pasa. Hoy hasta funciona el radiador.",
+        "gesture": "laugh",
+        "seconds": 3.2
+      },
+      {
+        "type": "walk",
+        "who": "$role.visitante",
+        "to": {
+          "block": "blk_p2_a",
+          "at": "center"
+        }
+      },
+      {
+        "type": "wait",
+        "seconds": 1.4
+      },
+      {
+        "type": "cam",
+        "focus": "player"
+      }
+    ]
+  },
+  {
+    "id": "cut_visita_pastel",
+    "trigger": {
+      "on": "step_started",
+      "mission": "m_visita_pastel",
+      "step": "saludar"
+    },
+    "beats": [
+      {
+        "type": "cam",
+        "focus": {
+          "block": "blk_p4_c",
+          "at": "door"
+        }
+      },
+      {
+        "type": "walk",
+        "who": "$role.visitante",
+        "to": {
+          "block": "blk_p4_c",
+          "at": "door"
+        }
+      },
+      {
+        "type": "line",
+        "who": "$role.visitante",
+        "text": "¡Sorpresaaa! Tomás y su pastel al rescate del cumpleaños.",
+        "gesture": "laugh",
+        "seconds": 3.2
+      },
+      {
+        "type": "line",
+        "who": "$role.anfitrion",
+        "text": "Tomás, cariño, con que no fueras TÚ la sorpresa ya me vale.",
+        "gesture": "laugh",
+        "seconds": 3.4
+      },
+      {
+        "type": "walk",
+        "who": "$role.visitante",
+        "to": {
+          "block": "blk_p4_c",
+          "at": "center"
+        }
+      },
+      {
+        "type": "wait",
+        "seconds": 1.4
+      },
+      {
+        "type": "cam",
+        "focus": "player"
+      }
+    ]
+  },
+  {
+    "id": "cut_visita_fiesta",
+    "trigger": {
+      "on": "step_started",
+      "mission": "m_visita_fiesta",
+      "step": "saludar"
+    },
+    "beats": [
+      {
+        "type": "cam",
+        "focus": {
+          "block": "blk_p4_d",
+          "at": "door"
+        }
+      },
+      {
+        "type": "walk",
+        "who": "$role.visitante",
+        "to": {
+          "block": "blk_p4_d",
+          "at": "door"
+        }
+      },
+      {
+        "type": "line",
+        "who": "$role.visitante",
+        "text": "¡Maestro! Hielo, limón y malas ideas: ensayo general en tu salón.",
+        "gesture": "laugh",
+        "seconds": 3.4
+      },
+      {
+        "type": "line",
+        "who": "$role.anfitrion",
+        "text": "Entra, Kevin. Pero la batería duerme a las doce, que oigo desde 1998.",
+        "gesture": "talk",
+        "seconds": 3.6
+      },
+      {
+        "type": "walk",
+        "who": "$role.visitante",
+        "to": {
+          "block": "blk_p4_d",
+          "at": "center"
+        }
+      },
+      {
+        "type": "wait",
+        "seconds": 1.4
+      },
+      {
+        "type": "cam",
+        "focus": "player"
+      }
+    ]
   }
 ]

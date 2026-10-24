@@ -220,6 +220,7 @@
       "doorWaitMs": 5000,
       "doorMoveMs": 700,
       "floorsPerSecond": 1.4,
+      "accelFloorsPerSecond2": 1.2,
       "cabinColor": "#aeb8c2",
       "doorColor": "#cbd5e1",
       "callColor": "#ffd166",

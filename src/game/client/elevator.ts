@@ -82,6 +82,35 @@ export interface ElevatorsDirector {
 
 const smooth = (k: number) => k * k * (3 - 2 * k);
 
+/**
+ * Física del viaje (v1.12): perfil TRAPEZOIDAL acelerar→crucero→frenar, en función de la
+ * distancia. La cabina acelera con `accel` (plantas/s²), cruza a `vMax` (floorsPerSecond) y
+ * frena al llegar: los viajes cortos ni llegan al crucero (triangulares) y la duración SIEMPRE
+ * crece con la distancia — nunca un teletransporte entre plantas. LA MISMA curva la aplican
+ * paintCabin (cabina) y status() (pasajeros NPC y jugador): nadie se desincroniza del vehículo.
+ */
+const rideDurationSec = (floors: number, vMax: number, accel: number): number =>
+  floors <= (vMax * vMax) / accel ? 2 * Math.sqrt(floors / accel) : floors / vMax + vMax / accel;
+/** Fracción de distancia recorrida (0..1) tras `tMs` de un viaje de `durMs` y `floors` plantas. */
+const rideFraction = (floors: number, tMs: number, durMs: number, vMax: number, accel: number): number => {
+  const d = Math.max(1e-6, floors);
+  const tTotal = durMs / 1000;
+  const t = Math.min(Math.max(tMs, 0), durMs) / 1000;
+  const tAcc = vMax / accel;
+  const dAcc = (vMax * tAcc) / 2;
+  if (tTotal <= 2 * tAcc + 1e-9) {
+    // Triangular: acelera hasta media distancia y frena. vPico = a · tTotal/2.
+    const tPeak = tTotal / 2;
+    if (t <= tPeak) return (0.5 * accel * t * t) / d;
+    const tr = tTotal - t;
+    return (d - 0.5 * accel * tr * tr) / d;
+  }
+  if (t <= tAcc) return (0.5 * accel * t * t) / d;
+  if (t <= tTotal - tAcc) return (dAcc + vMax * (t - tAcc)) / d;
+  const tr = tTotal - t;
+  return (d - 0.5 * accel * tr * tr) / d;
+};
+
 export function createElevators(scene: Scene, world: World, content: Content): ElevatorsDirector {
   const { Color3, MeshBuilder, StandardMaterial, TransformNode } = B();
   const v = content.rules.view;
@@ -158,6 +187,13 @@ export function createElevators(scene: Scene, world: World, content: Content): E
     });
   }
 
+  /** Duración de un viaje de `d` plantas en MS (v1.12: el estado acumula dtMs — el dur era
+   *  segundos contra t en ms y la fase moving moría en UN frame: el teletransporte clásico). */
+  const rideDurMs = (d: number): number => rideDurationSec(Math.abs(d), cfg.floorsPerSecond, cfg.accelFloorsPerSecond2) * 1000;
+  /** Fracción 0..1 del viaje en curso de un pozo (0 si no está moviéndose). */
+  const rideFracOf = (s: Shaft): number =>
+    s.state.s === 'moving' ? rideFraction(Math.abs(s.state.target! - s.state.at), s.state.t ?? 0, s.state.dur ?? 1, cfg.floorsPerSecond, cfg.accelFloorsPerSecond2) : 0;
+
   const shaftOf = (col: number): Shaft | undefined => shafts.find((s) => s.col === col);
   const elevatorOk = (col: number, floor: number): boolean => {
     const b = Object.values(world.blocks).find((x) => x.cell.col === col && x.cell.floor === floor);
@@ -191,11 +227,11 @@ export function createElevators(scene: Scene, world: World, content: Content): E
     }
   };
 
-  /** Sitúa la cabina a la altura que dice su estado. */
+  /** Sitúa la cabina a la altura que dice su estado (v1.12: física trapezoidal del viaje). */
   const paintCabin = (s: Shaft): void => {
     let y = s.state.at * v.cellH;
     if (s.state.s === 'moving') {
-      const k = smooth(Math.min(1, (s.state.t ?? 0) / (s.state.dur ?? 1)));
+      const k = rideFracOf(s);
       y = (s.state.at + (s.state.target! - s.state.at) * k) * v.cellH;
     }
     s.cabin.position.y = y;
@@ -205,7 +241,7 @@ export function createElevators(scene: Scene, world: World, content: Content): E
     // Siguiente tarea: desembarcos pendientes de pasajeros a bordo → llamada más antigua.
     if (s.passengers.length > 0) {
       const dest = s.passengers[0]!.to;
-      s.state = { s: 'moving', at: s.state.at, target: dest, t: 0, dur: Math.abs(dest - s.state.at) / cfg.floorsPerSecond, purpose: 'dropoff' };
+      s.state = { s: 'moving', at: s.state.at, target: dest, t: 0, dur: rideDurMs(dest - s.state.at), purpose: 'dropoff' };
       return;
     }
     const call = s.queue.shift();
@@ -216,7 +252,7 @@ export function createElevators(scene: Scene, world: World, content: Content): E
     if (call.from === s.state.at) {
       s.state = { s: 'doors', at: call.from, purpose: 'pickup', phase: 'opening', t: 0 };
     } else {
-      s.state = { s: 'moving', at: s.state.at, target: call.from, t: 0, dur: Math.abs(call.from - s.state.at) / cfg.floorsPerSecond };
+      s.state = { s: 'moving', at: s.state.at, target: call.from, t: 0, dur: rideDurMs(call.from - s.state.at) };
       // La llamada sigue en cola: se re-encabeza para atenderla al llegar.
       s.queue.unshift(call);
     }
@@ -237,7 +273,9 @@ export function createElevators(scene: Scene, world: World, content: Content): E
       if (!ride) return null;
       const s = shaftOf(ride.col)!;
       if (s.state.s === 'moving' && ride.phase === 'riding') {
-        const k = Math.min(1, (s.state.t ?? 0) / (s.state.dur ?? 1));
+        // v1.12: LA MISMA fracción trapezoidal que pinta la cabina — el pasajero viaja DENTRO
+        // del vehículo (antes la fracción era lineal y la cabina suavizada: se desincronizaban).
+        const k = rideFracOf(s);
         const floor = s.state.at + (s.state.target! - s.state.at) * k;
         return { phase: 'riding', floor, progress: k, slotX: s.x + (ride.slot % 2 === 0 ? -0.26 : 0.26), slotZ: frontZ + (ride.slot < 2 ? 0.28 : 0.62) };
       }

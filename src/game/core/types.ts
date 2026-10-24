@@ -667,6 +667,8 @@ export interface Rules {
       doorWaitMs: number;
       doorMoveMs: number;
       floorsPerSecond: number;
+      /** Aceleración de cabina (plantas/s², v1.12): perfil trapezoidal del viaje según distancia. */
+      accelFloorsPerSecond2: number;
       cabinColor: string;
       doorColor: string;
       callColor: string;

@@ -3,7 +3,6 @@ import { dispatch, nextStepTowards } from '@/game/sim';
 import { layoutGeometryOf, roomAt, walkable, type LayoutGeometry } from '@/game/interior';
 import { stairGeomOf, stairPathPoints } from './stairs';
 
-const smooth01 = (k: number): number => k * k * (3 - 2 * k);
 
 export type InteractResult =
   | { type: 'none' }
@@ -170,8 +169,10 @@ export class PlayerLogic {
     let floor = this.floor;
     if (this.climb) {
       if (this.climb.external) {
-        // Viaje en ascensor (v1.5): el progreso lo marca el director de la cabina.
-        const k = smooth01(this.climb.progress ?? 0);
+        // Viaje en ascensor (v1.12): el progreso lo marca el director de la cabina y YA trae la
+        // física del viaje (trapezoide aceleración–crucero–frenado proporcional a la distancia).
+        // NO se re-suaviza aquí: la curva del jugador ha de ser EXACTAMENTE la de la cabina.
+        const k = Math.min(1, Math.max(0, this.climb.progress ?? 0));
         floor = this.climb.from + (this.climb.to - this.climb.from) * k;
         return { x: this.x, z: this.z, floor, mode: this.mode, insideBlock: this.insideBlock, climbing: true, pathZ: this.climb.zOverride ?? null };
       }

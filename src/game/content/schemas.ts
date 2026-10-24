@@ -559,13 +559,17 @@ export const rulesSchema = z.object({
         doorWaitMs: z.number().positive().default(5000),
         doorMoveMs: z.number().positive().default(700),
         floorsPerSecond: z.number().positive().default(1.4),
+        /** Aceleración de la cabina (plantas/s², v1.12): perfil trapezoidal acelerar→crucero→frenar.
+         *  Los viajes cortos ni llegan al crucero (triangulares); la duración SIEMPRE crece con la
+         *  distancia — nunca un teletransporte entre plantas. */
+        accelFloorsPerSecond2: z.number().positive().default(1.2),
         cabinColor: z.string().default('#aeb8c2'),
         doorColor: z.string().default('#cbd5e1'),
         callColor: z.string().default('#ffd166'),
         brokenColor: z.string().default('#c1666b'),
         rideZ: z.number().default(0.35),
       })
-      .default({ capacity: 4, doorWaitMs: 5000, doorMoveMs: 700, floorsPerSecond: 1.4, cabinColor: '#aeb8c2', doorColor: '#cbd5e1', callColor: '#ffd166', brokenColor: '#c1666b', rideZ: 0.35 }),
+      .default({ capacity: 4, doorWaitMs: 5000, doorMoveMs: 700, floorsPerSecond: 1.4, accelFloorsPerSecond2: 1.2, cabinColor: '#aeb8c2', doorColor: '#cbd5e1', callColor: '#ffd166', brokenColor: '#c1666b', rideZ: 0.35 }),
     /** Cartel numerado sobre cada puerta de vivienda (v1.6): el label sale del id del bloque
      *  (blk_p3_c → "3C") con DynamicTexture; tamaño, posición y colores del catálogo. */
     plaque: z
