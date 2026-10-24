@@ -27,7 +27,7 @@ const DICT: Record<string, { es: string; en: string }> = {
     es: 'Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.',
     en: 'Move-ins, noise, smells, wifi, pests, smoke and levies: the neighborhood simulator.',
   },
-  'header.version': { es: 'v1.8 · siempre al día', en: 'v1.8 · always fresh' },
+  'header.version': { es: 'v1.9 · teatro en cuadro', en: 'v1.9 · theater in frame' },
   'footer.text': {
     es: 'VECINOS · prototipo jugable — sim determinista (1 tick = 1 minuto) + render Babylon.js (WebGPU/WebGL2) + editor con drag & drop + catálogo de minijuegos + guardado en SQLite. Construyéndolo por hitos, juntos.',
     en: 'VECINOS · playable prototype — deterministic sim (1 tick = 1 minute) + Babylon.js rendering (WebGPU/WebGL2) + drag & drop editor + minigame catalog + SQLite saves. Built milestone by milestone, together.',
@@ -78,6 +78,15 @@ const DICT: Record<string, { es: string; en: string }> = {
   'hud.repAria': { es: 'Reputación en el vecindario', en: 'Neighborhood reputation' },
   'hud.elevOk': { es: 'Ascensor operativo', en: 'Elevator working' },
   'hud.elevBroken': { es: 'Ascensor fuera de servicio', en: 'Elevator out of service' },
+
+  // ── Panel del ascensor (v1.9) ──
+  'elev.title': { es: '¿A qué planta?', en: 'Which floor?' },
+  'elev.subtitle': { es: 'Elige destino: la cabina vendrá a por ti.', en: 'Pick a destination: the cabin will come for you.' },
+  'elev.floor': { es: 'Planta {n}', en: 'Floor {n}' },
+  'elev.floorAria': { es: 'Ir a la planta {n}', en: 'Go to floor {n}' },
+  'elev.here': { es: 'estás aquí', en: 'you are here' },
+  'elev.cancel': { es: 'Cancelar', en: 'Cancel' },
+  'elev.unreachable': { es: 'El ascensor no llega hasta esa planta.', en: 'The elevator does not reach that floor.' },
   'hud.homeAria': { es: 'Tu piso', en: 'Your flat' },
   'weather.sunny': { es: 'Soleado', en: 'Sunny' },
   'weather.cloudy': { es: 'Nublado', en: 'Cloudy' },

@@ -10,6 +10,7 @@ import { JuntaModal } from './JuntaModal';
 import { MinigameModal } from './MinigameModal';
 import { FinaleModal } from './FinaleModal';
 import { CutsceneOverlay } from './CutsceneOverlay';
+import { ElevatorPanelModal } from './ElevatorPanelModal';
 import { OptionsModal } from './OptionsModal';
 import { ToastStack } from './ToastStack';
 import { TouchControls } from './TouchControls';
@@ -107,6 +108,7 @@ export default function GameStage() {
 
       <PhoneModal onNext={() => getController()?.phoneNext()} />
       <CutsceneOverlay />
+      <ElevatorPanelModal />
       <OptionsModal />
       <ChoicesModal onChoose={(choiceId) => getController()?.choose(choiceId)} />
       <JuntaModal onVote={(vote) => getController()?.juntaVote(vote)} />

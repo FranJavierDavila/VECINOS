@@ -213,6 +213,45 @@ export class PlayerLogic {
   }
 
   /**
+   * Panel de destino del ascensor (v1.9): datos del pozo donde está el jugador para pintar el
+   * selector de plantas (solo paradas OPERATIVAS en la misma columna). null si no está delante
+   * de un núcleo operativo — condición GEMELA del prompt de la E: lo que el prompt anuncia es
+   * exactamente lo que la E abre.
+   */
+  elevatorPanelTarget(): { col: number; current: number; floors: number[] } | null {
+    if (this.climb || this.stairPath || this.mode !== 'corridor') return null;
+    const z = this.zone();
+    const feat = this.content.blocks[z.defId]!.features;
+    if (feat?.elevator !== true || z.params.elevator_status !== 'ok') return null;
+    const col = z.cell.col;
+    const floors: number[] = [];
+    for (let f = 0; f <= this.topFloor; f++) {
+      const b = this.onFloor(f).find((x) => x.cell.col === col && x.layer === 'main' && this.content.blocks[x.defId]!.features?.elevator);
+      if (b && b.params.elevator_status === 'ok') floors.push(f);
+    }
+    if (floors.length < 2) return null;
+    return { col, current: this.floor, floors };
+  }
+
+  /**
+   * Llamada de ascensor con destino EXPLÍCITO (panel v1.9): mismo viaje externo que W/S pero a
+   * cualquier planta del pozo. La autoridad del viaje sigue siendo del sim (move al desembarcar);
+   * aquí solo se pide cabina. false si la llamada no procede (avería, planta sin parada…).
+   */
+  elevatorCall(to: number): boolean {
+    if (this.climb || this.stairPath || this.mode !== 'corridor') return false;
+    if (to < 0 || to > this.topFloor || to === this.floor) return false;
+    const z = this.zone();
+    const feat = this.content.blocks[z.defId]!.features;
+    if (feat?.elevator !== true || z.params.elevator_status !== 'ok') return false;
+    if (!this.elevatorWorks(this.floor, to)) return false;
+    const [a, b] = this.rangeOf(z);
+    this.x = (a + b) / 2;
+    this.climb = { from: this.floor, to, t: 0, duration: 0, external: true, progress: 0, zOverride: null };
+    return true;
+  }
+
+  /**
    * Vía única de comandos: con `send` sale por ahí (multijugador; resultado null, el servidor
    * decide y confirma por session:state); sin `send`, dispatch local devolviendo su resultado
    * exactamente como siempre (clásico).

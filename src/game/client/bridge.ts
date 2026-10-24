@@ -36,6 +36,9 @@ export interface GameControllerApi {
   setTouchInput(v: Partial<{ left: boolean; right: boolean; up: boolean; down: boolean; run?: boolean }>): void;
   /** Acción de interacción (botón virtual ✋: entrar/salir/usar). */
   interact(): void;
+  /** Panel del ascensor (v1.9): elegir planta de destino / cerrar sin llamar. */
+  pickElevatorFloor(to: number): void;
+  closeElevatorPanel(): void;
   /** Desde el editor: desplazarse a una de tus viviendas. */
   visitHome(blockId: string): void;
   /** Multijugador: crear sesión compartida, unirse por código o salir. */

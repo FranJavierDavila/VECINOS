@@ -15,6 +15,7 @@ import { CameraRig, type CamMode } from './camera';
 import { CutscenePlayer, type CutsceneEventCtx } from './cutscene';
 import { B } from './babylon';
 import { eventSound, preloadSounds } from './audio';
+import { translate } from './i18n';
 import { QUALITY_SCALE, loadOptions, type QualityLevel } from './options';
 import { startGamepadPolling } from './gamepad';
 import { NetSession, type SessionStatePayload } from './net';
@@ -221,11 +222,36 @@ class GameController {
       return;
     }
     if (!this.logic) return;
+    // Ascensor (v1.9): si el prompt anuncia ascensor (sin objetivo de E delante), la E abre el
+    // panel de destino. Misma condición que promptText → lo que ves es lo que la E ejecuta.
+    if (!this.logic.interactTarget()) {
+      const panel = this.logic.elevatorPanelTarget();
+      if (panel) {
+        useGameStore.getState().setElevatorPanel(panel);
+        return;
+      }
+    }
     const r = this.logic.interact();
     if (r.type === 'entered') this.setCamMode('estancia');
     else if (r.type === 'exited') this.setCamMode('planta');
     else if (r.type === 'used') this.presentInteraction(r.kind);
     this.pump();
+  }
+
+  /** Panel del ascensor (v1.9): planta elegida → cierra el panel y pide cabina (la FSM manda). */
+  pickElevatorFloor(to: number): void {
+    useGameStore.getState().setElevatorPanel(null);
+    if (!this.logic) return;
+    if (!this.logic.elevatorCall(to)) {
+      useGameStore.getState().pushToast(translate(useGameStore.getState().lang, 'elev.unreachable'), 'info');
+      return;
+    }
+    this.pump();
+  }
+
+  /** Cierra el panel sin llamar (Escape o botón cancelar). */
+  closeElevatorPanel(): void {
+    useGameStore.getState().setElevatorPanel(null);
   }
 
   /** Salta la cutscene en curso (y las encadenadas que quedaban en cola). */

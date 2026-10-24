@@ -356,7 +356,7 @@ export const cutsceneDefSchema = z.object({
   beats: z.array(
     z.discriminatedUnion('type', [
       z.object({ type: z.literal('cam'), focus: z.union([z.literal('wide'), z.literal('player'), cutsceneSpotSchema]), viewH: z.number().positive().optional(), hold: z.number().positive().optional() }),
-      z.object({ type: z.literal('walk'), who: z.string().min(1), from: cutsceneSpotSchema.optional(), to: cutsceneSpotSchema, max: z.number().positive().optional() }),
+      z.object({ type: z.literal('walk'), who: z.string().min(1), from: cutsceneSpotSchema.optional(), to: cutsceneSpotSchema, max: z.number().positive().optional(), viewH: z.number().positive().optional() }),
       z.object({
         type: z.literal('line'),
         speaker: z.string().optional(),
@@ -616,6 +616,7 @@ export const rulesSchema = z.object({
     line: z.number().positive(),
     walkMax: z.number().positive(),
     focusViewH: z.number().positive(),
+    walkViewH: z.number().positive().default(6.4),
   }),
   furniture: z.object({
     refundRatio: z.number(),

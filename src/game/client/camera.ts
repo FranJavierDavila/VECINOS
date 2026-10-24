@@ -92,4 +92,17 @@ export class CameraRig {
     const cx = half * 2 >= width ? width / 2 : Math.min(width - half, Math.max(half, p.x));
     return { cx, cy: (p.floor + 0.5) * this.cellH, cz: 0, viewH };
   }
+
+  /**
+   * Travelling de cutscene (v1.9): sigue a un ACTOR por su posición de nodo viva (x, y en metros).
+   * La altura de mira sale directamente de la Y del nodo (con un pequeño alzado hacia el pecho),
+   * así el plano acompaña también los cambios de planta (pozos y escaleras) sin saltos.
+   */
+  actorFrame(x: number, y: number, viewH: number): CinematicFrame {
+    const aspect = this.engine.getRenderWidth() / Math.max(1, this.engine.getRenderHeight());
+    const width = this.cols * this.cellW;
+    const half = (viewH * aspect) / 2;
+    const cx = half * 2 >= width ? width / 2 : Math.min(width - half, Math.max(half, x));
+    return { cx, cy: y + this.cellH * 0.15, cz: 0, viewH };
+  }
 }

@@ -298,14 +298,19 @@ export function createElevators(scene: Scene, world: World, content: Content): E
             st.phase = 'open';
             st.t = 0;
             if (st.purpose === 'pickup') {
-              // Embarco: los que aguardan en ESTA planta con hueco libre pasan a 'boarding'
-              // (su actor camina al hueco; el viaje arranca cuando TODOS están a bordo o
-              // al agotarse la espera — nadie se queda dentro con la puerta cerrada fuera).
+              // Embarco (v1.9-fix): los que aguardan en ESTA planta con hueco libre pasan a
+              // 'boarding' (su actor camina al hueco; el viaje arranca cuando TODOS están a
+              // bordo o al agotarse la espera — nadie se queda dentro con la puerta cerrada fuera).
+              // DOS vías de entrada, porque la llamada puede estar en los DOS sitios:
+              //  a) aún en la cola (la cabina VINO de otra planta a buscarla);
+              //  b) YA consumida por nextJob (la cabina estaba APARCADA en la planta llamadora:
+              //     el shift la sacó de la cola al abrir puertas — sin este barrido nadie
+              //     embarcaría jamás y el viaje quedaría huérfano en 'waiting' para siempre).
               let slot = s.passengers.length;
               s.queue = s.queue.filter((call) => {
                 if (call.from === st.at && slot < cfg.capacity) {
                   const ride = rides.get(call.actorId);
-                  if (ride) {
+                  if (ride && ride.phase === 'waiting') {
                     ride.phase = 'boarding';
                     ride.slot = slot;
                     s.passengers.push({ actorId: call.actorId, to: call.to, slot });
@@ -315,6 +320,14 @@ export function createElevators(scene: Scene, world: World, content: Content): E
                 }
                 return true;
               });
+              for (const [actorId, ride] of rides) {
+                if (ride.col === s.col && ride.phase === 'waiting' && ride.from === st.at && slot < cfg.capacity) {
+                  ride.phase = 'boarding';
+                  ride.slot = slot;
+                  s.passengers.push({ actorId, to: ride.to, slot });
+                  slot += 1;
+                }
+              }
             } else {
               // Desembarco: los pasajeros de ESTA planta salen (el actor camina hacia la puerta).
               for (const p of [...s.passengers]) {

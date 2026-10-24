@@ -64,6 +64,13 @@ export interface CutsceneState {
   text: string | null;
 }
 
+/** Panel de destino del ascensor (v1.9): paradas operativas del pozo donde espera el jugador. */
+export interface ElevatorPanelState {
+  col: number;
+  current: number;
+  floors: number[];
+}
+
 export interface ChoiceItem {
   id: string;
   label: string;
@@ -180,6 +187,8 @@ interface GameState {
   toasts: ToastItem[];
   phone: PhoneState | null;
   cutscene: CutsceneState | null;
+  /** Panel de destino del ascensor (v1.9): abierto mientras el jugador elige planta. */
+  elevatorPanel: ElevatorPanelState | null;
   choices: ChoiceState | null;
   junta: JuntaItemUi[] | null;
   minigame: MinigameState | null;
@@ -213,6 +222,7 @@ interface GameState {
   pushLog: (text: string, tone?: Tone) => void;
   setPhone: (p: PhoneState | null) => void;
   setCutscene: (c: CutsceneState | null) => void;
+  setElevatorPanel: (p: ElevatorPanelState | null) => void;
   setChoices: (c: ChoiceState | null) => void;
   setJunta: (items: JuntaItemUi[] | null) => void;
   setMinigame: (m: MinigameState | null) => void;
@@ -229,9 +239,9 @@ interface GameState {
 
 let nextId = 1;
 
-/** Modales abiertos = mundo congelado. La derivan phone/choices/junta/minigame/finale y las cutscenes (Fase D). */
-export function selectModalOpen(s: Pick<GameState, 'phone' | 'choices' | 'junta' | 'minigame' | 'finale' | 'cutscene'>): boolean {
-  return s.phone !== null || s.choices !== null || s.junta !== null || s.minigame !== null || s.finale !== null || s.cutscene !== null;
+/** Modales abiertos = mundo congelado. La derivan phone/choices/junta/minigame/finale, las cutscenes (Fase D) y el panel del ascensor (v1.9). */
+export function selectModalOpen(s: Pick<GameState, 'phone' | 'choices' | 'junta' | 'minigame' | 'finale' | 'cutscene' | 'elevatorPanel'>): boolean {
+  return s.phone !== null || s.choices !== null || s.junta !== null || s.minigame !== null || s.finale !== null || s.cutscene !== null || s.elevatorPanel !== null;
 }
 
 export const useGameStore = create<GameState>((set) => ({
@@ -265,6 +275,7 @@ export const useGameStore = create<GameState>((set) => ({
   toasts: [],
   phone: null,
   cutscene: null,
+  elevatorPanel: null,
   choices: null,
   junta: null,
   minigame: null,
@@ -312,6 +323,7 @@ export const useGameStore = create<GameState>((set) => ({
     })),
   setPhone: (p) => set({ phone: p }),
   setCutscene: (cutscene) => set({ cutscene }),
+  setElevatorPanel: (elevatorPanel) => set({ elevatorPanel }),
   setChoices: (c) => set({ choices: c }),
   setJunta: (items) => set({ junta: items }),
   setMinigame: (m) => set({ minigame: m }),
@@ -333,6 +345,7 @@ export const useGameStore = create<GameState>((set) => ({
     set({
       phone: null,
       cutscene: null,
+      elevatorPanel: null,
       choices: null,
       junta: null,
       minigame: null,

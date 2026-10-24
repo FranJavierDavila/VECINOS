@@ -119,7 +119,7 @@
   "view": {
     "cellW": 2.4,
     "cellH": 2.6,
-    "walkSpeed": 3.0,
+    "walkSpeed": 3,
     "roomSpeed": 2.4,
     "stairsSeconds": 1.6,
     "elevatorSeconds": 0.6,
@@ -251,7 +251,8 @@
     "hold": 1.2,
     "line": 3.2,
     "walkMax": 14,
-    "focusViewH": 5.2
+    "focusViewH": 5.2,
+    "walkViewH": 6.4
   },
   "furniture": {
     "refundRatio": 0.5,
@@ -322,7 +323,7 @@
     "laptop": "E · conectarse al portátil",
     "bed": "E · echar una siesta",
     "stairs": "W/S · escalera",
-    "elevator": "W/S · ascensor",
+    "elevator": "E · panel de plantas · W/S sube o baja",
     "elevatorBroken": "Ascensor averiado · la escalera, al fondo del pasillo",
     "mailbox": {
       "prompt": "E · revisar los buzones",

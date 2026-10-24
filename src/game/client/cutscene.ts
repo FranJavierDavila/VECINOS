@@ -70,6 +70,14 @@ export class CutscenePlayer {
     this.involved = [];
     this.spoken = null;
     useGameStore.getState().setCutscene({ id: def.id, speaker: null, text: null });
+    // V1.9 FIX "cinemática invisible con cámara de estancia": si el primer beat no es de cámara,
+    // la cámara puede quedarse DENTRO de la estancia mirando la pared mientras el teatro ocurre
+    // en otro sitio (mundo congelado = sensación de bloqueo). Se siembra YA un encuadre visible
+    // (bloque del evento → jugador → edificio); el primer beat 'cam' lo sustituye si quiere.
+    if (def.beats[0]?.type !== 'cam') {
+      const seed = this.fallbackFrame();
+      if (seed) stage.rig.cinematic = seed;
+    }
     this.enter(0);
   }
 
@@ -104,6 +112,8 @@ export class CutscenePlayer {
           this.next();
           break;
         }
+        // V1.9: refresco del travelling cada frame mientras el actor avanza (pozo/escalera incluidos).
+        this.trackWalker(this.def.beats[this.i] as Extract<CutsceneBeat, { type: 'walk' }>);
         if (this.stage.actors.idle(this.walk.id) || this.t >= (beat.max ?? cs.walkMax)) this.next();
         break;
       case 'sound':
@@ -132,7 +142,10 @@ export class CutscenePlayer {
     if (!beat) return this.finish();
     switch (beat.type) {
       case 'cam': {
-        const frame = this.resolveCam(beat);
+        const frame = this.resolveCam(beat) ?? this.fallbackFrame();
+        // V1.9: fallback garantizado — un encuadre que no se resuelve ($event.block ausente en el
+        // evento, bloque desconocido…) ya NO deja la cámara huérfana en el modo anterior (p. ej.
+        // 'estancia', dentro de una vivienda): el espectáculo siempre tiene plano.
         if (frame) this.stage.rig.cinematic = frame;
         this.hideLine();
         break;
@@ -145,6 +158,10 @@ export class CutscenePlayer {
           this.walk = { id };
           if (!this.involved.includes(id)) this.involved.push(id);
           this.hideLine();
+          // V1.9 TRAVELLING: el plano sigue al actor desde el primer frame (la ruta puede recorrer
+          // medio edificio; antes la cámara se quedaba clavada en el último encuadre y el paseo
+          // entero ocurría FUERA de cuadro: plano vacío + mundo parado = sensación de bloqueo).
+          this.trackWalker(beat);
         }
         break;
       }
@@ -198,6 +215,30 @@ export class CutscenePlayer {
   }
 
   // ── Resolución de referencias (todas indulgentes: null = beat saltado) ──
+
+  /**
+   * V1.9: encuadre de emergencia para que el espectáculo SIEMPRE tenga plano visible.
+   * Prioridad data-driven: bloque del evento → jugador → edificio entero. Nunca null salvo
+   * que no haya escenario (imposible en partida viva).
+   */
+  private fallbackFrame(): { cx: number; cy: number; cz: number; viewH: number } | null {
+    if (!this.stage) return null;
+    const viewH = this.content.rules.cutscene.focusViewH;
+    if (this.ctx.block) {
+      const b = this.stage.world.blocks[this.ctx.block];
+      if (b) return this.stage.rig.blockFrame(b.cell.col, b.size.w, b.cell.floor, viewH);
+    }
+    return this.stage.rig.playerFrame(this.stage.playerPos(), viewH);
+  }
+
+  /** V1.9 travelling: el encuadre persigue al actor del beat walk mientras camina. */
+  private trackWalker(beat: Extract<CutsceneBeat, { type: 'walk' }>): void {
+    if (!this.stage || !this.walk) return;
+    const node = this.stage.actors.nodeOf(this.walk.id);
+    if (!node) return;
+    const viewH = beat.viewH ?? this.content.rules.cutscene.walkViewH;
+    this.stage.rig.cinematic = this.stage.rig.actorFrame(node.x, node.y, viewH);
+  }
 
   private resolveCam(beat: Extract<CutsceneBeat, { type: 'cam' }>): { cx: number; cy: number; cz: number; viewH: number } | null {
     if (!this.stage) return null;

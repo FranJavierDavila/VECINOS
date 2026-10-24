@@ -152,5 +152,18 @@ for (let i = 0; i < 40 && cur && cur !== 'blk_p3_c'; i++) {
 check('ascensor averiado: la ruta a 3C no toca el núcleo', !path.some((b) => b.includes('nucleo')), path.join(' → '));
 check('ascensor averiado: viaje portal→3C = 13 min', travelMinutes(buildCirculation(world, content), world.entry, 'blk_p3_c') === 13);
 
+// ── 6. V1.9: cutscenes siempre visibles (travelling + fallback) y panel de destino del ascensor
+check('rules.cutscene.walkViewH declarado (travelling de beats walk)', typeof content.rules.cutscene.walkViewH === 'number' && content.rules.cutscene.walkViewH > 0, `${content.rules.cutscene.walkViewH} m`);
+{
+  const cut = Object.values(content.cutscenes);
+  const withWalk = cut.filter((c) => c.beats.some((b) => b.type === 'walk'));
+  check('cutscenes: hay catálogo con beats walk para el travelling', withWalk.length > 0, `${withWalk.length} de ${cut.length}`);
+  const { PlayerLogic } = await import('../src/game/player-logic');
+  check('PlayerLogic: panel de destino del ascensor (target + call)', typeof PlayerLogic.prototype.elevatorPanelTarget === 'function' && typeof PlayerLogic.prototype.elevatorCall === 'function');
+  const { translate } = await import('../src/game/client/i18n');
+  check('i18n: claves del panel de ascensor presentes (es/en)', translate('es', 'elev.title') !== 'elev.title' && translate('en', 'elev.here') !== 'elev.here', `${translate('es', 'elev.title')} / ${translate('en', 'elev.title')}`);
+  check('prompt del ascensor anuncia el panel (texto del catálogo)', content.rules.interact.elevator.includes('E ·') && content.rules.interact.elevator.includes('panel'), content.rules.interact.elevator);
+}
+
 console.log(fails === 0 ? '\nQA v1.3 OK · movimiento creíble' : `\nQA v1.3 FALLÓ: ${fails} checks`);
 process.exit(fails === 0 ? 0 : 1);

@@ -374,8 +374,9 @@ export interface CutsceneSpot {
 export type CutsceneBeat =
   /** Cámara: vuela al encuadre (edificio entero, jugador o bloque) y aguanta `hold` s. */
   | { type: 'cam'; focus: 'wide' | 'player' | CutsceneSpot; viewH?: number; hold?: number }
-  /** Actor: se coloca en `from` (si hay) y anda hasta `to` por pozo/interior (nunca teletransporta). */
-  | { type: 'walk'; who: string; from?: CutsceneSpot; to: CutsceneSpot; max?: number }
+  /** Actor: se coloca en `from` (si hay) y anda hasta `to` por pozo/interior (nunca teletransporta).
+   *  Mientras camina, la cámara le SIGUE (travelling); viewH ajusta lo cerrado del plano. */
+  | { type: 'walk'; who: string; from?: CutsceneSpot; to: CutsceneSpot; max?: number; viewH?: number }
   /** Subtítulo cinematográfico con marcadores {resident} y {block}. */
   | { type: 'line'; speaker?: string; text: string; seconds?: number; who?: string; gesture?: string }
   /** Pausa teatral. */
@@ -666,6 +667,8 @@ export interface Rules {
     walkMax: number;
     /** Alto de encuadre (m) por defecto al enfocar un bloque o al jugador. */
     focusViewH: number;
+    /** Alto de encuadre (m) del travelling que sigue a un actor durante un beat walk. */
+    walkViewH: number;
   };
   /** Datos del botón de demostración "Fiesta" (solo dev/debug, también en catálogo). */
   demo: { resident: string; block: string; noise: number; toast: string };
