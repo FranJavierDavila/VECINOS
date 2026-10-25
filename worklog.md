@@ -1048,3 +1048,22 @@ Stage Summary:
 - El edificio respeta la intimidad: los interiores solo se ven con vida dentro; las viviendas vacías muestran fachada y puerta al pasillo. Trasteros legibles como trasteros (tabiques + cartel en la estantería). El plano general ya no es una sopa de emoticonos (texto fuera, tope de glifos).
 - La información vive en un cuaderno organizado: tracker compacto de misión + dock con pestañas (misiones, edificio, casa, logros, ayuda) y logros tipo Steam 100% data-driven con popup no bloqueante y persistencia de perfil.
 - Dos bugs estructurales cazados por el E2E: escalera inalcanzable en plantas de pasillo extendido (zone solapado) y bucle de render del popup (mutación identidad). Todo con regresión completa en verde.
+
+---
+Task ID: 0-v1.17 (recuperación)
+Agent: main (Z.ai Code)
+Task: Diagnosticar y restaurar el preview: el sandbox estaba atascado en v1.0.1 mientras el canon (v1.12→v1.17) vivía en GitHub
+
+Work Log:
+- SÍNTOMA del usuario: "faltan muchas cosas o no me estás mostrando en el preview la última versión" (personajes, emoticonos, trasteros, bloques de ascensor, escaleras, cubiertas).
+- CAUSA RAÍZ (doble): (1) el dev server local había muerto con JavaScript heap OOM; (2) el repo LOCAL estaba en v1.0.1 + un commit huérfano UUID, mientras origin/main tenía TODAS las entregas posteriores: v1.12 (física trapezoidal del ascensor + visitas), v1.14 (rutas blindadas + edificio vivo: vendedores/trastadas/mascota + apagón nocturno), v1.15 (bocadillos + canal polvo + electricista/sanitaria glTF + cadena de la obra), v1.16 (cierre del edificio: trasteros por planta con estanterías numeradas, bajocubierta con instalaciones, tejado a dos aguas, escalera/ascensor al ático, macetas), v1.17 (logros Steam data-driven + cuaderno del portero + privacidad de viviendas + tabiques/carteles en trasteros + tope de bocadillos). La sesión anterior que los construyó perdió el contexto ANTES de sincronizar el sandbox local; su trabajo quedó solo en GitHub.
+- Evidencia que cerró el diagnóstico: los 404 de la sesión vieja (pintora/repartidor/sanitaria/electricista.gltf) eran la pestaña del usuario pidiendo assets de v1.15+ a un servidor v1.0.1. Tras el reset, esos glTF existen y cargan.
+- ACCIÓN: git fetch → git reset --hard origin/main (v1.17). Limpieza de .next y relanzamiento del dev server. NOTA de infraestructura: el sandbox recoge procesos en segundo plano entre llamadas (watchdog); los relances vía .zscripts/dev.sh son el patrón más estable; si el preview se queda negro, recargar la pestaña.
+- VERIFICACIÓN E2E (agent-browser): v1.17 arranca limpio (insignia "v1.17 · logros, privacidad y cuaderno del portero"), CERO 404/LoadFileError (los 15 glTF de actores y 12 de bloques cargan), edificio con tejado a dos aguas + chimenea, plantas de trasteros con estanterías y trastos visibles, núcleo de ascensor, escalera con tramos, macetas; intro "Inmobiliaria Molina & Hijos" correcta.
+- Descartes: una tanda de trabajo local duplicada en paralelo (superestructura/bocadillos/FSM/logros re-implementados contra v1.0.1) fue descartada con el reset — el canon v1.15→v1.17 ya cubría esas piezas con versiones propias (cuaderno del portero, privacidad, tope de bocadillos).
+
+Stage Summary:
+- El preview muestra AHORA la última versión real (v1.17). NADA del trabajo del usuario se perdió: v1.12→v1.17 están en GitHub y restaurados en el sandbox.
+- Lección de proceso registrada: al heredar una sesión, comprobar SIEMPRE git fetch + diff con origin/main antes de re-implementar; el snapshot del sandbox puede estar por detrás del remoto.
+- Siguientes naturales (sobre v1.17): jugar la cadena de reparación del ascensor para verificar su FSM física en vivo, QA de la privacidad de viviendas y del tope de bocadillos en vista completa, y más Contenido F.
+
