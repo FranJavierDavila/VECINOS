@@ -65,7 +65,11 @@ export class PlayerLogic {
     this.view = content.rules.view;
     const blocks = Object.values(world.blocks);
     this.width = Math.max(...blocks.map((b) => (b.cell.col + b.size.w) * this.view.cellW));
-    this.topFloor = Math.max(...blocks.map((b) => b.cell.floor));
+    this.topFloor = Math.max(
+      // Solo plantas con suelo transitable (v1.16): el tejado cierra el edificio pero no
+      // tiene forjado — nunca es topFloor aunque sea la planta más alta de la plantilla.
+      ...blocks.filter((b) => this.content.blocks[b.defId]!.traversable !== false).map((b) => b.cell.floor),
+    );
     // Si el actor aún no existe en el mundo (estado del servidor en camino), se cae al jugador clásico.
     const me = world.residents[this.actorId] ?? world.residents[world.playerId]!;
     const start = world.blocks[me.location ?? me.home] ?? blocks.find((b) => b.kind !== 'dwelling')!;

@@ -1,11 +1,11 @@
 [
   {
     "id": "edificio_9x8_nucleo_central",
-    "grid": { "cols": 10, "floors": 8 },
+    "grid": { "cols": 10, "floors": 14 },
     "rows": [
-      { "floors": [0, 7], "blocks": [{ "col": 0, "defId": "pasillo_planta", "tag": "pasillo" }] },
+      { "floors": [0, 12], "blocks": [{ "col": 0, "defId": "pasillo_planta", "tag": "pasillo" }] },
       {
-        "floors": [0, 7],
+        "floors": [0, 12],
         "blocks": [
           { "col": 4, "defId": "nucleo_comunicaciones", "tag": "nucleo" },
           { "col": 9, "defId": "escaleras_planta", "tag": "escalera" }
@@ -29,6 +29,18 @@
           { "col": 5, "defId": "vivienda_estandar", "tag": "c" },
           { "col": 7, "defId": "vivienda_estandar", "tag": "d" }
         ]
+      },
+      {
+        "floors": [8, 11],
+        "blocks": [{ "col": 0, "defId": "trasteros_planta", "tag": "trasterosp" }]
+      },
+      {
+        "floors": [12, 12],
+        "blocks": [{ "col": 0, "defId": "bajocubierta", "tag": "bajocubierta" }]
+      },
+      {
+        "floors": [13, 13],
+        "blocks": [{ "col": 0, "defId": "tejado", "tag": "tejado" }]
       }
     ]
   }

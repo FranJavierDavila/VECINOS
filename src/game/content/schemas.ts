@@ -583,6 +583,81 @@ export const rulesSchema = z.object({
         fontPx: z.number().positive().default(64),
       })
       .default({ w: 0.62, h: 0.24, y: 2.18, z: -0.04, bg: '#3b3129', text: '#ffd166', fontPx: 64 }),
+    /** Trasteros por planta (v1.16): nave abierta con estanterías a ambos lados del pasillo
+     *  interior, numeradas con la vivienda propietaria (cartel dinámico como el plaque). El
+     *  reparto es SECUENCIAL por orden de planta y letra: la estantería k de la planta de
+     *  trasteros i pertenece a la vivienda k+i·shelvesPerLevel del listado (planta, columna).
+     *  Las plantas de trasteros necesarias emergen de la plantilla; con shelvesPerLevel=8 y
+     *  28 viviendas hacen falta 4 niveles (contracts con la authoría glTF: bays alineadas). */
+    trasteros: z
+      .object({
+        shelvesPerLevel: z.number().int().min(1).default(8),
+        margin: z.number().min(0).default(0.55),
+        bayW: z.number().positive().default(2.2),
+        frontTiers: z.number().int().min(0).default(2),
+        backTiers: z.number().int().min(0).default(3),
+        tierH: z.number().positive().default(0.5),
+        shelfD: z.number().positive().default(0.45),
+        plankT: z.number().positive().default(0.05),
+        postW: z.number().positive().default(0.08),
+        junkChance: z.number().min(0).max(1).default(0.62),
+        floorJunk: z.number().int().min(0).default(3),
+        wood: z.string().default('#8a5a33'),
+        woodDark: z.string().default('#6f4926'),
+        junk: z.array(z.string()).default(['#c9a66b', '#7d8493', '#9c6644', '#84a59d', '#e07a5f', '#b08968']),
+        emptyLabel: z.string().default('—'),
+        ownBg: z.string().default('#ffd166'),
+        ownText: z.string().default('#3b3129'),
+        plaqueW: z.number().positive().default(0.52),
+        plaqueH: z.number().positive().default(0.18),
+      })
+      .default({
+        shelvesPerLevel: 8,
+        margin: 0.55,
+        bayW: 2.2,
+        frontTiers: 2,
+        backTiers: 3,
+        tierH: 0.5,
+        shelfD: 0.45,
+        plankT: 0.05,
+        postW: 0.08,
+        junkChance: 0.62,
+        floorJunk: 3,
+        wood: '#8a5a33',
+        woodDark: '#6f4926',
+        junk: ['#c9a66b', '#7d8493', '#9c6644', '#84a59d', '#e07a5f', '#b08968'],
+        emptyLabel: '—',
+        ownBg: '#ffd166',
+        ownText: '#3b3129',
+        plaqueW: 0.52,
+        plaqueH: 0.18,
+      }),
+    /** Tejadillo que cierra el edificio (v1.16): faldones a dos aguas sobre la bajocubierta.
+     *  CONTRATO con la authoría glTF (scripts/gen-v16-assets.ts): mismos colores y misma
+     *  geometría nominal (una sola verdad). */
+    roof: z
+      .object({
+        pitchH: z.number().positive().default(1.2),
+        overhang: z.number().min(0).default(0.35),
+        color: z.string().default('#a44a3f'),
+        ridge: z.string().default('#7d3b32'),
+        fascia: z.string().default('#6f4926'),
+      })
+      .default({ pitchH: 1.2, overhang: 0.35, color: '#a44a3f', ridge: '#7d3b32', fascia: '#6f4926' }),
+    /** Macetas en los pasillos (v1.16): reparto aleatorio DETERMINISTA por hash del id del
+     *  pasillo (jamás nextRandom del sim): cantidad por planta y colores del catálogo. */
+    pots: z
+      .object({
+        perFloorMin: z.number().int().min(0).default(2),
+        perFloorMax: z.number().int().min(0).default(4),
+        potColor: z.string().default('#b5651d'),
+        soilColor: z.string().default('#5d4037'),
+        plantColor: z.string().default('#5a9367'),
+        plant2Color: z.string().default('#84a59d'),
+        potR: z.number().positive().default(0.17),
+        potH: z.number().positive().default(0.26),
+      })
+      .default({ perFloorMin: 2, perFloorMax: 4, potColor: '#b5651d', soilColor: '#5d4037', plantColor: '#5a9367', plant2Color: '#84a59d', potR: 0.17, potH: 0.26 }),
     /** Velocidad (m/s) a partir de la cual un actor en marcha usa el clip "run". */
     runSpeed: z.number().positive().default(4.2),
     /** Multiplicador de velocidad del jugador mientras corre (Shift / botón del mando). */

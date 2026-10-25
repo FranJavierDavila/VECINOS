@@ -14,7 +14,7 @@ import { useEffect } from 'react';
  * así que tras esa recarga todo (chunks, JSON y glTF) sale de la red del despliegue.
  */
 /** Debe espejar VERSION de public/sw.js (una recarga extra como máximo si se desalinean). */
-const EXPECTED_SW_VERSION = 'vecinos-v1.15';
+const EXPECTED_SW_VERSION = 'vecinos-v1.16';
 /** sessionStorage: como mucho UNA auto-recarga por sesión de pestaña. */
 const RELOAD_KEY = 'vecinos.swReloadDone';
 

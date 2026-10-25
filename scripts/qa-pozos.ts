@@ -1,9 +1,11 @@
 /**
- * QA v0.6-c: pozos verticales independientes (escalera ≠ ascensor).
+ * QA v0.6-c (actualizado v1.16): pozos verticales independientes (escalera ≠ ascensor).
  * Verifica contra el contenido y el sim REALES:
  *  1. Con el ascensor averiado, la ruta portal→3C pasa por los bloques de escalera (nunca por el núcleo).
  *  2. canMove rechaza el salto vertical núcleo→núcleo averiado y acepta escalera→escalera.
- *  3. La escalera de planta 0 no tiene arista hacia abajo y la de la 7 no hacia arriba (particularidad pedida).
+ *  3. La escalera de planta 0 no baja; desde v1.16 la shaft CONTINÚA hacia el ático
+ *     (trasteros p8-p11 y bajocubierta p12) — p7 conecta con p8 y la última planta de la
+ *     shaft es la bajocubierta, que no sube a la planta del tejado (p13, sin forjado).
  *  4. Con el ascensor reparado, la ruta usa el núcleo (7 min < 13 min) y canMove acepta el salto.
  */
 import { loadContent, formatIssues } from '@/game/content';
@@ -46,12 +48,16 @@ check('canMove núcleo averiado p0→p1 RECHAZADO', !canMove(world, content, 'bl
 check('canMove escalera p0→p1 OK', canMove(world, content, 'blk_p0_escalera', 'blk_p1_escalera'));
 check('canMove escalera→núcleo (pozos distintos) RECHAZADO', !canMove(world, content, 'blk_p0_escalera', 'blk_p1_nucleo'));
 
-// ── 3. Particularidad: planta 0 no baja, última no sube
+// ── 3. Particularidad: planta 0 no baja; el ático (v1.16) encadena y la bajocubierta no sube al tejado
 const g = buildCirculation(world, content);
 const vecinos = (id: string) => [...(g.edges.get(id)?.keys() ?? [])];
 check('escalera p0 solo conecta con pasillo/portal/p1 (nada por debajo)', vecinos('blk_p0_escalera').every((b) => !b.startsWith('blk_') || b === 'blk_p1_escalera' || b === 'blk_p0_pasillo' || b === 'blk_p0_portal' || b === 'blk_p0_trasteros'), JSON.stringify(vecinos('blk_p0_escalera')));
-check('escalera p7 solo conecta con pasillo/p6 (nada por encima)', vecinos('blk_p7_escalera').every((b) => !b.startsWith('blk_') || b === 'blk_p6_escalera' || b === 'blk_p7_pasillo'), JSON.stringify(vecinos('blk_p7_escalera')));
-// W/S en cliente: el guard to<0 / to>topFloor es la otra mitad (player-logic.startClimb).
+check('escalera p7 conecta con p6, p8 (ático v1.16) y pasillo', vecinos('blk_p7_escalera').every((b) => !b.startsWith('blk_') || b === 'blk_p6_escalera' || b === 'blk_p8_escalera' || b === 'blk_p7_pasillo'), JSON.stringify(vecinos('blk_p7_escalera')));
+check('escalera p12 (bajocubierta) solo conecta con p11 y pasillo p12 (el tejado p13 NO tiene arista)', vecinos('blk_p12_escalera').every((b) => !b.startsWith('blk_') || b === 'blk_p11_escalera' || b === 'blk_p12_pasillo'), JSON.stringify(vecinos('blk_p12_escalera')));
+check('núcleo p12 solo conecta con p11 y pasillo p12', vecinos('blk_p12_nucleo').every((b) => !b.startsWith('blk_') || b === 'blk_p11_nucleo' || b === 'blk_p12_pasillo'), JSON.stringify(vecinos('blk_p12_nucleo')));
+check('el tejado (p13) es una isla: sin aristas de circulación', vecinos('blk_p13_tejado').every((b) => !b.startsWith('blk_')), JSON.stringify(vecinos('blk_p13_tejado')));
+// W/S en cliente: el guard to<0 / to>topFloor es la otra mitad (player-logic.startClimb,
+// v1.16: topFloor solo cuenta plantas con bloques transitables — el tejado no es pisable).
 
 // ── 4. Ascensor reparado: el núcleo vuelve a la ruta y el viaje baja a 7 min
 world.blocks['blk_p0_nucleo']!.params.elevator_status = 'ok';

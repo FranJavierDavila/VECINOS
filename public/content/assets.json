@@ -394,6 +394,33 @@
       },
       "tintStrength": 0.5
     },
+    "trasteros_planta": {
+      "model": "blocks/trasteros_planta.gltf",
+      "nominal": {
+        "w": 21.48,
+        "h": 2.46,
+        "d": 2.8
+      },
+      "tintStrength": 0.55
+    },
+    "bajocubierta": {
+      "model": "blocks/bajocubierta.gltf",
+      "nominal": {
+        "w": 21.48,
+        "h": 2.46,
+        "d": 2.8
+      },
+      "tintStrength": 0.5
+    },
+    "tejado": {
+      "model": "blocks/tejado.gltf",
+      "nominal": {
+        "w": 26.28,
+        "h": 2.46,
+        "d": 3.5
+      },
+      "tintStrength": 0.45
+    },
     "local_comercial": {
       "model": "blocks/local_comercial.gltf",
       "nominal": {

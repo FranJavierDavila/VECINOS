@@ -165,8 +165,13 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
     return f.elevator === true && b.params.elevator_status === 'ok';
   };
   const shaftXOf = (b: BlockInstance): number => (b.cell.col + b.size.w / 2) * v.cellW;
-  /** Calado transitablo del bloque (vivienda 2× o bloque común). */
-  const depthOfBlock = (b: BlockInstance): number => (b.kind === 'dwelling' ? v.depth : v.commonDepth);
+  /** Calado transitablo del bloque (vivienda 2×; naves del cierre v1.16 a calado de vivienda). */
+  const depthOfBlock = (b: BlockInstance): number => {
+    if (b.kind === 'dwelling') return v.depth;
+    if (b.defId === 'trasteros_planta' || b.defId === 'bajocubierta') return v.depth;
+    if (b.defId === 'tejado') return v.depth + v.roof.overhang * 2;
+    return v.commonDepth;
+  };
   /** Plano frontal de las viviendas: z local 0 de los interiores y origen del pasillo. */
   const frontZ = frontZOf(v.roomZ, v.commonDepth);
   /** Bloque main bajo los pies (v1.14): para salir de la banda de viviendas por SU puerta. */

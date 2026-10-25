@@ -1,6 +1,7 @@
 import type { Color3, Color4, Mesh, Scene, StandardMaterial, TransformNode } from '@babylonjs/core';
 import { blockLabel } from '@/game/core/types';
 import type { BlockInstance, Content, World } from '@/game/core/types';
+import { hash01 } from '@/game/interior';
 import { B } from './babylon';
 import { instantiateBlockAsset, type BlockMat } from './assets';
 
@@ -62,8 +63,14 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
   // Plano frontal de las estancias: la cara de la puerta. Con viviendas del doble de calado
   // (v0.6-b), el extra crece hacia el FONDO (+Z) para no envolver el pasillo ni al núcleo.
   const frontZ = v.roomZ - v.commonDepth / 2;
-  /** Calado por bloque: viviendas 2× (mobiliario interior); bloques comunes, el de siempre. */
-  const depthOf = (b: BlockInstance): number => (b.kind === 'dwelling' ? v.depth : v.commonDepth);
+  /** Calado por bloque: viviendas 2× (mobiliario interior); naves del cierre (v1.16) y el
+   *  tejado (con aleros) a calado de vivienda; bloques comunes, el de siempre. */
+  const depthOf = (b: BlockInstance): number => {
+    if (b.kind === 'dwelling') return v.depth;
+    if (b.defId === 'trasteros_planta' || b.defId === 'bajocubierta') return v.depth;
+    if (b.defId === 'tejado') return v.depth + v.roof.overhang * 2;
+    return v.commonDepth;
+  };
   const mat = (name: string) => new StandardMaterial(name, scene);
   const box = (name: string, w: number, h: number, d: number, x: number, y: number, z: number, m: StandardMaterial) => {
     const mesh = MeshBuilder.CreateBox(name, { width: w, height: h, depth: d }, scene);
@@ -236,6 +243,18 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         });
         interiors.set(b.id, interior);
       }
+    } else if (b.defId === 'trasteros_planta' || b.defId === 'bajocubierta') {
+      // Nave de trasteros / sala de instalaciones (v1.16): forjado + trasera. El arte glTF
+      // añade pilares (trasteros) o maquinaria (bajocubierta); las estanterías, trastos y
+      // carteles numerados los levanta SIEMPRE el runtime desde rules.view.trasteros.
+      view.greybox.push(
+        box(`${b.id}_forjado`, w, v.slab * 2, d, cx, bottom + v.slab, frontZ + d / 2, m),
+        box(`${b.id}_trasera`, w, h, v.wall, cx, bottom + v.cellH / 2, frontZ + d - v.wall / 2, m),
+      );
+    } else if (b.defId === 'tejado') {
+      // Tejadillo (v1.16): fallback = canto de cerramiento (el glTF trae faldones, cumbrera,
+      // chimenea y antena).
+      view.greybox.push(box(`${b.id}_canto`, w, v.slab * 2, d, cx, bottom + v.slab, frontZ + d / 2, m));
     } else {
       view.greybox.push(box(b.id, w, h, d, cx, bottom + v.cellH / 2, cz, m));
     }
@@ -303,6 +322,153 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     wall.enableEdgesRendering();
     wall.edgesWidth = b.id === homeId ? 14 : 8;
     wall.edgesColor = Color4.FromHexString(v.homeEdge + 'ff');
+  }
+
+  // ── Trasteros por planta (v1.16): nave abierta con estanterías a AMBOS LADOS del pasillo
+  // interior. Cada estantería lleva cartel dinámico con la vivienda propietaria (blockLabel,
+  // patrón del plaque) y trastos deterministas (hash01 del id de la vivienda — jamás
+  // nextRandom del sim). El reparto es SECUENCIAL: estantería k del nivel i → vivienda
+  // k + i·shelvesPerLevel del listado de viviendas ordenado por (planta, columna); así
+  // "todos los vecinos tienen su trastero" y sobran ranuras donde las haya. TODO sale de
+  // rules.view.trasteros (nada a pelo): añadir viviendas o cambiar shelvesPerLevel re-crea
+  // el mapa solo. La estantería del JUGADOR luce colores propios (ownBg/ownText).
+  const tr = v.trasteros;
+  const dwellingsOrdered = Object.values(world.blocks)
+    .filter((b) => b.kind === 'dwelling')
+    .sort((a, b) => a.cell.floor - b.cell.floor || a.cell.col - b.cell.col);
+  const storageLevels = Object.values(world.blocks)
+    .filter((b) => b.defId === 'trasteros_planta')
+    .sort((a, b) => a.cell.floor - b.cell.floor);
+  if (storageLevels.length > 0 && dwellingsOrdered.length > 0) {
+    const matPost = mat('trasteros_poste_mat');
+    matPost.diffuseColor = Color3.FromHexString(tr.woodDark);
+    const matPlank = mat('trasteros_tabla_mat');
+    matPlank.diffuseColor = Color3.FromHexString(tr.wood);
+    const matJunk = tr.junk.map((hex, i) => {
+      const jm = mat(`trasteros_trasto_${i}_mat`);
+      jm.diffuseColor = Color3.FromHexString(hex);
+      return jm;
+    });
+    /** Cartel numerado (DynamicTexture, MISMO patrón verificado del plaque de vivienda:
+     *  update(true) — con false el texto sale cabeza abajo). */
+    const shelfPlate = (name: string, label: string, own: boolean): Mesh => {
+      const plate = MeshBuilder.CreatePlane(name, { width: tr.plaqueW, height: tr.plaqueH, sideOrientation: B().Mesh.DOUBLESIDE }, scene);
+      const tex = new (B().DynamicTexture)(`${name}_tex`, { width: 160, height: 56 }, scene, true);
+      const ctx = tex.getContext() as unknown as CanvasRenderingContext2D;
+      ctx.fillStyle = own ? tr.ownBg : v.plaque.bg;
+      ctx.fillRect(0, 0, 160, 56);
+      ctx.font = 'bold 34px Arial, sans-serif';
+      ctx.fillStyle = own ? tr.ownText : v.plaque.text;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, 80, 30);
+      tex.update(true);
+      const pm = new StandardMaterial(`${name}_mat`, scene);
+      pm.diffuseTexture = tex;
+      pm.emissiveColor = Color3.FromHexString(own ? tr.ownBg : v.plaque.bg).scale(0.55);
+      pm.specularColor = new Color3(0, 0, 0);
+      plate.material = pm;
+      return plate;
+    };
+    storageLevels.forEach((lvl, li) => {
+      const bottom = lvl.cell.floor * v.cellH;
+      const baseY = bottom + v.slab * 2; // ras del forjado de la nave
+      const x0 = lvl.cell.col * v.cellW;
+      const wTot = lvl.size.w * v.cellW - v.gapW;
+      const perSide = Math.max(1, Math.floor(tr.shelvesPerLevel / 2));
+      const pitch = (wTot - tr.margin * 2) / perSide;
+      // Dos filas por nivel ("a ambos lados" del pasillo interior): frontal baja y trasera
+      // alta — los carteles de la trasera se ven por encima de la frontal. Numeración: la
+      // mitad baja de la lista en la fila frontal y el resto en la de fondo.
+      const rows = [
+        { key: 'frente', front: true, tiers: tr.frontTiers, zC: frontZ + v.wall + tr.shelfD / 2 },
+        { key: 'fondo', front: false, tiers: tr.backTiers, zC: frontZ + v.depth - v.wall - tr.shelfD / 2 },
+      ] as const;
+      for (let s = 0; s < tr.shelvesPerLevel; s++) {
+        const row = s < perSide ? rows[0]! : rows[1]!;
+        const sideIdx = s % perSide;
+        const bx = x0 + tr.margin + pitch * (sideIdx + 0.5);
+        const dwelling = dwellingsOrdered[li * tr.shelvesPerLevel + s] ?? null;
+        const own = !!dwelling && dwelling.id === homeId;
+        const label = dwelling ? blockLabel(dwelling.id) : tr.emptyLabel;
+        const unitH = row.tiers * tr.tierH;
+        for (const side of ['a', 'b'] as const) {
+          const px = bx + (side === 'a' ? -1 : 1) * (tr.bayW / 2);
+          box(`${lvl.id}_est_${s}_${row.key}_poste_${side}`, tr.postW, unitH, tr.shelfD, px, baseY + unitH / 2, row.zC, matPost);
+        }
+        for (let t = 1; t <= row.tiers; t++) {
+          box(`${lvl.id}_est_${s}_${row.key}_balda_${t}`, tr.bayW, tr.plankT, tr.shelfD, bx, baseY + t * tr.tierH - tr.plankT / 2, row.zC, matPlank);
+        }
+        // Trastos deterministas de la vivienda (paquetes y cacharros viejos): nada en las
+        // baldas de ranuras vacías.
+        if (dwelling) {
+          for (let t = 0; t < row.tiers; t++) {
+            if (hash01(`${dwelling.id}:${row.key}:${t}`, 41) >= tr.junkChance) continue;
+            const jw = 0.4 + hash01(dwelling.id, 61 + t) * 0.7;
+            const jh = 0.2 + hash01(dwelling.id, 71 + t) * 0.2;
+            const jm = matJunk[Math.floor(hash01(dwelling.id, 81 + t) * matJunk.length) % matJunk.length]!;
+            const jy = baseY + t * tr.tierH + (t > 0 ? tr.plankT : 0) + jh / 2;
+            const jx = bx + (hash01(dwelling.id, 91 + t) - 0.5) * Math.max(0, tr.bayW - jw - 0.2);
+            box(`${lvl.id}_est_${s}_${row.key}_trasto_${t}`, jw, jh, tr.shelfD * 0.7, jx, jy, row.zC, jm);
+          }
+        }
+        // Cartel: fila frontal sobre la fachada abierta; fila de fondo sobre su balda alta.
+        const plate = shelfPlate(`${lvl.id}_est_${s}_placa`, label, own);
+        plate.position.set(
+          bx,
+          baseY + unitH + 0.16,
+          row.front ? frontZ + v.wall - 0.015 : row.zC + tr.shelfD / 2 - 0.015,
+        );
+      }
+      // Paquetería y cacharros sueltos por el suelo de la nave (entre estanterías).
+      for (let j = 0; j < tr.floorJunk; j++) {
+        const hx = hash01(lvl.id, 701 + j);
+        const hz = hash01(lvl.id, 801 + j);
+        const jw = 0.5 + hash01(lvl.id, 901 + j) * 0.8;
+        const jh = 0.25 + hash01(lvl.id, 911 + j) * 0.25;
+        const jm = matJunk[Math.floor(hash01(lvl.id, 921 + j) * matJunk.length) % matJunk.length]!;
+        const fx = x0 + tr.margin + (hx * (wTot - tr.margin * 2 - jw));
+        const fz = frontZ + v.depth * (0.3 + hz * 0.4);
+        box(`${lvl.id}_suelo_trasto_${j}`, jw, jh, 0.55, fx, baseY + jh / 2, fz, jm);
+      }
+    });
+  }
+
+  // ── Macetas de pasillo (v1.16): reparto aleatorio DETERMINISTA por hash del id del pasillo
+  // (jamás nextRandom del sim): cantidad entre perFloorMin..perFloorMax, lado (fachada o
+  // barandilla), tamaño y especie salen del catálogo (rules.view.pots). Nunca sobre la línea
+  // de paseo (corridorZ): se pegan a fachada o barandilla para no invadir el tránsito.
+  const pt = v.pots;
+  for (const b of Object.values(world.blocks)) {
+    if (b.layer !== 'corridor') continue;
+    const ySlab = b.cell.floor * v.cellH + v.slab * 2;
+    const n = pt.perFloorMin + Math.floor(hash01(b.id, 101) * (pt.perFloorMax - pt.perFloorMin + 1));
+    const mPot = mat(`${b.id}_maceta_mat`);
+    mPot.diffuseColor = Color3.FromHexString(pt.potColor);
+    const mSoil = mat(`${b.id}_tierra_mat`);
+    mSoil.diffuseColor = Color3.FromHexString(pt.soilColor);
+    const mPlantA = mat(`${b.id}_planta_a_mat`);
+    mPlantA.diffuseColor = Color3.FromHexString(pt.plantColor);
+    const mPlantB = mat(`${b.id}_planta_b_mat`);
+    mPlantB.diffuseColor = Color3.FromHexString(pt.plant2Color);
+    for (let i = 0; i < n; i++) {
+      const x = b.cell.col * v.cellW + 1.6 + hash01(b.id, 200 + i) * (b.size.w * v.cellW - 3.2);
+      const z = hash01(b.id, 300 + i) < 0.5 ? frontZ - 0.18 : frontZ - v.corridorDepth + 0.2;
+      const s = 0.85 + hash01(b.id, 400 + i) * 0.3;
+      const pot = MeshBuilder.CreateCylinder(`${b.id}_maceta_${i}`, { diameter: pt.potR * 2, height: pt.potH }, scene);
+      pot.position.set(x, ySlab + (pt.potH * s) / 2, z);
+      pot.scaling.set(s, s, s);
+      pot.material = mPot;
+      const soil = MeshBuilder.CreateCylinder(`${b.id}_tierra_${i}`, { diameter: pt.potR * 1.7, height: 0.04 }, scene);
+      soil.position.set(x, ySlab + pt.potH * s + 0.01, z);
+      soil.scaling.set(s, s, s);
+      soil.material = mSoil;
+      const bushH = 0.3 + hash01(b.id, 500 + i) * 0.16;
+      const bush = MeshBuilder.CreateCylinder(`${b.id}_planta_${i}`, { diameterTop: 0.02, diameterBottom: pt.potR * 1.5, height: bushH }, scene);
+      bush.position.set(x, ySlab + pt.potH * s + bushH / 2 - 0.01, z);
+      bush.scaling.set(s, s, s);
+      bush.material = hash01(b.id, 600 + i) < 0.5 ? mPlantA : mPlantB;
+    }
   }
 
   // ── Mobiliario placeholder (greybox del editor de interiores): una caja por ranura de las viviendas. ──

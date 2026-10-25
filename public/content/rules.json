@@ -236,6 +236,44 @@
       "text": "#ffd166",
       "fontPx": 88
     },
+    "trasteros": {
+      "shelvesPerLevel": 8,
+      "margin": 0.55,
+      "bayW": 2.2,
+      "frontTiers": 2,
+      "backTiers": 3,
+      "tierH": 0.5,
+      "shelfD": 0.45,
+      "plankT": 0.05,
+      "postW": 0.08,
+      "junkChance": 0.62,
+      "floorJunk": 3,
+      "wood": "#8a5a33",
+      "woodDark": "#6f4926",
+      "junk": ["#c9a66b", "#7d8493", "#9c6644", "#84a59d", "#e07a5f", "#b08968"],
+      "emptyLabel": "—",
+      "ownBg": "#ffd166",
+      "ownText": "#3b3129",
+      "plaqueW": 0.52,
+      "plaqueH": 0.18
+    },
+    "roof": {
+      "pitchH": 1.2,
+      "overhang": 0.35,
+      "color": "#a44a3f",
+      "ridge": "#7d3b32",
+      "fascia": "#6f4926"
+    },
+    "pots": {
+      "perFloorMin": 2,
+      "perFloorMax": 4,
+      "potColor": "#b5651d",
+      "soilColor": "#5d4037",
+      "plantColor": "#5a9367",
+      "plant2Color": "#84a59d",
+      "potR": 0.17,
+      "potH": 0.26
+    },
     "seatAnchors": [
       "bed",
       "tv",

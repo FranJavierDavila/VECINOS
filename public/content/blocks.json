@@ -240,6 +240,68 @@
     "label": "la lavandería"
   },
   {
+    "id": "trasteros_planta",
+    "kind": "common",
+    "layer": "main",
+    "size": {
+      "w": 9,
+      "h": 1
+    },
+    "traversable": true,
+    "params": {
+      "condition": {
+        "type": "number",
+        "min": 0,
+        "max": 100,
+        "default": 80,
+        "tier": 1,
+        "label": "Estado de los trasteros"
+      }
+    },
+    "view": {
+      "color": "#a47148"
+    },
+    "label": "la planta de trasteros"
+  },
+  {
+    "id": "bajocubierta",
+    "kind": "common",
+    "layer": "main",
+    "size": {
+      "w": 9,
+      "h": 1
+    },
+    "traversable": true,
+    "params": {
+      "condition": {
+        "type": "number",
+        "min": 0,
+        "max": 100,
+        "default": 75,
+        "tier": 1,
+        "label": "Estado de la bajocubierta"
+      }
+    },
+    "view": {
+      "color": "#7f8c99"
+    },
+    "label": "la bajocubierta"
+  },
+  {
+    "id": "tejado",
+    "kind": "common",
+    "layer": "main",
+    "size": {
+      "w": 11,
+      "h": 1
+    },
+    "traversable": false,
+    "view": {
+      "color": "#a44a3f"
+    },
+    "label": "el tejado"
+  },
+  {
     "id": "vivienda_estandar",
     "kind": "dwelling",
     "layer": "main",

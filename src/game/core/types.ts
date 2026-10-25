@@ -865,6 +865,42 @@ export interface Rules {
     seatAnchors: string[];
     /** Cartel numerado sobre cada puerta de vivienda (v1.6). */
     plaque: { w: number; h: number; y: number; z: number; bg: string; text: string; fontPx: number };
+    /** Trasteros por planta (v1.16): estanterías a ambos lados numeradas con la vivienda
+     *  propietaria; reparto secuencial (planta, columna) — building.ts levanta la nave. */
+    trasteros: {
+      shelvesPerLevel: number;
+      margin: number;
+      bayW: number;
+      frontTiers: number;
+      backTiers: number;
+      tierH: number;
+      shelfD: number;
+      plankT: number;
+      postW: number;
+      junkChance: number;
+      floorJunk: number;
+      wood: string;
+      woodDark: string;
+      junk: string[];
+      emptyLabel: string;
+      ownBg: string;
+      ownText: string;
+      plaqueW: number;
+      plaqueH: number;
+    };
+    /** Tejadillo a dos aguas que cierra el edificio (v1.16) sobre la bajocubierta. */
+    roof: { pitchH: number; overhang: number; color: string; ridge: string; fascia: string };
+    /** Macetas en los pasillos (v1.16): cantidad por planta determinista y colores. */
+    pots: {
+      perFloorMin: number;
+      perFloorMax: number;
+      potColor: string;
+      soilColor: string;
+      plantColor: string;
+      plant2Color: string;
+      potR: number;
+      potH: number;
+    };
     roomZ: number;
     /** Calado (profundidad en Z) de las viviendas: doblado en v0.6-b para mobiliario interior. */
     depth: number;

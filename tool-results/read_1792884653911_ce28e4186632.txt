@@ -1,0 +1,502 @@
+     1→     1→import type { Color3, Color4, Mesh, Scene, StandardMaterial, TransformNode } from '@babylonjs/core';
+     2→     2→import { blockLabel } from '@/game/core/types';
+     3→     3→import type { BlockInstance, Content, World } from '@/game/core/types';
+     4→     4→import { B } from './babylon';
+     5→     5→import { instantiateBlockAsset, type BlockMat } from './assets';
+     6→     6→
+     7→     7→interface BlockView {
+     8→     8→  /** Cajas greybox estructurales (se ocultan cuando llega el modelo glTF; panel/candado NO van aquí). */
+     9→     9→  greybox: Mesh[];
+    10→    10→  /** Materiales que reciben glow de canales y tintado de estado (1 en greybox, N en modelos). */
+    11→    11→  mats: BlockMat[];
+    12→    12→  /** Emissive base por material (lo que paint() deja sin canales); lo usa el LOD 'glow'. */
+    13→    13→  baseEmissive: Color3[];
+    14→    14→  /** Color base por material (view.color en greybox; albedo capturado en modelos). */
+    15→    15→  baseColor: Color3[];
+    16→    16→  /** Fuerza del tintado de estado: 1 = color plano (greybox), 0..1 = mezcla sobre el arte (modelos). */
+    17→    17→  tintStrength: number;
+    18→    18→  /** Raíz del modelo glTF si este bloque ya lo lleva (null = greybox). */
+    19→    19→  model: TransformNode | null;
+    20→    20→  front: Mesh | null; // panel que cierra la vivienda mientras tiene candado
+    21→    21→  lock: Mesh | null;
+    22→    22→  lockBase: { x: number; y: number };
+    23→    23→  // ── LOD por distancia (rules.view.lod) ──
+    24→    24→  /** Centro X del bloque en metros (dx del LOD: |centerX − focus.x|). */
+    25→    25→  centerX: number;
+    26→    26→  /** Planta del bloque (dy del LOD: |floor − focus.floor| * view.cellH). */
+    27→    27→  floor: number;
+    28→    28→  /** Pared del fondo de la vivienda (la única malla que puede llevar edgesRendering) o null;
+    29→    29→   *  el EdgesRenderer activo solo existe en las paredes destacadas del jugador. */
+    30→    30→  edgesMesh: Mesh | null;
+    31→    31→  /** true mientras el LOD fuerza baseEmissive (al soltarlo se repinta el cálculo de paint una vez). */
+    32→    32→  glowForced: boolean;
+    33→    33→  /** true mientras el LOD oculta panel+candado; la visibilidad efectiva es la de paint() && !esto. */
+    34→    34→  lodHiddenPanels: boolean;
+    35→    35→}
+    36→    36→
+    37→    37→/** Interior 2D de una vivienda (Fase C): suelo por estancia + tapa de puerta hacia estancia cerrada. */
+    38→    38→interface InteriorView {
+    39→    39→  /** Suelo tintado por estancia (color del catálogo; lockedColor si está cerrada). */
+    40→    40→  floors: { roomKey: string; defId: string; mesh: Mesh; mat: StandardMaterial }[];
+    41→    41→  /** Tapas de los huecos de puerta que llevan a una estancia cerrada ("en obras"). */
+    42→    42→  covers: { mesh: Mesh; rooms: [string, string] }[];
+    43→    43→}
+    44→    44→
+    45→    45→/**
+    46→    46→ * Una caja por bloque (placeholder greybox del futuro prefab) y, si el manifiesto de assets
+    47→    47→ * (Content.assets.blocks) declara un modelo glTF para el tipo de bloque, el modelo en su lugar
+    48→    48→ * (con la caja oculta). TODA la geometría y los colores salen de content.rules.view +
+    49→    49→ * block.view + assets: sustituir el greybox por arte final no toca este código.
+    50→    50→ * Las viviendas se dibujan en corte, sin pared frontal; bloqueadas, con panel y candado.
+    51→    51→ */
+    52→    52→export function createBuilding(scene: Scene, world: World, content: Content) {
+    53→    53→  const { Color3, Color4, MeshBuilder, StandardMaterial } = B();
+    54→    54→  const v = content.rules.view;
+    55→    55→  const glow = Object.fromEntries(Object.entries(v.channelGlow).map(([k, hex]) => [k, Color3.FromHexString(hex)])) as Record<string, Color3>;
+    56→    56→  const views = new Map<string, BlockView>();
+    57→    57→  const shakes = new Map<string, number>();
+    58→    58→  /** Interiores 2D (Fase C) por bloque: suelos de estancia y tapas de puertas cerradas. */
+    59→    59→  const interiors = new Map<string, InteriorView>();
+    60→    60→  /** Foco del LOD (posición del jugador): lo alimenta update() y lo consume paint(). */
+    61→    61→  let lastFocus: { x: number; floor: number } | null = null;
+    62→    62→  // Plano frontal de las estancias: la cara de la puerta. Con viviendas del doble de calado
+    63→    63→  // (v0.6-b), el extra crece hacia el FONDO (+Z) para no envolver el pasillo ni al núcleo.
+    64→    64→  const frontZ = v.roomZ - v.commonDepth / 2;
+    65→    65→  /** Calado por bloque: viviendas 2× (mobiliario interior); bloques comunes, el de siempre. */
+    66→    66→  const depthOf = (b: BlockInstance): number => (b.kind === 'dwelling' ? v.depth : v.commonDepth);
+    67→    67→  const mat = (name: string) => new StandardMaterial(name, scene);
+    68→    68→  const box = (name: string, w: number, h: number, d: number, x: number, y: number, z: number, m: StandardMaterial) => {
+    69→    69→    const mesh = MeshBuilder.CreateBox(name, { width: w, height: h, depth: d }, scene);
+    70→    70→    mesh.position.set(x, y, z);
+    71→    71→    mesh.material = m;
+    72→    72→    return mesh;
+    73→    73→  };
+    74→    74→
+    75→    75→  for (const b of Object.values(world.blocks)) {
+    76→    76→    const m = mat(`${b.id}_mat`);
+    77→    77→    const cx = (b.cell.col + b.size.w / 2) * v.cellW;
+    78→    78→    const bottom = b.cell.floor * v.cellH;
+    79→    79→    const w = b.size.w * v.cellW - v.gapW;
+    80→    80→    const h = v.cellH - v.gapH;
+    81→    81→    const d = depthOf(b);
+    82→    82→    const cz = frontZ + d / 2;
+    83→    83→    const view: BlockView = {
+    84→    84→      greybox: [],
+    85→    85→      mats: [m],
+    86→    86→      baseEmissive: [m.emissiveColor.clone()],
+    87→    87→      baseColor: [Color3.FromHexString(content.blocks[b.defId]!.view?.color ?? '#cccccc')],
+    88→    88→      tintStrength: 1,
+    89→    89→      model: null,
+    90→    90→      front: null,
+    91→    91→      lock: null,
+    92→    92→      lockBase: { x: cx, y: bottom + v.cellH / 2 - 0.2 },
+    93→    93→      centerX: cx,
+    94→    94→      floor: b.cell.floor,
+    95→    95→      edgesMesh: null,
+    96→    96→      glowForced: false,
+    97→    97→      lodHiddenPanels: false,
+    98→    98→    };
+    99→    99→    if (b.layer === 'corridor') {
+   100→   100→      // Pasillo exterior (data-driven): tira transitable saliente hacia la calle, con el borde
+   101→   101→      // trasero a ras de fachada (frontZ) y barandilla baja en el borde exterior — sitio de
+   102→   102→      // sobra para que los personajes se crucen o charlen sin bailar el vacío.
+   103→   103→      const d = v.corridorDepth;
+   104→   104→      view.greybox.push(box(b.id, b.size.w * v.cellW, v.slab * 2, d, cx, bottom + v.slab, frontZ - d / 2, m));
+   105→   105→      if (v.corridorRail > 0) {
+   106→   106→        view.greybox.push(
+   107→   107→          box(`${b.id}_barandilla`, b.size.w * v.cellW, v.corridorRail, v.wall, cx, bottom + v.slab * 2 + v.corridorRail / 2, frontZ - d, m),
+   108→   108→        );
+   109→   109→      }
+   110→   110→    } else if (b.kind === 'dwelling') {
+   111→   111→      const y = bottom + v.cellH / 2;
+   112→   112→      view.edgesMesh = box(`${b.id}_fondo`, w, h, v.wall, cx, y, frontZ + d, m);
+   113→   113→      view.greybox.push(
+   114→   114→        view.edgesMesh,
+   115→   115→        box(`${b.id}_izq`, v.wall, h, d, cx - w / 2, y, cz, m),
+   116→   116→        box(`${b.id}_der`, v.wall, h, d, cx + w / 2, y, cz, m),
+   117→   117→        box(`${b.id}_suelo`, w, v.wall, d, cx, bottom + v.slab + v.wall / 2, cz, m),
+   118→   118→        box(`${b.id}_techo`, w, v.wall, d, cx, bottom + v.cellH - v.slab - v.wall / 2, cz, m),
+   119→   119→      );
+   120→   120→      view.front = box(`${b.id}_puerta`, w, h, v.wall, cx, y, frontZ, m);
+   121→   121→      view.lock = box(`${b.id}_candado`, 0.3, 0.38, 0.12, cx, view.lockBase.y, frontZ - 0.1, mat(`${b.id}_candado_mat`));
+   122→   122→      (view.lock.material as StandardMaterial).diffuseColor = Color3.FromHexString(v.lockColor);
+   123→   123→
+   124→   124→      // ── Cartel numerado (v1.6): rótulo sobre la puerta con el identificador de la vivienda
+   125→   125→      // (blk_p3_c → "3C", blockLabel). Textura dinámica con colores/fuente del catálogo
+   126→   126→      // (rules.view.plaque); se añade a greybox porque la vivienda usa modelo OVERLAY (el
+   127→   127→      // greybox no se oculta) y no entra en mats: es señalización, no tinte ni glow.
+   128→   128→      const pl = v.plaque;
+   129→   129→      const plate = MeshBuilder.CreatePlane(`${b.id}_cartel`, { width: pl.w, height: pl.h, sideOrientation: B().Mesh.DOUBLESIDE }, scene);
+   130→   130→      const tex = new (B().DynamicTexture)(`${b.id}_cartel_tex`, { width: 256, height: 96 }, scene, true);
+   131→   131→      const ctx = tex.getContext() as unknown as CanvasRenderingContext2D;
+   132→   132→      ctx.fillStyle = pl.bg;
+   133→   133→      ctx.fillRect(0, 0, 256, 96);
+   134→   134→      ctx.font = `bold ${pl.fontPx}px Arial, sans-serif`;
+   135→   135→      ctx.fillStyle = pl.text;
+   136→   136→      ctx.textAlign = 'center';
+   137→   137→      ctx.textBaseline = 'middle';
+   138→   138→      ctx.fillText(blockLabel(b.id), 128, 52);
+   139→   139→      // update(true): el flag es invertY. Con false el canvas se sube SIN voltear y el texto
+   140→   140→      // sale CABEZA ABAJO (la "A" se ve como "V"; B/C/D pasan por simétricas y esquivan el ojo).
+   141→   141→      tex.update(true);
+   142→   142→      const pmat = new StandardMaterial(`${b.id}_cartel_mat`, scene);
+   143→   143→      pmat.diffuseTexture = tex;
+   144→   144→      pmat.emissiveColor = Color3.FromHexString(pl.bg).scale(0.55); // legible en fachada norte
+   145→   145→      pmat.specularColor = new Color3(0, 0, 0);
+   146→   146→      plate.material = pmat;
+   147→   147→      plate.position.set(cx, bottom + pl.y, frontZ + pl.z);
+   148→   148→      view.greybox.push(plate);
+   149→   149→
+   150→   150→      // ── Interior 2D (Fase C): tabiques con huecos, suelo por estancia y tapas "en obras". ──
+   151→   151→      // TODO sale del layout del catálogo (rects + doorways); sin rects no hay interior 2D.
+   152→   152→      const layoutId = content.blocks[b.defId]?.container?.layout;
+   153→   153→      const layout = layoutId ? content.layouts[layoutId] : undefined;
+   154→   154→      const geoRooms = (layout?.rooms ?? []).filter((r) => r.rect !== undefined);
+   155→   155→      if (geoRooms.length > 0 && layout) {
+   156→   156→        const interior: InteriorView = { floors: [], covers: [] };
+   157→   157→        const x0 = b.cell.col * v.cellW;
+   158→   158→        const wallH = v.cellH - 2 * v.slab - 2 * v.wall;
+   159→   159→        const partMat = mat(`${b.id}_tabique_mat`);
+   160→   160→        partMat.diffuseColor = Color3.FromHexString('#d8d2c4');
+   161→   161→        // Suelo tintado por estancia (plancha fina sobre el suelo, alpha suave).
+   162→   162→        for (const lr of geoRooms) {
+   163→   163→          const r = lr.rect!;
+   164→   164→          const fmat = mat(`${b.id}_${lr.key}_suelo_mat`);
+   165→   165→          fmat.diffuseColor = Color3.FromHexString(content.rooms[lr.defId]?.view?.color ?? '#cccccc');
+   166→   166→          fmat.alpha = 0.32;
+   167→   167→          const fm = box(`${b.id}_${lr.key}_suelo`, r.w, 0.02, r.d, x0 + r.x + r.w / 2, bottom + v.slab + v.wall + 0.02, frontZ + r.z + r.d / 2, fmat);
+   168→   168→          interior.floors.push({ roomKey: lr.key, defId: lr.defId, mesh: fm, mat: fmat });
+   169→   169→        }
+   170→   170→        // Tabiques: para cada par de estancias que comparten borde, pared entre ambas.
+   171→   171→        // Los doorways del catálogo recortan el hueco (y añaden tapa visible si alguna de las
+   172→   172→        // dos estancias está cerrada). Sin hueco declarado → tabique sólido (tampoco se puede
+   173→   173→        // pasar: walkable() exige doorway). Tabiques según X a media altura para no tapar la vista.
+   174→   174→        const eps = 0.01;
+   175→   175→        const seg = (a: number, b: number, along: 'x' | 'z', at: number, height: number, yC: number, name: string) => {
+   176→   176→          const len = b - a;
+   177→   177→          if (len <= 0.01) return;
+   178→   178→          view.greybox.push(
+   179→   179→            along === 'z'
+   180→   180→              ? box(name, v.wall, height, len, at, yC, (a + b) / 2, partMat)
+   181→   181→              : box(name, len, height, v.wall, (a + b) / 2, yC, at, partMat),
+   182→   182→          );
+   183→   183→        };
+   184→   184→        geoRooms.forEach((lr, i) => {
+   185→   185→          geoRooms.forEach((other, j) => {
+   186→   186→            if (j <= i) return;
+   187→   187→            const ra = lr.rect!;
+   188→   188→            const rb = other.rect!;
+   189→   189→            const door = (layout.doorways ?? []).find(
+   190→   190→              (dw) => (dw.a === lr.key && dw.b === other.key) || (dw.a === other.key && dw.b === lr.key),
+   191→   191→            );
+   192→   192→            // Borde vertical compartido → tabique que corre según Z (se cruza andando en X).
+   193→   193→            const touchX = Math.abs(ra.x + ra.w - rb.x) < eps || Math.abs(rb.x + rb.w - ra.x) < eps;
+   194→   194→            const overlapZ = Math.min(ra.z + ra.d, rb.z + rb.d) - Math.max(ra.z, rb.z);
+   195→   195→            if (touchX && overlapZ > eps) {
+   196→   196→              const wx = x0 + Math.max(ra.x, rb.x);
+   197→   197→              const z0 = frontZ + Math.max(ra.z, rb.z);
+   198→   198→              const z1 = frontZ + Math.min(ra.z + ra.d, rb.z + rb.d);
+   199→   199→              const yC = bottom + v.slab + v.wall + wallH / 2;
+   200→   200→              if (door && door.axis === 'z') {
+   201→   201→                const g0 = Math.max(z0, frontZ + door.at - door.width / 2);
+   202→   202→                const g1 = Math.min(z1, frontZ + door.at + door.width / 2);
+   203→   203→                seg(z0, g0, 'z', wx, wallH, yC, `${b.id}_tab_${i}_${j}_i`);
+   204→   204→                seg(g1, z1, 'z', wx, wallH, yC, `${b.id}_tab_${i}_${j}_d`);
+   205→   205→                const cover = box(`${b.id}_tapa_${i}_${j}`, v.wall * 0.8, wallH, g1 - g0, wx, yC, frontZ + door.at, mat(`${b.id}_tapa_${i}_${j}_mat`));
+   206→   206→                (cover.material as StandardMaterial).diffuseColor = Color3.FromHexString(v.lockedColor);
+   207→   207→                cover.setEnabled(false);
+   208→   208→                interior.covers.push({ mesh: cover, rooms: [lr.key, other.key] });
+   209→   209→              } else {
+   210→   210→                seg(z0, z1, 'z', wx, wallH, yC, `${b.id}_tab_${i}_${j}`);
+   211→   211→              }
+   212→   212→            }
+   213→   213→            // Borde horizontal compartido → tabique que corre según X (se cruza andando en Z).
+   214→   214→            const touchZ = Math.abs(ra.z + ra.d - rb.z) < eps || Math.abs(rb.z + rb.d - ra.z) < eps;
+   215→   215→            const overlapX = Math.min(ra.x + ra.w, rb.x + rb.w) - Math.max(ra.x, rb.x);
+   216→   216→            if (touchZ && overlapX > eps) {
+   217→   217→              const wz = frontZ + Math.max(ra.z, rb.z);
+   218→   218→              const xa = x0 + Math.max(ra.x, rb.x);
+   219→   219→              const xb = x0 + Math.min(ra.x + ra.w, rb.x + rb.w);
+   220→   220→              const halfH = wallH * 0.45;
+   221→   221→              const yHalf = bottom + v.slab + v.wall + halfH / 2;
+   222→   222→              if (door && door.axis === 'x') {
+   223→   223→                const g0 = Math.max(xa, x0 + door.at - door.width / 2);
+   224→   224→                const g1 = Math.min(xb, x0 + door.at + door.width / 2);
+   225→   225→                seg(xa, g0, 'x', wz, halfH, yHalf, `${b.id}_tab_${i}_${j}_i`);
+   226→   226→                seg(g1, xb, 'x', wz, halfH, yHalf, `${b.id}_tab_${i}_${j}_d`);
+   227→   227→                const cover = box(`${b.id}_tapa_${i}_${j}`, g1 - g0, halfH, v.wall * 0.8, x0 + door.at, yHalf, wz, mat(`${b.id}_tapa_${i}_${j}_mat`));
+   228→   228→                (cover.material as StandardMaterial).diffuseColor = Color3.FromHexString(v.lockedColor);
+   229→   229→                cover.setEnabled(false);
+   230→   230→                interior.covers.push({ mesh: cover, rooms: [lr.key, other.key] });
+   231→   231→              } else {
+   232→   232→                seg(xa, xb, 'x', wz, halfH, yHalf, `${b.id}_tab_${i}_${j}`);
+   233→   233→              }
+   234→   234→            }
+   235→   235→          });
+   236→   236→        });
+   237→   237→        interiors.set(b.id, interior);
+   238→   238→      }
+   239→   239→    } else {
+   240→   240→      view.greybox.push(box(b.id, w, h, d, cx, bottom + v.cellH / 2, cz, m));
+   241→   241→    }
+   242→   242→    views.set(b.id, view);
+   243→   243→  }
+   244→   244→
+   245→   245→  // ── Arte final (opcional): modelo glTF por TIPO de bloque (manifiesto assets.blocks). ──
+   246→   246→  // Cada instancia se clona del contenedor cacheado y escala a la celda real; si carga, la
+   247→   247→  // caja greybox estructural se oculta (el panel/candado de viviendas sigue siendo greybox).
+   248→   248→  const blockAssets = content.assets?.blocks;
+   249→   249→  if (blockAssets && content.assets) {
+   250→   250→    for (const b of Object.values(world.blocks)) {
+   251→   251→      const entry = blockAssets[b.defId];
+   252→   252→      if (!entry) continue;
+   253→   253→      void instantiateBlockAsset(scene, entry, content.assets.base).then((model) => {
+   254→   254→        // La escena pudo morir mientras cargaba (restart/Cargar partida): no tocar vistas viejas.
+   255→   255→        if (model && scene.isDisposed) {
+   256→   256→          model.root.dispose(false, false);
+   257→   257→          return;
+   258→   258→        }
+   259→   259→        if (!model) return; // fallback greybox permanente
+   260→   260→        const view = views.get(b.id);
+   261→   261→        if (!view || view.model) {
+   262→   262→          model.root.dispose(false, false); // bloque ya servido: no dejar instancias sueltas
+   263→   263→          return;
+   264→   264→        }
+   265→   265→        // Dimensiones reales de la celda: el pasillo (tira saliente) tiene geometría propia,
+   266→   266→        // espejo exacto de su greybox (ancho completo, canto slab*2, calado corridorDepth).
+   267→   267→        // Con spanW (v1.4, cubo de escalera) el modelo escala a spanW celdas y se ancla al
+   268→   268→        // borde IZQUIERDO de la celda lógica: sobresale por la derecha como torre real.
+   269→   269→        const isCorridor = b.layer === 'corridor';
+   270→   270→        const spanCells = entry.spanW ?? b.size.w;
+   271→   271→        const w = isCorridor ? b.size.w * v.cellW : spanCells * v.cellW - v.gapW;
+   272→   272→        const h = isCorridor ? v.slab * 2 : v.cellH - v.gapH;
+   273→   273→        const d = isCorridor ? v.corridorDepth : depthOf(b);
+   274→   274→        const cz = isCorridor ? frontZ - d / 2 : frontZ + d / 2;
+   275→   275→        const y = isCorridor ? b.cell.floor * v.cellH + v.slab : b.cell.floor * v.cellH;
+   276→   276→        // El modelo se authora a dimensiones nominales con la base en y=0 y centrado en x/z.
+   277→   277→        model.root.scaling.set(w / entry.nominal.w, h / entry.nominal.h, d / entry.nominal.d);
+   278→   278→        model.root.position.set(b.cell.col * v.cellW + w / 2, y, cz);
+   279→   279→        view.model = model.root;
+   280→   280→        if (entry.overlay) {
+   281→   281→          // Overlay (marco de puerta sobre el corte interior): DECORA — el greybox estructural
+   282→   282→          // sigue visible con sus materiales (tinte de estado y glow intactos), y el edge de
+   283→   283→          // vivienda del jugador (edgesMesh) no se toca. El overlay no entra en tintado/glow.
+   284→   284→        } else {
+   285→   285→          view.mats = model.mats;
+   286→   286→          view.baseEmissive = model.mats.map((mm) => new Color3(mm.emissiveColor.r, mm.emissiveColor.g, mm.emissiveColor.b));
+   287→   287→          view.baseColor = model.baseColor.map((c) => new Color3(c.r, c.g, c.b));
+   288→   288→          view.tintStrength = entry.tintStrength ?? 0.6;
+   289→   289→          view.edgesMesh = null; // el modelo no lleva EdgesRenderer (no hay pared destacada greybox)
+   290→   290→          for (const mesh of view.greybox) mesh.setEnabled(false);
+   291→   291→        }
+   292→   292→      });
+   293→   293→    }
+   294→   294→  }
+   295→   295→
+   296→   296→  // ── Multi-vivienda destacada: borde blanco en la pared del fondo de TODAS las viviendas del jugador ──
+   297→   297→  // (la actual del jugador además recibe el doble de grosor; el criterio es el ownerId, no el catálogo).
+   298→   298→  const homeId = world.residents[world.playerId]!.home;
+   299→   299→  for (const b of Object.values(world.blocks)) {
+   300→   300→    if (b.kind !== 'dwelling' || b.ownerId !== world.playerId) continue;
+   301→   301→    const wall = views.get(b.id)!.edgesMesh;
+   302→   302→    if (!wall) continue;
+   303→   303→    wall.enableEdgesRendering();
+   304→   304→    wall.edgesWidth = b.id === homeId ? 14 : 8;
+   305→   305→    wall.edgesColor = Color4.FromHexString(v.homeEdge + 'ff');
+   306→   306→  }
+   307→   307→
+   308→   308→  // ── Mobiliario placeholder (greybox del editor de interiores): una caja por ranura de las viviendas. ──
+   309→   309→  // Con layout 2D (Fase C), cada ranura se coloca en su rect de estancia: pos = [x, z] local;
+   310→   310→  // sin rects, cae al cálculo por bandas de siempre. La geometría llega al pintar.
+   311→   311→  const furnViews = new Map<string, { mesh: Mesh; mat: StandardMaterial; x: number; z: number; bottom: number; y: number | null }>();
+   312→   312→  for (const b of Object.values(world.blocks)) {
+   313→   313→    if (b.kind !== 'dwelling') continue;
+   314→   314→    const bottom = b.cell.floor * v.cellH;
+   315→   315→    const layoutId = content.blocks[b.defId]?.container?.layout;
+   316→   316→    const layout = layoutId ? content.layouts[layoutId] : undefined;
+   317→   317→    const geoRooms = (layout?.rooms ?? []).filter((r) => r.rect !== undefined);
+   318→   318→    const x0 = b.cell.col * v.cellW;
+   319→   319→    (layout?.rooms ?? []).forEach((layoutRoom, roomIdx) => {
+   320→   320→      const rdef = content.rooms[layoutRoom.defId];
+   321→   321→      (rdef?.furnitureSlots ?? []).forEach((slot, slotIdx) => {
+   322→   322→        let x: number;
+   323→   323→        let z: number;
+   324→   324→        const rect = geoRooms[roomIdx]?.rect;
+   325→   325→        if (rect) {
+   326→   326→          // Fase C: metros locales al rect de la estancia (0,0 = esquina frontal-izquierda).
+   327→   327→          x = x0 + rect.x + slot.pos[0];
+   328→   328→          z = frontZ + rect.z + slot.pos[1];
+   329→   329→        } else {
+   330→   330→          // Fallback 1D (layout sin rects): bandas como siempre.
+   331→   331→          const w = b.size.w * v.cellW - v.gapW;
+   332→   332→          const bandW = w / Math.max(1, layout?.rooms.length ?? 1);
+   333→   333→          const roomW = rdef?.size.w ?? 1;
+   334→   334→          x = x0 + roomIdx * bandW + (slot.pos[0] / Math.max(0.001, roomW)) * bandW;
+   335→   335→          z = frontZ + 0.35 + slotIdx * 0.32;
+   336→   336→        }
+   337→   337→        const fm = mat(`${b.id}_${layoutRoom.key}_${slot.id}_furn`);
+   338→   338→        const mesh = box(`${b.id}_${layoutRoom.key}_${slot.id}_furn`, 1, 1, 1, x, bottom + v.slab, z, fm);
+   339→   339→        mesh.setEnabled(false);
+   340→   340→        furnViews.set(`${b.id}:${layoutRoom.key}:${slot.id}`, { mesh, mat: fm, x, z, bottom, y: slot.y ?? null });
+   341→   341→      });
+   342→   342→    });
+   343→   343→  }
+   344→   344→
+   345→   345→  function color(b: BlockInstance): Color3 {
+   346→   346→    const base = Color3.FromHexString(content.blocks[b.defId]!.view?.color ?? '#cccccc');
+   347→   347→    if (b.kind === 'dwelling' && b.access === 'locked') return Color3.FromHexString(v.lockedColor);
+   348→   348→    if (b.kind === 'dwelling' && b.occupancy !== 'occupied') return Color3.Lerp(base, Color3.White(), v.vacantTint);
+   349→   349→    if (b.params.elevator_status !== undefined && b.params.elevator_status !== 'ok') return Color3.FromHexString(v.brokenColor);
+   350→   350→    return base;
+   351→   351→  }
+   352→   352→
+   353→   353→  /** Color de ESTADO (null = sin estado especial). El greybox lo pinta plano; los modelos lo mezclan. */
+   354→   354→  function stateTint(b: BlockInstance): Color3 | null {
+   355→   355→    if (b.kind === 'dwelling' && b.access === 'locked') return Color3.FromHexString(v.lockedColor);
+   356→   356→    if (b.kind === 'dwelling' && b.occupancy !== 'occupied') return Color3.Lerp(Color3.FromHexString(content.blocks[b.defId]!.view?.color ?? '#cccccc'), Color3.White(), v.vacantTint);
+   357→   357→    if (b.params.elevator_status !== undefined && b.params.elevator_status !== 'ok') return Color3.FromHexString(v.brokenColor);
+   358→   358→    return null;
+   359→   359→  }
+   360→   360→
+   361→   361→  /** Emissive del bloque: canales de influencia → emissive según color del canal en el catálogo. Se acumulan. */
+   362→   362→  function applyEmissive(view: BlockView, b: BlockInstance) {
+   363→   363→    let e = new Color3(0, 0, 0);
+   364→   364→    for (const [channel, value] of Object.entries(world.channels)) {
+   365→   365→      const level = value[b.id];
+   366→   366→      if (!level) continue;
+   367→   367→      const g = glow[channel];
+   368→   368→      if (!g) continue;
+   369→   369→      e = e.add(g.scale(Math.min(1, level)));
+   370→   370→    }
+   371→   371→    for (const m of view.mats) m.emissiveColor = e;
+   372→   372→  }
+   373→   373→
+   374→   374→  /** Color difuso/albedo por material: greybox plano (tintStrength 1) o mezcla sobre el arte. */
+   375→   375→  function applyTint(view: BlockView, b: BlockInstance) {
+   376→   376→    const state = color(b);
+   377→   377→    const override = stateTint(b);
+   378→   378→    for (let i = 0; i < view.mats.length; i++) {
+   379→   379→      const m = view.mats[i]!;
+   380→   380→      const base = view.baseColor[i]!;
+   381→   381→      const c = view.tintStrength >= 1 ? state : override ? Color3.Lerp(base, override, view.tintStrength) : base;
+   382→   382→      if (m.diffuseColor) m.diffuseColor = c;
+   383→   383→      else if (m.albedoColor) m.albedoColor = c;
+   384→   384→    }
+   385→   385→  }
+   386→   386→
+   387→   387→  /** Visibilidad efectiva de panel y candado: paint() la fija por el acceso y el LOD puede ocultarlos encima. */
+   388→   388→  function applyPanels(view: BlockView, b: BlockInstance) {
+   389→   389→    const closed = b.kind === 'dwelling' && b.access === 'locked';
+   390→   390→    const visible = closed && !view.lodHiddenPanels;
+   391→   391→    view.front?.setEnabled(visible);
+   392→   392→    view.lock?.setEnabled(visible);
+   393→   393→  }
+   394→   394→
+   395→   395→  /**
+   396→   396→   * LOD por distancia (rules.view.lod). Se ejecuta SIEMPRE al final de update(): con foco degrada
+   397→   397→   * cada bloque según su distancia, y sin foco (o con lod.enabled=false) restaura el estado completo.
+   398→   398→   * Idempotente y sin allocations por frame: solo aritmética, booleanos y asignaciones.
+   399→   399→   *
+   400→   400→   * Métrica (Vista · LOD por distancia): dx = |centroX del bloque − focus.x| en metros y
+   401→   401→   * dy = |planta del bloque − focus.floor| * view.cellH en metros; dist = Math.hypot(dx, dy).
+   402→   402→   * Nivel efectivo = todos los niveles de lod.levels cuyo `dist` ≤ distBloque (el `hide` es
+   403→   403→   * acumulado: un flag se oculta si cualquier nivel alcanzado lo lista; sin nivel → todo visible).
+   404→   404→   */
+   405→   405→  function applyLod(focus: { x: number; floor: number } | null) {
+   406→   406→    const lod = v.lod;
+   407→   407→    for (const id in world.blocks) {
+   408→   408→      const b = world.blocks[id]!;
+   409→   409→      const view = views.get(id)!;
+   410→   410→      let hideEdges = false;
+   411→   411→      let hideGlow = false;
+   412→   412→      let hidePanels = false;
+   413→   413→      if (lod.enabled && focus) {
+   414→   414→        const dx = Math.abs(view.centerX - focus.x);
+   415→   415→        const dy = Math.abs(view.floor - focus.floor) * v.cellH;
+   416→   416→        const dist = Math.hypot(dx, dy);
+   417→   417→        for (let i = 0; i < lod.levels.length; i++) {
+   418→   418→          const level = lod.levels[i];
+   419→   419→          if (level.dist > dist) continue;
+   420→   420→          for (let j = 0; j < level.hide.length; j++) {
+   421→   421→            const flag = level.hide[j];
+   422→   422→            if (flag === 'edges') hideEdges = true;
+   423→   423→            else if (flag === 'glow') hideGlow = true;
+   424→   424→            else if (flag === 'panels') hidePanels = true;
+   425→   425→          }
+   426→   426→        }
+   427→   427→      }
+   428→   428→      // 'edges': interruptor nativo barato — el renderingGroup consulta edgesRenderer.isEnabled cada
+   429→   429→      // frame, así que nunca se destruye ni recrea el EdgesRenderer (disable/enableEdgesRendering sí
+   430→   430→      // lo harían: el primero lo dispone y el segundo recomputaría las aristas). El grosor/color
+   431→   431→      // viven en la malla y sobreviven al apagado. Los modelos glTF no tienen edges (edgesMesh null).
+   432→   432→      if (view.edgesMesh?.edgesRenderer) view.edgesMesh.edgesRenderer.isEnabled = !hideEdges;
+   433→   433→      // 'glow': pisa el emissive CADA frame (paint() pudo repintar los canales este tick); al soltarlo,
+   434→   434→      // una única llamada repinta el cálculo de paint para no esperar al próximo tick.
+   435→   435→      if (hideGlow) {
+   436→   436→        view.glowForced = true;
+   437→   437→        for (let i = 0; i < view.mats.length; i++) view.mats[i]!.emissiveColor = view.baseEmissive[i]!;
+   438→   438→      } else if (view.glowForced) {
+   439→   439→        view.glowForced = false;
+   440→   440→        applyEmissive(view, b);
+   441→   441→      }
+   442→   442→      // 'panels': solo gira la bandera (la visibilidad la calcula applyPanels); en la transición se
+   443→   443→      // aplica ya para no esperar al próximo paint(), que reproducirá el mismo resultado.
+   444→   444→      if (view.lodHiddenPanels !== hidePanels) {
+   445→   445→        view.lodHiddenPanels = hidePanels;
+   446→   446→        applyPanels(view, b);
+   447→   447→      }
+   448→   448→    }
+   449→   449→  }
+   450→   450→
+   451→   451→  return {
+   452→   452→    paint() {
+   453→   453→      for (const b of Object.values(world.blocks)) {
+   454→   454→        const view = views.get(b.id)!;
+   455→   455→        applyTint(view, b);
+   456→   456→        applyEmissive(view, b);
+   457→   457→        applyPanels(view, b);
+   458→   458→      }
+   459→   459→      // Interiores 2D (Fase C): suelo de cada estancia según su acceso + tapas de puertas cerradas.
+   460→   460→      for (const [blockId, interior] of interiors) {
+   461→   461→        const block = world.blocks[blockId];
+   462→   462→        if (!block) continue;
+   463→   463→        for (const f of interior.floors) {
+   464→   464→          const room = block.rooms.find((r) => r.key === f.roomKey);
+   465→   465→          const locked = room ? room.access !== 'unlocked' : true;
+   466→   466→          const hex = locked ? v.lockedColor : content.rooms[f.defId]?.view?.color ?? '#cccccc';
+   467→   467→          f.mat.diffuseColor = Color3.FromHexString(hex);
+   468→   468→        }
+   469→   469→        for (const c of interior.covers) {
+   470→   470→          const anyLocked = c.rooms.some((key) => block.rooms.find((r) => r.key === key)?.access !== 'unlocked');
+   471→   471→          c.mesh.setEnabled(anyLocked);
+   472→   472→        }
+   473→   473→      }
+   474→   474→      // Muebles del editor de interiores: visibles/escala/color según furniture.view (catálogo).
+   475→   475→      for (const [key, fv] of furnViews) {
+   476→   476→        const [blockId, roomKey, slotId] = key.split(':');
+   477→   477→        const room = world.blocks[blockId ?? '']?.rooms.find((r) => r.key === roomKey);
+   478→   478→        const itemId = room?.furniture[slotId ?? ''] ?? '';
+   479→   479→        const fdef = itemId ? content.furniture[itemId] : undefined;
+   480→   480→        if (!fdef) {
+   481→   481→          fv.mesh.setEnabled(false);
+   482→   482→          continue;
+   483→   483→        }
+   484→   484→        const [iw, ih, idz] = fdef.view.size;
+   485→   485→        fv.mesh.setEnabled(true);
+   486→   486→        fv.mesh.scaling.set(iw, ih, idz);
+   487→   487→        // Con y de anclaje (muebles de pared) cuelga a esa altura; si no, apoyado en el suelo.
+   488→   488→        const yBase = fv.y !== null ? fv.bottom + v.slab + v.wall + fv.y : fv.bottom + v.slab + v.wall;
+   489→   489→        fv.mesh.position.set(fv.x, yBase + ih / 2, fv.z);
+   490→   490→        fv.mat.diffuseColor = Color3.FromHexString(fdef.view.color);
+   491→   491→      }
+   492→   492→    },
+   493→   493→    /** Sacude el candado de una puerta cerrada. */
+   494→   494→    shake(blockId: string) {
+   495→   495→      shakes.set(blockId, 0.4);
+   496→   496→    },
+   497→   497→    /**
+   498→   498→     * dt en segundos; `focus` es el punto de interés (posición del jugador) para el
+   499→   499→     * LOD por distancia (rules.view.lod): applyLod() lo aplica SIEMPRE al final del frame
+   500→   500→     * (con focus undefined, p. ej. cámara 'edificio', restaura el estado completo).
+
+[showing lines 1-500 of 521; use offset=501 with limit to continue reading]
