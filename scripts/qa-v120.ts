@@ -33,8 +33,8 @@ check('bloque acera con bancos y farolas', !!defOf('acera') && defOf('acera')!.b
 check('bloque carretera con línea discontinua', !!defOf('carretera') && defOf('carretera')!.laneDash > 0, `${defOf('carretera')?.laneDash}m`);
 check('bloque jardín con árboles, arbustos y flores', !!defOf('jardin') && defOf('jardin')!.treesPer10m > 0 && defOf('jardin')!.bushesPer10m > 0 && defOf('jardin')!.flowerColors.length >= 3, `${defOf('jardin')?.treesPer10m}/10m árboles`);
 check('todas las filas referencian bloques con props exterior', v.exterior.rows.every((r) => !!defOf(r.defId)), v.exterior.rows.map((r) => r.defId).join(','));
-const aceras = v.exterior.rows.filter((r) => r.defId === 'acera');
-check('acera pegada al edificio y acera al otro lado de la carretera', aceras.length === 2 && aceras[0]!.z0 > aceras[1]!.z0, `${aceras.map((a) => a.z0).join(' / ')}`);
+const aceras = v.exterior.rows.filter((r) => r.defId === 'acera' && r.orient === 'x' && r.z0 < 0).sort((a, b) => b.z0 - a.z0);
+check('acera pegada al edificio y acera al otro lado de la carretera', aceras.length >= 2 && aceras[0]!.z0 > aceras[1]!.z0, `${aceras.map((a) => a.z0).join(' / ')}`);
 const road = v.exterior.rows.find((r) => r.defId === 'carretera');
 check(
   'la carretera queda ENTRE las dos aceras (calle completa en z)',
@@ -43,6 +43,9 @@ check(
 );
 check('el cuerpo exterior es BAJO (bloques a pie de calle)', v.exterior.rows.every((r) => (defOf(r.defId)?.height ?? 1) < 0.25), `máx ${Math.max(...v.exterior.rows.map((r) => defOf(r.defId)?.height ?? 1))} m`);
 check('suelo del mundo declarado (cierra el horizonte)', v.exterior.ground.size >= 120, `${v.exterior.ground.size} m`);
+// v1.22: el rodeo del edificio (aceras laterales) también es catálogo con orient 'z'.
+const laterales = v.exterior.rows.filter((r) => r.defId === 'acera' && r.orient === 'z');
+check('aceras LATERALES rodean el edificio (orient z, v1.22)', laterales.length >= 2, laterales.map((l) => `x ${l.x0}..${l.x1}`).join(' / '));
 
 // ── 2. Fondo urbano (catálogo) ──
 const bd = v.backdrop;

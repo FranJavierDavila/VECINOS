@@ -465,6 +465,8 @@
     "label": "la acera",
     "exterior": {
       "height": 0.14,
+      "curbColor": "#b8ad92",
+      "curbW": 0.16,
       "benchEvery": 7.5,
       "benchColor": "#8a5a33",
       "benchLegColor": "#3b3129",
@@ -492,7 +494,9 @@
     "exterior": {
       "height": 0.02,
       "laneDash": 1.6,
-      "laneDashColor": "#f4e9d8"
+      "laneDashColor": "#f4e9d8",
+      "curbColor": "#8f887a",
+      "curbW": 0.22
     }
   },
   {
@@ -513,11 +517,86 @@
       "treesPer10m": 1.6,
       "bushesPer10m": 3.2,
       "flowerChance": 0.45,
+      "gridScatter": true,
+      "maxTrees": 10,
+      "maxBushes": 16,
       "trunkColor": "#6f4926",
       "leafColors": ["#5a9367", "#84a59d", "#708c5a", "#6f9b72"],
       "bushColors": ["#5a9367", "#6f9b72", "#8fb573"],
       "flowerColors": ["#e07a5f", "#ffd166", "#f2cc8f", "#e56b6f"],
       "grassColor": "#7fa05f"
+    }
+  },
+  {
+    "id": "carretera_cruce",
+    "kind": "common",
+    "layer": "main",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "traversable": false,
+    "view": {
+      "color": "#57534e"
+    },
+    "label": "el paso de cebra",
+    "exterior": {
+      "height": 0.02,
+      "zebra": true,
+      "zebraColor": "#f2ead9",
+      "zebraStripeW": 0.55,
+      "zebraGap": 0.6,
+      "curbColor": "#8f887a",
+      "curbW": 0.22
+    }
+  },
+  {
+    "id": "carretera_bifurcacion",
+    "kind": "common",
+    "layer": "main",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "traversable": false,
+    "view": {
+      "color": "#57534e"
+    },
+    "label": "la calle lateral",
+    "exterior": {
+      "height": 0.02,
+      "laneDash": 1.6,
+      "laneDashColor": "#f4e9d8",
+      "curbColor": "#8f887a",
+      "curbW": 0.22
+    }
+  },
+  {
+    "id": "campo",
+    "kind": "common",
+    "layer": "main",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "traversable": false,
+    "view": {
+      "color": "#7c9a58"
+    },
+    "label": "el campo",
+    "exterior": {
+      "height": 0.16,
+      "treesPer10m": 0.5,
+      "bushesPer10m": 1.1,
+      "flowerChance": 0.18,
+      "maxTrees": 18,
+      "maxBushes": 26,
+      "gridScatter": true,
+      "trunkColor": "#6f4926",
+      "leafColors": ["#5a9367", "#84a59d", "#708c5a", "#6f9b72"],
+      "bushColors": ["#5a9367", "#6f9b72", "#8fb573"],
+      "flowerColors": ["#e07a5f", "#ffd166", "#f2cc8f"],
+      "grassColor": "#7c9a58"
     }
   }
 ]

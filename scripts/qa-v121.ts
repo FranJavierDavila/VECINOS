@@ -38,7 +38,7 @@ check('capas de fachadas con sello PNG declarado', bd.layers.length >= 3 && bd.l
 const onDisk = bd.layers.every((l) => l.image && existsSync(`public${l.image}`));
 check('los sellos existen en disco (variantes desenfocadas por capa)', onDisk, 'public/content/backdrop/*.png');
 check('blur creciente con la distancia (nombres cerca/media/lejos)', /cerca/.test(bd.layers[0]!.image ?? '') && /media/.test(bd.layers[1]!.image ?? '') && /lejos/.test(bd.layers[2]!.image ?? ''), '');
-check('tinte de armonización por capa (más claro con la distancia)', bd.layers[0]!.tint === '#ffffff' && bd.layers[1]!.tint !== bd.layers[2]!.tint, `${bd.layers[1]!.tint} / ${bd.layers[2]!.tint}`);
+check('tinte de armonización distinto por capa (v1.22: con niebla desde la cercana)', bd.layers.every((l) => l.tint.startsWith('#')) && bd.layers[0]!.tint !== bd.layers[1]!.tint && bd.layers[1]!.tint !== bd.layers[2]!.tint, `${bd.layers[0]!.tint} / ${bd.layers[1]!.tint} / ${bd.layers[2]!.tint}`);
 check('lluvia declarada con densidad de tormenta mayor', bd.rain.count > 0 && bd.rain.stormCount > bd.rain.count && bd.rain.fallSpeed > 10 && bd.rain.wind !== 0, `${bd.rain.count}→${bd.rain.stormCount} · ${bd.rain.fallSpeed} m/s`);
 check('ventana del bloque trasero (marco+cristal al paisaje)', v.rearBlock.window.w > 0.6 && v.rearBlock.window.h > 0.6 && v.rearBlock.window.glassAlpha < 0.4, `${v.rearBlock.window.w}×${v.rearBlock.window.h}`);
 const eco = content.ecosystem!;

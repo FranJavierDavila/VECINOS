@@ -234,6 +234,13 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
     ctx.clearRect(0, 0, W, 256);
     ctx.save();
     ctx.translate(0, offY);
+    // NIEBLA (v1.22): los bloques del fondo se DEsaturan (perspectiva aérea) y se funden
+    // hacia su fogColor — se intuyen sin distraer. El filtro actúa solo al dibujar los
+    // sellos (sin tocar el alpha del canvas); el lavado posterior respeta la transparencia.
+    if (l.fog > 0.01) {
+      const sat = Math.max(5, Math.round((1 - l.fog * 0.85) * 100));
+      ctx.filter = `saturate(${sat}%)`;
+    }
     if (lv.img && lv.ready) {
       // ── SELLOS: la fachada del catálogo repetida a lo ancho (edificios similares al nuestro). ──
       const aspect = lv.img.naturalWidth / Math.max(1, lv.img.naturalHeight);
@@ -268,6 +275,16 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
         ctx.globalCompositeOperation = 'source-over';
       }
       // Noche: oscurecer SOLO los edificios (source-atop respeta la transparencia del cielo).
+      if (l.fog > 0.01) {
+        // Lavado de niebla hacia fogColor, solo sobre píxeles de edificio (perspectiva aérea).
+        ctx.filter = 'none';
+        ctx.globalCompositeOperation = 'source-atop';
+        ctx.globalAlpha = l.fog * 0.45;
+        ctx.fillStyle = l.fogColor;
+        ctx.fillRect(0, 0, W, H);
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+      }
       if (nightF > 0.02) {
         ctx.globalCompositeOperation = 'source-atop';
         ctx.fillStyle = `rgba(18,24,40,${(nightF * 0.55).toFixed(3)})`;
@@ -297,7 +314,17 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
     } else {
       // ── Fallback procedural (v1.20): siluetas con ventanas y galerías. ──
       paintProcedural(lv, li, nightF, ctx, W, H);
+      ctx.filter = 'none';
+      if (l.fog > 0.01) {
+        ctx.globalCompositeOperation = 'source-atop';
+        ctx.globalAlpha = l.fog * 0.45;
+        ctx.fillStyle = l.fogColor;
+        ctx.fillRect(0, 0, W, H);
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+      }
     }
+    ctx.filter = 'none';
     ctx.restore();
     lv.lastNight = nightF;
     lv.lastWeather = weather;

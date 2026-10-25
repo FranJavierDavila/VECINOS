@@ -28,6 +28,15 @@ const viewSchema = z.object({ color: z.string(), altColor: z.string().optional()
 export const exteriorBlockSchema = z.object({
   /** Alto del cuerpo del bloque (m): acera 0.12, carretera 0.04, jardín 0.18… */
   height: z.number().min(0).default(0.1),
+  /** Bordillo (v1.22): listón fino a lo largo de AMBOS bordes largos (empalme correcto
+   *  entre acera y calzada). Vacío = sin bordillo. */
+  curbColor: z.string().default(''),
+  curbW: z.number().min(0).default(0.16),
+  /** Paso de cebra (v1.22): franjas perpendiculares al eje largo (variantes de carretera). */
+  zebra: z.boolean().default(false),
+  zebraColor: z.string().default('#f2ead9'),
+  zebraStripeW: z.number().positive().default(0.5),
+  zebraGap: z.number().min(0).default(0.5),
   /** Bancos (aceras): uno cada N metros (0 = sin bancos). */
   benchEvery: z.number().min(0).default(0),
   benchColor: z.string().default('#8a5a33'),
@@ -46,6 +55,11 @@ export const exteriorBlockSchema = z.object({
   /** Vegetación (jardines): árboles y arbustos por cada 10 m de tira. */
   treesPer10m: z.number().min(0).default(0),
   bushesPer10m: z.number().min(0).default(0),
+  /** Dispersión 2D (v1.22): reparte la vegetación por TODO el rect de la fila en lugar
+   *  de a lo largo del eje; los topes limitan las mallas en jardines enormes. */
+  gridScatter: z.boolean().default(false),
+  maxTrees: z.number().int().min(0).optional(),
+  maxBushes: z.number().int().min(0).optional(),
   flowerChance: z.number().min(0).max(1).default(0.35),
   trunkColor: z.string().default('#6f4926'),
   leafColors: z.array(z.string()).default(['#5a9367', '#84a59d', '#708c5a']),
@@ -880,6 +894,13 @@ export const rulesSchema = z.object({
             depth: z.number().positive(),
             /** false = solo props sobre la tira previa (sin cuerpo propio). */
             body: z.boolean().default(true),
+            /** Orientación (v1.22): 'x' = tira a lo largo de X (calle frente al edificio);
+             *  'z' = tira a lo largo de Z (aceras laterales, calle transversal bifurcada). */
+            orient: z.enum(['x', 'z']).default('x'),
+            /** Dispersión 2D de la vegetación por todo el rect (con topes del bloque). */
+            gridScatter: z.boolean().default(false),
+            maxTrees: z.number().int().min(0).optional(),
+            maxBushes: z.number().int().min(0).optional(),
           }),
         ),
         /** Suelo del mundo bajo todo el decorado (cierra el horizonte). backZ: hasta qué z
@@ -890,6 +911,71 @@ export const rulesSchema = z.object({
           .default({ color: '#a89a7c', size: 220, backZ: 0 }),
       })
       .default({ enabled: false, rows: [], ground: { color: '#a89a7c', size: 220, backZ: 0 } }),
+    /** ── Tráfico (v1.22) ── vehículos ocasionales por los carriles de la carretera:
+     *  coches, furgonetas, autobús y patrulla con sirena. Solo presentación (nunca sim)
+     *  y solo visibles en la vista "edificio". */
+    traffic: z
+      .object({
+        enabled: z.boolean().default(false),
+        lanes: z.array(
+          z.object({
+            z: z.number(),
+            /** +1 = hacia +X; −1 = hacia −X. */
+            dir: z.number().min(-1).max(1),
+            speedMin: z.number().positive(),
+            speedMax: z.number().positive(),
+          }),
+        ),
+        spawnEveryMin: z.number().positive().default(8),
+        spawnEveryMax: z.number().positive().default(24),
+        maxAlive: z.number().int().min(1).default(4),
+        xMin: z.number(),
+        xMax: z.number(),
+        /** Punto de "paso" para el sonido del motor al pasar frente al portal. */
+        passX: z.number().default(13.1),
+        passRadius: z.number().positive().default(22),
+        vehicles: z.array(
+          z.object({
+            kind: z.string(),
+            chance: z.number().min(0).max(1),
+            length: z.number().positive(),
+            width: z.number().positive(),
+            height: z.number().positive(),
+            /** Fracción trasera del cuerpo ocupada por la cabina (0.5 = coche, 0.1 = bus). */
+            cabin: z.number().min(0).max(1).default(0.4),
+            colors: z.array(z.string()).min(1),
+            /** Patrulla: barra de luces roja/azul alternando. */
+            siren: z.boolean().default(false),
+          }),
+        ),
+      })
+      .default({ enabled: false, lanes: [], spawnEveryMin: 8, spawnEveryMax: 24, maxAlive: 4, xMin: -60, xMax: 60, passX: 13.1, passRadius: 22, vehicles: [] }),
+    /** ── Viandantes (v1.22) ── paseantes por las aceras; algunos entran al edificio
+     *  (desaparecen en el portal) y otros salen. Solo presentación y solo vista edificio. */
+    pedestrians: z
+      .object({
+        enabled: z.boolean().default(false),
+        maxAlive: z.number().int().min(1).default(6),
+        spawnEveryMin: z.number().positive().default(5),
+        spawnEveryMax: z.number().positive().default(16),
+        speedMin: z.number().positive().default(0.9),
+        speedMax: z.number().positive().default(1.5),
+        enterChance: z.number().min(0).max(1).default(0.25),
+        exitChance: z.number().min(0).max(1).default(0.3),
+        enterX: z.number().default(13.1),
+        paths: z.array(
+          z.object({
+            z: z.number(),
+            x0: z.number(),
+            x1: z.number(),
+            dir: z.number().min(-1).max(1),
+          }),
+        ),
+        colors: z.array(z.string()).min(1),
+        hatChance: z.number().min(0).max(1).default(0.3),
+        hatColors: z.array(z.string()).default(['#3b3129']),
+      })
+      .default({ enabled: false, maxAlive: 6, spawnEveryMin: 5, spawnEveryMax: 16, speedMin: 0.9, speedMax: 1.5, enterChance: 0.25, exitChance: 0.3, enterX: 13.1, paths: [], colors: ['#5d6b7a'], hatChance: 0.3, hatColors: ['#3b3129'] }),
     /** ── Fondo urbano (v1.20) ── cielo dinámico (sol/luna/estrellas/nubes según la hora)
      *  + capas de fachadas 2D a distintas distancias (parallax natural: planos 3D reales
      *  tras el edificio). Luz global (ambiente + sol) evoluciona con los keyframes. */
@@ -914,6 +1000,10 @@ export const rulesSchema = z.object({
              *  Presente → la capa se pinta REPITIENDO el sello (edificios reales, blur horneado
              *  por distancia). Ausente → el pintado procedural de ventanas/galerías de v1.20. */
             image: z.string().optional(),
+            /** NIEBLA (v1.22): desatura la capa y la funde hacia fogColor — los bloques del
+             *  fondo se intuyen (perspectiva aérea) sin robar atención al edificio. */
+            fog: z.number().min(0).max(1).default(0),
+            fogColor: z.string().default('#dfe4e6'),
           }),
         ),
         /** LLUVIA (v1.21): partículas de trazo que caen cuando el clima es rain/storm.
@@ -1102,13 +1192,99 @@ export const soundsCatalogSchema = z.object({
     z.discriminatedUnion('kind', [
       soundStepSchema.extend({ kind: z.literal('tone') }),
       z.object({ kind: z.literal('noise'), durMs: z.number(), gain: z.number(), filterHz: z.number().default(1200), atMs: z.number().default(0) }),
-      z.object({ kind: z.literal('seq'), steps: z.array(soundStepSchema) }),
+      z.object({
+        kind: z.literal('seq'),
+        /** v1.22: una secuencia puede MEZCLAR tonos y ráfagas de ruido (suspiros, motores). */
+        steps: z.array(z.union([soundStepSchema, z.object({ kind: z.literal('noise'), durMs: z.number(), gain: z.number(), filterHz: z.number().default(1200), atMs: z.number().default(0) })])),
+      }),
     ]),
   ),
   events: z.record(z.string(), z.array(z.string())),
+  /** VOCES DE PROXIMIDAD (v1.22): al pasar al lado de un vecino se oye su voz — queja,
+   *  lamento, risa, silbido, cuchicheo… bancos de sonidos del propio catálogo elegidos
+   *  por su ánimo, con cadencia y antiedad de sobrecarga. Opcional: sin sección no hay voces. */
+  voices: z
+    .object({
+      proximity: z.object({
+        radius: z.number().positive(),
+        checkEvery: z.number().positive(),
+        chance: z.number().min(0).max(1),
+        cooldownPerResident: z.number().min(0),
+        maxPerMinute: z.number().int().min(1),
+        minGain: z.number().min(0).max(1).default(0.3),
+        gestureSeconds: z.number().positive().default(1.6),
+        captionChance: z.number().min(0).max(1).default(0),
+      }),
+      banks: z.record(z.string(), z.array(z.string()).min(1)),
+      /** Pies de foto opcionales por clave de sonido (bocadillo mínimo). */
+      captions: z.record(z.string(), z.string()).default({}),
+      moodMap: z.array(z.object({ mood: z.enum(['good', 'ok', 'bad']), banks: z.array(z.string()).min(1) })),
+    })
+    .optional(),
 });
 
 export type SoundsCatalog = z.infer<typeof soundsCatalogSchema>;
+
+// ───────────────── La calle vive (v1.22): manifestaciones y comentarios ─────────────────
+
+/**
+ * Catálogo de la calle (public/content/street.json, opcional): manifestaciones con humor
+ * vecinal — antidesahucios, reivindicaciones curiosas de trabajadores — y las reacciones
+ * de los vecinos que las ven. Solo presentación: el sim jamás lee este catálogo.
+ */
+export const streetCatalogSchema = z.object({
+  version: z.number().int().min(1),
+  manifestation: z.object({
+    enabled: z.boolean().default(true),
+    everyMin: z.number().positive(),
+    everyMax: z.number().positive(),
+    /** Primera manifestación (s): retraso de gracia desde el arranque. */
+    firstMin: z.number().min(0).default(20),
+    firstMax: z.number().min(0).default(45),
+    minDuration: z.number().positive(),
+    maxDuration: z.number().positive(),
+    minPeople: z.number().int().min(10),
+    maxPeople: z.number().int().min(10),
+    spacing: z.number().positive().default(0.75),
+    speed: z.number().positive().default(0.55),
+    lanes: z.array(z.object({ z: z.number(), x0: z.number(), x1: z.number() })).min(1),
+    placard: z.object({
+      w: z.number().positive(),
+      h: z.number().positive(),
+      stickH: z.number().positive(),
+      liftY: z.number().positive().default(1.5),
+      bg: z.string(),
+      ink: z.string(),
+      accent: z.string(),
+      fontSizePx: z.number().positive(),
+      carryEvery: z.number().int().min(1).default(2),
+    }),
+    megaphoneColor: z.string().default('#e0b54e'),
+    chantEveryMin: z.number().positive().default(5),
+    chantEveryMax: z.number().positive().default(11),
+    commentDelayMin: z.number().min(0).default(4),
+    commentDelayMax: z.number().positive().default(12),
+    maxComments: z.number().int().min(1).default(3),
+    colors: z.array(z.string()).min(1),
+  }),
+  topics: z
+    .array(
+      z.object({
+        id: z.string(),
+        /** Grito del portavoz (suena como voz de megáfono). */
+        chant: z.string(),
+        placards: z.array(z.string()).min(1),
+      }),
+    )
+    .min(1),
+  reactions: z.object({
+    bad: z.array(z.string()).min(1),
+    ok: z.array(z.string()).min(1),
+    good: z.array(z.string()).min(1),
+  }),
+});
+
+export type StreetCatalog = z.infer<typeof streetCatalogSchema>;
 
 // ───────────────────────── Manifiesto de assets (arte final sustituible, opcional) ─────────────────────────
 

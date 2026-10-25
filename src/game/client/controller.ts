@@ -19,6 +19,10 @@ import { createEcosystem, type EcosystemDirector } from './ecosystem';
 import { createBackdrop, type BackdropDirector } from './backdrop';
 import { createExterior, type ExteriorDirector } from './exterior';
 import { createChats, type ChatsDirector } from './chats';
+import { createTraffic, type TrafficDirector } from './traffic';
+import { createPedestrians, type PedestriansDirector } from './pedestrians';
+import { createStreetlife, type StreetlifeDirector } from './streetlife';
+import { createVoices, type VoicesDirector } from './voices';
 import { CameraRig, type CamMode } from './camera';
 import { CutscenePlayer, type CutsceneEventCtx } from './cutscene';
 import { B } from './babylon';
@@ -57,6 +61,11 @@ class GameController {
   private exterior: ExteriorDirector | null = null;
   /** Charlas de cruce (v1.20): vecinos que se cruzan y comentan la vida. */
   private chats: ChatsDirector | null = null;
+  /** La calle vive (v1.22): tráfico, viandantes, manifestaciones y voces de proximidad. */
+  private traffic: TrafficDirector | null = null;
+  private pedestrians: PedestriansDirector | null = null;
+  private streetlife: StreetlifeDirector | null = null;
+  private voices: VoicesDirector | null = null;
 
   private get content(): Content {
     if (!this._content) throw new Error('El catálogo de contenido todavía no se ha cargado');
@@ -141,6 +150,14 @@ class GameController {
     this.bubbles = null;
     this.chats?.dispose();
     this.chats = null;
+    this.voices?.dispose();
+    this.voices = null;
+    this.streetlife?.dispose();
+    this.streetlife = null;
+    this.pedestrians?.dispose();
+    this.pedestrians = null;
+    this.traffic?.dispose();
+    this.traffic = null;
     this.ecosystem?.dispose();
     this.ecosystem = null;
     this.backdrop?.dispose();
@@ -679,6 +696,10 @@ class GameController {
     this.scene?.dispose();
     this.scene = new Scene(this.engine);
     this.scene.clearColor = new Color4(view.sky.r, view.sky.g, view.sky.b, 1);
+    // Pase de calidad FPS (v1.22): el puntero no necesita picking por movimiento (la
+    // interacción va por zonas/teclado) y los materiales congelables del decorado lo
+    // hacen en exterior.ts. Cero impacto visual, menos trabajo por frame.
+    this.scene.skipPointerMovePicking = true;
     const hemi = new HemisphericLight('ambient', new Vector3(...view.ambient.dir), this.scene);
     hemi.intensity = view.ambient.intensity;
     const dirLight = new DirectionalLight('sun', new Vector3(...view.sun.dir), this.scene);
@@ -698,6 +719,12 @@ class GameController {
     // de día del fondo para encenderse al anochecer.
     this.exterior?.dispose();
     this.exterior = createExterior(this.scene, this.world, this.content, this.backdrop);
+    // La calle vive (v1.22): tráfico y viandantes — solo presentación, solo vista "edificio".
+    // (Las manifestaciones se crean más abajo, tras los bocadillos, para poder comentarlas.)
+    this.traffic?.dispose();
+    this.traffic = createTraffic(this.scene, this.world, this.content);
+    this.pedestrians?.dispose();
+    this.pedestrians = createPedestrians(this.scene, this.world, this.content);
     // Ecosistema del edificio (v1.14): cerebro data-driven + teatro de extras. Se recrea con
     // cada mundo (referencia al World vivo) y sigue la posición del jugador para las luces.
     this.ecosystem?.dispose();
@@ -718,6 +745,13 @@ class GameController {
       exterior: () => this.exterior,
       backdrop: () => this.backdrop,
     };
+    // Sonda E2E de la calle viva (v1.22, SOLO dev).
+    (window as unknown as { __vecinos22?: unknown }).__vecinos22 = {
+      traffic: () => this.traffic,
+      pedestrians: () => this.pedestrians,
+      streetlife: () => this.streetlife,
+      voices: () => this.voices,
+    };
     // Bocadillos de expresión (v1.10): capa DOM sobre el canvas, recreada con el mundo
     // (referencia al World vivo). Sin emotes.json en el catálogo, director nulo sin capa.
     this.bubbles?.dispose();
@@ -726,6 +760,12 @@ class GameController {
     // Charlas de cruce (v1.20): después de actores y bocadillos — son sus dos clientes.
     this.chats?.dispose();
     this.chats = createChats(this.world, this.content, this.actors!.director, this.bubbles);
+    // Voces de proximidad (v1.22): después de actores y bocadillos — son sus clientes.
+    this.voices?.dispose();
+    this.voices = createVoices(this.world, this.content, this.actors!.director, this.bubbles);
+    // streetlife necesita los bocadillos para los comentarios: reconstrúyelo con ellos.
+    this.streetlife?.dispose();
+    this.streetlife = createStreetlife(this.scene, this.world, this.content, this.actors?.director ?? null, this.bubbles);
     const blocks = Object.values(this.world.blocks);
     // El cubo de escalera (v1.4) sobresale spanW−1 celdas por la derecha del edificio:
     // el encuadre lo incluye para que la torre no se corte en cámara.
@@ -864,11 +904,23 @@ class GameController {
     // de la calle leen la luz de día resultante. Los modales no paran el ambiente (solo el reloj).
     this.backdrop?.update(dt);
     this.exterior?.update(dt);
-    // v1.21: el MOBILIARIO de la calle solo vive en la vista "edificio" — en planta/estancia
-    // se apaga (menos carga, y no estorba la vista del bloque).
-    this.exterior?.setPropsVisible(store.camMode === 'edificio');
+    // v1.21/v1.22: el MOBILIARIO de la calle, los vehículos, los viandantes y las
+    // manifestaciones solo viven en la vista "edificio" — en planta/estancia se apagan
+    // (menos carga, y no estorban la vista del bloque). Los updates también se saltan.
+    const streetView = store.camMode === 'edificio';
+    this.exterior?.setPropsVisible(streetView);
+    this.traffic?.setVisible(streetView);
+    this.pedestrians?.setVisible(streetView);
+    this.streetlife?.setVisible(streetView);
+    if (streetView) {
+      this.traffic?.update(dt);
+      this.pedestrians?.update(dt);
+      this.streetlife?.update(dt);
+    }
     // Charlas de cruce (v1.20): en multijugador quedan en pausa (mismo criterio que el ecosistema).
     if (!this.net) this.chats?.update(dt);
+    // Voces de proximidad (v1.22): se oyen en cualquier vista (pasillos incluidos).
+    if (!this.net) this.voices?.update(dt);
     // Cutscene (Fase D): sus beats mueven cámara/actores DESPUÉS de los eventos y ANTES del render.
     this.cutscenePlayer?.update(dt);
     // Bocadillos (v1.10): después de actores y cámara — proyectan la posición FINAL del frame.

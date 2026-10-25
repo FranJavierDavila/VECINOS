@@ -1,3 +1,9 @@
+import type { StreetCatalog, SoundsCatalog } from '@/game/content/schemas';
+
+// Re-exportados: los consumidores del contrato importan TODO desde aquí (types.ts es la
+// única fuente de verdad; los esquemas Zod son su espejo de validación).
+export type { StreetCatalog, SoundsCatalog };
+
 /**
  * VECINOS — Contrato central de tipos.
  * Única fuente de verdad para simulación, presentación (Babylon.js) e interfaz (React).
@@ -35,6 +41,14 @@ export interface BlockView {
 /** Props de bloque EXTERIOR (v1.20): aceras, carreteras y jardines del decorado urbano. */
 export interface ExteriorBlockView {
   height: number;
+  /** Bordillo (v1.22): '' = sin bordillo. */
+  curbColor: string;
+  curbW: number;
+  /** Paso de cebra (v1.22). */
+  zebra: boolean;
+  zebraColor: string;
+  zebraStripeW: number;
+  zebraGap: number;
   benchEvery: number;
   benchColor: string;
   benchLegColor: string;
@@ -48,6 +62,10 @@ export interface ExteriorBlockView {
   laneDashColor: string;
   treesPer10m: number;
   bushesPer10m: number;
+  /** Dispersión 2D con topes (v1.22) para jardines enormes. */
+  gridScatter: boolean;
+  maxTrees?: number;
+  maxBushes?: number;
   flowerChance: number;
   trunkColor: string;
   leafColors: string[];
@@ -835,6 +853,11 @@ export interface Content {
   achievements?: AchievementsCatalog;
   /** Charlas de cruce (v1.20, opcional): humor vecinal cuando dos vecinos se cruzan. */
   crossings?: CrossingsCatalog;
+  /** La calle vive (v1.22, opcional): manifestaciones con humor y reacciones vecinales. */
+  street?: StreetCatalog;
+  /** Catálogo procedural de sonido (v1.22, espejo del que carga audio.ts): el módulo de
+   *  voces de proximidad lee su sección `voices`; también lo valida el QA. */
+  sounds?: SoundsCatalog;
 }
 
 // ───────────────────────── Reglas y ajustes (catálogo rules.json) ─────────────────────────
@@ -1078,11 +1101,63 @@ export interface Rules {
     /** Niveles de detalle por distancia (Vista: "prefab por bloque y LOD por distancia"). */
     lod: { enabled: boolean; focus: 'player'; levels: LodLevel[] };
     /** ── Escena exterior (v1.20) ── tiras de calle frente al edificio (aceras,
-     *  carretera, jardines) con sus props; defId refiere bloques con `exterior`. */
+     *  carretera, jardines) con sus props; defId refiere bloques con `exterior`.
+     *  v1.22: orient 'z' (aceras laterales y calle transversal), gridScatter 2D con
+     *  topes, bordillos y paso de cebra; la carretera principal se escapa por pantalla. */
     exterior: {
       enabled: boolean;
-      rows: { defId: string; x0: number; x1: number; z0: number; depth: number; body: boolean }[];
+      rows: {
+        defId: string;
+        x0: number;
+        x1: number;
+        z0: number;
+        depth: number;
+        body: boolean;
+        orient: 'x' | 'z';
+        gridScatter: boolean;
+        maxTrees?: number;
+        maxBushes?: number;
+      }[];
       ground: { color: string; size: number; backZ: number };
+    };
+    /** ── Tráfico (v1.22) ── vehículos ocasionales (coches, bus, patrulla) por carriles;
+     *  solo presentación y solo vista "edificio". */
+    traffic: {
+      enabled: boolean;
+      lanes: { z: number; dir: number; speedMin: number; speedMax: number }[];
+      spawnEveryMin: number;
+      spawnEveryMax: number;
+      maxAlive: number;
+      xMin: number;
+      xMax: number;
+      passX: number;
+      passRadius: number;
+      vehicles: {
+        kind: string;
+        chance: number;
+        length: number;
+        width: number;
+        height: number;
+        cabin: number;
+        colors: string[];
+        siren: boolean;
+      }[];
+    };
+    /** ── Viandantes (v1.22) ── paseantes por las aceras; algunos entran al portal. */
+    pedestrians: {
+      enabled: boolean;
+      maxAlive: number;
+      spawnEveryMin: number;
+      spawnEveryMax: number;
+      speedMin: number;
+      speedMax: number;
+      enterChance: number;
+      exitChance: number;
+      enterX: number;
+      paths: { z: number; x0: number; x1: number; dir: number }[];
+      colors: string[];
+      hatChance: number;
+      hatColors: string[];
     };
     /** ── Fondo urbano (v1.20) ── cielo dinámico por hora + capas de fachadas 2D con
      *  parallax natural (planos 3D a distintas z tras el edificio). */
@@ -1103,6 +1178,9 @@ export interface Rules {
         nightGlow: number;
         /** Sello PNG RGBA (v1.21): fachada real repetida por la capa (blur horneado). */
         image?: string;
+        /** NIEBLA (v1.22): desaturación + fundido hacia fogColor (perspectiva aérea). */
+        fog: number;
+        fogColor: string;
       }[];
       sky: {
         redrawSeconds: number;

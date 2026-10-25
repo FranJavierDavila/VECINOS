@@ -1,4 +1,4 @@
-import type { AchievementsCatalog, AssetsCatalog, Content, CrossingsCatalog, EcosystemContent, Effect, EmotesCatalog } from '@/game/core/types';
+import type { AchievementsCatalog, AssetsCatalog, Content, CrossingsCatalog, EcosystemContent, Effect, EmotesCatalog, StreetCatalog, SoundsCatalog } from '@/game/core/types';
 import {
   achievementsCatalogSchema,
   blockListSchema,
@@ -16,6 +16,8 @@ import {
   rulesSchema,
   archetypeListSchema,
   scenarioListSchema,
+  streetCatalogSchema,
+  soundsCatalogSchema,
   templateListSchema,
   assetsCatalogSchema,
 } from './schemas';
@@ -114,6 +116,25 @@ export async function loadContent(baseUrl: string = '/content/'): Promise<{ cont
       throw new Error(`crossings.json (charlas de cruce) inválido: ${e instanceof Error ? e.message : String(e)}`);
     }
 
+    // La calle vive (v1.22, OPCIONAL): manifestaciones con humor y reacciones vecinales.
+    let street: StreetCatalog | undefined;
+    try {
+      const res = await fetch(`${baseUrl}street.json`);
+      if (res.ok) street = streetCatalogSchema.parse(await res.json()) as StreetCatalog;
+    } catch (e) {
+      throw new Error(`street.json (vida de calle) inválido: ${e instanceof Error ? e.message : String(e)}`);
+    }
+
+    // Sonido procedural (v1.22, ESPEJO del que carga audio.ts): la sección `voices` alimenta
+    // las voces de proximidad; sin fichero, silencio funcional como siempre.
+    let sounds: SoundsCatalog | undefined;
+    try {
+      const res = await fetch(`${baseUrl}sounds.json`);
+      if (res.ok) sounds = soundsCatalogSchema.parse(await res.json()) as SoundsCatalog;
+    } catch (e) {
+      throw new Error(`sounds.json (sonido procedural) inválido: ${e instanceof Error ? e.message : String(e)}`);
+    }
+
     const content: Content = {
       rules,
       blocks: indexById(blocks),
@@ -133,6 +154,8 @@ export async function loadContent(baseUrl: string = '/content/'): Promise<{ cont
       ecosystem,
       achievements,
       crossings,
+      street,
+      sounds,
     };
 
     const issues = validateContent(content);
@@ -322,6 +345,19 @@ export function validateContent(c: Content): Issue[] {
 
   // Charlas de cruce (v1.20): al menos un grupo de temas; los {a}/{b} son libres (nombres).
   if (c.crossings && c.crossings.groups.length === 0) err('crossings', 'el catálogo de cruces necesita al menos un grupo de temas');
+
+  // Voces de proximidad (v1.22): cada banco debe referenciar sonidos EXISTENTES del catálogo.
+  if (c.sounds?.voices) {
+    for (const [bank, keys] of Object.entries(c.sounds.voices.banks)) {
+      for (const key of keys) if (!c.sounds.sounds[key]) err('sounds/voices', `el banco ${bank} referencia un sonido desconocido: ${key}`);
+    }
+    for (const m of c.sounds.voices.moodMap)
+      for (const bank of m.banks) if (!c.sounds.voices.banks[bank]) err('sounds/voices', `moodMap ${m.mood} referencia un banco desconocido: ${bank}`);
+  }
+
+  // Vida de calle (v1.22): la manifestación necesita gente suficiente para parecerlo.
+  if (c.street && c.street.manifestation.maxPeople < c.street.manifestation.minPeople)
+    err('street', 'maxPeople debe ser ≥ minPeople');
 
   return issues;
 }

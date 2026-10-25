@@ -249,43 +249,114 @@
       "rows": [
         {
           "defId": "jardin",
-          "x0": -13.6,
-          "x1": -4.4,
-          "z0": -13.8,
-          "depth": 9.4,
-          "body": true
+          "x0": -102,
+          "x1": -6,
+          "z0": -4.4,
+          "depth": 13.4,
+          "body": true,
+          "gridScatter": true,
+          "maxTrees": 10,
+          "maxBushes": 16
         },
         {
           "defId": "jardin",
-          "x0": 30.6,
-          "x1": 39.8,
-          "z0": -13.8,
-          "depth": 9.4,
-          "body": true
+          "x0": 32.2,
+          "x1": 132,
+          "z0": -4.4,
+          "depth": 13.4,
+          "body": true,
+          "gridScatter": true,
+          "maxTrees": 10,
+          "maxBushes": 16
+        },
+        {
+          "defId": "campo",
+          "x0": -102,
+          "x1": 19.4,
+          "z0": -120,
+          "depth": 106.2,
+          "body": true,
+          "gridScatter": true,
+          "maxTrees": 18,
+          "maxBushes": 26
+        },
+        {
+          "defId": "campo",
+          "x0": 24,
+          "x1": 132,
+          "z0": -120,
+          "depth": 106.2,
+          "body": true,
+          "gridScatter": true,
+          "maxTrees": 18,
+          "maxBushes": 26
         },
         {
           "defId": "acera",
-          "x0": -4.4,
-          "x1": 30.6,
-          "z0": -7.0,
+          "x0": -6,
+          "x1": 0,
+          "z0": -4.4,
+          "depth": 10.8,
+          "body": true,
+          "orient": "z"
+        },
+        {
+          "defId": "acera",
+          "x0": 26.4,
+          "x1": 32.2,
+          "z0": -4.4,
+          "depth": 10.8,
+          "body": true,
+          "orient": "z"
+        },
+        {
+          "defId": "acera",
+          "x0": -6,
+          "x1": 32.2,
+          "z0": 6.4,
           "depth": 2.6,
           "body": true
         },
         {
+          "defId": "acera",
+          "x0": -102,
+          "x1": 132,
+          "z0": -7,
+          "depth": 2.6,
+          "body": true
+        },
+        {
+          "defId": "acera",
+          "x0": -102,
+          "x1": 132,
+          "z0": -13.8,
+          "depth": 2.2,
+          "body": true
+        },
+        {
           "defId": "carretera",
-          "x0": -13.6,
-          "x1": 39.8,
+          "x0": -102,
+          "x1": 132,
           "z0": -11.6,
           "depth": 4.6,
           "body": true
         },
         {
-          "defId": "acera",
-          "x0": -13.6,
-          "x1": 39.8,
-          "z0": -13.8,
-          "depth": 2.2,
-          "body": true
+          "defId": "carretera_cruce",
+          "x0": 10.8,
+          "x1": 15.2,
+          "z0": -11.6,
+          "depth": 4.6,
+          "body": false
+        },
+        {
+          "defId": "carretera_bifurcacion",
+          "x0": 19.4,
+          "x1": 24,
+          "z0": -120,
+          "depth": 108.5,
+          "body": true,
+          "orient": "z"
         }
       ],
       "ground": {
@@ -294,14 +365,88 @@
         "backZ": 9
       }
     },
+    "traffic": {
+      "enabled": true,
+      "lanes": [
+        { "z": -8.3, "dir": 1, "speedMin": 6.5, "speedMax": 9.5 },
+        { "z": -10.3, "dir": -1, "speedMin": 6.5, "speedMax": 9.5 }
+      ],
+      "spawnEveryMin": 6,
+      "spawnEveryMax": 20,
+      "maxAlive": 4,
+      "xMin": -84,
+      "xMax": 116,
+      "passX": 13.1,
+      "passRadius": 22,
+      "vehicles": [
+        {
+          "kind": "coche",
+          "chance": 0.52,
+          "length": 3.4,
+          "width": 1.6,
+          "height": 0.95,
+          "cabin": 0.5,
+          "colors": ["#c9564c", "#e0b54e", "#7fa05f", "#e8e2d4", "#5d6b7a"]
+        },
+        {
+          "kind": "furgoneta",
+          "chance": 0.2,
+          "length": 4.6,
+          "width": 1.8,
+          "height": 1.6,
+          "cabin": 0.28,
+          "colors": ["#d8d2c2", "#9fb8c8"]
+        },
+        {
+          "kind": "bus",
+          "chance": 0.16,
+          "length": 8.4,
+          "width": 1.9,
+          "height": 2.2,
+          "cabin": 0.1,
+          "colors": ["#c9564c", "#4e7a8a"]
+        },
+        {
+          "kind": "policia",
+          "chance": 0.12,
+          "length": 3.8,
+          "width": 1.65,
+          "height": 1.05,
+          "cabin": 0.5,
+          "colors": ["#eef0f2"],
+          "siren": true
+        }
+      ]
+    },
+    "pedestrians": {
+      "enabled": true,
+      "maxAlive": 6,
+      "spawnEveryMin": 4,
+      "spawnEveryMax": 14,
+      "speedMin": 0.9,
+      "speedMax": 1.5,
+      "enterChance": 0.28,
+      "exitChance": 0.35,
+      "enterX": 13.1,
+      "paths": [
+        { "z": -5.5, "x0": -84, "x1": 116, "dir": 1 },
+        { "z": -6.1, "x0": 116, "x1": -84, "dir": -1 },
+        { "z": -12.6, "x0": -84, "x1": 116, "dir": 1 },
+        { "z": -13.2, "x0": 116, "x1": -84, "dir": -1 }
+      ],
+      "colors": ["#c9564c", "#e0b54e", "#5a9367", "#9fb8c8", "#b06f9e", "#8a5a33", "#5d6b7a", "#e07a5f"],
+      "hatChance": 0.3,
+      "hatColors": ["#3b3129", "#c9564c", "#4e7a8a"]
+    },
     "backdrop": {
       "enabled": true,
       "layers": [
         {
           "z": 30,
           "height": 24,
-          "alpha": 0.92,
-          "tint": "#ffffff",
+          "alpha": 0.85,
+          "tint": "#f2efe6",
+          "fog": 0.25,
           "image": "/content/backdrop/fachada_1_cerca.png",
           "windowColor": "#7d8ba0",
           "windowLitColor": "#ffd166",
@@ -318,8 +463,9 @@
         {
           "z": 44,
           "height": 32,
-          "alpha": 0.78,
-          "tint": "#f4ecdd",
+          "alpha": 0.72,
+          "tint": "#e9e4d6",
+          "fog": 0.42,
           "image": "/content/backdrop/fachada_2_media.png",
           "windowColor": "#8593a8",
           "windowLitColor": "#ffd166",
@@ -336,8 +482,9 @@
         {
           "z": 60,
           "height": 42,
-          "alpha": 0.62,
-          "tint": "#eee4d4",
+          "alpha": 0.55,
+          "tint": "#e6e2d8",
+          "fog": 0.6,
           "image": "/content/backdrop/fachada_3_lejos.png",
           "windowColor": "#8d9bb0",
           "windowLitColor": "#ffe0a3",

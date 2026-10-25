@@ -14,8 +14,8 @@ const MUTE_KEY = 'vecinos.muted';
 
 // Los tipos se derivan del esquema Zod: única fuente de verdad (los defaults ya vienen resueltos).
 type SoundSpec = SoundsCatalog['sounds'][string];
-type ToneStep = Extract<SoundSpec, { kind: 'seq' }>['steps'][number];
-type NoiseSpec = Extract<SoundSpec, { kind: 'noise' }>;
+type ToneStep = Extract<SoundSpec, { kind: 'tone' }>;
+type NoiseSpec = Extract<SoundSpec, { kind: 'noise' }>; // sonido completo tipo ruido
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
@@ -78,7 +78,7 @@ async function loadCatalog(): Promise<void> {
   return loading;
 }
 
-function tone(step: ToneStep, when: number): void {
+function tone(step: Omit<ToneStep, 'kind'>, when: number, mul = 1): void {
   if (!ctx || !master) return;
   const osc = ctx.createOscillator();
   const g = ctx.createGain();
@@ -88,14 +88,14 @@ function tone(step: ToneStep, when: number): void {
   osc.frequency.setValueAtTime(Math.max(20, step.freq), t0);
   if (step.freqEnd !== undefined) osc.frequency.exponentialRampToValueAtTime(Math.max(20, step.freqEnd), t1);
   g.gain.setValueAtTime(0.0001, t0);
-  g.gain.linearRampToValueAtTime(Math.max(0.0001, step.gain), t0 + Math.min(step.attackMs, step.durMs) / 1000);
+  g.gain.linearRampToValueAtTime(Math.max(0.0001, step.gain * mul), t0 + Math.min(step.attackMs, step.durMs) / 1000);
   g.gain.exponentialRampToValueAtTime(0.0001, t1);
   osc.connect(g).connect(master);
   osc.start(t0);
   osc.stop(t1 + 0.02);
 }
 
-function noise(spec: NoiseSpec, when: number): void {
+function noise(spec: NoiseSpec, when: number, mul = 1): void {
   if (!ctx || !master) return;
   const len = Math.max(1, Math.floor((ctx.sampleRate * spec.durMs) / 1000));
   const buf = ctx.createBuffer(1, len, ctx.sampleRate);
@@ -109,33 +109,44 @@ function noise(spec: NoiseSpec, when: number): void {
   const g = ctx.createGain();
   const t0 = when;
   const t1 = t0 + spec.durMs / 1000;
-  g.gain.setValueAtTime(Math.max(0.0001, spec.gain), t0);
+  g.gain.setValueAtTime(Math.max(0.0001, spec.gain * mul), t0);
   g.gain.exponentialRampToValueAtTime(0.0001, t1);
   src.connect(filter).connect(g).connect(master);
   src.start(t0);
   src.stop(t1 + 0.02);
 }
 
-function playSpec(spec: SoundSpec): void {
+function playSpec(spec: SoundSpec, mul = 1): void {
   const c = ensureCtx();
   if (!c || muted) return;
   const base = c.currentTime + 0.01;
-  if (spec.kind === 'tone') tone(spec, base + spec.atMs / 1000);
-  else if (spec.kind === 'noise') noise(spec, base + spec.atMs / 1000);
-  else for (const step of spec.steps) tone(step, base + step.atMs / 1000);
+  if (spec.kind === 'tone') tone(spec, base + spec.atMs / 1000, mul);
+  else if (spec.kind === 'noise') noise(spec, base + spec.atMs / 1000, mul);
+  // Secuencia (v1.22): puede MEZCLAR tonos y ráfagas de ruido (suspiros, motores...).
+  else
+    for (const step of spec.steps) {
+      if ('kind' in step) noise(step, base + step.atMs / 1000, mul);
+      else tone(step, base + step.atMs / 1000, mul);
+    }
 }
 
 /** Reproduce una clave del catálogo (uso directo de la UI: acierto/fallo de minijuego, clics). */
 export function playSound(key: string): void {
+  playSoundAt(key, 1);
+}
+
+/** Reproduce una clave con VOLUMEN RELATIVO (voces de proximidad, motores al pasar). */
+export function playSoundAt(key: string, gainMul: number): void {
+  const mul = Math.max(0, Math.min(1.4, gainMul));
   if (muted || !catalog) {
     void loadCatalog().then(() => {
       const spec = catalog?.sounds[key];
-      if (spec) playSpec(spec);
+      if (spec) playSpec(spec, mul);
     });
     return;
   }
   const spec = catalog.sounds[key];
-  if (spec) playSpec(spec);
+  if (spec) playSpec(spec, mul);
 }
 
 /** Sonido por evento del sim: busca "type:subtype" y cae a "type". Nunca lanza. */
