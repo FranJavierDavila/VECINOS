@@ -117,7 +117,9 @@ check('ante TU puerta dorada el objetivo es la celda propia', tgt?.kind === 'sto
 const rearEnter = logic.interact();
 check('E abre el trastero: swap de bloques (rearEnter + hold)', rearEnter.type === 'rearEnter' && logic.rearCell?.block === STOR.id && logic.rearHold, JSON.stringify(rearEnter));
 const seat = logic.position().rear;
-check('el cuerpo vive dentro del bloque trasero (posición presentable)', !!seat && Math.abs(seat.z - (frontZ + v.trasteros.cellRoomDepth / 2 - 0.3)) < 0.05, JSON.stringify(seat));
+// v1.21: dentro del trastero hay MOVIMIENTO LIBRE — el aterrizaje es junto a la puerta
+// (por dentro) y desde ahí el jugador se pasea esquivando obstáculos (qa-v121).
+check('el cuerpo vive dentro del bloque trasero (aterriza junto a la puerta propia)', !!seat && Math.abs(seat.z - (frontZ + 0.75)) < 0.05 && Math.abs(seat.x - planDoor.x) < 0.05, JSON.stringify(seat));
 const rearExit = logic.interact();
 check('E vuelve a salir: el trastero recupera su misterio', rearExit.type === 'rearExit' && logic.rearCell === null && !logic.rearHold, JSON.stringify(rearExit));
 

@@ -48,6 +48,10 @@ export class PlayerLogic {
   rearCell: { block: string; side: 'left' | 'right'; floor: number } | null = null;
   /** Congela la locomoción del sim mientras el cuerpo "está" dentro del bloque trasero. */
   rearHold = false;
+  /** Posición viva dentro del interior del trastero (v1.21): movimiento libre con obstáculos. */
+  private rearPos: { x: number; z: number } | null = null;
+  /** Rects de obstáculos del interior (estanterías/trastos) que aporta building.ts. */
+  private cellObstacles: { x0: number; z0: number; w: number; d: number }[] = [];
   private readonly width: number;
   private readonly topFloor: number;
   private readonly view;
@@ -213,6 +217,7 @@ export class PlayerLogic {
         climbing: true,
         pathZ: this.climbPos.z,
         rear: null,
+        storage: null,
       };
     }
     let floor = this.floor;
@@ -223,18 +228,37 @@ export class PlayerLogic {
         // NO se re-suaviza aquí: la curva del jugador ha de ser EXACTAMENTE la de la cabina.
         const k = Math.min(1, Math.max(0, this.climb.progress ?? 0));
         floor = this.climb.from + (this.climb.to - this.climb.from) * k;
-        return { x: this.x, z: this.z, floor, mode: this.mode, insideBlock: this.insideBlock, climbing: true, pathZ: this.climb.zOverride ?? null, rear: null };
+        return { x: this.x, z: this.z, floor, mode: this.mode, insideBlock: this.insideBlock, climbing: true, pathZ: this.climb.zOverride ?? null, rear: null, storage: null };
       }
       const k = Math.min(1, this.climb.t / this.climb.duration);
       floor = this.climb.from + (this.climb.to - this.climb.from) * (k * k * (3 - 2 * k));
     }
     // Apilamiento 3D (v1.19): dentro del trastero propio el cuerpo vive en el bloque trasero.
     const rear = this.rearCell ? this.rearSeat() : null;
-    return { x: this.x, z: this.z, floor, mode: this.mode, insideBlock: this.insideBlock, climbing: this.climb !== null, pathZ: null, rear };
+    // Regla de cámara del pasillo de trasteros (v1.21): caminando el pasillo central de un
+    // bloque de trasteros (sin estar dentro de la celda), la presentación centra la cámara
+    // en el MEDIO del pasillo y lo mira de frente para verlo hasta el fondo.
+    let storage: PlayerPosition['storage'] = null;
+    if (!this.rearCell && this.mode === 'inside' && this.insideBlock) {
+      const b = this.world.blocks[this.insideBlock]!;
+      if (this.content.blocks[b.defId]?.features?.innerCorridor) {
+        // Centro del CUERPO del bloque (no del nominal): el pasillo vive centrado en él.
+        const cx = b.cell.col * this.view.cellW + (b.size.w * this.view.cellW - this.view.gapW) / 2;
+        storage = { cx, frontZ: this.frontZ, depth: storageGeomOf(this.view).depth };
+      }
+    }
+    return { x: this.x, z: this.z, floor, mode: this.mode, insideBlock: this.insideBlock, climbing: this.climb !== null, pathZ: null, rear, storage };
+  }
+
+  /** Rects de obstáculos del interior del trastero (v1.21): los registra building.ts al
+   *  levantar la geometría (UNA sola verdad: las mismas cajas que se ven son las que estorban). */
+  setCellObstacles(rects: { x0: number; z0: number; w: number; d: number }[]): void {
+    this.cellObstacles = rects;
   }
 
   /** Posición (mundo) del cuerpo dentro del interior presentable del trastero propio. */
   private rearSeat(): { x: number; z: number } {
+    if (this.rearPos) return this.rearPos;
     const b = this.world.blocks[this.rearCell!.block]!;
     const cx = (b.cell.col + b.size.w / 2) * this.view.cellW;
     const front = this.view.roomZ - this.view.commonDepth / 2;
@@ -414,8 +438,12 @@ export class PlayerLogic {
 
   update(dt: number, input: Input) {
     // Apilamiento 3D (v1.19): el cuerpo está dentro del bloque trasero — la locomoción del
-    // sim queda congelada (la salida es por la puerta: tecla E, que gestiona el controlador).
-    if (this.rearHold) return;
+    // sim queda congelada. v1.21: DENTRO del trastero sí te mueves (libre, esquivando
+    // estanterías y trastos); la salida sigue siendo la puerta (tecla E, del controlador).
+    if (this.rearHold) {
+      this.updateRear(dt, input);
+      return;
+    }
     // Escalada real por el cubo (v1.4): avanzar por los peldaños al ritmo del catálogo.
     if (this.stairPath) {
       const sp = this.stairPath;
@@ -513,6 +541,37 @@ export class PlayerLogic {
     }
   }
 
+  /** Movimiento libre DENTRO del interior del trastero propio (v1.21): límites de la sala
+   *  + colisión axis-separada contra los rects registrados (estanterías, trastos). El sim
+   *  no se entera (sin sync): al salir, el cuerpo vuelve exactamente a donde estaba. */
+  private updateRear(dt: number, input: Input): void {
+    const cell = this.rearCell;
+    if (!cell) return;
+    const b = this.world.blocks[cell.block]!;
+    const sg = storageGeomOf(this.view);
+    const D = this.view.trasteros.cellRoomDepth;
+    const x0 = b.cell.col * this.view.cellW;
+    const W = b.size.w * this.view.cellW - this.view.gapW;
+    const front = this.frontZ;
+    const pad = 0.3;
+    const minX = x0 + sg.wallT + pad;
+    const maxX = x0 + W - sg.wallT - pad;
+    const minZ = front + sg.wallT + pad;
+    const maxZ = front + D - sg.wallT - pad;
+    const dirX = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+    const dirZ = (input.up ? 1 : 0) - (input.down ? 1 : 0);
+    const step = this.view.roomSpeed * (input.run ? this.view.runMultiplier : 1) * dt;
+    const r = this.view.actorRadius;
+    const hits = (x: number, z: number): boolean =>
+      this.cellObstacles.some((o) => x > o.x0 - r && x < o.x0 + o.w + r && z > o.z0 - r && z < o.z0 + o.d + r);
+    const cur = this.rearSeat();
+    let nx = Math.min(maxX, Math.max(minX, cur.x + dirX * step));
+    if (nx !== cur.x && hits(nx, cur.z)) nx = cur.x;
+    let nz = Math.min(maxZ, Math.max(minZ, cur.z + dirZ * step));
+    if (nz !== cur.z && hits(nx, nz)) nz = cur.z;
+    this.rearPos = { x: nx, z: nz };
+  }
+
   /** Vecino que está a tu lado en el pasillo (o en tu misma vivienda). */
   residentNearby(): string | null {
     const r = this.world.residents[this.actorId]!;
@@ -607,6 +666,7 @@ export class PlayerLogic {
       const block = this.rearCell.block;
       this.rearCell = null;
       this.rearHold = false;
+      this.rearPos = null;
       return { type: 'rearExit', block };
     }
     const t = this.interactTarget();
@@ -636,6 +696,8 @@ export class PlayerLogic {
         if (cell && Math.abs(this.x - cell.x) < this.view.itemRadius * 0.75 && Math.abs(worldZ - cell.z) < this.view.itemRadius) {
           this.rearCell = { block: homeBlock.id, side: cell.side, floor: cell.floor };
           this.rearHold = true;
+          // v1.21: aterrizaje junto a la puerta (por dentro); desde ahí, movimiento libre.
+          this.rearPos = { x: cell.x, z: this.frontZ + 0.75 };
           return { type: 'rearEnter', block: homeBlock.id };
         }
       }
@@ -686,6 +748,7 @@ export class PlayerLogic {
     this.insideBlock = null;
     this.rearCell = null;
     this.rearHold = false;
+    this.rearPos = null;
     this.z = this.view.corridorZ;
     this.approached = null;
     this.externalRequested = false;
@@ -715,6 +778,7 @@ export class PlayerLogic {
     this.lastMoveTarget = null;
     this.rearCell = null;
     this.rearHold = false;
+    this.rearPos = null;
     if (!target) {
       const c = this.corridor(this.floor);
       this.mode = 'corridor';

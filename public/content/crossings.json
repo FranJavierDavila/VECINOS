@@ -1,8 +1,29 @@
 {
-  "cadence": { "checkEvery": 2.2, "residentCooldown": 50, "pairCooldown": 160, "lineSeconds": 3, "holdAfter": 1.2 },
-  "proximity": { "distance": 1.6, "maxConcurrent": 2 },
-  "chance": { "base": 0.6, "goodMoodBonus": 0.3, "badMoodPenalty": 0.45 },
-  "mood": { "goodMin": 55, "okMin": 30, "needs": { "sleep": 1, "social": 1, "fun": 1 } },
+  "cadence": {
+    "checkEvery": 2.2,
+    "residentCooldown": 50,
+    "pairCooldown": 160,
+    "lineSeconds": 3,
+    "holdAfter": 1.2
+  },
+  "proximity": {
+    "distance": 1.6,
+    "maxConcurrent": 2
+  },
+  "chance": {
+    "base": 0.6,
+    "goodMoodBonus": 0.3,
+    "badMoodPenalty": 0.45
+  },
+  "mood": {
+    "goodMin": 55,
+    "okMin": 30,
+    "needs": {
+      "sleep": 1,
+      "social": 1,
+      "fun": 1
+    }
+  },
   "groups": [
     {
       "id": "saludos_buenos",
@@ -70,6 +91,34 @@
             "Las farolas nuevas al anochecer son de cine.",
             "Yo salgo a posar. La comunidad paga la luz, yo pongo el glamour."
           ]
+        },
+        {
+          "id": "trastero_orden",
+          "lines": [
+            "He ordenado mi trastero. Tres cajas menos y una bicicleta que no sé de quién es.",
+            "La bicicleta era mía. Bueno, era de alguien. Ahora es del trastero."
+          ]
+        },
+        {
+          "id": "ventana_fondo",
+          "lines": [
+            "Me han puesto una ventana en el cuarto de atrás. Ahora miro la ciudad mientras pienso qué hacer con mi vida.",
+            "¿Y qué concluiste? Que la ciudad está muy lejos y la siesta muy cerca."
+          ]
+        },
+        {
+          "id": "lluvia_guapa",
+          "lines": [
+            "Con esta lluvia las macetas se riegan solas. La pereza también tiene ciencia.",
+            "Y la junta aplaude: cero litros del cubo comunal."
+          ]
+        },
+        {
+          "id": "presidente_feliz",
+          "lines": [
+            "El presidente sonríe. Desconfía.",
+            "Es que le han aprobado las macetas. Al hombre hay que verle los brotes."
+          ]
         }
       ]
     },
@@ -126,6 +175,20 @@
             "¿Has visto el cartel del tablón?",
             "Leo el tablón como quien mira el pronóstico: por si llueve derrama."
           ]
+        },
+        {
+          "id": "farolas",
+          "lines": [
+            "¿Has visto que las farolas se encienden solas? La electricista dice que es tecnología.",
+            "Yo digo que es el vecino del uno, que aprieta un botón y se cree Dios."
+          ]
+        },
+        {
+          "id": "trastero_candado",
+          "lines": [
+            "A mi trastero solo entro yo. Ni el aire entra sin permiso.",
+            "Por eso huele a 1987 cuando se abre."
+          ]
         }
       ]
     },
@@ -135,7 +198,10 @@
       "topics": [
         {
           "id": "uf",
-          "lines": ["Uf.", "Uf tú también, {a}. No hace falta hablar más."]
+          "lines": [
+            "Uf.",
+            "Uf tú también, {a}. No hace falta hablar más."
+          ]
         },
         {
           "id": "ascensor_roto",
@@ -177,6 +243,27 @@
           "lines": [
             "El wifi del portal ha vuelto a fallar.",
             "Como el ascensor, como el agua caliente, como mis ganas de discutir. Vete."
+          ]
+        },
+        {
+          "id": "pasillo_oscuro",
+          "lines": [
+            "El pasillo a oscuras otra vez. He dado tres pasos y media vida.",
+            "Yo llevo linterna. Y miedo, pero la linterna primero."
+          ]
+        },
+        {
+          "id": "lluvia_techo",
+          "lines": [
+            "Llueve y el tejado hace gorgoritos. No es canto, es una factura.",
+            "Derrama al canto del tejado. Firma ya."
+          ]
+        },
+        {
+          "id": "ruido_cajas",
+          "lines": [
+            "El del trastero de al lado arrastra cajas a medianoche. ¿Qué transporta? ¿Historia?",
+            "Mueve sus secretos. Y una elíptica que nadie ha visto aún."
           ]
         }
       ]

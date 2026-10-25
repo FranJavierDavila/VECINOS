@@ -685,6 +685,9 @@ class GameController {
     dirLight.intensity = view.sun.intensity;
 
     this.building = createBuilding(this.scene, this.world, this.content);
+    // v1.21: los rects de obstáculos del interior del trastero (estanterías/trastos que pinta
+    // building) alimentan la colisión del movimiento libre dentro de la celda — UNA verdad.
+    this.logic.setCellObstacles(this.building.cellObstacles());
     this.elevators = createElevators(this.scene, this.world, this.content);
     this.actors = createActors(this.scene, this.world, this.content, this.elevators);
     // Fondo urbano (v1.20): cielo dinámico por hora + fachadas parallax; la luz del catálogo
@@ -861,6 +864,9 @@ class GameController {
     // de la calle leen la luz de día resultante. Los modales no paran el ambiente (solo el reloj).
     this.backdrop?.update(dt);
     this.exterior?.update(dt);
+    // v1.21: el MOBILIARIO de la calle solo vive en la vista "edificio" — en planta/estancia
+    // se apaga (menos carga, y no estorba la vista del bloque).
+    this.exterior?.setPropsVisible(store.camMode === 'edificio');
     // Charlas de cruce (v1.20): en multijugador quedan en pausa (mismo criterio que el ecosistema).
     if (!this.net) this.chats?.update(dt);
     // Cutscene (Fase D): sus beats mueven cámara/actores DESPUÉS de los eventos y ANTES del render.
@@ -883,6 +889,9 @@ class GameController {
       useGameStore.getState().camMode === 'edificio' ? undefined : { x: pos.x, floor: pos.floor },
       pos.insideBlock,
       { x: pos.x, z: pos.z, insideBlock: pos.insideBlock },
+      // v1.21: luz de día del fondo → luces nocturnas de interiores (encendidas solo con
+      // gente despierta dentro) y pasillos a oscuras de noche salvo presencia + instalación OK.
+      { daylight: this.backdrop ? this.backdrop.daylight : 1 },
     );
     this.rig.update(dt, pos);
     this.scene.render();

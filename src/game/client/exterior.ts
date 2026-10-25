@@ -1,4 +1,4 @@
-import type { Color3, Mesh, Scene, StandardMaterial } from '@babylonjs/core';
+import type { Color3, Mesh, Scene, StandardMaterial, TransformNode } from '@babylonjs/core';
 import type { Content, World } from '@/game/core/types';
 import { hash01 } from '@/game/interior';
 import { B } from './babylon';
@@ -12,11 +12,18 @@ import type { BackdropDirector } from './backdrop';
  * en las aceras, línea discontinua en la carretera, árboles/arbustos/flores en los
  * jardines. Bloques BAJOS que dan forma a la calle; nunca se instancian en el sim.
  * Las farolas se encienden al anochecer leyendo la luz de día del fondo (backdrop).
+ *
+ * v1.21: el MOBILIARIO (bancos, farolas, papeleras, árboles, arbustos, flores) cuelga de
+ * un nodo propio SOLO visible en la vista "edificio" — en planta/estancia se apaga para
+ * cargar menos recursos y no estorbar la vista del bloque. El suelo y los cuerpos de las
+ * tiras (asfalto, césped, acera) siguen visibles siempre: sostienen el decorado.
  */
 
 export interface ExteriorDirector {
   /** Las farolas siguen la hora del fondo; el resto es estático. dt en segundos. */
   update(dt: number): void;
+  /** Mobiliario ON solo en vista "edificio" (v1.21): idempotente. */
+  setPropsVisible(visible: boolean): void;
   dispose(): void;
 }
 
@@ -24,10 +31,15 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
   const { Color3, MeshBuilder, StandardMaterial } = B();
   const cfg = content.rules.view.exterior;
   if (!cfg.enabled || cfg.rows.length === 0) {
-    return { update() {}, dispose() {} };
+    return { update() {}, setPropsVisible() {}, dispose() {} };
   }
   const mats = new Map<string, StandardMaterial>();
   const root: Mesh[] = [];
+  // v1.21: nodo del MOBILIARIO — todo lo que sea banco/farola/papelera/árbol/arbusto/flor
+  // cuelga aquí y se apaga fuera de la vista "edificio" (menos draw calls y vista limpia).
+  const { TransformNode } = B();
+  const propsNode = new TransformNode('calle_mobiliario', scene);
+  let propsVisible = true;
   /** Materiales compartidos por hex (los colores se repiten MUCHO en la calle). */
   const matOf = (hex: string, name: string, emissive = 0): StandardMaterial => {
     const key = `${name}:${hex}`;
@@ -67,11 +79,14 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
     return mesh;
   };
 
-  // ── Suelo del mundo: cierra el horizonte bajo todo el decorado. ──
+  // ── Suelo del mundo: cierra el horizonte bajo todo el decorado. v1.21: NO se cuela tras
+  // el edificio (backZ del catálogo) — más allá, cielo; el suelo no hace de muralla oscura
+  // entre el edificio y las capas de fachadas del fondo.
   const blocks = Object.values(world.blocks);
   const cx = (Math.max(...blocks.map((b) => b.cell.col + b.size.w)) * content.rules.view.cellW) / 2;
-  const ground = MeshBuilder.CreateGround('suelo_mundo', { width: cfg.ground.size, height: cfg.ground.size }, scene);
-  ground.position.set(cx, -0.02, 0);
+  const groundDepth = cfg.ground.size / 2 + cfg.ground.backZ;
+  const ground = MeshBuilder.CreateGround('suelo_mundo', { width: cfg.ground.size, height: groundDepth }, scene);
+  ground.position.set(cx, -0.02, (cfg.ground.backZ - cfg.ground.size / 2) / 2);
   ground.material = matOf(cfg.ground.color, 'suelo');
   ground.isPickable = false;
 
@@ -105,12 +120,12 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
       for (let i = 0; i < n; i++) {
         const x = row.x0 + ex.lampEvery * (i + 0.5) + (hash01(`lamp${ri}`, i) - 0.5) * 0.6;
         const z = zc + (hash01(`lampZ${ri}`, i) - 0.5) * row.depth * 0.4;
-        cyl(`calle_${ri}_farola_${i}`, 0.05, 0.07, ex.lampH, x, ex.height + ex.lampH / 2, z, matOf(ex.lampColor, 'lamp_post'));
+        cyl(`calle_${ri}_farola_${i}`, 0.05, 0.07, ex.lampH, x, ex.height + ex.lampH / 2, z, matOf(ex.lampColor, 'lamp_post')).parent = propsNode;
         // Cabeza: brazo corto + farol emisivo (se enciende con la noche).
-        box(`calle_${ri}_farola_brazo_${i}`, 0.5, 0.05, 0.05, x + 0.2, ex.height + ex.lampH, z, matOf(ex.lampColor, 'lamp_post'));
+        box(`calle_${ri}_farola_brazo_${i}`, 0.5, 0.05, 0.05, x + 0.2, ex.height + ex.lampH, z, matOf(ex.lampColor, 'lamp_post')).parent = propsNode;
         const head = matOf(ex.lampHeadColor, 'lamp_head', 0.05);
         lampMats.push({ mat: head, hex: ex.lampHeadColor });
-        box(`calle_${ri}_farola_foco_${i}`, 0.26, 0.12, 0.2, x + 0.42, ex.height + ex.lampH - 0.06, z, head);
+        box(`calle_${ri}_farola_foco_${i}`, 0.26, 0.12, 0.2, x + 0.42, ex.height + ex.lampH - 0.06, z, head).parent = propsNode;
       }
     }
     if (ex.benchEvery > 0) {
@@ -119,12 +134,12 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
         const x = row.x0 + ex.benchEvery * (i + 0.5) + (hash01(`bench${ri}`, i) - 0.5) * 0.8;
         const z = zc + (hash01(`benchZ${ri}`, i) - 0.5) * row.depth * 0.4;
         const y = ex.height;
-        box(`calle_${ri}_banco_asiento_${i}`, 1.6, 0.07, 0.5, x, y + 0.42, z, matOf(ex.benchColor, 'bench'));
-        box(`calle_${ri}_banco_respaldo_${i}`, 1.6, 0.42, 0.06, x, y + 0.66, z - 0.22, matOf(ex.benchColor, 'bench'));
-        box(`calle_${ri}_banco_pata_a_${i}`, 0.08, 0.42, 0.44, x - 0.66, y + 0.21, z, matOf(ex.benchLegColor, 'bench_leg'));
-        box(`calle_${ri}_banco_pata_b_${i}`, 0.08, 0.42, 0.44, x + 0.66, y + 0.21, z, matOf(ex.benchLegColor, 'bench_leg'));
+        box(`calle_${ri}_banco_asiento_${i}`, 1.6, 0.07, 0.5, x, y + 0.42, z, matOf(ex.benchColor, 'bench')).parent = propsNode;
+        box(`calle_${ri}_banco_respaldo_${i}`, 1.6, 0.42, 0.06, x, y + 0.66, z - 0.22, matOf(ex.benchColor, 'bench')).parent = propsNode;
+        box(`calle_${ri}_banco_pata_a_${i}`, 0.08, 0.42, 0.44, x - 0.66, y + 0.21, z, matOf(ex.benchLegColor, 'bench_leg')).parent = propsNode;
+        box(`calle_${ri}_banco_pata_b_${i}`, 0.08, 0.42, 0.44, x + 0.66, y + 0.21, z, matOf(ex.benchLegColor, 'bench_leg')).parent = propsNode;
         if (ex.binEvery > 0 && hash01(`bin${ri}`, i) < 0.7) {
-          cyl(`calle_${ri}_papelera_${i}`, 0.24, 0.2, 0.55, x + 1.2, y + 0.28, z + 0.1, matOf(ex.binColor, 'bin'));
+          cyl(`calle_${ri}_papelera_${i}`, 0.24, 0.2, 0.55, x + 1.2, y + 0.28, z + 0.1, matOf(ex.binColor, 'bin')).parent = propsNode;
         }
       }
     }
@@ -139,10 +154,10 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
         const z = row.z0 + 0.5 + hash01(`treeZ${ri}`, i) * (row.depth - 1);
         const s = 0.85 + hash01(`treeS${ri}`, i) * 0.5;
         const trunkH = 1.7 * s;
-        cyl(`calle_${ri}_arbol_tronco_${i}`, 0.12 * s, 0.18 * s, trunkH, x, ex.height + trunkH / 2, z, trunk);
+        cyl(`calle_${ri}_arbol_tronco_${i}`, 0.12 * s, 0.18 * s, trunkH, x, ex.height + trunkH / 2, z, trunk).parent = propsNode;
         const leaf = leafs[Math.floor(hash01(`treeC${ri}`, i) * leafs.length) % leafs.length]!;
-        sphere(`calle_${ri}_arbol_copa_a_${i}`, 1.9 * s, x, ex.height + trunkH + 0.7 * s, z, leaf);
-        sphere(`calle_${ri}_arbol_copa_b_${i}`, 1.3 * s, x + 0.5 * s, ex.height + trunkH + 1.3 * s, z - 0.3 * s, leaf);
+        sphere(`calle_${ri}_arbol_copa_a_${i}`, 1.9 * s, x, ex.height + trunkH + 0.7 * s, z, leaf).parent = propsNode;
+        sphere(`calle_${ri}_arbol_copa_b_${i}`, 1.3 * s, x + 0.5 * s, ex.height + trunkH + 1.3 * s, z - 0.3 * s, leaf).parent = propsNode;
       }
     }
     const bushEvery = ex.bushesPer10m > 0 ? 10 / ex.bushesPer10m : 0;
@@ -155,14 +170,14 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
         const z = row.z0 + 0.35 + hash01(`bushZ${ri}`, i) * (row.depth - 0.7);
         const s = 0.5 + hash01(`bushS${ri}`, i) * 0.45;
         const mat = bushes[Math.floor(hash01(`bushC${ri}`, i) * bushes.length) % bushes.length]!;
-        sphere(`calle_${ri}_arbusto_${i}`, 0.9 * s, x, ex.height + 0.34 * s, z, mat);
+        sphere(`calle_${ri}_arbusto_${i}`, 0.9 * s, x, ex.height + 0.34 * s, z, mat).parent = propsNode;
         // Flores puntual junto al arbusto (hash): un toque de color de la paleta.
         if (hash01(`flor${ri}`, i) < ex.flowerChance) {
           const fm = flowers[Math.floor(hash01(`florC${ri}`, i) * flowers.length) % flowers.length]!;
           const fx = x + (hash01(`florX${ri}`, i) - 0.5) * 1.4;
           const fz = z + (hash01(`florZ${ri}`, i) - 0.5) * 1.2;
-          box(`calle_${ri}_flor_${i}`, 0.09, 0.2, 0.09, fx, ex.height + 0.1, fz, fm);
-          sphere(`calle_${ri}_flor_cabeza_${i}`, 0.14, fx, ex.height + 0.24, fz, fm);
+          box(`calle_${ri}_flor_${i}`, 0.09, 0.2, 0.09, fx, ex.height + 0.1, fz, fm).parent = propsNode;
+          sphere(`calle_${ri}_flor_cabeza_${i}`, 0.14, fx, ex.height + 0.24, fz, fm).parent = propsNode;
         }
       }
     }
@@ -175,9 +190,16 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
       const glow = Math.max(0, Math.min(1, (0.42 - day) / 0.42));
       for (const { mat, hex } of lampMats) mat.emissiveColor = Color3.FromHexString(hex).scale(0.05 + glow * 1.1);
     },
+    setPropsVisible(visible: boolean) {
+      if (propsVisible === visible) return; // idempotente: sin churn por frame
+      propsVisible = visible;
+      propsNode.setEnabled(visible);
+    },
     dispose() {
+      // Las mallas (incluido el mobiliario) viven en root[]: el nodo solo se desmonta.
       for (const m of root) m.dispose(false, true);
       ground.dispose(false, true);
+      propsNode.dispose(false, false);
       for (const m of mats.values()) m.dispose();
       mats.clear();
       root.length = 0;

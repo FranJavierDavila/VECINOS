@@ -826,8 +826,29 @@ export const rulesSchema = z.object({
         peekDistance: z.number().positive().default(1.05),
         junk: z.number().int().min(0).default(6),
         lampColor: z.string().default('#ffedbe'),
+        /** Ventana en la pared del FONDO del bloque trasero (v1.21): se ve el paisaje urbano
+         *  del fondo (fachadas parallax y cielo) desde dentro del cuarto trasero/trastero. */
+        window: z
+          .object({
+            w: z.number().positive().default(1.1),
+            h: z.number().positive().default(1.0),
+            sill: z.number().min(0).default(0.85),
+            frame: z.string().default('#6f4926'),
+            glass: z.string().default('#bcd8e8'),
+            glassAlpha: z.number().min(0).max(1).default(0.18),
+          })
+          .default({ w: 1.1, h: 1.0, sill: 0.85, frame: '#6f4926', glass: '#bcd8e8', glassAlpha: 0.18 }),
       })
-      .default({ outline: '#e63946', outlineWidth: 16, fadeSeconds: 0.45, peekSeconds: 0.5, peekDistance: 1.05, junk: 6, lampColor: '#ffedbe' }),
+      .default({
+        outline: '#e63946',
+        outlineWidth: 16,
+        fadeSeconds: 0.45,
+        peekSeconds: 0.5,
+        peekDistance: 1.05,
+        junk: 6,
+        lampColor: '#ffedbe',
+        window: { w: 1.1, h: 1.0, sill: 0.85, frame: '#6f4926', glass: '#bcd8e8', glassAlpha: 0.18 },
+      }),
     wall: z.number(),
     gapW: z.number(),
     gapH: z.number(),
@@ -861,12 +882,14 @@ export const rulesSchema = z.object({
             body: z.boolean().default(true),
           }),
         ),
-        /** Suelo del mundo bajo todo el decorado (cierra el horizonte). */
+        /** Suelo del mundo bajo todo el decorado (cierra el horizonte). backZ: hasta qué z
+         *  llega por DETRÁS del edificio — más allá, cielo (el suelo no debe hacer de muralla
+         *  entre el edificio y las capas de fachadas del fondo). */
         ground: z
-          .object({ color: z.string().default('#a89a7c'), size: z.number().positive().default(220) })
-          .default({ color: '#a89a7c', size: 220 }),
+          .object({ color: z.string().default('#a89a7c'), size: z.number().positive().default(220), backZ: z.number().default(0) })
+          .default({ color: '#a89a7c', size: 220, backZ: 0 }),
       })
-      .default({ enabled: false, rows: [], ground: { color: '#a89a7c', size: 220 } }),
+      .default({ enabled: false, rows: [], ground: { color: '#a89a7c', size: 220, backZ: 0 } }),
     /** ── Fondo urbano (v1.20) ── cielo dinámico (sol/luna/estrellas/nubes según la hora)
      *  + capas de fachadas 2D a distintas distancias (parallax natural: planos 3D reales
      *  tras el edificio). Luz global (ambiente + sol) evoluciona con los keyframes. */
@@ -887,8 +910,26 @@ export const rulesSchema = z.object({
             windowChance: z.number().min(0).max(1).default(0.75),
             galleryChance: z.number().min(0).max(1).default(0.3),
             nightGlow: z.number().min(0).max(1).default(0.35),
+            /** Imagen de sello (v1.21): PNG RGBA de fachada en public/content/backdrop/.
+             *  Presente → la capa se pinta REPITIENDO el sello (edificios reales, blur horneado
+             *  por distancia). Ausente → el pintado procedural de ventanas/galerías de v1.20. */
+            image: z.string().optional(),
           }),
         ),
+        /** LLUVIA (v1.21): partículas de trazo que caen cuando el clima es rain/storm.
+         *  Comportamiento realista con look cartoon: velocidades y viento del catálogo. */
+        rain: z
+          .object({
+            count: z.number().int().min(0).default(900),
+            stormCount: z.number().int().min(0).default(1600),
+            fallSpeed: z.number().positive().default(26),
+            wind: z.number().default(-3.5),
+            color: z.string().default('#cfe3f2'),
+            alpha: z.number().min(0).max(1).default(0.5),
+            length: z.number().positive().default(0.55),
+            width: z.number().positive().default(0.035),
+          })
+          .default({ count: 900, stormCount: 1600, fallSpeed: 26, wind: -3.5, color: '#cfe3f2', alpha: 0.5, length: 0.55, width: 0.035 }),
         sky: z
           .object({
             /** El gradiente del cielo se repinta a cadencia (barato) y por cambio de clima. */
@@ -912,6 +953,8 @@ export const rulesSchema = z.object({
             sunSize: z.number().positive().default(2.4),
             sunArcHeight: z.number().positive().default(30),
             sunZ: z.number().positive().default(64),
+            /** Altura (m) de la línea de horizonte del cielo de dos bandas. */
+            horizonY: z.number().default(18),
             moonColor: z.string().default('#e8ecf4'),
             moonSize: z.number().positive().default(1.6),
             stars: z.number().int().min(0).default(110),
@@ -926,6 +969,7 @@ export const rulesSchema = z.object({
             sunSize: 2.4,
             sunArcHeight: 30,
             sunZ: 64,
+            horizonY: 18,
             moonColor: '#e8ecf4',
             moonSize: 1.6,
             stars: 110,
@@ -958,6 +1002,7 @@ export const rulesSchema = z.object({
       .default({
         enabled: false,
         layers: [],
+        rain: { count: 900, stormCount: 1600, fallSpeed: 26, wind: -3.5, color: '#cfe3f2', alpha: 0.5, length: 0.55, width: 0.035 },
         sky: {
           redrawSeconds: 6,
           keyframes: [],
@@ -967,6 +1012,7 @@ export const rulesSchema = z.object({
           sunSize: 2.4,
           sunArcHeight: 30,
           sunZ: 64,
+          horizonY: 18,
           moonColor: '#e8ecf4',
           moonSize: 1.6,
           stars: 110,
@@ -1244,6 +1290,9 @@ export const ecosystemContentSchema = z.object({
     paramThreshold: z.number().min(0).max(100),
     lampsPerCorridor: z.number().int().min(1),
     lampSize: z.tuple([z.number().positive(), z.number().positive(), z.number().positive()]),
+    /** v1.21: de noche las luces de pasillo SOLO si la instalación funciona Y hay algún
+     *  vecino en ese pasillo (nadie pasea a oscuras por gusto). */
+    nightRequiresPresence: z.boolean().default(false),
   }),
   mood: z.object({ needs: z.record(z.string(), z.number()) }),
   visuals: z.object({

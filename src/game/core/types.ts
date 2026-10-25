@@ -735,6 +735,8 @@ export interface EcosystemContent {
     lampsPerCorridor: number;
     /** Tamaño (w,h,d en m) de cada lamparita. */
     lampSize: [number, number, number];
+    /** v1.21: de noche, luz solo si la instalación funciona Y hay vecinos en el pasillo. */
+    nightRequiresPresence: boolean;
   };
   mood: {
     /** Pesos de necesidades para la media de ánimo de los residentes presentes. */
@@ -1052,6 +1054,8 @@ export interface Rules {
       peekDistance: number;
       junk: number;
       lampColor: string;
+      /** Ventana al fondo del bloque trasero (v1.21): marco + cristal que asoma al paisaje. */
+      window: { w: number; h: number; sill: number; frame: string; glass: string; glassAlpha: number };
     };
     /** Calado de los bloques comunes (portal, núcleo, trasteros): mantiene el glTF del núcleo a escala 1. */
     commonDepth: number;
@@ -1078,7 +1082,7 @@ export interface Rules {
     exterior: {
       enabled: boolean;
       rows: { defId: string; x0: number; x1: number; z0: number; depth: number; body: boolean }[];
-      ground: { color: string; size: number };
+      ground: { color: string; size: number; backZ: number };
     };
     /** ── Fondo urbano (v1.20) ── cielo dinámico por hora + capas de fachadas 2D con
      *  parallax natural (planos 3D a distintas z tras el edificio). */
@@ -1097,6 +1101,8 @@ export interface Rules {
         windowChance: number;
         galleryChance: number;
         nightGlow: number;
+        /** Sello PNG RGBA (v1.21): fachada real repetida por la capa (blur horneado). */
+        image?: string;
       }[];
       sky: {
         redrawSeconds: number;
@@ -1107,6 +1113,8 @@ export interface Rules {
         sunSize: number;
         sunArcHeight: number;
         sunZ: number;
+        /** Altura (m) de la línea de horizonte del cielo de dos bandas (v1.21). */
+        horizonY: number;
         moonColor: string;
         moonSize: number;
         stars: number;
@@ -1122,6 +1130,17 @@ export interface Rules {
         stormColor: string;
         alphaClear: number;
         alphaCloudy: number;
+      };
+      /** Lluvia (v1.21): partículas de trazo cuando el clima es rain/storm. */
+      rain: {
+        count: number;
+        stormCount: number;
+        fallSpeed: number;
+        wind: number;
+        color: string;
+        alpha: number;
+        length: number;
+        width: number;
       };
     };
   };
@@ -1341,6 +1360,12 @@ export interface PlayerPosition {
    * trastero), la presentación lo planta aquí (x/z absolutos) en vez de en el sim.
    */
   rear: { x: number; z: number } | null;
+  /**
+   * Regla de cámara del pasillo de trasteros (v1.21): presente cuando el jugador camina por
+   * el pasillo central de un bloque de trasteros — la cámara se centra en el MEDIO del
+   * pasillo y lo mira de frente para verlo hasta el fondo (null fuera de esos bloques).
+   */
+  storage: { cx: number; frontZ: number; depth: number } | null;
 }
 
 export interface Input {

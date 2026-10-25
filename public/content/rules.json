@@ -247,13 +247,52 @@
     "exterior": {
       "enabled": true,
       "rows": [
-        { "defId": "jardin", "x0": -13.6, "x1": -4.4, "z0": -13.8, "depth": 9.4, "body": true },
-        { "defId": "jardin", "x0": 30.6, "x1": 39.8, "z0": -13.8, "depth": 9.4, "body": true },
-        { "defId": "acera", "x0": -4.4, "x1": 30.6, "z0": -7.0, "depth": 2.6, "body": true },
-        { "defId": "carretera", "x0": -13.6, "x1": 39.8, "z0": -11.6, "depth": 4.6, "body": true },
-        { "defId": "acera", "x0": -13.6, "x1": 39.8, "z0": -13.8, "depth": 2.2, "body": true }
+        {
+          "defId": "jardin",
+          "x0": -13.6,
+          "x1": -4.4,
+          "z0": -13.8,
+          "depth": 9.4,
+          "body": true
+        },
+        {
+          "defId": "jardin",
+          "x0": 30.6,
+          "x1": 39.8,
+          "z0": -13.8,
+          "depth": 9.4,
+          "body": true
+        },
+        {
+          "defId": "acera",
+          "x0": -4.4,
+          "x1": 30.6,
+          "z0": -7.0,
+          "depth": 2.6,
+          "body": true
+        },
+        {
+          "defId": "carretera",
+          "x0": -13.6,
+          "x1": 39.8,
+          "z0": -11.6,
+          "depth": 4.6,
+          "body": true
+        },
+        {
+          "defId": "acera",
+          "x0": -13.6,
+          "x1": 39.8,
+          "z0": -13.8,
+          "depth": 2.2,
+          "body": true
+        }
       ],
-      "ground": { "color": "#a89a7c", "size": 240 }
+      "ground": {
+        "color": "#a89a7c",
+        "size": 240,
+        "backZ": 9
+      }
     },
     "backdrop": {
       "enabled": true,
@@ -261,13 +300,17 @@
         {
           "z": 30,
           "height": 24,
-          "alpha": 0.66,
-          "tint": "#c9a98c",
+          "alpha": 0.92,
+          "tint": "#ffffff",
+          "image": "/content/backdrop/fachada_1_cerca.png",
           "windowColor": "#7d8ba0",
           "windowLitColor": "#ffd166",
           "galleryColor": "#9fb8c8",
           "buildings": 8,
-          "floors": [3, 6],
+          "floors": [
+            3,
+            6
+          ],
           "windowChance": 0.8,
           "galleryChance": 0.35,
           "nightGlow": 0.5
@@ -275,13 +318,17 @@
         {
           "z": 44,
           "height": 32,
-          "alpha": 0.5,
-          "tint": "#d4b79a",
+          "alpha": 0.78,
+          "tint": "#f4ecdd",
+          "image": "/content/backdrop/fachada_2_media.png",
           "windowColor": "#8593a8",
           "windowLitColor": "#ffd166",
           "galleryColor": "#a8bfd0",
           "buildings": 7,
-          "floors": [4, 8],
+          "floors": [
+            4,
+            8
+          ],
           "windowChance": 0.75,
           "galleryChance": 0.3,
           "nightGlow": 0.4
@@ -289,32 +336,105 @@
         {
           "z": 60,
           "height": 42,
-          "alpha": 0.38,
-          "tint": "#e0c6a8",
+          "alpha": 0.62,
+          "tint": "#eee4d4",
+          "image": "/content/backdrop/fachada_3_lejos.png",
           "windowColor": "#8d9bb0",
           "windowLitColor": "#ffe0a3",
           "galleryColor": "#b3c8d8",
           "buildings": 6,
-          "floors": [5, 10],
+          "floors": [
+            5,
+            10
+          ],
           "windowChance": 0.7,
           "galleryChance": 0.25,
           "nightGlow": 0.3
         }
       ],
+      "rain": {
+        "count": 900,
+        "stormCount": 1700,
+        "fallSpeed": 27,
+        "wind": -4,
+        "color": "#cfe3f2",
+        "alpha": 0.5,
+        "length": 0.55,
+        "width": 0.035
+      },
       "sky": {
         "redrawSeconds": 6,
         "keyframes": [
-          { "hour": 0, "top": "#101623", "horizon": "#232c40", "ambient": 0.4, "sun": 0 },
-          { "hour": 5, "top": "#17203a", "horizon": "#3a3f5c", "ambient": 0.42, "sun": 0 },
-          { "hour": 7, "top": "#7e94b8", "horizon": "#f0b47c", "ambient": 0.62, "sun": 0.35 },
-          { "hour": 10, "top": "#9cc4e4", "horizon": "#e8e0c9", "ambient": 0.95, "sun": 0.9 },
-          { "hour": 14, "top": "#a6cdec", "horizon": "#eee4cf", "ambient": 1, "sun": 1 },
-          { "hour": 18, "top": "#93a8cc", "horizon": "#f2bd7e", "ambient": 0.8, "sun": 0.55 },
-          { "hour": 20, "top": "#5b5a86", "horizon": "#e2855f", "ambient": 0.58, "sun": 0.2 },
-          { "hour": 21.5, "top": "#232c40", "horizon": "#4a3f58", "ambient": 0.45, "sun": 0 },
-          { "hour": 24, "top": "#101623", "horizon": "#232c40", "ambient": 0.4, "sun": 0 }
+          {
+            "hour": 0,
+            "top": "#101623",
+            "horizon": "#232c40",
+            "ambient": 0.4,
+            "sun": 0
+          },
+          {
+            "hour": 5,
+            "top": "#17203a",
+            "horizon": "#3a3f5c",
+            "ambient": 0.42,
+            "sun": 0
+          },
+          {
+            "hour": 7,
+            "top": "#7e94b8",
+            "horizon": "#f0b47c",
+            "ambient": 0.62,
+            "sun": 0.35
+          },
+          {
+            "hour": 10,
+            "top": "#9cc4e4",
+            "horizon": "#e8e0c9",
+            "ambient": 0.95,
+            "sun": 0.9
+          },
+          {
+            "hour": 14,
+            "top": "#a6cdec",
+            "horizon": "#eee4cf",
+            "ambient": 1,
+            "sun": 1
+          },
+          {
+            "hour": 18,
+            "top": "#93a8cc",
+            "horizon": "#f2bd7e",
+            "ambient": 0.8,
+            "sun": 0.55
+          },
+          {
+            "hour": 20,
+            "top": "#5b5a86",
+            "horizon": "#e2855f",
+            "ambient": 0.58,
+            "sun": 0.2
+          },
+          {
+            "hour": 21.5,
+            "top": "#232c40",
+            "horizon": "#4a3f58",
+            "ambient": 0.45,
+            "sun": 0
+          },
+          {
+            "hour": 24,
+            "top": "#101623",
+            "horizon": "#232c40",
+            "ambient": 0.4,
+            "sun": 0
+          }
         ],
-        "weatherDim": { "sunny": 1, "cloudy": 0.95, "rain": 0.8, "storm": 0.6 },
+        "weatherDim": {
+          "sunny": 1,
+          "cloudy": 0.95,
+          "rain": 0.8,
+          "storm": 0.6
+        },
         "sunColorDay": "#ffd166",
         "sunColorLow": "#f08a4b",
         "sunSize": 3,
@@ -464,7 +584,15 @@
       "peekSeconds": 0.5,
       "peekDistance": 1.05,
       "junk": 6,
-      "lampColor": "#ffedbe"
+      "lampColor": "#ffedbe",
+      "window": {
+        "w": 1.15,
+        "h": 1.0,
+        "sill": 0.85,
+        "frame": "#6f4926",
+        "glass": "#bcd8e8",
+        "glassAlpha": 0.16
+      }
     },
     "roof": {
       "pitchH": 1.2,

@@ -47,6 +47,8 @@ interface InteriorView {
   floors: { roomKey: string; defId: string; mesh: Mesh; mat: StandardMaterial }[];
   /** Tapas de los huecos de puerta que llevan a una estancia cerrada ("en obras"). */
   covers: { mesh: Mesh; rooms: [string, string] }[];
+  /** Lamparita de techo por estancia (v1.21): se enciende de noche si hay gente despierta. */
+  lamps: { roomKey: string; mesh: Mesh; mat: StandardMaterial }[];
 }
 
 /**
@@ -241,7 +243,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       // en su propio bloque trasero (más abajo, se activan al entrar).
       const geoRooms = (layout?.rooms ?? []).filter((r) => r.rect !== undefined && r.rect!.z + r.rect!.d <= v.depth + 0.01);
       if (geoRooms.length > 0 && layout) {
-        const interior: InteriorView = { floors: [], covers: [] };
+        const interior: InteriorView = { floors: [], covers: [], lamps: [] };
         const x0 = b.cell.col * v.cellW;
         const wallH = v.cellH - 2 * v.slab - 2 * v.wall;
         const partMat = mat(`${b.id}_tabique_mat`);
@@ -254,6 +256,13 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           fmat.alpha = 0.32;
           const fm = attach(b.id, box(`${b.id}_${lr.key}_suelo`, r.w, 0.02, r.d, x0 + r.x + r.w / 2, bottom + v.slab + v.wall + 0.02, frontZ + r.z + r.d / 2, fmat));
           interior.floors.push({ roomKey: lr.key, defId: lr.defId, mesh: fm, mat: fmat });
+          // Lamparita de techo (v1.21): apagada de día; de noche ilumina la estancia si hay
+          // alguien dentro despierto (sin propietario despierto, la estancia vive a oscuras).
+          const lmat = mat(`${b.id}_${lr.key}_lampara_mat`);
+          lmat.emissiveColor = Color3.FromHexString(v.privacy.handleColor); // cálido del catálogo
+          const lm = attach(b.id, box(`${b.id}_${lr.key}_lampara`, Math.min(0.9, r.w * 0.4), 0.05, 0.22, x0 + r.x + r.w / 2, bottom + v.cellH - v.slab - v.wall - 0.05, frontZ + r.z + r.d / 2, lmat));
+          lm.setEnabled(false);
+          interior.lamps.push({ roomKey: lr.key, mesh: lm, mat: lmat });
         }
         // Tabiques: para cada par de estancias que comparten borde, pared entre ambas.
         // Los doorways del catálogo recortan el hueco (y añaden tapa visible si alguna de las
@@ -568,6 +577,12 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
   /** Carteles guía EXTERIORES (v1.19): uno por bloque de trasteros; se rellenan por frame
    *  con los trasteros que tienes a cada lado según la profundidad del pasillo. */
   const guideSigns = new Map<string, { tex: import('@babylonjs/core').DynamicTexture; x0: number; plan: ReturnType<typeof storageUnitPlan>; ownTag: string; last: string }>();
+  /** FACHADA de cada bloque de trasteros (v1.21): se DESVANECE mientras el jugador camina su
+   *  pasillo central — la regla de cámara frontal ve entonces TODO el pasillo hasta el fondo
+   *  (corte de casa de muñecas, el mismo lenguaje que las viviendas abiertas). */
+  const storageFacades = new Map<string, Mesh[]>();
+  /** Alpha actual del fundido de cada fachada (idempotente: solo escribe en transición). */
+  const facadeAlphas = new Map<string, number>();
   if (colBlocks.length > 0) {
     const sg = storageGeomOf(v);
     const D = sg.depth;
@@ -650,9 +665,12 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           attach(blk.id, box(`${blk.id}_${side}_${u.floor}_puerta`, sg.wallT * 0.6, sg.doorH, g1 - g0, wallX, baseY + sg.doorH / 2, zC, ownU ? matOwnDoorC : matDoorC));
           // Tapa superior: la celda se lee cerrada también desde arriba.
           attach(blk.id, box(`${blk.id}_${side}_${u.floor}_tapa`, bandW, tr.plankT, unitD, (bandA + bandB) / 2, baseY + sg.unitH - tr.plankT / 2, zC, matCapC));
-          // Cartel numerado sobre la puerta, mirando al pasillo.
+          // Cartel numerado sobre la puerta, mirando al pasillo. v1.21 FIX: la rotación
+          // estaba al revés y el pasillo veía la ESPALDA del cartel (números espejados).
+          // La cara frontal de un plano sin rotar mira a −Z: para mirar a +X (pasillo desde
+          // una celda IZQUIERDA) la rotación es −π/2, y +π/2 para mirar a −X (celdas derechas).
           const plate = attach(blk.id, colPlate(`${blk.id}_${side}_${u.floor}_placa`, label, ownU));
-          plate.rotation.y = side === 'left' ? Math.PI / 2 : -Math.PI / 2;
+          plate.rotation.y = side === 'left' ? -Math.PI / 2 : Math.PI / 2;
           plate.position.set(side === 'left' ? corA + 0.03 : corB - 0.03, baseY + sg.doorH + tr.plaqueH, zC);
         }
       }
@@ -665,6 +683,12 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       if (corA - x0 > 0.05) attach(blk.id, box(`${blk.id}_fachada_i`, corA - x0, facH, facT, (x0 + corA) / 2, baseY + facH / 2, frontZ + facT / 2, matFacadeC));
       if (x0 + W - corB > 0.05) attach(blk.id, box(`${blk.id}_fachada_d`, x0 + W - corB, facH, facT, (corB + x0 + W) / 2, baseY + facH / 2, frontZ + facT / 2, matFacadeC));
       if (facH - gapH > 0.05) attach(blk.id, box(`${blk.id}_fachada_dintel`, corB - corA, facH - gapH, facT, (corA + corB) / 2, baseY + gapH + (facH - gapH) / 2, frontZ + facT / 2, matFacadeC));
+      const facadeParts = [
+        scene.getMeshByName(`${blk.id}_fachada_i`),
+        scene.getMeshByName(`${blk.id}_fachada_d`),
+        scene.getMeshByName(`${blk.id}_fachada_dintel`),
+      ].filter((m): m is Mesh => !!m);
+      storageFacades.set(blk.id, facadeParts);
       // ── Cartel guía EXTERIOR: sobre el hueco de acceso, mirando a la calle. Por frame
       // muestra los trasteros que tienes a cada lado según la profundidad del pasillo.
       const gd = tr.guide;
@@ -677,6 +701,8 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       gm.specularColor = new Color3(0, 0, 0);
       guidePlate.material = gm;
       guidePlate.position.set(x0 + W / 2, baseY + sg.unitH + gd.aboveUnit + gd.h / 2, frontZ - 0.1);
+      // El cartel guía NO se desvanece con la fachada: su información (qué trasteros te
+      // flanquean según la profundidad) es para cuando el jugador está dentro.
       guideSigns.set(blk.id, { tex: guideTex, x0, plan, ownTag: homeTag, last: '' });
     }
   }
@@ -812,7 +838,47 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     const matFloor = mat(`${b.id}_rear_suelo_mat`);
     matFloor.diffuseColor = Color3.FromHexString(rdef?.view?.color ?? '#b08968');
     box(`${b.id}_rear_suelo`, rw, v.slab * 2, rd, rx + rw / 2, baseR - v.slab, rz0 + rd / 2, matFloor).parent = node;
-    box(`${b.id}_rear_fondo`, rw, hR, v.wall, rx + rw / 2, yR, rz0 + rd - v.wall / 2, matRearWall).parent = node;
+    // Pared del FONDO (v1.21): con VENTANA al paisaje urbano del fondo (fachadas parallax y
+    // cielo) — el cuarto trasero ya no es un cubo ciego. Muro partido en 4 segmentos + marco
+    // con cruceta + cristal translúcido. Sin sitio (estancias estrechas) sigue siendo muro ciego.
+    const wv = v.rearBlock.window;
+    const wallTop = bottom + (v.cellH + hR) / 2;
+    const winCx = rx + rw / 2;
+    const winZ = rz0 + rd - v.wall / 2;
+    const canWindow = rw >= wv.w + 0.5 && baseR + wv.sill + wv.h + 0.12 <= wallTop;
+    const matFrame = mat(`${b.id}_rear_ventana_marco_mat`);
+    matFrame.diffuseColor = Color3.FromHexString(wv.frame);
+    if (canWindow) {
+      const wx0 = winCx - wv.w / 2;
+      const wx1 = winCx + wv.w / 2;
+      const wy0 = baseR + wv.sill;
+      const wy1 = wy0 + wv.h;
+      // Segmentos del muro alrededor del hueco.
+      if (wx0 - rx > 0.02) box(`${b.id}_rear_fondo_i`, wx0 - rx, hR, v.wall, (rx + wx0) / 2, yR, winZ, matRearWall).parent = node;
+      if (rx + rw - wx1 > 0.02) box(`${b.id}_rear_fondo_d`, rx + rw - wx1, hR, v.wall, (wx1 + rx + rw) / 2, yR, winZ, matRearWall).parent = node;
+      if (wy0 - baseR > 0.02) box(`${b.id}_rear_fondo_vago`, wv.w, wy0 - baseR, v.wall, winCx, baseR + (wy0 - baseR) / 2, winZ, matRearWall).parent = node;
+      if (wallTop - wy1 > 0.02) box(`${b.id}_rear_fondo_dintel_v`, wv.w, wallTop - wy1, v.wall, winCx, wy1 + (wallTop - wy1) / 2, winZ, matRearWall).parent = node;
+      // Marco (4 listones) + cruceta: lectura de ventana incluso desde lejos.
+      const ft = 0.06;
+      box(`${b.id}_rear_vmarco_sup`, wv.w + ft * 2, ft, 0.1, winCx, wy1 + ft / 2, winZ, matFrame).parent = node;
+      box(`${b.id}_rear_vmarco_inf`, wv.w + ft * 2, ft, 0.1, winCx, wy0 - ft / 2, winZ, matFrame).parent = node;
+      box(`${b.id}_rear_vmarco_izq`, ft, wv.h, 0.1, wx0 - ft / 2, wy0 + wv.h / 2, winZ, matFrame).parent = node;
+      box(`${b.id}_rear_vmarco_der`, ft, wv.h, 0.1, wx1 + ft / 2, wy0 + wv.h / 2, winZ, matFrame).parent = node;
+      box(`${b.id}_rear_vmarco_mullion`, 0.045, wv.h, 0.08, winCx, wy0 + wv.h / 2, winZ, matFrame).parent = node;
+      box(`${b.id}_rear_vmarco_travesano`, wv.w, 0.045, 0.08, winCx, wy0 + wv.h / 2, winZ, matFrame).parent = node;
+      // Cristal translúcido: el paisaje (fachadas parallax + cielo) se ve a través.
+      const glassMat = mat(`${b.id}_rear_vidrio_mat`);
+      glassMat.diffuseColor = Color3.FromHexString(wv.glass);
+      glassMat.alpha = wv.glassAlpha;
+      glassMat.specularColor = new Color3(0.1, 0.1, 0.1);
+      const glass = MeshBuilder.CreatePlane(`${b.id}_rear_vidrio`, { width: wv.w, height: wv.h, sideOrientation: B().Mesh.DOUBLESIDE }, scene);
+      glass.material = glassMat;
+      glass.isPickable = false;
+      glass.position.set(winCx, wy0 + wv.h / 2, winZ);
+      glass.parent = node;
+    } else {
+      box(`${b.id}_rear_fondo`, rw, hR, v.wall, rx + rw / 2, yR, winZ, matRearWall).parent = node;
+    }
     box(`${b.id}_rear_izq`, v.wall, hR, rd, rx + v.wall / 2, yR, rz0 + rd / 2, matRearWall).parent = node;
     box(`${b.id}_rear_der`, v.wall, hR, rd, rx + rw - v.wall / 2, yR, rz0 + rd / 2, matRearWall).parent = node;
     box(`${b.id}_rear_techo`, rw, v.wall, rd, rx + rw / 2, bottom + v.cellH - v.slab - v.wall / 2, rz0 + rd / 2, matRearWall).parent = node;
@@ -856,6 +922,9 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     registerRear(b.id, node, outline, doorLeaf, frontParts);
   }
   // ── Interior presentable del TRASTERO PROPIO (uno por bloque de columna; solo tu puerta abre).
+  // v1.21: los RECTS de sus estanterías y trastos se registran aquí (cellObstacles) — una sola
+  // verdad geométrica: player-logic los consume para esquivarlos al moverse dentro.
+  const cellObstacleRects: { x0: number; z0: number; w: number; d: number }[] = [];
   if (colBlocks.length > 0) {
     const sg2 = storageGeomOf(v);
     const homeTag2 = homeId.slice(homeId.lastIndexOf('_') + 1);
@@ -893,6 +962,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       matPlank.diffuseColor = Color3.FromHexString(tr.wood);
       for (let bay = 0; bay < 2; bay++) {
         const bx = cxr + (bay === 0 ? -1 : 1) * (bayW / 2 + 0.25);
+        cellObstacleRects.push({ x0: bx - bayW / 2, z0: frontZ + D - 0.3 - tr.shelfD / 2, w: bayW, d: tr.shelfD });
         for (const side of [-1, 1] as const) {
           box(`${blk.id}_cell_poste_${bay}_${side}`, tr.postW, tr.cellShelfTiers * tierH, tr.shelfD, bx + side * (bayW / 2), baseR + (tr.cellShelfTiers * tierH) / 2, frontZ + D - 0.3, matPost).parent = node;
         }
@@ -910,7 +980,10 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         const jw = 0.35 + hash01(homeId, 2600 + j) * 0.6;
         const jh = 0.22 + hash01(homeId, 2700 + j) * 0.4;
         const jm = matRearJunk[Math.floor(hash01(homeId, 2800 + j) * matRearJunk.length) % matRearJunk.length]!;
-        box(`${blk.id}_cell_suelo_trasto_${j}`, jw, jh, 0.5, x0 + 0.5 + hash01(homeId, 2900 + j) * Math.max(0.1, W - 1.1), baseR + jh / 2, frontZ + 0.5 + hash01(homeId, 3000 + j) * Math.max(0.1, D - 1.2), jm).parent = node;
+        const jx = x0 + 0.5 + hash01(homeId, 2900 + j) * Math.max(0.1, W - 1.1);
+        const jz = frontZ + 0.5 + hash01(homeId, 3000 + j) * Math.max(0.1, D - 1.2);
+        cellObstacleRects.push({ x0: jx - jw / 2, z0: jz - 0.25, w: jw, d: 0.5 });
+        box(`${blk.id}_cell_suelo_trasto_${j}`, jw, jh, 0.5, jx, baseR + jh / 2, jz, jm).parent = node;
       }
       const outline = outlineFrame(`${blk.id}_cell`, cxr, W, H, baseR, frontZ - 0.04);
       for (const o of outline) o.parent = node;
@@ -966,6 +1039,11 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
   //  llega a casa o el jugador entra, sin esperar al siguiente tick.
   let playerInside: string | null = null;
   const privacyOn = v.privacy.enabled;
+  // Colores cacheados de las luces nocturnas de interiores (v1.21): cero allocations por frame.
+  const nightWarm = Color3.FromHexString(v.privacy.handleColor);
+  const nightLampLit = nightWarm.scale(1.2);
+  const nightFloorGlow = nightWarm.scale(0.5);
+  const nightDark = new Color3(0, 0, 0);
   const computeOccupancy = (): Set<string> => {
     const occ = new Set<string>();
     if (playerInside) occ.add(playerInside);
@@ -1107,6 +1185,11 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       const r = rears.get(blockId);
       if (r) r.phase = phase;
     },
+    /** Rects de obstáculos del interior del trastero propio (v1.21): estanterías y trastos
+     *  registrados al levantar la geometría — player-logic los esquiva al moverse dentro. */
+    cellObstacles(): { x0: number; z0: number; w: number; d: number }[] {
+      return cellObstacleRects;
+    },
     hasRear(blockId: string): boolean {
       return rears.has(blockId);
     },
@@ -1119,18 +1202,42 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
      * su interior al instante, sin esperar al siguiente tick.
      * `pos` (v1.19) alimenta los carteles guía de trasteros y el apilamiento 3D.
      */
-    update(dt: number, focus?: { x: number; floor: number }, inside?: string | null, pos?: { x: number; z: number; insideBlock: string | null }) {
+    update(dt: number, focus?: { x: number; floor: number }, inside?: string | null, pos?: { x: number; z: number; insideBlock: string | null }, env?: { daylight: number }) {
       if (focus) lastFocus = focus;
       if (inside !== undefined) playerInside = inside;
       // PRIVACIDAD (v1.17) cada frame: la fachada de una vivienda sin nadie dentro se cierra
       // con su puerta al pasillo y se abre en cuanto alguien entra (propietario, visita…
       // o un ladrón). Vive en update() y no en paint() para reaccionar incluso con el
       // mundo congelado (modal abierto) y sin esperar al siguiente tick.
+      const occSet = computeOccupancy();
       if (privacyOn) {
-        const occ = computeOccupancy();
         for (const b of Object.values(world.blocks)) {
           if (b.kind !== 'dwelling') continue;
-          applyPanels(views.get(b.id)!, b, occ);
+          applyPanels(views.get(b.id)!, b, occSet);
+        }
+      }
+      // LUCES INTERIORES NOCTURNAS (v1.21): al caer el sol, las estancias que se ven abiertas
+      // (alguien dentro) se ILUMINAN salvo que su inquilino duerma — entonces, a oscuras.
+      // Colores cacheados: cero allocations por frame. De día, lámparas apagadas.
+      {
+        const day = env?.daylight ?? 1;
+        const litWorld = day < 0.4;
+        for (const [blockId, interior] of interiors) {
+          let lit = false;
+          if (litWorld && occSet.has(blockId)) {
+            lit = true;
+            for (const r of Object.values(world.residents)) {
+              if (r.present && r.location === blockId && r.activity === 'sleep') {
+                lit = false;
+                break;
+              }
+            }
+          }
+          for (const lamp of interior.lamps) {
+            lamp.mesh.setEnabled(lit);
+            if (lit) lamp.mat.emissiveColor = nightLampLit;
+          }
+          for (const f of interior.floors) f.mat.emissiveColor = lit ? nightFloorGlow : nightDark;
         }
       }
       // CARTELES GUÍA (v1.19): visibles solo con el jugador dentro del bloque de trasteros;
@@ -1178,6 +1285,22 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           ctx.textAlign = 'right';
           ctx.fillText('▶', 248, 32);
           sign.tex.update(true);
+        }
+      }
+      // FACHADA DE TRASTERO (v1.21): mientras el jugador camina el pasillo central de un
+      // bloque, su fachada se desvanece (corte de muñecas) y la cámara frontal ve TODO el
+      // pasillo hasta el fondo. Al salir, la fachada vuelve. Fundido del catálogo.
+      for (const [blkId, parts] of storageFacades) {
+        const target = pos && pos.insideBlock === blkId ? 0 : 1;
+        let alpha = facadeAlphas.get(blkId) ?? 1;
+        if (alpha !== target) {
+          alpha += Math.sign(target - alpha) * Math.min(Math.abs(target - alpha), dt / Math.max(0.05, v.rearBlock.fadeSeconds));
+          if (Math.abs(target - alpha) < 0.01) alpha = target;
+          facadeAlphas.set(blkId, alpha);
+          for (const m of parts) {
+            m.visibility = alpha;
+            m.setEnabled(alpha > 0.02);
+          }
         }
       }
       // APILAMIENTO 3D (v1.19): avanzar los fundidos de los bloques traseros.

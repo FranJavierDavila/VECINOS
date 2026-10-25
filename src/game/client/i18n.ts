@@ -27,7 +27,7 @@ const DICT: Record<string, { es: string; en: string }> = {
     es: 'Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.',
     en: 'Move-ins, noise, smells, wifi, pests, smoke and levies: the neighborhood simulator.',
   },
-  'header.version': { es: 'v1.20 · la calle y el cielo', en: 'v1.20 · the street and the sky' },
+  'header.version': { es: 'v1.21 · fachadas, lluvia y trasteros con cámara', en: 'v1.21 · facades, rain and storage rooms on camera' },
   'hud.campaign': { es: '{label} · Día {d}/{n}', en: '{label} · Day {d}/{n}' },
   'hud.campaignAria': { es: 'Días de mandato restantes', en: 'Days of your term remaining' },
   'hud.campaignOver': { es: '{label} · Día {d}/{n} · ¡juzgado pronto!', en: '{label} · Day {d}/{n} · judged soon!' },

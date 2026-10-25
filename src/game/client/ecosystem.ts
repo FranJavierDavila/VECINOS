@@ -470,8 +470,12 @@ export function createEcosystem(
       if (blackout) {
         intensity = floorOccupied(lamp.corridor.cell.floor, pos) ? eco.lights.blackoutOccupiedIntensity : 0;
       } else if (night) {
+        // v1.21: de noche el pasillo queda a oscuras SALVO que la iluminación funcione
+        // (param lighting del sim sobre el umbral) Y algún vecino haya salido al pasillo.
         const lighting = typeof lamp.corridor.params.lighting === 'number' ? lamp.corridor.params.lighting : 0;
-        intensity = lighting > eco.lights.paramThreshold ? eco.lights.nightIntensity : 0;
+        const works = lighting > eco.lights.paramThreshold;
+        const presence = !eco.lights.nightRequiresPresence || floorOccupied(lamp.corridor.cell.floor, pos);
+        intensity = works && presence ? eco.lights.nightIntensity : 0;
       }
       if (intensity !== lamp.lastIntensity) {
         lamp.mat.emissiveColor.copyFrom(lamp.color).scaleInPlace(intensity);
