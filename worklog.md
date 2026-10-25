@@ -1171,3 +1171,20 @@ Stage Summary:
 - Los vecinos TIENEN VOZ: al pasar a su lado se oye queja, risa, silbido, cuchicheo o confesión según su ánimo, con volumen por distancia y antiedad de sobrecarga. 100% data-driven (sounds.json → voices + street.json).
 - Pase de rendimiento: la calle pasa de 1021 a 91 mallas fusionadas por material con materiales congelados y sin picking por movimiento; WebGPU ya es el backend preferente.
 - v1.22 sellada en insignia + SW y PUSHADA a GitHub junto con v1.20/v1.21. Siguientes naturales: bocadillos de grito colectivo en las marchas, más variantes de mobiliario urbano y perfilado en GPU real.
+
+---
+Task ID: 1 (sesión verificación v1.22)
+Agent: Z.ai Code (sesión de re-verificación post-reanudación)
+Task: Re-verificar tras reanudar el contexto que v1.22 "la calle vive" está completa, funciona en navegador y está pushada a GitHub.
+
+Work Log:
+- Diagnóstico inicial: el trabajo v1.22 ya estaba COMPLETO y COMMITEADO de la sesión anterior (HEAD 85625d2), pero había que confirmar estado real.
+- Verificado main == origin/main (85625d2, v1.22 pushada): contenido (street.json/sounds.json/blocks.json/rules.json), módulos presentation (streetlife/traffic/pedestrians/voices/backdrop/exterior/audio) y QA qa-v122.ts.
+- Dev server vivo (GET / → 200, sin errores en dev.log).
+- E2E navegador (agent-browser, 1280x900): arranque limpio con insignia "v1.22 · la calle vive"; cinemática de la inmobiliaria avanzada (Siguiente ×6 → Colgar el teléfono) sin bloqueos; vista Edificio renderiza edificio completo con fondo urbano DESATURADO EN NIEBLA visible (fachadas se intuyen, no distraen); panning de cámara OK; consola limpia (solo avisos Radix preexistentes). Capturas docs/shots/verify-final-01..05.png.
+- QA COMPLETO qa-v122.ts: 34/34 checks ✓ (niebla creciente z30:0.25→z60:0.6, aceras laterales+trasera, 2 jardines+2 campos, carretera -102..132 sin cortes + cebra + bifurcación, flota coche/furgoneta/bus/patrulla con ruleta 1.00 y maxAlive 4, 4 rutas de viandantes con entra 28%/sale 35%, manifestación 12-17 personas × 10 temas con carteles y megáfono, reacciones bad/ok/good, 9 bancos de voces con antiedad radio 3.4 m/6/min/cd 24s, 0 bloques exteriores en el sim, sim determinista tras 240 ticks).
+- Sonda FPS en headless: ~4 FPS — atribuido a SwiftShader (ANGLE Vulkan SwiftShader, render por software sin GPU), coherente con las notas de método de v1.20/v1.22 (no es regresión; la mejora real 1021→91 mallas se verá con GPU/WebGPU real, ya predeterminado en engine.ts).
+
+Stage Summary:
+- v1.22 CONFIRMADA completa, funcional y verificada: niebla de fondo, aceras perimetrales, jardines/campo, carretera sin cortes con cebra y bifurcación, tráfico, viandantes que entran al portal, manifestaciones con humor comentadas por vecinos, voces de proximidad data-driven y pase FPS (fusión de mallas).
+- Git: main == origin/main en 85625d2; este commit añade capturas de re-verificación y este registro.
