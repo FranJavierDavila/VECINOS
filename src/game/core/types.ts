@@ -415,6 +415,10 @@ export interface EmotesCatalog {
     popMs: number;
     /** Cadencia de reevaluación del estado (ms): amortigua parpadeos del sim. */
     decisionMs: number;
+    /** Vista EDIFICIO (v1.17, opcional): tope de glifos visibles en el plano general —
+     *  el edificio entero no se convierte en una sopa de emoticonos. El texto (`say`) se
+     *  calla siempre en esa vista. */
+    buildingMaxGlyphs?: number;
   };
   /**
    * Bocadillos con TEXTO (v1.15, opcional): las actividades con líneas `say` del arquetipo
@@ -718,6 +722,42 @@ export interface EcosystemContent {
   events: EcosystemEvent[];
 }
 
+// ───────────────────────── Logros tipo Steam (v1.17, opcional) ─────────────────────────
+
+/**
+ * Catálogo de logros (public/content/achievements.json). Perfil de jugador al estilo Steam:
+ * los desbloqueos se guardan en el navegador (localStorage) y sobreviven a las partidas.
+ * El evaluador es una función PURA (src/game/support/achievements.ts) sobre un snapshot del
+ * mundo; el catálogo solo declara nombres, descripciones y la condición de cada logro.
+ */
+
+/** Condición de desbloqueo: unión discriminada por `kind` (semántica >= salvo elevator_ok). */
+export type AchievementCondition =
+  | { kind: 'mission_done'; mission: string }
+  | { kind: 'missions_done'; count: number }
+  | { kind: 'wallet'; amount: number }
+  | { kind: 'funds'; amount: number }
+  | { kind: 'reputation'; amount: number }
+  | { kind: 'day'; count: number }
+  | { kind: 'relation'; affinity: number }
+  | { kind: 'elevator_ok' };
+
+export interface AchievementDef {
+  id: string;
+  /** Emoji que lucen tarjeta y popup. */
+  icon: string;
+  name: { es: string; en: string };
+  desc: { es: string; en: string };
+  /** Oculto: bloqueado se pinta como "???" con descripción genérica. */
+  hidden?: boolean;
+  condition: AchievementCondition;
+}
+
+export interface AchievementsCatalog {
+  version: 1;
+  achievements: AchievementDef[];
+}
+
 export interface Content {
   rules: Rules;
   blocks: Record<string, BlockDef>;
@@ -739,6 +779,8 @@ export interface Content {
   assets?: AssetsCatalog;
   /** Ecosistema del edificio (v1.14, opcional): eventos vivos, luces y deterioro visual. */
   ecosystem?: EcosystemContent;
+  /** Logros tipo Steam (v1.17, opcional): perfil persistente; sin catálogo no hay logros. */
+  achievements?: AchievementsCatalog;
 }
 
 // ───────────────────────── Reglas y ajustes (catálogo rules.json) ─────────────────────────
@@ -887,6 +929,13 @@ export interface Rules {
       ownText: string;
       plaqueW: number;
       plaqueH: number;
+      /** Tabiques divisorios entre trasteros (v1.17): panel lateral algo más alto que la
+       *  unidad, para que cada ranura se lea como trastero propio. */
+      partitionExtra: number;
+      partitionColor: string;
+      /** Cabecera de cartel sobre la fachada de cada estantería (v1.17): el cartel numerado
+       *  se monta en la propia estantería, no flotando. 0 = sin cabecera. */
+      headerH: number;
     };
     /** Tejadillo a dos aguas que cierra el edificio (v1.16) sobre la bajocubierta. */
     roof: { pitchH: number; overhang: number; color: string; ridge: string; fascia: string };
@@ -901,6 +950,9 @@ export interface Rules {
       potR: number;
       potH: number;
     };
+    /** Privacidad de viviendas (v1.17): el interior solo se ve con alguien dentro; vacía,
+     *  la fachada se cierra con su puerta al pasillo (propietario, visita… o un ladrón). */
+    privacy: { enabled: boolean; doorColor: string; handleColor: string; doorW: number; doorH: number };
     roomZ: number;
     /** Calado (profundidad en Z) de las viviendas: doblado en v0.6-b para mobiliario interior. */
     depth: number;

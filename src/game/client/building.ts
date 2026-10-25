@@ -18,7 +18,10 @@ interface BlockView {
   tintStrength: number;
   /** Raíz del modelo glTF si este bloque ya lo lleva (null = greybox). */
   model: TransformNode | null;
-  front: Mesh | null; // panel que cierra la vivienda mientras tiene candado
+  front: Mesh | null; // fachada que cierra la vivienda (candado o privacidad)
+  /** Puerta y picaporte de la fachada de privacidad (v1.17): la vivienda vacía se ve cerrada. */
+  door: Mesh | null;
+  handle: Mesh | null;
   lock: Mesh | null;
   lockBase: { x: number; y: number };
   // ── LOD por distancia (rules.view.lod) ──
@@ -48,7 +51,9 @@ interface InteriorView {
  * (Content.assets.blocks) declara un modelo glTF para el tipo de bloque, el modelo en su lugar
  * (con la caja oculta). TODA la geometría y los colores salen de content.rules.view +
  * block.view + assets: sustituir el greybox por arte final no toca este código.
- * Las viviendas se dibujan en corte, sin pared frontal; bloqueadas, con panel y candado.
+ * Las viviendas se dibujan en corte (interior visible) SOLO mientras hay alguien dentro;
+ * vacías, la fachada se cierra con su puerta al pasillo (rules.view.privacy) — y las
+ * bloqueadas, con panel y candado como siempre.
  */
 export function createBuilding(scene: Scene, world: World, content: Content) {
   const { Color3, Color4, MeshBuilder, StandardMaterial } = B();
@@ -95,6 +100,8 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       tintStrength: 1,
       model: null,
       front: null,
+      door: null,
+      handle: null,
       lock: null,
       lockBase: { x: cx, y: bottom + v.cellH / 2 - 0.2 },
       centerX: cx,
@@ -127,6 +134,35 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       view.front = box(`${b.id}_puerta`, w, h, v.wall, cx, y, frontZ, m);
       view.lock = box(`${b.id}_candado`, 0.3, 0.38, 0.12, cx, view.lockBase.y, frontZ - 0.1, mat(`${b.id}_candado_mat`));
       (view.lock.material as StandardMaterial).diffuseColor = Color3.FromHexString(v.lockColor);
+
+      // ── Privacidad (v1.17): puerta y picaporte sobre la fachada de la vivienda vacía.
+      // Se activan/desactivan cada frame según haya alguien dentro (propietario, visita…
+      // o un ladrón); medidas y colores del catálogo (rules.view.privacy).
+      const pv = v.privacy;
+      view.door = box(
+        `${b.id}_puerta_priv`,
+        pv.doorW,
+        pv.doorH,
+        0.06,
+        cx,
+        bottom + v.slab + v.wall + pv.doorH / 2,
+        frontZ - v.wall / 2 - 0.035,
+        mat(`${b.id}_puerta_priv_mat`),
+      );
+      (view.door.material as StandardMaterial).diffuseColor = Color3.FromHexString(pv.doorColor);
+      view.handle = box(
+        `${b.id}_picaporte`,
+        0.07,
+        0.07,
+        0.05,
+        cx + pv.doorW / 2 - 0.14,
+        bottom + v.slab + v.wall + pv.doorH * 0.55,
+        frontZ - v.wall / 2 - 0.07,
+        mat(`${b.id}_picaporte_mat`),
+      );
+      (view.handle.material as StandardMaterial).diffuseColor = Color3.FromHexString(pv.handleColor);
+      view.door.setEnabled(false);
+      view.handle.setEnabled(false);
 
       // ── Cartel numerado (v1.6): rótulo sobre la puerta con el identificador de la vivienda
       // (blk_p3_c → "3C", blockLabel). Textura dinámica con colores/fuente del catálogo
@@ -344,6 +380,8 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     matPost.diffuseColor = Color3.FromHexString(tr.woodDark);
     const matPlank = mat('trasteros_tabla_mat');
     matPlank.diffuseColor = Color3.FromHexString(tr.wood);
+    const matPart = mat('trasteros_tabique_mat');
+    matPart.diffuseColor = Color3.FromHexString(tr.partitionColor);
     const matJunk = tr.junk.map((hex, i) => {
       const jm = mat(`trasteros_trasto_${i}_mat`);
       jm.diffuseColor = Color3.FromHexString(hex);
@@ -395,6 +433,10 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         for (const side of ['a', 'b'] as const) {
           const px = bx + (side === 'a' ? -1 : 1) * (tr.bayW / 2);
           box(`${lvl.id}_est_${s}_${row.key}_poste_${side}`, tr.postW, unitH, tr.shelfD, px, baseY + unitH / 2, row.zC, matPost);
+          // Tabique divisorio (v1.17): panel lateral algo más alto que la unidad — cada
+          // ranura se lee como trastero propio, no como baldas sueltas.
+          const pH = unitH + tr.partitionExtra;
+          box(`${lvl.id}_est_${s}_${row.key}_tabique_${side}`, tr.postW * 1.3, pH, tr.shelfD, px, baseY + pH / 2, row.zC, matPart);
         }
         for (let t = 1; t <= row.tiers; t++) {
           box(`${lvl.id}_est_${s}_${row.key}_balda_${t}`, tr.bayW, tr.plankT, tr.shelfD, bx, baseY + t * tr.tierH - tr.plankT / 2, row.zC, matPlank);
@@ -412,12 +454,17 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
             box(`${lvl.id}_est_${s}_${row.key}_trasto_${t}`, jw, jh, tr.shelfD * 0.7, jx, jy, row.zC, jm);
           }
         }
-        // Cartel: fila frontal sobre la fachada abierta; fila de fondo sobre su balda alta.
+        // Cartel: montado EN LA PROPIA ESTANTERÍA (v1.17) — travesaño de cabecera sobre la
+        // fachada de la unidad y placa sobre él, mirando al pasillo (ambas filas).
+        if (tr.headerH > 0) {
+          box(`${lvl.id}_est_${s}_${row.key}_cabecera`, tr.bayW, tr.headerH, tr.shelfD, bx, baseY + unitH + tr.headerH / 2, row.zC, matPost);
+        }
         const plate = shelfPlate(`${lvl.id}_est_${s}_placa`, label, own);
+        const rowFrontZ = row.zC - tr.shelfD / 2;
         plate.position.set(
           bx,
-          baseY + unitH + 0.16,
-          row.front ? frontZ + v.wall - 0.015 : row.zC + tr.shelfD / 2 - 0.015,
+          baseY + unitH + (tr.headerH > 0 ? tr.headerH / 2 : 0.16),
+          rowFrontZ - 0.015,
         );
       }
       // Paquetería y cacharros sueltos por el suelo de la nave (entre estanterías).
@@ -550,12 +597,36 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     }
   }
 
-  /** Visibilidad efectiva de panel y candado: paint() la fija por el acceso y el LOD puede ocultarlos encima. */
-  function applyPanels(view: BlockView, b: BlockInstance) {
-    const closed = b.kind === 'dwelling' && b.access === 'locked';
-    const visible = closed && !view.lodHiddenPanels;
-    view.front?.setEnabled(visible);
-    view.lock?.setEnabled(visible);
+  // ── Privacidad de viviendas (v1.17): conjunto de bloques con alguien dentro (el jugador
+  //  vía playerInside + cualquier residente presente cuyo location sea el bloque). Se
+  //  recalcula por frame en update(): la fachada reacciona al instante cuando un vecino
+  //  llega a casa o el jugador entra, sin esperar al siguiente tick.
+  let playerInside: string | null = null;
+  const privacyOn = v.privacy.enabled;
+  const computeOccupancy = (): Set<string> => {
+    const occ = new Set<string>();
+    if (playerInside) occ.add(playerInside);
+    for (const r of Object.values(world.residents)) {
+      if (r.present && r.location) occ.add(r.location);
+    }
+    return occ;
+  };
+
+  /** Visibilidad efectiva de fachada/puerta/candado: candado solo si access='locked';
+   *  fachada cerrada si está bloqueada O si la privacidad la cierra (nadie dentro).
+   *  paint() la fija por el acceso y el LOD puede ocultarlos encima. */
+  function applyPanels(view: BlockView, b: BlockInstance, occ?: Set<string>) {
+    const locked = b.kind === 'dwelling' && b.access === 'locked';
+    let privacyClosed = false;
+    if (privacyOn && b.kind === 'dwelling') {
+      const set = occ ?? computeOccupancy();
+      privacyClosed = !set.has(b.id);
+    }
+    const wall = (locked || privacyClosed) && !view.lodHiddenPanels;
+    view.front?.setEnabled(wall);
+    view.door?.setEnabled(wall);
+    view.handle?.setEnabled(wall);
+    view.lock?.setEnabled(locked && !view.lodHiddenPanels);
   }
 
   /**
@@ -664,9 +735,24 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
      * dt en segundos; `focus` es el punto de interés (posición del jugador) para el
      * LOD por distancia (rules.view.lod): applyLod() lo aplica SIEMPRE al final del frame
      * (con focus undefined, p. ej. cámara 'edificio', restaura el estado completo).
+     * `inside` es el bloque donde está el jugador ahora (pos.insideBlock): alimenta la
+     * privacidad y re-evalúa las fachadas CADA frame — un vecino que llega a casa abre
+     * su interior al instante, sin esperar al siguiente tick.
      */
-    update(dt: number, focus?: { x: number; floor: number }) {
+    update(dt: number, focus?: { x: number; floor: number }, inside?: string | null) {
       if (focus) lastFocus = focus;
+      if (inside !== undefined) playerInside = inside;
+      // PRIVACIDAD (v1.17) cada frame: la fachada de una vivienda sin nadie dentro se cierra
+      // con su puerta al pasillo y se abre en cuanto alguien entra (propietario, visita…
+      // o un ladrón). Vive en update() y no en paint() para reaccionar incluso con el
+      // mundo congelado (modal abierto) y sin esperar al siguiente tick.
+      if (privacyOn) {
+        const occ = computeOccupancy();
+        for (const b of Object.values(world.blocks)) {
+          if (b.kind !== 'dwelling') continue;
+          applyPanels(views.get(b.id)!, b, occ);
+        }
+      }
       for (const [id, left] of shakes) {
         const view = views.get(id)!;
         const t = left - dt;

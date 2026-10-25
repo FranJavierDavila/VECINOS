@@ -50,6 +50,19 @@ export interface UiMission {
   remaining: string | null;
 }
 
+/** Logro tal y como lo ve la UI (v1.17): textos ya resueltos al idioma del store `lang`. */
+export interface AchievementUi {
+  id: string;
+  icon: string;
+  name: string;
+  desc: string;
+  /** Oculto en el catálogo: bloqueado se pinta como "???" con descripción genérica. */
+  hidden: boolean;
+  unlocked: boolean;
+  /** Recién desbloqueado: el popup estilo Steam lo encola (uno a la vez). */
+  newly?: boolean;
+}
+
 export interface PhoneState {
   mission: string;
   speaker: string;
@@ -206,6 +219,11 @@ interface GameState {
   mpPanelOpen: boolean;
   mpError: string | null;
 
+  // ── Logros tipo Steam (v1.17): perfil persistente; resetUi CONSERVA los desbloqueos ──
+  achievements: AchievementUi[];
+  /** Popup en pantalla (UNO a la vez): la cola de `newly` la gestiona AchievementPopup. */
+  achievementPopup: AchievementUi | null;
+
   markReady: (backend: string) => void;
   setPaused: (v: boolean) => void;
   setSpeed: (s: Speed) => void;
@@ -234,6 +252,10 @@ interface GameState {
   setMpParticipants: (p: MpParticipant[]) => void;
   setMpPanelOpen: (v: boolean) => void;
   setMpError: (v: string | null) => void;
+  setAchievements: (list: AchievementUi[]) => void;
+  setAchievementPopup: (p: AchievementUi | null) => void;
+  /** Marca un logro como ya-anunciado (quita `newly`): el popup lo llama al mostrarlo. */
+  clearAchievementNewly: (id: string) => void;
   resetUi: () => void;
 }
 
@@ -290,6 +312,8 @@ export const useGameStore = create<GameState>((set) => ({
   mpParticipants: [],
   mpPanelOpen: false,
   mpError: null,
+  achievements: [],
+  achievementPopup: null,
 
   markReady: (backend) => set({ ready: true, backend }),
   setPaused: (v) => set({ paused: v }),
@@ -336,6 +360,16 @@ export const useGameStore = create<GameState>((set) => ({
   setMpParticipants: (mpParticipants) => set({ mpParticipants }),
   setMpPanelOpen: (mpPanelOpen) => set({ mpPanelOpen }),
   setMpError: (mpError) => set({ mpError }),
+  setAchievements: (achievements) => set({ achievements }),
+  setAchievementPopup: (achievementPopup) => set({ achievementPopup }),
+  // Sin cambio de verdad → sin set: si siempre devolviera un array nuevo, el efecto que lo
+  // llama re-renderizaría en bucle (Maximum update depth exceeded, cazado en E2E v1.17).
+  clearAchievementNewly: (id) =>
+    set((s) => {
+      const target = s.achievements.find((a) => a.id === id);
+      if (!target || !target.newly) return {};
+      return { achievements: s.achievements.map((a) => (a.id === id ? { ...a, newly: false } : a)) };
+    }),
   /**
    * Limpia la UI de partida (al (re)crear el mundo). NO toca el estado de multijugador:
    * restart() se ejecuta también al ADOPTAR el mundo del servidor, y el cierre explícito
@@ -352,6 +386,7 @@ export const useGameStore = create<GameState>((set) => ({
       finale: null,
       toasts: [],
       log: [],
+      achievementPopup: null,
       saveState: 'idle',
       savedAt: null,
     }),

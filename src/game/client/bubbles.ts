@@ -1,6 +1,7 @@
 import type { AbstractEngine, Scene } from '@babylonjs/core';
 import type { Content, GameEvent, ResidentInstance, World } from '@/game/core/types';
 import { B } from './babylon';
+import { useGameStore } from './store';
 import type { ActorsDirector } from './actors';
 
 /**
@@ -47,6 +48,8 @@ interface BubbleView {
   key: string;
   /** Modo de estilo activo: glifo circular o texto multilínea. */
   mode: 'glyph' | 'text';
+  /** Prioridad del pick actual (ordenación del tope de glifos en vista edificio). */
+  priority: number;
   hidden: boolean;
 }
 
@@ -105,6 +108,10 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
   /** Ciclos de habla activos por actor (solo actividades con líneas say, v1.15). */
   const speech = new Map<string, SpeechState>();
   const speechCfg = cfg.speech;
+  /** Vista EDIFICIO (v1.17): tope de glifos visibles (emotes.bubble.buildingMaxGlyphs);
+   *  null = sin tope (cámaras cercanas) o catálogo sin límite. */
+  const buildingMaxGlyphs = cfg.bubble.buildingMaxGlyphs;
+  let cappedIds: Set<string> | null = null;
   /** Líneas say de la actividad en curso del residente (o null). */
   const sayLinesOf = (r: ResidentInstance): { activityId: string; lines: string[] } | null => {
     if (!speechCfg || !r.activity) return null;
@@ -145,7 +152,7 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
     inner.appendChild(tail);
     el.appendChild(inner);
     layer.appendChild(el);
-    const view: BubbleView = { el, inner, key: '', mode: 'glyph', hidden: true };
+    const view: BubbleView = { el, inner, key: '', mode: 'glyph', priority: 0, hidden: true };
     bubbles.set(id, view);
     return view;
   };
@@ -194,9 +201,12 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
     );
   };
 
-  /** Decide el emote del actor por prioridad: evento temporal → gesto → actividad → ánimo. */
+  /** Decide el emote del actor por prioridad: evento temporal → gesto → actividad → ánimo.
+   *  En vista EDIFICIO (v1.17) las líneas `say` se callan (plano general sin paredes de
+   *  texto) y el glifo de actividad/ánimo habla por él. */
   const decide = (id: string): EmotePick | null => {
     const now = performance.now() / 1000;
+    const building = useGameStore.getState().camMode === 'edificio';
     const tr = transient.get(id);
     if (tr) {
       if (tr.until > now) return tr;
@@ -212,7 +222,7 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
     // HABLA (v1.15): si su actividad tiene líneas `say` y está en fase 'say', TEXTUAL.
     // Pierde con eventos y gestos (es ambiente) y gana al glifo de actividad (hablar manda).
     const sp = speech.get(id);
-    if (sp && sp.phase === 'say') {
+    if (sp && sp.phase === 'say' && !building) {
       const line = sp.lines[sp.idx];
       if (line) return { emoteId: `say:${sp.activityId}:${sp.idx}`, glyph: '', priority: 50, text: line };
     }
@@ -241,15 +251,19 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
     const b = ensureBubble(id);
     const isText = pick.text !== undefined;
     const key = isText ? pick.emoteId : pick.glyph;
+    b.priority = pick.priority;
+    // Silenciada por el tope de la vista edificio: se actualiza el contenido en silencio
+    // (sin pop ni opacity 1 — el Web Animations API taparía el opacity 0 del cap).
+    const capped = cappedIds !== null && !cappedIds.has(id);
     if (b.key !== key || (isText && b.mode !== 'text') || (!isText && b.mode !== 'glyph')) {
       const modeChanged = b.mode !== (isText ? 'text' : 'glyph');
       b.key = key;
       if (modeChanged) applyMode(b, isText ? 'text' : 'glyph');
       (b.inner.firstChild as HTMLElement).textContent = isText ? pick.text! : pick.glyph;
-      b.hidden = false;
-      b.inner.style.opacity = '1';
-      pop(b);
-    } else if (b.hidden) {
+      b.hidden = capped;
+      b.inner.style.opacity = capped ? '0' : '1';
+      if (!capped) pop(b);
+    } else if (b.hidden && !capped) {
       b.hidden = false;
       b.inner.style.opacity = '1';
       pop(b);
@@ -346,6 +360,19 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
         dirty.clear();
         for (const id of Object.keys(world.residents)) refresh(id);
         for (const id of pending) refresh(id);
+        // TOPE DE GLIFOS EN VISTA EDIFICIO (v1.17): el plano general muestra solo los N
+        // bocadillos más relevantes (prioridad del pick, empates estables por id) — el
+        // edificio entero no se convierte en una sopa de emoticonos. Sin tope en el
+        // catálogo o fuera de la vista edificio: todo visible como siempre.
+        if (buildingMaxGlyphs !== undefined && useGameStore.getState().camMode === 'edificio') {
+          const alive = [...bubbles.entries()]
+            .filter(([, b]) => !b.hidden || b.key !== '')
+            .map(([id, b]) => ({ id, priority: b.priority }))
+            .sort((a, z) => z.priority - a.priority || (a.id < z.id ? -1 : 1));
+          cappedIds = new Set(alive.slice(0, buildingMaxGlyphs).map((e) => e.id));
+        } else {
+          cappedIds = null;
+        }
       }
 
       // 2) Reposición cada frame: proyección 3D → píxeles del contenedor.
@@ -357,7 +384,8 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
       cam.getDirectionToRef(Vector3.Forward(false), camFwd);
       for (const [id, b] of bubbles) {
         const head = actors.headOf(id);
-        if (!head) {
+        const capped = cappedIds !== null && !cappedIds.has(id);
+        if (!head || capped) {
           if (!b.hidden) {
             b.hidden = true;
             b.inner.style.opacity = '0';

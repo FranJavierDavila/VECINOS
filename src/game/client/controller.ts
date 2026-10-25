@@ -1,10 +1,11 @@
 'use client';
 
 import type { AbstractEngine, Scene } from '@babylonjs/core';
-import type { Command, Content, CutsceneDef, GameEvent, Input, MinigameDef, ScenarioDef, World } from '@/game/core/types';
+import type { AchievementDef, Command, Content, CutsceneDef, GameEvent, Input, MinigameDef, ScenarioDef, World } from '@/game/core/types';
 import type { CommandResult } from '@/game/sim';
 import { blockLabel } from '@/game/core/types';
 import { loadContent } from '@/game/content';
+import { evaluateAchievements, type AchievementSnapshot } from '@/game/support/achievements';
 import { activeObjective, applyEffects, buildCirculation, createWorld, dispatch, drainEvents, migrateRooms, tick, travelMinutes, visibleParams } from '@/game/sim';
 import { PlayerLogic } from '@/game/player-logic';
 import { createEngine } from './engine';
@@ -20,9 +21,10 @@ import { eventSound, preloadSounds } from './audio';
 import { translate } from './i18n';
 import { QUALITY_SCALE, loadOptions, type QualityLevel } from './options';
 import { startGamepadPolling } from './gamepad';
+import { loadUnlocked, saveUnlocked } from './achievements-store';
 import { NetSession, type SessionStatePayload } from './net';
 import { setController } from './bridge';
-import { selectModalOpen, useGameStore, type Speed, type Tone } from './store';
+import { selectModalOpen, useGameStore, type AchievementUi, type Speed, type Tone } from './store';
 
 const CAM_BY_KEY: Record<string, CamMode> = { Digit1: 'edificio', Digit2: 'planta', Digit3: 'estancia' };
 
@@ -61,6 +63,9 @@ class GameController {
   private initializing = false;
   /** Cronómetro del "paso adentro" del jugador tras abrirse la puerta de la cabina. */
   private playerBoardT = 0;
+  // ── Logros tipo Steam (v1.17): perfil del navegador + cadencia de evaluación ──
+  private unlockedAchievements = new Set<string>(loadUnlocked());
+  private achAcc = 0;
 
   private phoneMission = '';
   private phoneLines: { speaker: string; text: string }[] = [];
@@ -102,6 +107,11 @@ class GameController {
       await this.restart();
       useGameStore.getState().markReady(backend);
       startGamepadPolling();
+      // Logros (v1.17): si el jugador cambia el idioma de la interfaz, los textos ya
+      // resueltos de los logros se re-pintan con el catálogo (los desbloqueos se quedan).
+      useGameStore.subscribe((s, prev) => {
+        if (s.lang !== prev.lang) this.rebuildAchievementTexts();
+      });
       engine.runRenderLoop(this.frame);
       // Gancho de depuración/pruebas E2E (no lo usa la UI).
       (window as unknown as { __vecinos?: unknown }).__vecinos = { store: useGameStore, controller: this };
@@ -672,6 +682,8 @@ class GameController {
     }
 
     this.pump();
+    // Logros (v1.17): primera foto del catálogo para el panel (y desbloqueos de la partida restaurada).
+    this.syncAchievements();
   }
 
   private onResize = (): void => {
@@ -747,6 +759,14 @@ class GameController {
       this.syncHud();
     }
 
+    // Logros (v1.17): evaluación perezosa a cadencia (~cada 2 s de tiempo real).
+    // El evaluador es puro y solo lee el mundo, así que da igual si hay modal o pausa.
+    this.achAcc += dt;
+    if (this.achAcc >= 2) {
+      this.achAcc = 0;
+      this.syncAchievements();
+    }
+
     const pos = this.logic.position();
     this.actors.update(dt, pos, this.actorId());
     // Cutscene (Fase D): sus beats mueven cámara/actores DESPUÉS de los eventos y ANTES del render.
@@ -760,7 +780,9 @@ class GameController {
     // genere otro evento para descolgar la siguiente (durante el teatro el sim está congelado).
     if (this.cutsceneQueue.length > 0 && !this.cutscenePlayer?.active) this.pumpCutscene();
     // LOD por distancia: solo con cámaras cercanas (planta/estancia); el plano general (edificio) muestra todo.
-    this.building.update(dt, useGameStore.getState().camMode === 'edificio' ? undefined : { x: pos.x, floor: pos.floor });
+    // Privacidad (v1.17): el tercer argumento es el bloque donde está el jugador — las fachadas
+    // de las viviendas reaccionan al instante cuando entra o sale.
+    this.building.update(dt, useGameStore.getState().camMode === 'edificio' ? undefined : { x: pos.x, floor: pos.floor }, pos.insideBlock);
     this.rig.update(dt, pos);
     this.scene.render();
   };
@@ -827,6 +849,7 @@ class GameController {
         case 'mission_completed':
           store.pushToast(`Misión completada: ${this.titleOf(d.mission)}`, 'good');
           store.pushLog(`✔ Misión completada: ${this.titleOf(d.mission)}`, 'good');
+          this.syncAchievements(); // una misión caída puede cerrar varios logros a la vez
           break;
         case 'mission_failed':
           store.pushToast(`Misión fallida: ${this.titleOf(d.mission)}`, 'bad');
@@ -1143,6 +1166,87 @@ class GameController {
       homes: this.homesUi(),
       furnitureConfig: { refundRatio: this.content.rules.furniture.refundRatio, roomUnlockPrice: this.content.rules.furniture.roomUnlock.price },
     });
+  }
+
+  // ───────────────────── Logros tipo Steam (v1.17) ─────────────────────
+
+  /** Logro del catálogo → forma de UI con textos resueltos al idioma actual del store. */
+  private achievementUi(def: AchievementDef, unlocked: boolean, newly = false): AchievementUi {
+    const lang = useGameStore.getState().lang;
+    return {
+      id: def.id,
+      icon: def.icon,
+      name: def.name[lang] ?? def.name.es,
+      desc: def.desc[lang] ?? def.desc.es,
+      hidden: def.hidden === true,
+      unlocked,
+      newly,
+    };
+  }
+
+  /** Re-pinta la lista de logros (mismos desbloqueos) con los textos del idioma actual. */
+  private rebuildAchievementTexts(): void {
+    const catalog = this._content?.achievements;
+    if (!catalog) return;
+    const prev = useGameStore.getState().achievements;
+    useGameStore.getState().setAchievements(
+      catalog.achievements.map((def) => {
+        const old = prev.find((a) => a.id === def.id);
+        return this.achievementUi(def, this.unlockedAchievements.has(def.id), old?.newly === true);
+      }),
+    );
+  }
+
+  /**
+   * Evalúa el catálogo de logros contra el estado actual del mundo. Solo LEE el sim: el
+   * evaluador es puro (src/game/support/achievements.ts) y aquí se persisten los
+   * desbloqueos en el perfil (localStorage), se anuncian en el registro y se encola el
+   * popup estilo Steam (uno en pantalla; el resto queda `newly` para AchievementPopup).
+   * Sin catálogo (achievements.json ausente) no hay logros y no se toca nada.
+   */
+  private syncAchievements(): void {
+    const catalog = this._content?.achievements;
+    const world = this.world;
+    if (!catalog || !world) return;
+    const player = world.residents[this.actorId()] ?? world.residents[world.playerId];
+    if (!player) return;
+    const store = useGameStore.getState();
+
+    // Snapshot con las mismas fuentes que el HUD (día del reloj, funds, ascensor del núcleo…).
+    const elevatorBlock = Object.values(world.blocks).find((b) => b.params.elevator_status !== undefined);
+    let bestAffinity = 0;
+    for (const rel of player.relations) bestAffinity = Math.max(bestAffinity, rel.affinity);
+    const snap: AchievementSnapshot = {
+      day: world.clock.day,
+      tick: world.tick,
+      wallet: player.wallet,
+      funds: world.community.funds,
+      reputation: player.reputation,
+      elevatorStatus: String(elevatorBlock?.params.elevator_status ?? 'ok'),
+      missionsDone: world.missions.filter((m) => m.state === 'done').map((m) => m.id),
+      bestAffinity,
+    };
+
+    const fresh = evaluateAchievements(catalog, snap, this.unlockedAchievements);
+    if (fresh.length === 0 && store.achievements.length > 0) return; // nada nuevo y lista ya pintada
+
+    if (fresh.length > 0) {
+      for (const id of fresh) this.unlockedAchievements.add(id);
+      saveUnlocked([...this.unlockedAchievements]);
+    }
+    store.setAchievements(
+      catalog.achievements.map((def) => this.achievementUi(def, this.unlockedAchievements.has(def.id), fresh.includes(def.id))),
+    );
+
+    const lang = useGameStore.getState().lang;
+    for (const id of fresh) {
+      const def = catalog.achievements.find((a) => a.id === id);
+      if (def) store.pushLog(`🏆 Logro desbloqueado: ${def.name[lang] ?? def.name.es}`, 'good');
+    }
+    if (fresh.length > 0 && useGameStore.getState().achievementPopup === null) {
+      const first = catalog.achievements.find((a) => a.id === fresh[0]);
+      if (first) useGameStore.getState().setAchievementPopup(this.achievementUi(first, true));
+    }
   }
 }
 

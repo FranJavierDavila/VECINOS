@@ -134,10 +134,17 @@ export class PlayerLogic {
     }
   }
 
-  /** Bloque bajo los pies del jugador (zona común) o, si no, el pasillo. */
+  /** Bloque bajo los pies del jugador (zona común) o, si no, el pasillo.
+   *  v1.17: el cubo de escalera y el núcleo (con features) ganan al pasillo cuando se
+   *  solapan — los pasillos extendidos (v1.16) comparten columna con el pozo y el orden
+   *  del mapa dejaba la zona en el pasillo, dejando al jugador sin escalera en esas plantas. */
   zone(): BlockInstance {
-    const common = this.onFloor(this.floor).find((b) => b.layer === 'main' && b.kind !== 'dwelling' && this.within(this.x, b));
-    return common ?? this.corridor();
+    const common = this.onFloor(this.floor).filter((b) => b.layer === 'main' && b.kind !== 'dwelling' && this.within(this.x, b));
+    const withShaft = common.find((b) => {
+      const f = this.content.blocks[b.defId]!.features;
+      return !!f && (f.stairs === true || f.elevator === true);
+    });
+    return withShaft ?? common[0] ?? this.corridor();
   }
 
   /** Vivienda o local justo delante (la puerta que puede abrir), si la hay. */

@@ -1,0 +1,1168 @@
+     1→'use client';
+     2→
+     3→import type { AbstractEngine, Scene } from '@babylonjs/core';
+     4→import type { Command, Content, CutsceneDef, GameEvent, Input, MinigameDef, ScenarioDef, World } from '@/game/core/types';
+     5→import type { CommandResult } from '@/game/sim';
+     6→import { blockLabel } from '@/game/core/types';
+     7→import { loadContent } from '@/game/content';
+     8→import { activeObjective, applyEffects, buildCirculation, createWorld, dispatch, drainEvents, migrateRooms, tick, travelMinutes, visibleParams } from '@/game/sim';
+     9→import { PlayerLogic } from '@/game/player-logic';
+    10→import { createEngine } from './engine';
+    11→import { createBuilding } from './building';
+    12→import { createActors } from './actors';
+    13→import { createElevators, type ElevatorsDirector } from './elevator';
+    14→import { createBubbles, type BubblesDirector } from './bubbles';
+    15→import { createEcosystem, type EcosystemDirector } from './ecosystem';
+    16→import { CameraRig, type CamMode } from './camera';
+    17→import { CutscenePlayer, type CutsceneEventCtx } from './cutscene';
+    18→import { B } from './babylon';
+    19→import { eventSound, preloadSounds } from './audio';
+    20→import { translate } from './i18n';
+    21→import { QUALITY_SCALE, loadOptions, type QualityLevel } from './options';
+    22→import { startGamepadPolling } from './gamepad';
+    23→import { NetSession, type SessionStatePayload } from './net';
+    24→import { setController } from './bridge';
+    25→import { selectModalOpen, useGameStore, type Speed, type Tone } from './store';
+    26→
+    27→const CAM_BY_KEY: Record<string, CamMode> = { Digit1: 'edificio', Digit2: 'planta', Digit3: 'estancia' };
+    28→
+    29→/**
+    30→ * Único dueño del mundo en el navegador: engine Babylon, PlayerLogic, bucle de render,
+    31→ * reparto de eventos hacia el store de React y órdenes de la interfaz hacia el sim.
+    32→ * El sim no sabe que existe Babylon ni React; aquí es donde se tocan.
+    33→ * Tampoco contiene datos: TODO (contenido, balance, etiquetas, greybox) viene de /content/.
+    34→ */
+    35→class GameController {
+    36→  private canvas: HTMLCanvasElement | null = null;
+    37→  private engine: AbstractEngine | null = null;
+    38→  private scene: Scene | null = null;
+    39→  private _content: Content | null = null;
+    40→  private world: World | null = null;
+    41→  private logic: PlayerLogic | null = null;
+    42→  private building: ReturnType<typeof createBuilding> | null = null;
+    43→  private actors: ReturnType<typeof createActors> | null = null;
+    44→  private elevators: ElevatorsDirector | null = null;
+    45→  private bubbles: BubblesDirector | null = null;
+    46→  private ecosystem: EcosystemDirector | null = null;
+    47→  private rig: CameraRig | null = null;
+    48→
+    49→  private get content(): Content {
+    50→    if (!this._content) throw new Error('El catálogo de contenido todavía no se ha cargado');
+    51→    return this._content;
+    52→  }
+    53→
+    54→  private keys = new Set<string>();
+    55→  /** Direcciones mantenidas por los mandos virtuales (se combinan con el teclado). */
+    56→  private touch: Input = { left: false, right: false, up: false, down: false, run: false };
+    57→  /** Overrides de minijuegos del escenario activo (QA/E2E). */
+    58→  private scenarioOverrides: NonNullable<ScenarioDef['minigameOverrides']> = {};
+    59→  private clockAcc = 0;
+    60→  private lastHudSync = 0;
+    61→  private initializing = false;
+    62→  /** Cronómetro del "paso adentro" del jugador tras abrirse la puerta de la cabina. */
+    63→  private playerBoardT = 0;
+    64→
+    65→  private phoneMission = '';
+    66→  private phoneLines: { speaker: string; text: string }[] = [];
+    67→  private phoneLine = 0;
+    68→  /** Cola FIFO de llamadas pendientes: con varias misiones activándose a la vez, ninguna llamada se pisa. */
+    69→  private phoneQueue: { mission: string; dialogId: string }[] = [];
+    70→
+    71→  // ── Cutscenes (Fase D): teatro data-driven sobre eventos del sim. ──
+    72→  private cutscenePlayer: CutscenePlayer | null = null;
+    73→  private cutsceneQueue: { def: CutsceneDef; ctx: CutsceneEventCtx }[] = [];
+    74→
+    75→  // ── Multijugador (protocolo v1): el servidor autoritativo posee el mundo; este cliente lo refleja ──
+    76→  private net: NetSession | null = null;
+    77→  private myResidentId: string | null = null;
+    78→  private isHost = false;
+    79→  private appliedSeq = 0;
+    80→
+    81→  async init(canvas: HTMLCanvasElement): Promise<void> {
+    82→    if (this.engine || this.initializing) return;
+    83→    this.initializing = true;
+    84→    this.canvas = canvas;
+    85→
+    86→    try {
+    87→      // 1) Contenido externo + validación (los errores de referencias se avisan, no abortan).
+    88→      const { content, issues } = await loadContent();
+    89→      this._content = content;
+    90→      this.cutscenePlayer = new CutscenePlayer(content);
+    91→      preloadSounds();
+    92→      useGameStore.setState({ touchHint: content.rules.touch.hint });
+    93→      if (issues.length > 0) {
+    94→        useGameStore.getState().pushToast(`Contenido inválido: ${issues.length} errores de validación`, 'bad');
+    95→      }
+    96→
+    97→      // 2) Motor de render (WebGPU con fallback WebGL2). La calidad la elige el jugador en Opciones.
+    98→      const { engine, backend } = await createEngine(canvas);
+    99→      this.engine = engine;
+   100→      engine.setHardwareScalingLevel(QUALITY_SCALE[loadOptions().quality]);
+   101→      window.addEventListener('resize', this.onResize);
+   102→      await this.restart();
+   103→      useGameStore.getState().markReady(backend);
+   104→      startGamepadPolling();
+   105→      engine.runRenderLoop(this.frame);
+   106→      // Gancho de depuración/pruebas E2E (no lo usa la UI).
+   107→      (window as unknown as { __vecinos?: unknown }).__vecinos = { store: useGameStore, controller: this };
+   108→    } catch (err) {
+   109→      console.error('No se pudo arrancar el juego (contenido o motor de render)', err);
+   110→      useGameStore.getState().setEngineError(true);
+   111→    }
+   112→  }
+   113→
+   114→  destroy(): void {
+   115→    window.removeEventListener('resize', this.onResize);
+   116→    this.net?.disconnect();
+   117→    this.net = null;
+   118→    this.bubbles?.dispose();
+   119→    this.bubbles = null;
+   120→    this.ecosystem?.dispose();
+   121→    this.ecosystem = null;
+   122→    this.engine?.stopRenderLoop(this.frame);
+   123→    this.scene?.dispose();
+   124→    this.engine?.dispose();
+   125→    this.engine = null;
+   126→    this.scene = null;
+   127→  }
+   128→
+   129→  // ───────────────── Entrada (GameStage la conecta; los mandos virtuales se fusionan) ─────────────────
+   130→
+   131→  onKeyDown(code: string): void {
+   132→    // Cutscene en curso: E/Espacio/Enter/Escape saltan el espectáculo; nada más pasa.
+   133→    if (this.cutscenePlayer?.active) {
+   134→      if (code === 'KeyE' || code === 'Space' || code === 'Enter' || code === 'Escape') this.cutsceneSkip();
+   135→      return;
+   136→    }
+   137→    if (this.keys.has(code)) return;
+   138→    this.keys.add(code);
+   139→    const store = useGameStore.getState();
+   140→    if (selectModalOpen(store)) return; // los modales gestionan sus propias teclas
+   141→    if (code === 'KeyE') {
+   142→      this.interact();
+   143→      return;
+   144→    }
+   145→    const cam = CAM_BY_KEY[code];
+   146→    if (cam) this.setCamMode(cam);
+   147→  }
+   148→
+   149→  onKeyUp(code: string): void {
+   150→    this.keys.delete(code);
+   151→  }
+   152→
+   153→  setTouchInput(v: Partial<Input>): void {
+   154→    this.touch = { ...this.touch, ...v };
+   155→  }
+   156→
+   157→  private readInput(): Input {
+   158→    const held = (...codes: string[]) => codes.some((c) => this.keys.has(c));
+   159→    return {
+   160→      left: held('KeyA', 'ArrowLeft') || this.touch.left,
+   161→      right: held('KeyD', 'ArrowRight') || this.touch.right,
+   162→      up: held('KeyW', 'ArrowUp') || this.touch.up,
+   163→      down: held('KeyS', 'ArrowDown') || this.touch.down,
+   164→      run: held('ShiftLeft', 'ShiftRight') || this.touch.run,
+   165→    };
+   166→  }
+   167→
+   168→  // ───────────────────────── Acciones de la interfaz ─────────────────────────
+   169→
+   170→  togglePause(): void {
+   171→    const store = useGameStore.getState();
+   172→    store.setPaused(!store.paused);
+   173→  }
+   174→
+   175→  setSpeed(speed: Speed): void {
+   176→    // En remoto el reloj lo lleva el servidor: solo el anfitrión cambia la velocidad de la sesión.
+   177→    if (this.net) {
+   178→      if (this.isHost) this.net.setSpeed(speed);
+   179→      useGameStore.getState().setSpeed(speed);
+   180→      return;
+   181→    }
+   182→    useGameStore.getState().setSpeed(speed);
+   183→  }
+   184→
+   185→  setCamMode(mode: CamMode): void {
+   186→    if (this.rig) this.rig.mode = mode;
+   187→    useGameStore.getState().setCamMode(mode);
+   188→  }
+   189→
+   190→  /** Siguiente cámara de la rueda Edificio → Planta → Estancia (teclado 1/2/3 y mando Y). */
+   191→  cycleCam(): void {
+   192→    const order: CamMode[] = ['edificio', 'planta', 'estancia'];
+   193→    const cur = order.indexOf(useGameStore.getState().camMode);
+   194→    this.setCamMode(order[(cur + 1) % order.length]!);
+   195→  }
+   196→
+   197→  /** Calidad gráfica (pulido Steam): resolución de render vía hardware scaling. Solo presentación. */
+   198→  applyQuality(q: QualityLevel): void {
+   199→    this.engine?.setHardwareScalingLevel(QUALITY_SCALE[q]);
+   200→  }
+   201→
+   202→  /** Botón "Fiesta demo": datos en rules.demo (residente, bloque y ruido) → canal de ruido en acción. */
+   203→  partyDemo(): void {
+   204→    if (!this.world) return;
+   205→    if (this.net) return; // demo de dev: solo tiene sentido con el mundo en local
+   206→    const demo = this.content.rules.demo;
+   207→    if (!this.world.residents[demo.resident]!.present) {
+   208→      applyEffects(this.world, this.content, [{ op: 'unlock', target: demo.block, resident: demo.resident, arrival: 'mudanza' }]);
+   209→    }
+   210→    tick(this.world, this.content, { noise: { [demo.block]: demo.noise } });
+   211→    useGameStore.getState().pushToast(demo.toast, 'info');
+   212→    this.pump();
+   213→  }
+   214→
+   215→  skipTime(): void {
+   216→    if (!this.world) return;
+   217→    if (this.net) {
+   218→      useGameStore.getState().pushToast(this.content.rules.multiplayer.texts.remoteSaveDisabled, 'info');
+   219→      return;
+   220→    }
+   221→    for (let i = 0; i < 10; i++) tick(this.world, this.content);
+   222→    this.pump();
+   223→  }
+   224→
+   225→  /** Interacción (tecla E o botón virtual ✋): usar el objeto cercano, entrar o salir. */
+   226→  interact(): void {
+   227→    // El ✋ táctil también salta la cutscene (es la única acción habilitada mientras dura).
+   228→    if (this.cutscenePlayer?.active) {
+   229→      this.cutsceneSkip();
+   230→      return;
+   231→    }
+   232→    if (!this.logic) return;
+   233→    // Ascensor (v1.9): si el prompt anuncia ascensor (sin objetivo de E delante), la E abre el
+   234→    // panel de destino. Misma condición que promptText → lo que ves es lo que la E ejecuta.
+   235→    if (!this.logic.interactTarget()) {
+   236→      const panel = this.logic.elevatorPanelTarget();
+   237→      if (panel) {
+   238→        useGameStore.getState().setElevatorPanel(panel);
+   239→        return;
+   240→      }
+   241→    }
+   242→    const r = this.logic.interact();
+   243→    if (r.type === 'entered') this.setCamMode('estancia');
+   244→    else if (r.type === 'exited') this.setCamMode('planta');
+   245→    else if (r.type === 'used') this.presentInteraction(r.kind);
+   246→    this.pump();
+   247→  }
+   248→
+   249→  /** Panel del ascensor (v1.9): planta elegida → cierra el panel y pide cabina (la FSM manda). */
+   250→  pickElevatorFloor(to: number): void {
+   251→    useGameStore.getState().setElevatorPanel(null);
+   252→    if (!this.logic) return;
+   253→    if (!this.logic.elevatorCall(to)) {
+   254→      useGameStore.getState().pushToast(translate(useGameStore.getState().lang, 'elev.unreachable'), 'info');
+   255→      return;
+   256→    }
+   257→    this.pump();
+   258→  }
+   259→
+   260→  /** Cierra el panel sin llamar (Escape o botón cancelar). */
+   261→  closeElevatorPanel(): void {
+   262→    useGameStore.getState().setElevatorPanel(null);
+   263→  }
+   264→
+   265→  /** Salta la cutscene en curso (y las encadenadas que quedaban en cola). */
+   266→  cutsceneSkip(): void {
+   267→    this.cutsceneQueue = [];
+   268→    this.cutscenePlayer?.abort();
+   269→  }
+   270→
+   271→  /**
+   272→   * Lecturas sin estado (buzón/tablón): texto del catálogo aquí; work/sleep/knock llegan como
+   273→   * eventos del sim (ui_toast / knock_result) y no se tratan en esta vía.
+   274→   */
+   275→  private presentInteraction(kind: 'laptop' | 'bed' | 'mailbox' | 'noticeboard' | 'resident'): void {
+   276→    if (!this.world) return;
+   277→    const ic = this.content.rules.interact;
+   278→    if (kind === 'mailbox') {
+   279→      const lines = ic.mailbox.lines;
+   280→      useGameStore.getState().pushToast(lines[this.world.tick % lines.length]!, 'info');
+   281→    } else if (kind === 'noticeboard') {
+   282→      const elevatorBlock = Object.values(this.world.blocks).find((b) => b.params.elevator_status !== undefined);
+   283→      const status = String(elevatorBlock?.params.elevator_status ?? 'ok');
+   284→      const text = ic.noticeboard.template
+   285→        .replace('{day}', String(this.world.clock.day))
+   286→        .replace('{funds}', String(this.world.community.funds))
+   287→        .replace('{elevator}', this.content.rules.labels.elevator[status] ?? status)
+   288→        .replace('{weather}', this.content.rules.labels.weather[this.world.weather.state] ?? this.world.weather.state);
+   289→      useGameStore.getState().pushToast(text, 'info');
+   290→    }
+   291→  }
+   292→
+   293→  /** Editor: desplazarse a una vivienda del jugador (queda delante de su puerta). */
+   294→  visitHome(blockId: string): void {
+   295→    if (!this.logic || !this.logic.teleportTo(blockId)) return;
+   296→    this.setCamMode('planta');
+   297→    this.pump();
+   298→  }
+   299→
+   300→  // ───────────────────── Multijugador: sesión y modo remoto ─────────────────────
+   301→
+   302→  /** Quien actúa por este cliente (invitado en sesión; si no, el jugador clásico). */
+   303→  private actorId(): string {
+   304→    return this.myResidentId ?? this.world?.playerId ?? '';
+   305→  }
+   306→
+   307→  /** Vía única de comandos: remoto → servidor autoritativo; clásico → dispatch local.
+   308→   *  En clásico DEVUELVE el CommandResult del sim (PlayerLogic lo usa para saber si un move
+   309→   *  fue rechazado, p. ej. puerta con candado — sin esto la presentación "entraba" igual). */
+   310→  private sendCommand(cmd: Command): CommandResult | void {
+   311→    if (this.net) {
+   312→      this.net.command(cmd);
+   313→      return;
+   314→    }
+   315→    if (!this.world) return;
+   316→    const r = dispatch(this.world, this.content, cmd);
+   317→    this.pump();
+   318→    return r;
+   319→  }
+   320→
+   321→  /** Crea una partida compartida (este cliente queda como anfitrión). */
+   322→  hostSession(): void {
+   323→    if (this.net || !this._content) return;
+   324→    const store = useGameStore.getState();
+   325→    store.setMpError(null);
+   326→    store.setMpStatus('connecting');
+   327→    store.setMpPanelOpen(true);
+   328→    this.connectNet();
+   329→    void this.net!.hostSession(this.activeScenarioId()).then((res) => {
+   330→      this.onHostJoinResult(res);
+   331→    });
+   332→  }
+   333→
+   334→  /** Se une a una partida compartida por código. */
+   335→  joinSession(code: string): void {
+   336→    if (this.net || !this._content) return;
+   337→    const store = useGameStore.getState();
+   338→    store.setMpError(null);
+   339→    store.setMpStatus('connecting');
+   340→    store.setMpPanelOpen(true);
+   341→    this.connectNet();
+   342→    void this.net!.joinSession(code.trim().toUpperCase()).then((res) => {
+   343→      this.onHostJoinResult(res);
+   344→    });
+   345→  }
+   346→
+   347→  /** Sale de la sesión y vuelve al mundo local en solitario. */
+   348→  leaveSession(): void {
+   349→    this.net?.leave();
+   350→    this.net?.disconnect();
+   351→    this.net = null;
+   352→    this.myResidentId = null;
+   353→    this.isHost = false;
+   354→    this.appliedSeq = 0;
+   355→    const store = useGameStore.getState();
+   356→    store.setMpStatus('off');
+   357→    store.setMpSession(null);
+   358→    store.setMpParticipants([]);
+   359→    store.setMpPanelOpen(false);
+   360→    void this.restart();
+   361→    store.pushToast('Has vuelto a tu partida en solitario.', 'info');
+   362→  }
+   363→
+   364→  private connectNet(): void {
+   365→    this.net = new NetSession({
+   366→      onState: (s) => this.applyRemoteState(s),
+   367→      onParticipants: (p) => useGameStore.getState().setMpParticipants(p),
+   368→      onJoined: (j) => {
+   369→        this.myResidentId = j.yourResidentId;
+   370→        this.isHost = j.isHost;
+   371→        useGameStore.getState().setMpSession({ code: j.code, isHost: j.isHost, myResidentId: j.yourResidentId });
+   372→        useGameStore.getState().setMpParticipants(j.participants);
+   373→      },
+   374→      onError: (m) => {
+   375→        useGameStore.getState().pushToast(m, 'bad');
+   376→      },
+   377→      onStatus: (st) => {
+   378→        if (!this.net) return;
+   379→        if (st === 'connected' && useGameStore.getState().mpStatus === 'connecting') return; // el ack decide
+   380→        if (st === 'disconnected' && useGameStore.getState().mpStatus === 'connected') {
+   381→          useGameStore.getState().setMpStatus('error');
+   382→          useGameStore.getState().setMpError('Conexión perdida con el servidor de la comunidad.');
+   383→        }
+   384→      },
+   385→    });
+   386→  }
+   387→
+   388→  private onHostJoinResult(res: { ok: boolean; code?: string; isHost?: boolean; yourResidentId?: string; error?: string }): void {
+   389→    const store = useGameStore.getState();
+   390→    if (!res.ok) {
+   391→      store.setMpStatus('error');
+   392→      store.setMpError(res.error === 'timeout' ? 'El servidor no responde. ¿Se habrá ido a comer?' : res.error ?? 'No se pudo abrir la sesión.');
+   393→      return;
+   394→    }
+   395→    store.setMpStatus('connected');
+   396→    // onJoined ya habrá fijado myResidentId/isHost/código con session:joined.
+   397→  }
+   398→
+   399→  /** Adopta el estado del servidor (autoridad). Primera vez: reinicia la escena con ese mundo. */
+   400→  private applyRemoteState(s: SessionStatePayload): void {
+   401→    if (s.seq <= this.appliedSeq) return;
+   402→    this.appliedSeq = s.seq;
+   403→    if (!this.world || this.world.scenarioId !== s.world.scenarioId) {
+   404→      void this.restart(s.world).then(() => {
+   405→        if (!this.world) return;
+   406→        this.world.events = s.events.slice();
+   407→        this.handleEvents();
+   408→        this.reconcile();
+   409→        this.syncHud();
+   410→      });
+   411→      return;
+   412→    }
+   413→    // Aplica en sitio conservando la identidad del objeto (PlayerLogic/building/actors referencian el mismo World).
+   414→    Object.assign(this.world, s.world);
+   415→    this.world.events = s.events.slice();
+   416→    this.handleEvents();
+   417→    this.paintBuilding();
+   418→    this.reconcile();
+   419→    this.syncHud();
+   420→  }
+   421→
+   422→  /** Corrige desvíos de posición del avatar local respecto al mundo del servidor (autoridad). */
+   423→  private reconcile(): void {
+   424→    if (!this.logic || !this.world || !this.net) return;
+   425→    const me = this.world.residents[this.actorId()];
+   426→    if (!me) return;
+   427→    const pos = this.logic.position();
+   428→    const locBlock = me.location ? this.world.blocks[me.location] : null;
+   429→    if (locBlock) {
+   430→      const insideOk = pos.mode === 'inside' && pos.insideBlock === locBlock.id;
+   431→      const corridorOk = pos.mode === 'corridor' && !pos.insideBlock;
+   432→      if (!(locBlock.kind === 'dwelling' ? insideOk : corridorOk) || Math.abs(pos.floor - locBlock.cell.floor) > 0.01) {
+   433→        this.logic.forceLocation(locBlock.id);
+   434→      }
+   435→    } else if (pos.mode === 'inside') {
+   436→      this.logic.forceLocation(null);
+   437→    }
+   438→  }
+   439→
+   440→  /** Siguiente frase del teléfono; al colgar responde la llamada en el sim y saca la siguiente de la cola. */
+   441→  phoneNext(): void {
+   442→    if (this.phoneLine < this.phoneLines.length - 1) {
+   443→      this.phoneLine += 1;
+   444→      this.showPhoneLine();
+   445→      return;
+   446→    }
+   447→    const mission = this.phoneMission;
+   448→    this.phoneLines = [];
+   449→    this.phoneMission = '';
+   450→    useGameStore.getState().setPhone(null);
+   451→    this.actors?.director.setGesture(this.actorId(), null); // cuelgas: se suelta el teléfono
+   452→    if (this.world && mission) {
+   453→      this.sendCommand({ type: 'answer_call', mission });
+   454→    }
+   455→    const next = this.phoneQueue.shift();
+   456→    if (next) this.openPhone(next.mission, next.dialogId);
+   457→  }
+   458→
+   459→  choose(choiceId: string): void {
+   460→    const state = useGameStore.getState();
+   461→    const mission = state.choices?.mission;
+   462→    state.setChoices(null);
+   463→    this.actors?.director.setGesture(this.actorId(), null); // decisión tomada: se deja de hablar
+   464→    if (!this.world || !mission) return;
+   465→    this.sendCommand({ type: 'choose', mission, choice: choiceId });
+   466→  }
+   467→
+   468→  juntaVote(vote: 'yes' | 'no'): void {
+   469→    useGameStore.getState().setJunta(null);
+   470→    this.actors?.director.setGesture(this.actorId(), null);
+   471→    if (!this.world) return;
+   472→    this.sendCommand({ type: 'junta_vote', vote });
+   473→  }
+   474→
+   475→  finaleClose(): void {
+   476→    useGameStore.getState().setFinale(null);
+   477→  }
+   478→
+   479→  // ───────────────────────── Editor de interiores y minijuegos ─────────────────────────
+   480→
+   481→  placeFurniture(block: string, room: string, slot: string, item: string): void {
+   482→    if (!this.world) return;
+   483→    if (this.net) {
+   484→      this.net.command({ type: 'place_furniture', block, room, slot, item });
+   485→      return;
+   486→    }
+   487→    const r = dispatch(this.world, this.content, { type: 'place_furniture', block, room, slot, item });
+   488→    if (!r.ok) this.furnitureFail(r.reason);
+   489→    this.pump();
+   490→  }
+   491→
+   492→  removeFurniture(block: string, room: string, slot: string): void {
+   493→    if (!this.world) return;
+   494→    if (this.net) {
+   495→      this.net.command({ type: 'remove_furniture', block, room, slot });
+   496→      return;
+   497→    }
+   498→    const r = dispatch(this.world, this.content, { type: 'remove_furniture', block, room, slot });
+   499→    if (!r.ok) this.furnitureFail(r.reason);
+   500→    this.pump();
+   501→  }
+   502→
+   503→  renovateRoom(block: string, room: string): void {
+   504→    if (!this.world) return;
+   505→    if (this.net) {
+   506→      this.net.command({ type: 'renovate_room', block, room });
+   507→      return;
+   508→    }
+   509→    const r = dispatch(this.world, this.content, { type: 'renovate_room', block, room });
+   510→    if (!r.ok) this.furnitureFail(r.reason);
+   511→    this.pump();
+   512→  }
+   513→
+   514→  completeMinigame(id: string, success: boolean): void {
+   515→    if (!this.world) return;
+   516→    this.sendCommand({ type: 'complete_minigame', id, success });
+   517→    this.pump();
+   518→  }
+   519→
+   520→  private furnitureFail(reason: string | undefined): void {
+   521→    const text = this.content.rules.furniture.errors[reason ?? ''] ?? 'Gestión inmobiliaria rechazada sin explicación. Como en la junta.';
+   522→    useGameStore.getState().pushToast(text, 'bad');
+   523→  }
+   524→
+   525→  async save(): Promise<void> {
+   526→    if (!this.world) return;
+   527→    const store = useGameStore.getState();
+   528→    if (this.net) {
+   529→      store.pushToast(this.content.rules.multiplayer.texts.remoteSaveDisabled, 'info');
+   530→      return;
+   531→    }
+   532→    store.setSaveState('saving');
+   533→    drainEvents(this.world); // la cola de eventos no entra en el guardado
+   534→    try {
+   535→      const res = await fetch('/api/save', {
+   536→        method: 'POST',
+   537→        headers: { 'Content-Type': 'application/json' },
+   538→        body: JSON.stringify({ slot: 'auto', state: this.world }),
+   539→      });
+   540→      if (!res.ok) throw new Error(String(res.status));
+   541→      store.setSaveState('saved', new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }));
+   542→      store.pushToast('Partida guardada. El acta queda en el tablón (y en SQLite).', 'good');
+   543→    } catch {
+   544→      store.setSaveState('error');
+   545→      store.pushToast('No se pudo guardar la partida. ¿El administrador se habrá ido a comer?', 'bad');
+   546→    }
+   547→  }
+   548→
+   549→  async load(): Promise<void> {
+   550→    const store = useGameStore.getState();
+   551→    if (this.net) {
+   552→      store.pushToast(this.content.rules.multiplayer.texts.remoteSaveDisabled, 'info');
+   553→      return;
+   554→    }
+   555→    try {
+   556→      const res = await fetch('/api/save?slot=auto');
+   557→      const json = (await res.json()) as { state?: unknown };
+   558→      if (!json.state || typeof json.state !== 'object') {
+   559→        store.pushToast('Todavía no hay ninguna partida guardada.', 'info');
+   560→        return;
+   561→      }
+   562→      if (!this._content) {
+   563→        store.pushToast('El contenido todavía se está cargando. Espera un momento.', 'info');
+   564→        return;
+   565→      }
+   566→      await this.restart(json.state as World);
+   567→      store.pushToast('Partida cargada. El vecindario, exactamente como lo dejaste.', 'good');
+   568→    } catch {
+   569→      store.pushToast('No se pudo cargar la partida.', 'bad');
+   570→    }
+   571→  }
+   572→
+   573→  // ───────────────────────── Ciclo de vida del mundo ─────────────────────────
+   574→
+   575→  /** Escenario activo: parámetro ?scenario= (QA/E2E) o el que marca el catálogo. */
+   576→  private activeScenarioId(): string {
+   577→    try {
+   578→      return new URLSearchParams(window.location.search).get('scenario') ?? this.content.rules.startScenario;
+   579→    } catch {
+   580→      return this.content.rules.startScenario;
+   581→    }
+   582→  }
+   583→
+   584→  /** (Re)crea el mundo y la escena. Con `state` restaura una partida guardada. */
+   585→  private async restart(state?: World): Promise<void> {
+   586→    if (!this.engine || !this.canvas || !this._content) return;
+   587→    // Ninguna cutscene sobrevive a un cambio de mundo: cola fuera y teatro desmontado.
+   588→    this.cutsceneQueue = [];
+   589→    this.cutscenePlayer?.abort();
+   590→    const { Color4, DirectionalLight, HemisphericLight, Scene, UniversalCamera, Vector3 } = B();
+   591→    const view = this.content.rules.view;
+   592→    useGameStore.getState().resetUi();
+   593→
+   594→    this.world = state ?? createWorld(this.content, this.activeScenarioId());
+   595→    this.scenarioOverrides = this.content.scenarios[this.world.scenarioId ?? '']?.minigameOverrides ?? {};
+   596→    // Guardados antiguos sin `entry`: la entrada es la zona común de planta baja.
+   597→    if (!this.world.entry) {
+   598→      this.world.entry = Object.values(this.world.blocks).find((b) => b.cell.floor === 0 && b.kind !== 'dwelling')?.id ?? Object.keys(this.world.blocks)[0]!;
+   599→    }
+   600→    // Migración de estancias de guardados v0.1: params y ranuras de muebles según catálogo.
+   601→    for (const b of Object.values(this.world.blocks)) migrateRooms(this.content, b.rooms);
+   602→    this.logic = new PlayerLogic(this.world, this.content, {
+   603→      actorId: this.myResidentId ?? undefined,
+   604→      send: (cmd) => this.sendCommand(cmd),
+   605→    });
+   606→
+   607→    this.scene?.dispose();
+   608→    this.scene = new Scene(this.engine);
+   609→    this.scene.clearColor = new Color4(view.sky.r, view.sky.g, view.sky.b, 1);
+   610→    new HemisphericLight('ambient', new Vector3(...view.ambient.dir), this.scene).intensity = view.ambient.intensity;
+   611→    new DirectionalLight('sun', new Vector3(...view.sun.dir), this.scene).intensity = view.sun.intensity;
+   612→
+   613→    this.building = createBuilding(this.scene, this.world, this.content);
+   614→    this.elevators = createElevators(this.scene, this.world, this.content);
+   615→    this.actors = createActors(this.scene, this.world, this.content, this.elevators);
+   616→    // Ecosistema del edificio (v1.14): cerebro data-driven + teatro de extras. Se recrea con
+   617→    // cada mundo (referencia al World vivo) y sigue la posición del jugador para las luces.
+   618→    this.ecosystem?.dispose();
+   619→    this.ecosystem = createEcosystem(this.scene, this.world, this.content, () => this.logic!.position());
+   620→    // Sonda de QA (SOLO dev): escena y controlador accesibles para el E2E automatizado.
+   621→    // En producción no se expone nada (la partida queda encapsulada igual que siempre).
+   622→    if (process.env.NODE_ENV !== 'production') {
+   623→      (window as unknown as { __vecinosQA?: { scene: unknown; controller: unknown; elevators: unknown; ecosystem: unknown } }).__vecinosQA = {
+   624→        scene: this.scene,
+   625→        controller: this,
+   626→        elevators: this.elevators,
+   627→        ecosystem: this.ecosystem,
+   628→      };
+   629→    }
+   630→    // Bocadillos de expresión (v1.10): capa DOM sobre el canvas, recreada con el mundo
+   631→    // (referencia al World vivo). Sin emotes.json en el catálogo, director nulo sin capa.
+   632→    this.bubbles?.dispose();
+   633→    const stage = this.canvas?.parentElement;
+   634→    this.bubbles = stage && this.actors ? createBubbles(stage, this.scene, this.engine, this.world, this.content, this.actors.director) : null;
+   635→    const blocks = Object.values(this.world.blocks);
+   636→    // El cubo de escalera (v1.4) sobresale spanW−1 celdas por la derecha del edificio:
+   637→    // el encuadre lo incluye para que la torre no se corte en cámara.
+   638→    const hasStairs = blocks.some((b) => this.content.blocks[b.defId]?.features?.stairs === true);
+   639→    const cols = Math.max(...blocks.map((b) => b.cell.col + b.size.w)) + (hasStairs ? this.content.rules.view.stairs.spanW - 1 : 0);
+   640→    this.rig = new CameraRig(
+   641→      new UniversalCamera('cam', new Vector3(0, 0, -30), this.scene),
+   642→      this.engine,
+   643→      cols,
+   644→      Math.max(...blocks.map((b) => b.cell.floor)) + 1,
+   645→      view.cellW,
+   646→      view.cellH,
+   647→    );
+   648→    // Re-sincronización de vista (v0.6-b): la cámara sigue la posición del mundo (restaurado o
+   649→    // nuevo), no la preferencia anterior. Dentro de una vivienda → estancia; en pasillo, la
+   650→    // preferencia salvo que fuera 'estancia' (ahí estás en el pasillo, no en una estancia).
+   651→    const pos = this.logic.position();
+   652→    const store = useGameStore.getState();
+   653→    const wanted: CamMode = pos.mode === 'inside' ? 'estancia' : store.camMode === 'estancia' ? 'planta' : store.camMode;
+   654→    this.rig.mode = wanted;
+   655→    store.setCamMode(wanted);
+   656→
+   657→    this.clockAcc = 0;
+   658→    this.keys.clear();
+   659→    this.phoneLines = [];
+   660→    this.phoneMission = '';
+   661→    this.phoneQueue = [];
+   662→    this.lastHudSync = 0;
+   663→
+   664→    // Re-llamada (Fase F): si la partida montada tenía pasos de teléfono pendientes, vuelven a
+   665→    // sonar. La cola de openPhone ordena el resto sin que ninguna llamada se pierda.
+   666→    if (this.world) {
+   667→      for (const m of this.world.missions) {
+   668→        if (m.state !== 'active') continue;
+   669→        const step = this.content.missions[m.id]?.steps[m.step];
+   670→        if (step?.type === 'phone_call') this.openPhone(m.id, step.dialog);
+   671→      }
+   672→    }
+   673→
+   674→    this.pump();
+   675→  }
+   676→
+   677→  private onResize = (): void => {
+   678→    this.engine?.resize();
+   679→  };
+   680→
+   681→  // ───────────────────────── Bucle de render ─────────────────────────
+   682→
+   683→  private frame = (): void => {
+   684→    if (!this.engine || !this.scene || !this.world || !this.logic || !this.building || !this.actors || !this.rig || !this.elevators) return;
+   685→    const dt = Math.min(0.1, this.engine.getDeltaTime() / 1000);
+   686→    const store = useGameStore.getState();
+   687→    const frozen = selectModalOpen(store) || store.paused;
+   688→
+   689→    let ticked = false;
+   690→    if (!frozen) {
+   691→      this.logic.update(dt, this.readInput());
+   692→      // Ascensor (v1.5): el director mueve cabinas y puertas; el jugador llama con W/S en el
+   693→      // núcleo y su escalada EXTERNA la gobierna la cabina (espera → embarco → viaje → salida).
+   694→      this.elevators.update(dt);
+   695→      const climb = this.logic.climbInfo();
+   696→      if (climb) {
+   697→        if (!this.logic.externalRequested) {
+   698→          const zone = this.logic.zone();
+   699→          this.elevators.requestRide(this.actorId(), zone.cell.col, climb.from, climb.to);
+   700→          this.logic.externalRequested = true;
+   701→        }
+   702→        const st = this.elevators.status(this.actorId());
+   703→        if (!st) {
+   704→          this.logic.finishClimbAtNearest(); // fuera de servicio: aterriza en la planta más cercana (sin teletransporte)
+   705→          this.logic.externalRequested = false;
+   706→          this.playerBoardT = 0;
+   707→        } else {
+   708→          this.logic.setClimbProgress(st.phase === 'riding' ? st.progress : 0);
+   709→          const inside = st.phase === 'boarding' || st.phase === 'riding';
+   710→          this.logic.setClimbZ(inside ? this.content.rules.view.roomZ - this.content.rules.view.commonDepth / 2 + this.content.rules.view.elevator.rideZ : null);
+   711→          // El jugador "da un paso" dentro de la cabina un instante tras abrirse la puerta
+   712→          // (el zOverride ya lo acerca); avisar al director para que cierre y viaje.
+   713→          if (st.phase === 'boarding') {
+   714→            this.playerBoardT += dt;
+   715→            if (this.playerBoardT > 1.0) this.elevators.notifyBoarded(this.actorId());
+   716→          } else {
+   717→            this.playerBoardT = 0;
+   718→          }
+   719→          if (st.phase === 'exiting') {
+   720→            this.logic.finishClimb();
+   721→            this.logic.externalRequested = false;
+   722→          }
+   723→        }
+   724→      } else if (this.logic.externalRequested) {
+   725→        this.logic.externalRequested = false;
+   726→      }
+   727→      // En remoto el servidor es la autoridad del reloj: nada de ticks locales.
+   728→      if (!this.net) {
+   729→        this.clockAcc += dt * store.speed;
+   730→        let guard = 0;
+   731→        while (this.clockAcc >= 1 && guard < 60) {
+   732→          tick(this.world, this.content);
+   733→          this.clockAcc -= 1;
+   734→          ticked = true;
+   735→          guard += 1;
+   736→        }
+   737→      }
+   738→    }
+   739→
+   740→    if (this.world.events.length > 0) this.handleEvents();
+   741→    if (ticked) this.paintBuilding();
+   742→
+   743→    const now = performance.now();
+   744→    if (now - this.lastHudSync > 200) {
+   745→      this.lastHudSync = now;
+   746→      useGameStore.getState().setFps(Math.round(this.engine.getFps()));
+   747→      this.syncHud();
+   748→    }
+   749→
+   750→    const pos = this.logic.position();
+   751→    this.actors.update(dt, pos, this.actorId());
+   752→    // Cutscene (Fase D): sus beats mueven cámara/actores DESPUÉS de los eventos y ANTES del render.
+   753→    this.cutscenePlayer?.update(dt);
+   754→    // Bocadillos (v1.10): después de actores y cámara — proyectan la posición FINAL del frame.
+   755→    this.bubbles?.update(dt, this.actorId());
+   756→    // Ecosistema (v1.14): cerebro a cadencia + extras + luces + deterioro. En multijugador
+   757→    // queda en pausa (el servidor es la autoridad; mismo criterio que partyDemo).
+   758→    if (!this.net) this.ecosystem?.update(dt);
+   759→    // Si la cutscene acaba y queda cola, encadena la siguiente aquí: no dependemos de que el sim
+   760→    // genere otro evento para descolgar la siguiente (durante el teatro el sim está congelado).
+   761→    if (this.cutsceneQueue.length > 0 && !this.cutscenePlayer?.active) this.pumpCutscene();
+   762→    // LOD por distancia: solo con cámaras cercanas (planta/estancia); el plano general (edificio) muestra todo.
+   763→    // Privacidad (v1.17): el tercer argumento es el bloque donde está el jugador — las fachadas
+   764→    // de las viviendas reaccionan al instante cuando entra o sale.
+   765→    this.building.update(dt, useGameStore.getState().camMode === 'edificio' ? undefined : { x: pos.x, floor: pos.floor }, pos.insideBlock);
+   766→    this.rig.update(dt, pos);
+   767→    this.scene.render();
+   768→  };
+   769→
+   770→  /** Bomba de sincronización: reparte eventos pendientes y refresca el HUD. */
+   771→  private pump(): void {
+   772→    if (!this.world) return;
+   773→    this.handleEvents();
+   774→    this.paintBuilding();
+   775→    this.syncHud();
+   776→  }
+   777→
+   778→  private paintBuilding(): void {
+   779→    this.building?.paint();
+   780→  }
+   781→
+   782→  // ───────────────────────── Eventos del sim → interfaz ─────────────────────────
+   783→
+   784→  private nameOf(residentId: unknown): string {
+   785→    const r = this.world?.residents[String(residentId)];
+   786→    return r ? this.content.archetypes[r.archetype]?.name ?? r.id : String(residentId);
+   787→  }
+   788→
+   789→  private titleOf(missionId: unknown): string {
+   790→    return this.content.missions[String(missionId)]?.title ?? String(missionId);
+   791→  }
+   792→
+   793→  /** Etiqueta visible de una actividad (vive en el arquetipo, no en el código). */
+   794→  private activityLabel(residentId: unknown, activity: string): string {
+   795→    const r = this.world?.residents[String(residentId)];
+   796→    return r ? this.content.archetypes[r.archetype]?.activities[activity]?.label ?? activity : activity;
+   797→  }
+   798→
+   799→  private handleEvents(): void {
+   800→    if (!this.world) return;
+   801→    const store = useGameStore.getState();
+   802→    for (const e of drainEvents(this.world)) {
+   803→      const d = e.data as Record<string, unknown>;
+   804→      eventSound(e.type, typeof d.type === 'string' ? d.type : undefined);
+   805→      switch (e.type) {
+   806→        case 'step_started':
+   807→          if (d.type === 'phone_call') this.openPhone(String(d.mission), String(d.dialog));
+   808→          break;
+   809→        case 'choice_required': {
+   810→          const choices = (d.choices as { id: string; label: string; hint?: string | null }[] | undefined) ?? [];
+   811→          store.setChoices({ mission: String(d.mission), title: String(d.title), choices: choices.map((c) => ({ id: c.id, label: c.label, hint: c.hint ?? null })) });
+   812→          store.pushLog(`⚖️ Decisión pendiente: ${String(d.title)}`, 'info');
+   813→          this.actors?.director.setGesture(this.actorId(), 'talk'); // el jugador razona en voz alta
+   814→          break;
+   815→        }
+   816→        case 'door_locked': {
+   817→          this.building?.shake(String(d.block));
+   818→          const price = typeof d.price === 'number' ? d.price : null;
+   819→          store.pushToast(`${blockLabel(String(d.block))}: puerta con candado${d.reason === 'for_sale' && price !== null ? ` (a la venta por ${price} €)` : ''}`, 'info');
+   820→          break;
+   821→        }
+   822→        case 'neighbor_arrived':
+   823→          store.pushToast(`Nuevo vecino en ${blockLabel(String(d.block))}: ${this.nameOf(d.resident)}`, 'good');
+   824→          store.pushLog(`${this.nameOf(d.resident)} se muda a ${blockLabel(String(d.block))}. El edificio ya no es lo que era. Era mejor.`, 'info');
+   825→          break;
+   826→        case 'mission_activated':
+   827→          store.pushLog(`📋 Nueva misión: ${String(d.title)}`, 'info');
+   828→          break;
+   829→        case 'mission_completed':
+   830→          store.pushToast(`Misión completada: ${this.titleOf(d.mission)}`, 'good');
+   831→          store.pushLog(`✔ Misión completada: ${this.titleOf(d.mission)}`, 'good');
+   832→          break;
+   833→        case 'mission_failed':
+   834→          store.pushToast(`Misión fallida: ${this.titleOf(d.mission)}`, 'bad');
+   835→          store.pushLog(`✘ Misión fallida: ${this.titleOf(d.mission)}`, 'bad');
+   836→          break;
+   837→        case 'block_unlocked':
+   838→          store.pushToast(`${blockLabel(String(d.block))} desbloqueado`, 'good');
+   839→          break;
+   840→        case 'block_bought':
+   841→          store.pushLog(`🔑 ${blockLabel(String(d.block))} comprado por ${String(d.price)} €`, 'good');
+   842→          break;
+   843→        case 'block_for_sale':
+   844→          store.pushLog(`🪧 Cartel de "SE VENDE" en ${blockLabel(String(d.block))} (${String(d.price)} €)`, 'info');
+   845→          break;
+   846→        case 'knock_result':
+   847→          store.pushToast(`🗣️ ${String(d.name)}: «${String(d.line)}»`, d.asleep ? 'info' : 'good');
+   848→          // El vecino que responde gesticula la réplica unos segundos (v1.2).
+   849→          if (typeof d.resident === 'string') this.actors?.director.setGesture(d.resident, 'talk', 3.5);
+   850→          break;
+   851→        case 'noise_complaint': // texto data-driven: lo pinta el uiLog del catálogo (case mantenido por compatibilidad de eventos antiguos)
+   852→          if (d.uiLog === true) break;
+   853→          store.pushLog(`🔊 Ruido por encima del límite en ${blockLabel(String(d.block))}. Alguien aprieta los dientes.`, 'bad');
+   854→          break;
+   855→        case 'leak_detected':
+   856→          if (d.uiLog === true) break;
+   857→          store.pushLog(`💧 Goteo detectado en ${blockLabel(String(d.block))}. El cubo del salón hace ojitos.`, 'bad');
+   858→          break;
+   859→        case 'furniture_placed':
+   860→          store.pushLog(`${String(d.emoji ?? '📦')} ${String(d.name)} colocado en ${blockLabel(String(d.block))} (${String(d.room)}).`, 'info');
+   861→          break;
+   862→        case 'furniture_removed':
+   863→          store.pushLog(`${String(d.emoji ?? '📦')} ${String(d.name)} retirado de ${blockLabel(String(d.block))} (+${String(d.refund)} €).`, 'info');
+   864→          break;
+   865→        case 'room_renovated':
+   866→          store.pushLog(`🧱 Reforma terminada en ${blockLabel(String(d.block))}. Hay estancia nueva que amueblar.`, 'good');
+   867→          break;
+   868→        case 'weather_changed':
+   869→          store.pushLog(`El cielo cambia: ${this.content.rules.labels.weather[String(d.state)] ?? String(d.state)}`, 'info');
+   870→          break;
+   871→        case 'rent_collected':
+   872→          store.pushToast(`+${String(d.amount)} € de alquiler (${blockLabel(String(d.block))})`, 'good');
+   873→          break;
+   874→        case 'work_done':
+   875→          store.pushLog(`💻 Cerrada una "reunión que podía ser un correo": +${String(d.amount)} €`, 'info');
+   876→          break;
+   877→        case 'activity_started':
+   878→          if (d.activity !== 'idle') store.pushLog(`${this.nameOf(d.resident)} ${this.activityLabel(d.resident, String(d.activity))}`, 'info');
+   879→          break;
+   880→        case 'junta_requested': {
+   881→          const agenda = (d.agenda as { id: string; title: string; description: string; cost: number }[] | undefined) ?? [];
+   882→          store.setJunta(agenda.map((i) => ({ id: i.id, title: i.title, description: i.description, cost: i.cost })));
+   883→          this.actors?.director.setGesture(this.actorId(), 'talk'); // defensa del orden del día
+   884→          break;
+   885→        }
+   886→        case 'junta_result':
+   887→          store.pushToast(
+   888→            d.approved ? `Aprobado: ${String(d.title)} (${String(d.yes)} sí / ${String(d.no)} no)` : `Rechazado: ${String(d.title)} (${String(d.yes)} sí / ${String(d.no)} no)`,
+   889→            d.approved ? ('good' as Tone) : ('bad' as Tone),
+   890→          );
+   891→          break;
+   892→        case 'junta_vote_registered':
+   893→          store.pushLog(`🗳️ ${this.nameOf(d.resident)} ha depositado su voto. Pendientes: ${String(d.pendingHumans)}`, 'info');
+   894→          break;
+   895→        case 'junta_closed':
+   896→          store.setJunta(null);
+   897→          break;
+   898→        case 'stairs_grumble':
+   899→          // Malestar vecinal (v1.5): texto del catálogo con el nombre del vecino que sube a pie.
+   900→          store.pushLog(String(this.content.rules.sim.elevator.grumbleText).replace('{name}', this.nameOf(d.resident)), 'info');
+   901→          break;
+   902→        case 'minigame_requested': {
+   903→          const def = this.content.minigames[String(d.minigame)];
+   904→          if (!def) break;
+   905→          // Overrides numéricos del escenario activo (QA/E2E): solo config, nunca efectos ni textos.
+   906→          const ov = this.scenarioOverrides[def.id];
+   907→          const effective = ov ? ({ ...def, config: { ...def.config, ...ov } } as MinigameDef) : def;
+   908→          store.setMinigame({ ...effective, emoji: effective.emoji ?? '🎮', instruction: effective.instruction ?? null });
+   909→          break;
+   910→        }
+   911→        case 'minigame_finished': {
+   912→          const name = this.content.minigames[String(d.minigame)]?.name ?? String(d.minigame);
+   913→          store.pushLog(d.success ? `🎮 Minijuego superado: ${name}` : `🎮 Minijuego fallido: ${name}`, d.success ? 'good' : 'bad');
+   914→          break;
+   915→        }
+   916→        case 'ui_toast':
+   917→          store.pushToast(String(d.text), (d.tone as Tone | undefined) ?? 'info');
+   918→          break;
+   919→        case 'finale':
+   920→          store.setFinale(String(d.text));
+   921→          break;
+   922→        case 'funds_changed': {
+   923→          const amount = typeof d.amount === 'number' ? d.amount : 0;
+   924→          if ((d.to === 'player' || d.to === 'community') && amount !== 0) {
+   925→            store.pushLog(amount > 0 ? `+${amount} € (fondos)` : `${amount} € (fondos)`, amount > 0 ? 'good' : 'bad');
+   926→          }
+   927→          break;
+   928→        }
+   929→        default: {
+   930→          // Umbral de canal con texto del catálogo (odors, wifi y futuros canales): totalmente data-driven.
+   931→          if (d.uiLog === true && typeof d.message === 'string') {
+   932→            store.pushLog(String(d.message).replace('{block}', blockLabel(String(d.block))), (d.tone as Tone | undefined) ?? 'info');
+   933→          }
+   934→          break; // resident_moved, param_changed, activity_ended... demasiado ruido para el registro
+   935→        }
+   936→      }
+   937→      // Cutscenes (Fase D): después del reparto, ¿alguna quiere este evento como disparador?
+   938→      this.maybeCutscene(e);
+   939→      // Bocadillos (v1.10): reacciones expresivas al evento según emotes.json del catálogo.
+   940→      this.bubbles?.onEvent(e);
+   941→    }
+   942→    this.pumpCutscene();
+   943→  }
+   944→
+   945→  // ───────────────────────── Cutscenes (Fase D) ─────────────────────────
+   946→
+   947→  /** Si el evento encaja con el trigger de alguna cutscene del catálogo, se encola (máx. 3). */
+   948→  private maybeCutscene(e: GameEvent): void {
+   949→    const defs = Object.values(this.content.cutscenes);
+   950→    if (defs.length === 0) return;
+   951→    const d = e.data as Record<string, unknown>;
+   952→    const hit = defs.find((c) => {
+   953→      const t = c.trigger;
+   954→      if (t.on !== e.type) return false;
+   955→      if (t.mission !== undefined && t.mission !== String(d.mission ?? '')) return false;
+   956→      if (t.step !== undefined && t.step !== String(d.step ?? '')) return false;
+   957→      return true;
+   958→    });
+   959→    if (!hit) return;
+   960→    if (this.cutsceneQueue.length >= 3) return; // nunca más de 3 esperando: el teatro no atravaca la partida
+   961→    this.cutsceneQueue.push({
+   962→      def: hit,
+   963→      ctx: {
+   964→        mission: typeof d.mission === 'string' ? d.mission : null,
+   965→        resident: typeof d.resident === 'string' ? d.resident : null,
+   966→        block: typeof d.block === 'string' ? d.block : null,
+   967→      },
+   968→    });
+   969→  }
+   970→
+   971→  /** Lanza la siguiente cutscene en cola si no hay nada en pantalla (también un modal la pospone). */
+   972→  private pumpCutscene(): void {
+   973→    if (!this.cutscenePlayer || !this.world || !this.rig || !this.actors || !this.engine || !this.logic) return;
+   974→    if (this.cutscenePlayer.active || this.cutsceneQueue.length === 0) return;
+   975→    if (selectModalOpen(useGameStore.getState())) return; // no se roba la pantalla a un modal
+   976→    const next = this.cutsceneQueue.shift()!;
+   977→    this.cutscenePlayer.start(next.def, next.ctx, {
+   978→      engine: this.engine,
+   979→      rig: this.rig,
+   980→      actors: this.actors.director,
+   981→      world: this.world,
+   982→      playerPos: () => this.logic!.position(),
+   983→    });
+   984→  }
+   985→
+   986→  // ───────────────────────── Teléfono ─────────────────────────
+   987→
+   988→  private openPhone(mission: string, dialogId: string): void {
+   989→    const dlg = this.content.dialogs[dialogId];
+   990→    if (!dlg || dlg.lines.length === 0) return;
+   991→    // Si ya hay una llamada en pantalla, la nueva espera en cola (dedupe por misión).
+   992→    if (this.phoneMission) {
+   993→      if (this.phoneMission !== mission && !this.phoneQueue.some((q) => q.mission === mission)) {
+   994→        this.phoneQueue.push({ mission, dialogId });
+   995→      }
+   996→      return;
+   997→    }
+   998→    this.phoneMission = mission;
+   999→    this.phoneLines = dlg.lines;
+  1000→    this.phoneLine = 0;
+  1001→    this.actors?.director.setGesture(this.actorId(), 'phone'); // el jugador atiende con el móvil a la oreja
+  1002→    this.showPhoneLine();
+  1003→  }
+  1004→
+  1005→  private showPhoneLine(): void {
+  1006→    const line = this.phoneLines[this.phoneLine];
+  1007→    if (!line) return;
+  1008→    useGameStore.getState().setPhone({ mission: this.phoneMission, speaker: line.speaker, text: line.text, isLast: this.phoneLine === this.phoneLines.length - 1 });
+  1009→  }
+  1010→
+  1011→  // ───────────────────────── HUD ─────────────────────────
+  1012→
+  1013→  /** Nombre visible de un bloque: label del catálogo (data-driven) o etiqueta de vivienda (1B). */
+  1014→  private blockName(id: string): string {
+  1015→    const b = this.world?.blocks[id];
+  1016→    const defLabel = b ? this.content.blocks[b.defId]?.label : undefined;
+  1017→    return defLabel ?? blockLabel(id);
+  1018→  }
+  1019→
+  1020→  private objectiveUi(): { title: string; text: string } | null {
+  1021→    if (!this.world) return null;
+  1022→    const o = activeObjective(this.world, this.content);
+  1023→    if (!o) return null;
+  1024→    if (o.state === 'awaiting_choice') return { title: o.title, text: 'El edificio contiene la respiración. Decide qué hacer.' };
+  1025→    const s = o.step!;
+  1026→    const left = o.untilTick !== null ? ` · quedan ${Math.max(0, o.untilTick - this.world.tick)} min` : '';
+  1027→    switch (s.type) {
+  1028→      case 'phone_call':
+  1029→        return { title: o.title, text: 'Suena el teléfono. Atiéndelo.' };
+  1030→      case 'reach':
+  1031→        return { title: o.title, text: `Llega a la puerta (${this.blockName(s.block ?? '')}).` };
+  1032→      case 'enter':
+  1033→        return { title: o.title, text: 'Entra en tu piso con E.' };
+  1034→      case 'catch_in_act':
+  1035→        return { title: o.title, text: `Pilla al responsable in fraganti${left}.` };
+  1036→      default:
+  1037→        return { title: o.title, text: o.title };
+  1038→    }
+  1039→  }
+  1040→
+  1041→  private promptText(): string | null {
+  1042→    const logic = this.logic;
+  1043→    const world = this.world;
+  1044→    if (!logic || !world) return null;
+  1045→    if (logic.position().climbing) return null;
+  1046→    // El prompt es SIEMPRE el objetivo real de la tecla E (misma fuente, cero divergencias).
+  1047→    const t = logic.interactTarget();
+  1048→    if (t) {
+  1049→      const ic = this.content.rules.interact;
+  1050→      switch (t.kind) {
+  1051→        case 'door': {
+  1052→          const door = world.blocks[t.blockId]!;
+  1053→          if (logic.position().mode === 'inside') return ic.exit;
+  1054→          return door.access === 'locked'
+  1055→            ? ic.doorLocked.replace('{block}', this.blockName(door.id))
+  1056→            : ic.doorEnter.replace('{block}', this.blockName(door.id));
+  1057→        }
+  1058→        case 'resident':
+  1059→          return ic.greet.replace('{name}', this.nameOf(t.residentId));
+  1060→        case 'mailbox':
+  1061→          return ic.mailbox.prompt;
+  1062→        case 'noticeboard':
+  1063→          return ic.noticeboard.prompt;
+  1064→        case 'laptop':
+  1065→          return ic.laptop;
+  1066→        case 'bed':
+  1067→          return ic.bed;
+  1068→      }
+  1069→    }
+  1070→    const zone = logic.zone();
+  1071→    const feat = this.content.blocks[zone.defId]!.features;
+  1072→    if (feat?.stairs || feat?.elevator) {
+  1073→      const ic = this.content.rules.interact;
+  1074→      // Lo que dice el prompt es lo que W/S hace aquí: ascensor operativo manda; si no hay
+  1075→      // ascensor utilizable pero sí escalera, escalera; núcleo averiado sin escalera = aviso.
+  1076→      if (feat.elevator && world.blocks[zone.id]!.params.elevator_status === 'ok') return ic.elevator;
+  1077→      if (feat.stairs) return ic.stairs;
+  1078→      return ic.elevatorBroken;
+  1079→    }
+  1080→    return null;
+  1081→  }
+  1082→
+  1083→  /** Viviendas del jugador para el editor de interiores (foto serializable, posiciones ya en %). */
+  1084→  private homesUi() {
+  1085→    const world = this.world!;
+  1086→    const cellH = this.content.rules.view.cellH;
+  1087→    const mine = this.actorId();
+  1088→    return Object.values(world.blocks)
+  1089→      .filter((b) => b.kind === 'dwelling' && b.ownerId === mine)
+  1090→      .sort((a, b) => a.id.localeCompare(b.id))
+  1091→      .map((b) => ({
+  1092→        id: b.id,
+  1093→        label: blockLabel(b.id),
+  1094→        rooms: b.rooms.map((room) => {
+  1095→          const rdef = this.content.rooms[room.defId];
+  1096→          const slots = (rdef?.furnitureSlots ?? []).map((s) => {
+  1097→            const itemId = room.furniture[s.id] ?? '';
+  1098→            const fdef = itemId ? this.content.furniture[itemId] : undefined;
+  1099→            return {
+  1100→              id: s.id,
+  1101→              kind: s.kind,
+  1102→              left: Math.min(92, Math.max(2, (s.pos[0] / Math.max(0.001, rdef?.size.w ?? 1)) * 100)),
+  1103→              bottom: Math.min(76, Math.max(0, (s.pos[1] / Math.max(0.001, cellH)) * 100)),
+  1104→              item: fdef ? { id: fdef.id, name: fdef.name, emoji: fdef.emoji ?? '📦', color: fdef.view.color } : null,
+  1105→            };
+  1106→          });
+  1107→          return { key: room.key, label: rdef?.label ?? room.key, access: room.access, slots };
+  1108→        }),
+  1109→      }));
+  1110→  }
+  1111→
+  1112→  private syncHud(): void {
+  1113→    const world = this.world;
+  1114→    if (!world) return;
+  1115→    const player = world.residents[this.actorId()] ?? world.residents[world.playerId];
+  1116→    if (!player) return;
+  1117→    const home = player.home;
+  1118→    const params = visibleParams(world, this.content, home).map((p) => ({ name: p.name, label: p.def.label ?? p.name, value: String(p.value) }));
+  1119→    const missions = world.missions.map((m) => {
+  1120→      const def = this.content.missions[m.id]!;
+  1121→      const step = m.state === 'active' ? def.steps[m.step] : undefined;
+  1122→      return {
+  1123→        id: m.id,
+  1124→        title: def.title,
+  1125→        state: m.state,
+  1126→        hint: step?.hint ?? null,
+  1127→        remaining: m.until !== null ? `quedan ${Math.max(0, m.until - world.tick)} min` : null,
+  1128→      };
+  1129→    });
+  1130→    const travel = travelMinutes(buildCirculation(world, this.content), world.entry, home);
+  1131→    const elevatorBlock = Object.values(world.blocks).find((b) => b.params.elevator_status !== undefined);
+  1132→    useGameStore.getState().syncHud({
+  1133→      clock: { ...world.clock },
+  1134→      weather: world.weather.state,
+  1135→      funds: world.community.funds,
+  1136→      wallet: player.wallet,
+  1137→      reputation: player.reputation,
+  1138→      elevator: String(elevatorBlock?.params.elevator_status ?? 'ok'),
+  1139→      homeLabel: blockLabel(home),
+  1140→      travelText: Number.isFinite(travel) ? `del portal a tu puerta: ${travel} min` : null,
+  1141→      objective: this.objectiveUi(),
+  1142→      prompt: this.promptText(),
+  1143→      params,
+  1144→      missions,
+  1145→      homes: this.homesUi(),
+  1146→      furnitureConfig: { refundRatio: this.content.rules.furniture.refundRatio, roomUnlockPrice: this.content.rules.furniture.roomUnlock.price },
+  1147→    });
+  1148→  }
+  1149→}
+  1150→
+  1151→// ───────────────────────── Singleton ─────────────────────────
+  1152→
+  1153→let instance: GameController | null = null;
+  1154→
+  1155→/** Crea (o reutiliza) el controlador y lo arranca sobre el canvas dado. */
+  1156→export function createGameController(canvas: HTMLCanvasElement): GameController {
+  1157→  if (!instance) {
+  1158→    instance = new GameController();
+  1159→    setController(instance); // la UI lo usa desde ya; sus acciones toleran mundo nulo
+  1160→    void instance.init(canvas);
+  1161→  }
+  1162→  return instance;
+  1163→}
+  1164→
+  1165→export function getGameController(): GameController | null {
+  1166→  return instance;
+  1167→}
+  1168→

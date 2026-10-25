@@ -250,12 +250,22 @@
       "floorJunk": 3,
       "wood": "#8a5a33",
       "woodDark": "#6f4926",
-      "junk": ["#c9a66b", "#7d8493", "#9c6644", "#84a59d", "#e07a5f", "#b08968"],
+      "junk": [
+        "#c9a66b",
+        "#7d8493",
+        "#9c6644",
+        "#84a59d",
+        "#e07a5f",
+        "#b08968"
+      ],
       "emptyLabel": "—",
       "ownBg": "#ffd166",
       "ownText": "#3b3129",
       "plaqueW": 0.52,
-      "plaqueH": 0.18
+      "plaqueH": 0.18,
+      "partitionExtra": 0.22,
+      "partitionColor": "#6f4926",
+      "headerH": 0.15
     },
     "roof": {
       "pitchH": 1.2,
@@ -278,7 +288,14 @@
       "bed",
       "tv",
       "desk"
-    ]
+    ],
+    "privacy": {
+      "enabled": true,
+      "doorColor": "#5d4a3a",
+      "handleColor": "#ffd166",
+      "doorW": 0.95,
+      "doorH": 1.85
+    }
   },
   "demo": {
     "resident": "res_fiestero_01",

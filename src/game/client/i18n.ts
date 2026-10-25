@@ -27,7 +27,7 @@ const DICT: Record<string, { es: string; en: string }> = {
     es: 'Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.',
     en: 'Move-ins, noise, smells, wifi, pests, smoke and levies: the neighborhood simulator.',
   },
-  'header.version': { es: 'v1.16 · trasteros, bajocubierta y tejado', en: 'v1.16 · storage floors, attic & roof' },
+  'header.version': { es: 'v1.17 · logros, privacidad y cuaderno del portero', en: 'v1.17 · achievements, privacy & the caretaker’s notebook' },
   'footer.text': {
     es: 'VECINOS · prototipo jugable — sim determinista (1 tick = 1 minuto) + render Babylon.js (WebGPU/WebGL2) + editor con drag & drop + catálogo de minijuegos + guardado en SQLite. Construyéndolo por hitos, juntos.',
     en: 'VECINOS · playable prototype — deterministic sim (1 tick = 1 minute) + Babylon.js rendering (WebGPU/WebGL2) + drag & drop editor + minigame catalog + SQLite saves. Built milestone by milestone, together.',
@@ -92,6 +92,32 @@ const DICT: Record<string, { es: string; en: string }> = {
   'weather.cloudy': { es: 'Nublado', en: 'Cloudy' },
   'weather.rain': { es: 'Lluvia', en: 'Rain' },
   'weather.storm': { es: 'Tormenta', en: 'Storm' },
+
+  // ── Dock de información (v1.17) ──
+  'dock.tab.missions': { es: 'Misiones', en: 'Missions' },
+  'dock.tab.building': { es: 'Edificio', en: 'Building' },
+  'dock.tab.home': { es: 'Mi casa', en: 'My flat' },
+  'dock.tab.achievements': { es: 'Logros', en: 'Achievements' },
+  'dock.tab.help': { es: 'Ayuda', en: 'Help' },
+
+  // ── Tracker de misión (v1.17) ──
+  'tracker.noMission': { es: 'Sin misión activa', en: 'No active mission' },
+  'tracker.active': { es: '{n} en curso', en: '{n} in progress' },
+  'tracker.decisions': { es: '{n} decisión(es) pendiente(s)', en: '{n} pending decision(s)' },
+
+  // ── Logros tipo Steam (v1.17) ──
+  'ach.title': { es: 'Logros', en: 'Achievements' },
+  'ach.progress': { es: '{x} / {y}', en: '{x} / {y}' },
+  'ach.done': { es: 'logrado', en: 'unlocked' },
+  'ach.doneCount': { es: '{n} logrados', en: '{n} unlocked' },
+  'ach.lockedCount': { es: '{n} por descubrir', en: '{n} to discover' },
+  'ach.hiddenName': { es: '???', en: '???' },
+  'ach.hiddenDesc': { es: 'Logro oculto', en: 'Hidden achievement' },
+  'ach.empty': {
+    es: 'El tablón de logros está vacío: el presidente guardó las placas en un trastero.',
+    en: 'The achievements board is empty: the president locked the plaques in a storage unit.',
+  },
+  'ach.popupTitle': { es: '¡Logro desbloqueado!', en: 'Achievement unlocked!' },
 
   // ── Paneles ──
   'obj.title': { es: 'Objetivo', en: 'Objective' },

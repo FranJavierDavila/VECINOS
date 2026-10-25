@@ -4,7 +4,8 @@
     "sizePx": 26,
     "maxDistance": 72,
     "popMs": 160,
-    "decisionMs": 250
+    "decisionMs": 250,
+    "buildingMaxGlyphs": 6
   },
   "mood": {
     "needs": {

@@ -3,17 +3,14 @@
 import GameStage from '@/components/game/GameStage';
 import { ControlsBar } from '@/components/game/ControlsBar';
 import { HudBar } from '@/components/game/HudBar';
-import { ObjectiveCard } from '@/components/game/ObjectiveCard';
-import { MissionsPanel } from '@/components/game/MissionsPanel';
-import { ParamsPanel } from '@/components/game/ParamsPanel';
-import { EventLog } from '@/components/game/EventLog';
-import { HelpCard } from '@/components/game/HelpCard';
-import { InteriorEditorPanel } from '@/components/game/InteriorEditorPanel';
+import { MissionTracker } from '@/components/game/MissionTracker';
+import { InfoDock } from '@/components/game/InfoDock';
+import { AchievementPopup } from '@/components/game/AchievementPopup';
 import { PwaRegister } from '@/components/game/PwaRegister';
 import { getController } from '@/game/client/bridge';
 import { useT } from '@/game/client/i18n';
 
-/** VECINOS v1.2: credibilidad 2.5D (rotación de actores por dirección, clips sociales run/talk/laugh/argue/phone/sit, correr con Shift/mando). */
+/** VECINOS v1.17: dock de información por pestañas + logros tipo Steam (perfil persistente). */
 export default function Home() {
   const t = useT();
   const g = () => getController();
@@ -43,15 +40,13 @@ export default function Home() {
 
         <HudBar />
 
-        <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <ObjectiveCard />
-          <MissionsPanel />
-          <ParamsPanel />
-          <InteriorEditorPanel />
-          <EventLog />
-          <HelpCard />
+        <div className="mt-4 flex flex-col gap-2">
+          <MissionTracker />
+          <InfoDock />
         </div>
       </main>
+
+      <AchievementPopup />
 
       <footer className="mt-auto border-t bg-muted/40 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
         <div className="mx-auto max-w-7xl px-4 text-xs text-muted-foreground">

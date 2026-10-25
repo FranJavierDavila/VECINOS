@@ -610,6 +610,13 @@ export const rulesSchema = z.object({
         ownText: z.string().default('#3b3129'),
         plaqueW: z.number().positive().default(0.52),
         plaqueH: z.number().positive().default(0.18),
+        /** Tabiques divisorios entre trasteros (v1.17): cada ranura se lee como trastero
+         *  propio. La altura es la del unit + partitionExtra; color propio del catálogo. */
+        partitionExtra: z.number().min(0).default(0.22),
+        partitionColor: z.string().default('#6f4926'),
+        /** Cabecera de cartel sobre la fachada de cada estantería (v1.17): travesaño donde
+         *  se monta el cartel numerado "en la propia estantería" (no flotando). */
+        headerH: z.number().min(0).default(0.15),
       })
       .default({
         shelvesPerLevel: 8,
@@ -631,6 +638,9 @@ export const rulesSchema = z.object({
         ownText: '#3b3129',
         plaqueW: 0.52,
         plaqueH: 0.18,
+        partitionExtra: 0.22,
+        partitionColor: '#6f4926',
+        headerH: 0.15,
       }),
     /** Tejadillo que cierra el edificio (v1.16): faldones a dos aguas sobre la bajocubierta.
      *  CONTRATO con la authoría glTF (scripts/gen-v16-assets.ts): mismos colores y misma
@@ -658,6 +668,19 @@ export const rulesSchema = z.object({
         potH: z.number().positive().default(0.26),
       })
       .default({ perFloorMin: 2, perFloorMax: 4, potColor: '#b5651d', soilColor: '#5d4037', plantColor: '#5a9367', plant2Color: '#84a59d', potR: 0.17, potH: 0.26 }),
+    /** Privacidad de viviendas (v1.17): si una vivienda NO tiene a nadie dentro, el corte
+     *  se cierra con su fachada y una puerta al pasillo; el interior solo se ve cuando su
+     *  propietario (o cualquier vecino… o un ladrón) está dentro. Colores y medidas de la
+     *  puerta del catálogo; enabled=false vuelve al corte siempre abierto. */
+    privacy: z
+      .object({
+        enabled: z.boolean().default(true),
+        doorColor: z.string().default('#5d4a3a'),
+        handleColor: z.string().default('#ffd166'),
+        doorW: z.number().positive().default(0.95),
+        doorH: z.number().positive().default(1.85),
+      })
+      .default({ enabled: true, doorColor: '#5d4a3a', handleColor: '#ffd166', doorW: 0.95, doorH: 1.85 }),
     /** Velocidad (m/s) a partir de la cual un actor en marcha usa el clip "run". */
     runSpeed: z.number().positive().default(4.2),
     /** Multiplicador de velocidad del jugador mientras corre (Shift / botón del mando). */
@@ -809,6 +832,9 @@ export const emotesCatalogSchema = z.object({
     maxDistance: z.number().positive(),
     popMs: z.number().min(0),
     decisionMs: z.number().min(50),
+    /** Vista EDIFICIO (v1.17): sin texto y con tope de glifos — el plano general no se
+     *  convierte en una sopa de emoticonos. undefined = comportamiento de siempre. */
+    buildingMaxGlyphs: z.number().int().min(0).optional(),
   }),
   // ── Bocadillos con TEXTO (v1.15): las actividades con líneas `say` del arquetipo se
   // dicen en un bocadillo legible sobre la cabeza (alternando con el glifo). Opcional:
@@ -974,3 +1000,42 @@ export const missionListSchema = z.array(missionDefSchema);
 export const cutsceneListSchema = z.array(cutsceneDefSchema);
 export const templateListSchema = z.array(templateDefSchema);
 export const scenarioListSchema = z.array(scenarioDefSchema);
+
+// ───────────────────────── Logros tipo Steam (v1.17, opcional) ─────────────────────────
+
+// Catálogo puro de logros (public/content/achievements.json): nombres/descripciones ES/EN y
+// una condición discriminada por `kind`. El evaluador (src/game/support/achievements.ts) es
+// una función pura sobre un snapshot del mundo; aquí solo declaramos la forma del JSON.
+
+/** Texto localizable del chrome de logros: el par de idiomas que viaja en el JSON. */
+const localizedTextSchema = z.object({ es: z.string().min(1), en: z.string().min(1) });
+
+export const achievementConditionSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('mission_done'), mission: z.string().min(1) }),
+  z.object({ kind: z.literal('missions_done'), count: z.number().int().min(1) }),
+  z.object({ kind: z.literal('wallet'), amount: z.number().min(0) }),
+  z.object({ kind: z.literal('funds'), amount: z.number().min(0) }),
+  z.object({ kind: z.literal('reputation'), amount: z.number() }),
+  z.object({ kind: z.literal('day'), count: z.number().int().min(1) }),
+  z.object({ kind: z.literal('relation'), affinity: z.number().min(0).max(100) }),
+  z.object({ kind: z.literal('elevator_ok') }),
+]);
+
+export const achievementDefSchema = z.object({
+  id: z.string().min(1),
+  icon: z.string().min(1),
+  name: localizedTextSchema,
+  desc: localizedTextSchema,
+  /** Oculto: bloqueado se muestra como "???" (como en Steam), desbloqueado se revela. */
+  hidden: z.boolean().optional(),
+  condition: achievementConditionSchema,
+});
+
+export const achievementsCatalogSchema = z.object({
+  version: z.literal(1),
+  achievements: z.array(achievementDefSchema).min(1),
+});
+
+export type AchievementConditionParsed = z.infer<typeof achievementConditionSchema>;
+export type AchievementDefParsed = z.infer<typeof achievementDefSchema>;
+export type AchievementsCatalogParsed = z.infer<typeof achievementsCatalogSchema>;

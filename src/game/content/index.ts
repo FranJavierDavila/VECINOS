@@ -1,5 +1,6 @@
-import type { AssetsCatalog, Content, EcosystemContent, Effect, EmotesCatalog } from '@/game/core/types';
+import type { AchievementsCatalog, AssetsCatalog, Content, EcosystemContent, Effect, EmotesCatalog } from '@/game/core/types';
 import {
+  achievementsCatalogSchema,
   blockListSchema,
   cutsceneListSchema,
   dialogListSchema,
@@ -92,6 +93,16 @@ export async function loadContent(baseUrl: string = '/content/'): Promise<{ cont
       throw new Error(`ecosystem.json (ecosistema del edificio) inválido: ${e instanceof Error ? e.message : String(e)}`);
     }
 
+    // Logros tipo Steam (v1.17, OPCIONAL): sin el fichero no hay logros y la partida
+    // funciona exactamente igual (patrón emotes/ecosystem).
+    let achievements: AchievementsCatalog | undefined;
+    try {
+      const res = await fetch(`${baseUrl}achievements.json`);
+      if (res.ok) achievements = achievementsCatalogSchema.parse(await res.json()) as AchievementsCatalog;
+    } catch (e) {
+      throw new Error(`achievements.json (logros) inválido: ${e instanceof Error ? e.message : String(e)}`);
+    }
+
     const content: Content = {
       rules,
       blocks: indexById(blocks),
@@ -109,6 +120,7 @@ export async function loadContent(baseUrl: string = '/content/'): Promise<{ cont
       assets,
       emotes,
       ecosystem,
+      achievements,
     };
 
     const issues = validateContent(content);
@@ -278,6 +290,14 @@ export function validateContent(c: Content): Issue[] {
         else if (!bd.params?.[rule.param]) err(`ecosystem/visuals/${rule.id}`, `param desconocido en ${rule.blockDef}: ${rule.param}`);
         if (rule.below === undefined && rule.above === undefined) err(`ecosystem/visuals/${rule.id}`, 'necesita below o above');
       }
+    }
+  }
+
+  // Logros (v1.17): las condiciones mission_done deben referir misiones existentes.
+  if (c.achievements) {
+    for (const a of c.achievements.achievements) {
+      if (a.condition.kind === 'mission_done' && !c.missions[a.condition.mission])
+        err(`achievements/${a.id}`, `misión desconocida: ${a.condition.mission}`);
     }
   }
 
