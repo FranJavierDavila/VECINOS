@@ -32,6 +32,30 @@ export interface BlockView {
   altColor?: string;
 }
 
+/** Props de bloque EXTERIOR (v1.20): aceras, carreteras y jardines del decorado urbano. */
+export interface ExteriorBlockView {
+  height: number;
+  benchEvery: number;
+  benchColor: string;
+  benchLegColor: string;
+  lampEvery: number;
+  lampColor: string;
+  lampHeadColor: string;
+  lampH: number;
+  binEvery: number;
+  binColor: string;
+  laneDash: number;
+  laneDashColor: string;
+  treesPer10m: number;
+  bushesPer10m: number;
+  flowerChance: number;
+  trunkColor: string;
+  leafColors: string[];
+  bushColors: string[];
+  flowerColors: string[];
+  grassColor: string;
+}
+
 export interface BlockDef {
   id: string;
   /** Nombre visible para prompt/HUD. */
@@ -45,6 +69,8 @@ export interface BlockDef {
   params?: Record<string, ParamDef>;
   container?: { childKind: string; layout: string };
   view: BlockView;
+  /** Solo bloques del decorado exterior (v1.20): nunca se instancian en el sim. */
+  exterior?: ExteriorBlockView;
 }
 
 export interface RoomDef {
@@ -758,6 +784,30 @@ export interface AchievementsCatalog {
   achievements: AchievementDef[];
 }
 
+/** Charla de cruce (v1.20): un tema de conversación entre dos vecinos que se cruzan. */
+export interface CrossingTopic {
+  id: string;
+  /** Líneas alternas: impar habla A, par habla B. {a}/{b} = nombres visibles. */
+  lines: string[];
+}
+
+/** Catálogo de charlas de cruce (v1.20, opcional): cuando dos vecinos se cruzan, puede
+ *  que paren a charlar (o no) según su ánimo; los temas y el ritmo viven en el JSON. */
+export interface CrossingsCatalog {
+  cadence: {
+    checkEvery: number;
+    residentCooldown: number;
+    pairCooldown: number;
+    lineSeconds: number;
+    holdAfter: number;
+  };
+  proximity: { distance: number; maxConcurrent: number };
+  chance: { base: number; goodMoodBonus: number; badMoodPenalty: number };
+  mood: { goodMin: number; okMin: number; needs: Record<string, number> };
+  /** Temas por cubo de ánimo; al cruzarse se elige el grupo del ánimo medio. */
+  groups: { id: string; mood: 'good' | 'ok' | 'bad'; topics: CrossingTopic[] }[];
+}
+
 export interface Content {
   rules: Rules;
   blocks: Record<string, BlockDef>;
@@ -781,6 +831,8 @@ export interface Content {
   ecosystem?: EcosystemContent;
   /** Logros tipo Steam (v1.17, opcional): perfil persistente; sin catálogo no hay logros. */
   achievements?: AchievementsCatalog;
+  /** Charlas de cruce (v1.20, opcional): humor vecinal cuando dos vecinos se cruzan. */
+  crossings?: CrossingsCatalog;
 }
 
 // ───────────────────────── Reglas y ajustes (catálogo rules.json) ─────────────────────────
@@ -1021,6 +1073,57 @@ export interface Rules {
     actorRadius: number;
     /** Niveles de detalle por distancia (Vista: "prefab por bloque y LOD por distancia"). */
     lod: { enabled: boolean; focus: 'player'; levels: LodLevel[] };
+    /** ── Escena exterior (v1.20) ── tiras de calle frente al edificio (aceras,
+     *  carretera, jardines) con sus props; defId refiere bloques con `exterior`. */
+    exterior: {
+      enabled: boolean;
+      rows: { defId: string; x0: number; x1: number; z0: number; depth: number; body: boolean }[];
+      ground: { color: string; size: number };
+    };
+    /** ── Fondo urbano (v1.20) ── cielo dinámico por hora + capas de fachadas 2D con
+     *  parallax natural (planos 3D a distintas z tras el edificio). */
+    backdrop: {
+      enabled: boolean;
+      layers: {
+        z: number;
+        height: number;
+        alpha: number;
+        tint: string;
+        windowColor: string;
+        windowLitColor: string;
+        galleryColor: string;
+        buildings: number;
+        floors: [number, number];
+        windowChance: number;
+        galleryChance: number;
+        nightGlow: number;
+      }[];
+      sky: {
+        redrawSeconds: number;
+        keyframes: { hour: number; top: string; horizon: string; ambient: number; sun: number }[];
+        weatherDim: Record<string, number>;
+        sunColorDay: string;
+        sunColorLow: string;
+        sunSize: number;
+        sunArcHeight: number;
+        sunZ: number;
+        moonColor: string;
+        moonSize: number;
+        stars: number;
+        starColor: string;
+      };
+      clouds: {
+        count: number;
+        yMin: number;
+        yMax: number;
+        z: number;
+        speed: number;
+        color: string;
+        stormColor: string;
+        alphaClear: number;
+        alphaCloudy: number;
+      };
+    };
   };
   /** Defaults de las cutscenes de misión (Fase D): ritmos que no quieren repetirse en cada beat. */
   cutscene: {

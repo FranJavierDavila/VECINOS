@@ -449,5 +449,75 @@
       "color": "#a3b18a"
     },
     "label": "la escalera (bajada)"
+  },
+  {
+    "id": "acera",
+    "kind": "common",
+    "layer": "main",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "traversable": false,
+    "view": {
+      "color": "#cfc5ab"
+    },
+    "label": "la acera",
+    "exterior": {
+      "height": 0.14,
+      "benchEvery": 7.5,
+      "benchColor": "#8a5a33",
+      "benchLegColor": "#3b3129",
+      "lampEvery": 6,
+      "lampColor": "#3b3129",
+      "lampHeadColor": "#ffd166",
+      "lampH": 3.6,
+      "binEvery": 7.5,
+      "binColor": "#5d6b7a"
+    }
+  },
+  {
+    "id": "carretera",
+    "kind": "common",
+    "layer": "main",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "traversable": false,
+    "view": {
+      "color": "#57534e"
+    },
+    "label": "la carretera",
+    "exterior": {
+      "height": 0.02,
+      "laneDash": 1.6,
+      "laneDashColor": "#f4e9d8"
+    }
+  },
+  {
+    "id": "jardin",
+    "kind": "common",
+    "layer": "main",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "traversable": false,
+    "view": {
+      "color": "#7fa05f"
+    },
+    "label": "el jardín",
+    "exterior": {
+      "height": 0.18,
+      "treesPer10m": 1.6,
+      "bushesPer10m": 3.2,
+      "flowerChance": 0.45,
+      "trunkColor": "#6f4926",
+      "leafColors": ["#5a9367", "#84a59d", "#708c5a", "#6f9b72"],
+      "bushColors": ["#5a9367", "#6f9b72", "#8fb573"],
+      "flowerColors": ["#e07a5f", "#ffd166", "#f2cc8f", "#e56b6f"],
+      "grassColor": "#7fa05f"
+    }
   }
 ]

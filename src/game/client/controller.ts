@@ -16,6 +16,9 @@ import { createActors } from './actors';
 import { createElevators, type ElevatorsDirector } from './elevator';
 import { createBubbles, type BubblesDirector } from './bubbles';
 import { createEcosystem, type EcosystemDirector } from './ecosystem';
+import { createBackdrop, type BackdropDirector } from './backdrop';
+import { createExterior, type ExteriorDirector } from './exterior';
+import { createChats, type ChatsDirector } from './chats';
 import { CameraRig, type CamMode } from './camera';
 import { CutscenePlayer, type CutsceneEventCtx } from './cutscene';
 import { B } from './babylon';
@@ -49,6 +52,11 @@ class GameController {
   private bubbles: BubblesDirector | null = null;
   private ecosystem: EcosystemDirector | null = null;
   private rig: CameraRig | null = null;
+  /** Fondo urbano + calle (v1.20): cielo dinámico, parallax y decorado exterior. */
+  private backdrop: BackdropDirector | null = null;
+  private exterior: ExteriorDirector | null = null;
+  /** Charlas de cruce (v1.20): vecinos que se cruzan y comentan la vida. */
+  private chats: ChatsDirector | null = null;
 
   private get content(): Content {
     if (!this._content) throw new Error('El catálogo de contenido todavía no se ha cargado');
@@ -131,8 +139,14 @@ class GameController {
     this.net = null;
     this.bubbles?.dispose();
     this.bubbles = null;
+    this.chats?.dispose();
+    this.chats = null;
     this.ecosystem?.dispose();
     this.ecosystem = null;
+    this.backdrop?.dispose();
+    this.backdrop = null;
+    this.exterior?.dispose();
+    this.exterior = null;
     this.engine?.stopRenderLoop(this.frame);
     this.scene?.dispose();
     this.engine?.dispose();
@@ -665,12 +679,22 @@ class GameController {
     this.scene?.dispose();
     this.scene = new Scene(this.engine);
     this.scene.clearColor = new Color4(view.sky.r, view.sky.g, view.sky.b, 1);
-    new HemisphericLight('ambient', new Vector3(...view.ambient.dir), this.scene).intensity = view.ambient.intensity;
-    new DirectionalLight('sun', new Vector3(...view.sun.dir), this.scene).intensity = view.sun.intensity;
+    const hemi = new HemisphericLight('ambient', new Vector3(...view.ambient.dir), this.scene);
+    hemi.intensity = view.ambient.intensity;
+    const dirLight = new DirectionalLight('sun', new Vector3(...view.sun.dir), this.scene);
+    dirLight.intensity = view.sun.intensity;
 
     this.building = createBuilding(this.scene, this.world, this.content);
     this.elevators = createElevators(this.scene, this.world, this.content);
     this.actors = createActors(this.scene, this.world, this.content, this.elevators);
+    // Fondo urbano (v1.20): cielo dinámico por hora + fachadas parallax; la luz del catálogo
+    // evoluciona con el sol (el edificio vive la misma hora que el cielo).
+    this.backdrop?.dispose();
+    this.backdrop = createBackdrop(this.scene, this.world, this.content, { hemi, dir: dirLight });
+    // Calle (v1.20): aceras, carretera y jardines con sus props; las farolas leen la luz
+    // de día del fondo para encenderse al anochecer.
+    this.exterior?.dispose();
+    this.exterior = createExterior(this.scene, this.world, this.content, this.backdrop);
     // Ecosistema del edificio (v1.14): cerebro data-driven + teatro de extras. Se recrea con
     // cada mundo (referencia al World vivo) y sigue la posición del jugador para las luces.
     this.ecosystem?.dispose();
@@ -685,11 +709,20 @@ class GameController {
         ecosystem: this.ecosystem,
       };
     }
+    // Sonda E2E de la calle y las charlas (v1.20, SOLO dev): acceso indirecto a los directores.
+    (window as unknown as { __vecinos20?: unknown }).__vecinos20 = {
+      chats: () => this.chats,
+      exterior: () => this.exterior,
+      backdrop: () => this.backdrop,
+    };
     // Bocadillos de expresión (v1.10): capa DOM sobre el canvas, recreada con el mundo
     // (referencia al World vivo). Sin emotes.json en el catálogo, director nulo sin capa.
     this.bubbles?.dispose();
     const stage = this.canvas?.parentElement;
     this.bubbles = stage && this.actors ? createBubbles(stage, this.scene, this.engine, this.world, this.content, this.actors.director) : null;
+    // Charlas de cruce (v1.20): después de actores y bocadillos — son sus dos clientes.
+    this.chats?.dispose();
+    this.chats = createChats(this.world, this.content, this.actors!.director, this.bubbles);
     const blocks = Object.values(this.world.blocks);
     // El cubo de escalera (v1.4) sobresale spanW−1 celdas por la derecha del edificio:
     // el encuadre lo incluye para que la torre no se corte en cámara.
@@ -703,6 +736,9 @@ class GameController {
       view.cellW,
       view.cellH,
     );
+    // v1.20: plano frontal y calado del bloque principal — la cámara encuadra los bloques
+    // traseros (apilamiento 3D) a la misma distancia que una estancia exterior.
+    this.rig.metric = { frontZ: view.roomZ - view.commonDepth / 2, depth: view.depth };
     // Re-sincronización de vista (v0.6-b): la cámara sigue la posición del mundo (restaurado o
     // nuevo), no la preferencia anterior. Dentro de una vivienda → estancia; en pasillo, la
     // preferencia salvo que fuera 'estancia' (ahí estás en el pasillo, no en una estancia).
@@ -821,6 +857,12 @@ class GameController {
 
     const pos = this.logic.position();
     this.actors.update(dt, pos, this.actorId());
+    // Fondo urbano (v1.20): el cielo, el sol y las nubes siguen la hora del sim; las farolas
+    // de la calle leen la luz de día resultante. Los modales no paran el ambiente (solo el reloj).
+    this.backdrop?.update(dt);
+    this.exterior?.update(dt);
+    // Charlas de cruce (v1.20): en multijugador quedan en pausa (mismo criterio que el ecosistema).
+    if (!this.net) this.chats?.update(dt);
     // Cutscene (Fase D): sus beats mueven cámara/actores DESPUÉS de los eventos y ANTES del render.
     this.cutscenePlayer?.update(dt);
     // Bocadillos (v1.10): después de actores y cámara — proyectan la posición FINAL del frame.

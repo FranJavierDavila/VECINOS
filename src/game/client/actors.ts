@@ -57,6 +57,9 @@ interface Actor {
   stowedBlock: string | null;
   /** Rig del arte final (null mientras carga o si hay fallback greybox). */
   rig: ActorRig | null;
+  /** Pausa de charla (v1.20): mientras > 0, el actor NO avanza (ni ruta ni objetivo) —
+   *  está parado charlando con otro vecino; la presentación lo suelta al terminar. */
+  chatT: number;
 }
 
 /**
@@ -83,12 +86,18 @@ export interface ActorsDirector {
   gestureOf(id: string): string | null;
   /** true si el actor está tomado por el director de cutscenes (el staging manda). */
   isDirected(id: string): boolean;
+  /** true si el actor está en un viaje de ascensor (v1.20: las charlas no lo pausan). */
+  isRiding(id: string): boolean;
   /**
    * Estado social explícito (v1.2): talk/laugh/argue/phone/sit… según stateAnimations del
    * manifiesto. Con `seconds` > 0 el gesto expira solo (líneas de diálogo); null lo suelta
    * ya (al colgar el teléfono, al cerrar el modal). El clip que falte cae al default del rig.
    */
   setGesture(id: string, state: string | null, seconds?: number): void;
+  /** Pausa de charla (v1.20): congela la locomoción del actor `seconds` (0 lo suelta). */
+  setHold(id: string, seconds: number): void;
+  /** Gira el actor hacia un punto del mundo (charla de cruce: mirarse al hablar). */
+  faceToward(id: string, x: number, z: number): void;
 }
 
 /**
@@ -115,7 +124,7 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
     m.emissiveColor = m.diffuseColor.scale(0.25);
     mesh.material = m;
     mesh.isPickable = false;
-    const a: Actor = { id, node: mesh, height, pivotY: height / 2, path: [], wanderT: 0, wanderLap: 0, targetLocal: null, lastLoc: null, directed: false, yaw: 0, targetYaw: null, gesture: null, gestureT: 0, seated: false, elevatorReq: null, ridePhase: null, enabledPrev: false, stowedBlock: null, rig: null };
+    const a: Actor = { id, node: mesh, height, pivotY: height / 2, path: [], wanderT: 0, wanderLap: 0, targetLocal: null, lastLoc: null, directed: false, yaw: 0, targetYaw: null, gesture: null, gestureT: 0, seated: false, elevatorReq: null, ridePhase: null, enabledPrev: false, stowedBlock: null, rig: null, chatT: 0 };
     actors.set(id, a);
 
     // Arte final (opcional): modelo glTF del manifiesto; cualquier fallo → cápsula.
@@ -339,6 +348,10 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
         const node = a.node.position;
         const prevX = node.x;
         const prevZ = node.z;
+        // Charla de cruce (v1.20): mientras dura, el actor NO avanza — se queda donde está,
+        // mira a su vecino y conversa. Ni rutas ni objetivos: al soltar, la IA recaptura.
+        if (a.chatT > 0) a.chatT -= dt;
+        const chatting = a.chatT > 0;
         if (isPlayer) {
           const inside = player.mode === 'inside';
           // Apilamiento 3D (v1.19): dentro del trastero propio el cuerpo vive en el bloque
@@ -359,7 +372,7 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
           if (node.lengthSquared() === 0) node.copyFrom(goal);
           node.addInPlace(goal.subtract(node).scale(Math.min(1, k * 2)));
           }
-        } else {
+        } else if (!chatting) {
           const b = world.blocks[r.location!]!;
           const home = world.blocks[r.home]!;
           const inRoom = b.kind === 'dwelling';
@@ -647,11 +660,33 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
       isDirected(id: string): boolean {
         return actors.get(id)?.directed ?? false;
       },
+      isRiding(id: string): boolean {
+        return actors.get(id)?.elevatorReq !== null && actors.get(id)?.elevatorReq !== undefined;
+      },
       setGesture(id: string, state: string | null, seconds = 0): void {
         const a = actors.get(id);
         if (!a) return;
         a.gesture = state;
         a.gestureT = state && seconds > 0 ? seconds : 0;
+      },
+      /** Pausa de charla (v1.20): congela la locomoción; 0 suelta. */
+      setHold(id: string, seconds: number): void {
+        const a = actors.get(id);
+        if (!a) return;
+        a.chatT = Math.max(0, seconds);
+        if (a.chatT === 0) {
+          a.targetLocal = null;
+          a.wanderT = 0;
+        }
+      },
+      /** Gira hacia un punto del mundo (arco corto con el ritmo del catálogo). */
+      faceToward(id: string, x: number, z: number): void {
+        const a = actors.get(id);
+        if (!a) return;
+        const dx = x - a.node.position.x;
+        const dz = z - a.node.position.z;
+        if (Math.hypot(dx, dz) < 0.05) return;
+        a.targetYaw = Math.atan2(-dz, dx);
       },
     },
   };

@@ -762,7 +762,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
   //   · Cuarto trasero de cada vivienda (layout con estancia más profunda que el bloque).
   //   · Interior presentable del trastero PROPIO (bloques por columna: solo tu puerta abre).
   const rb = v.rearBlock;
-  const rears = new Map<string, { node: TransformNode; outline: Mesh[]; doorLeaf: Mesh | null; mainRoot: TransformNode; phase: 'idle' | 'peek' | 'inside'; mainAlpha: number; rearAlpha: number; settled: boolean }>();
+  const rears = new Map<string, { node: TransformNode; outline: Mesh[]; doorLeaf: Mesh | null; mainRoot: TransformNode; phase: 'idle' | 'peek' | 'inside'; mainAlpha: number; rearAlpha: number; settled: boolean; frontParts: Mesh[] }>();
   const matRearWall = mat('rear_muro_mat');
   matRearWall.diffuseColor = Color3.FromHexString('#d8d2c4');
   const matRearOutline = mat('rear_contorno_mat');
@@ -785,9 +785,9 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       box(`${name}_co_der`, t, hR, t, cxr + wR / 2, yBase + hR / 2, zF, matRearOutline),
     ];
   };
-  const registerRear = (blockId: string, node: TransformNode, outline: Mesh[], doorLeaf: Mesh | null): void => {
+  const registerRear = (blockId: string, node: TransformNode, outline: Mesh[], doorLeaf: Mesh | null, frontParts: Mesh[] = []): void => {
     node.setEnabled(false);
-    rears.set(blockId, { node, outline, doorLeaf, mainRoot: roots.get(blockId)!, phase: 'idle', mainAlpha: 1, rearAlpha: 0, settled: true });
+    rears.set(blockId, { node, outline, doorLeaf, mainRoot: roots.get(blockId)!, phase: 'idle', mainAlpha: 1, rearAlpha: 0, settled: true, frontParts });
   };
   // ── Cuartos traseros de vivienda ──
   for (const b of Object.values(world.blocks)) {
@@ -818,12 +818,27 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     box(`${b.id}_rear_techo`, rw, v.wall, rd, rx + rw / 2, bottom + v.cellH - v.slab - v.wall / 2, rz0 + rd / 2, matRearWall).parent = node;
     box(`${b.id}_rear_lampara`, Math.min(1.2, rw * 0.4), 0.06, 0.1, rx + rw / 2, bottom + v.cellH - v.slab - v.wall - 0.08, rz0 + rd / 2, matRearLamp).parent = node;
     // Frente con el hueco de la puerta (mismas medidas que la pared partida del bloque).
+    // v1.20: esta PARED DIVISORIA se recoge: al ENTRAR en el cuarto trasero desaparece
+    // (mismo corte que la fachada del bloque exterior) para que la cámara vea el interior.
     const gapA = rx + (rearDoor ? Math.max(0, rearDoor.at - rearDoor.width / 2) : rw / 2 - 0.5);
     const gapB = rx + (rearDoor ? Math.min(rw, rearDoor.at + rearDoor.width / 2) : rw / 2 + 0.5);
     const doorH = Math.min(hR - 0.15, 1.95);
-    if (gapA - rx > 0.02) box(`${b.id}_rear_frente_i`, gapA - rx, hR, v.wall, (rx + gapA) / 2, yR, rz0 + v.wall / 2 + 0.005, matRearWall).parent = node;
-    if (rx + rw - gapB > 0.02) box(`${b.id}_rear_frente_d`, rx + rw - gapB, hR, v.wall, (gapB + rx + rw) / 2, yR, rz0 + v.wall / 2 + 0.005, matRearWall).parent = node;
-    if (hR - doorH > 0.02) box(`${b.id}_rear_frente_dintel`, gapB - gapA, hR - doorH, v.wall, (gapA + gapB) / 2, yR + hR / 2 - (hR - doorH) / 2, rz0 + v.wall / 2 + 0.005, matRearWall).parent = node;
+    const frontParts: Mesh[] = [];
+    if (gapA - rx > 0.02) {
+      const fi = box(`${b.id}_rear_frente_i`, gapA - rx, hR, v.wall, (rx + gapA) / 2, yR, rz0 + v.wall / 2 + 0.005, matRearWall);
+      fi.parent = node;
+      frontParts.push(fi);
+    }
+    if (rx + rw - gapB > 0.02) {
+      const fd = box(`${b.id}_rear_frente_d`, rx + rw - gapB, hR, v.wall, (gapB + rx + rw) / 2, yR, rz0 + v.wall / 2 + 0.005, matRearWall);
+      fd.parent = node;
+      frontParts.push(fd);
+    }
+    if (hR - doorH > 0.02) {
+      const din = box(`${b.id}_rear_frente_dintel`, gapB - gapA, hR - doorH, v.wall, (gapA + gapB) / 2, yR + hR / 2 - (hR - doorH) / 2, rz0 + v.wall / 2 + 0.005, matRearWall);
+      din.parent = node;
+      frontParts.push(din);
+    }
     // Hoja de puerta cerrada: visible solo con el bloque inactivo (se abre al activarse).
     const pv = v.privacy;
     const doorLeaf = box(`${b.id}_rear_hoja`, gapB - gapA - 0.04, doorH - 0.04, 0.05, (gapA + gapB) / 2, baseR + (doorH - 0.04) / 2, rz0 + v.wall + 0.05, mat(`${b.id}_rear_hoja_mat`));
@@ -838,7 +853,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     }
     const outline = outlineFrame(`${b.id}_rear`, rx + rw / 2, rw, hR, baseR, rz0 - 0.04);
     for (const o of outline) o.parent = node;
-    registerRear(b.id, node, outline, doorLeaf);
+    registerRear(b.id, node, outline, doorLeaf, frontParts);
   }
   // ── Interior presentable del TRASTERO PROPIO (uno por bloque de columna; solo tu puerta abre).
   if (colBlocks.length > 0) {
@@ -1169,6 +1184,11 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       for (const r of rears.values()) {
         const mainT = r.phase === 'inside' ? 0 : 1;
         const rearT = r.phase === 'idle' ? 0 : 1;
+        // v1.20: la PARED DIVISORIA del bloque trasero desaparece al entrar (fase 'inside').
+        // Se evalúa SIEMPRE (incluso con los fundidos ya asentados): es un cambio de fase,
+        // no de alpha — el early-continue de abajo no la vería.
+        const frontOpen = r.phase === 'inside';
+        for (const f of r.frontParts) f.setEnabled(!frontOpen);
         if (r.settled && r.mainAlpha === mainT && r.rearAlpha === rearT) continue;
         const mRate = dt / Math.max(0.05, rb.fadeSeconds);
         const rRate = dt / Math.max(0.05, rb.peekSeconds);

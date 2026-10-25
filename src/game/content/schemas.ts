@@ -20,6 +20,41 @@ export const paramDefSchema = z.object({
 
 const viewSchema = z.object({ color: z.string(), altColor: z.string().optional() });
 
+/**
+ * ── Bloques EXTERIORES (v1.20) ── decorado urbano a pie de calle (aceras, carreteras,
+ * jardines). Nunca se instancian en el mundo del sim: son catálogo puro y la colocación
+ * vive en rules.view.exterior.rows; la presentación levanta el cuerpo y sus props.
+ */
+export const exteriorBlockSchema = z.object({
+  /** Alto del cuerpo del bloque (m): acera 0.12, carretera 0.04, jardín 0.18… */
+  height: z.number().min(0).default(0.1),
+  /** Bancos (aceras): uno cada N metros (0 = sin bancos). */
+  benchEvery: z.number().min(0).default(0),
+  benchColor: z.string().default('#8a5a33'),
+  benchLegColor: z.string().default('#3b3129'),
+  /** Farolas: una cada N metros (0 = sin farolas). */
+  lampEvery: z.number().min(0).default(0),
+  lampColor: z.string().default('#3b3129'),
+  lampHeadColor: z.string().default('#ffd166'),
+  lampH: z.number().positive().default(3.4),
+  /** Papelera junto a cada banco (0 = ninguna). */
+  binEvery: z.number().min(0).default(0),
+  binColor: z.string().default('#5d6b7a'),
+  /** Carretera: línea discontinua al centro, tramo N metros (0 = sin marcas). */
+  laneDash: z.number().min(0).default(0),
+  laneDashColor: z.string().default('#f4e9d8'),
+  /** Vegetación (jardines): árboles y arbustos por cada 10 m de tira. */
+  treesPer10m: z.number().min(0).default(0),
+  bushesPer10m: z.number().min(0).default(0),
+  flowerChance: z.number().min(0).max(1).default(0.35),
+  trunkColor: z.string().default('#6f4926'),
+  leafColors: z.array(z.string()).default(['#5a9367', '#84a59d', '#708c5a']),
+  bushColors: z.array(z.string()).default(['#5a9367', '#6f9b72', '#8fb573']),
+  flowerColors: z.array(z.string()).default(['#e07a5f', '#ffd166', '#f2cc8f', '#e56b6f']),
+  /** Césped del jardín (tapa del cuerpo). */
+  grassColor: z.string().default('#7fa05f'),
+});
+
 export const blockDefSchema = z.object({
   id: z.string(),
   kind: z.enum(['common', 'dwelling', 'commercial', 'infrastructure']),
@@ -44,6 +79,8 @@ export const blockDefSchema = z.object({
   params: z.record(z.string(), paramDefSchema).optional(),
   container: z.object({ childKind: z.string(), layout: z.string() }).optional(),
   view: viewSchema,
+  /** Props de bloque EXTERIOR (v1.20): solo aceras/carreteras/jardines del decorado. */
+  exterior: exteriorBlockSchema.optional(),
 });
 
 /**
@@ -807,6 +844,146 @@ export const rulesSchema = z.object({
     actorFallbackColor: z.string(),
     actorFallbackHeight: z.number(),
     actorRadius: z.number(),
+    /** ── Escena exterior (v1.20) ── tiras de calle frente al edificio: aceras, carretera,
+     *  jardines. defId refiere blocks.json (defs con `exterior`); x0/x1/z0/depth en metros
+     *  de mundo (z negativo = hacia la calle). La presentación levanta cuerpo + props. */
+    exterior: z
+      .object({
+        enabled: z.boolean().default(false),
+        rows: z.array(
+          z.object({
+            defId: z.string(),
+            x0: z.number(),
+            x1: z.number(),
+            z0: z.number(),
+            depth: z.number().positive(),
+            /** false = solo props sobre la tira previa (sin cuerpo propio). */
+            body: z.boolean().default(true),
+          }),
+        ),
+        /** Suelo del mundo bajo todo el decorado (cierra el horizonte). */
+        ground: z
+          .object({ color: z.string().default('#a89a7c'), size: z.number().positive().default(220) })
+          .default({ color: '#a89a7c', size: 220 }),
+      })
+      .default({ enabled: false, rows: [], ground: { color: '#a89a7c', size: 220 } }),
+    /** ── Fondo urbano (v1.20) ── cielo dinámico (sol/luna/estrellas/nubes según la hora)
+     *  + capas de fachadas 2D a distintas distancias (parallax natural: planos 3D reales
+     *  tras el edificio). Luz global (ambiente + sol) evoluciona con los keyframes. */
+    backdrop: z
+      .object({
+        enabled: z.boolean().default(false),
+        layers: z.array(
+          z.object({
+            z: z.number().positive(),
+            height: z.number().positive(),
+            alpha: z.number().min(0).max(1).default(0.5),
+            tint: z.string(),
+            windowColor: z.string().default('#8a94a6'),
+            windowLitColor: z.string().default('#ffd166'),
+            galleryColor: z.string().default('#9fb8c8'),
+            buildings: z.number().int().min(1).default(6),
+            floors: z.tuple([z.number(), z.number()]).default([3, 6]),
+            windowChance: z.number().min(0).max(1).default(0.75),
+            galleryChance: z.number().min(0).max(1).default(0.3),
+            nightGlow: z.number().min(0).max(1).default(0.35),
+          }),
+        ),
+        sky: z
+          .object({
+            /** El gradiente del cielo se repinta a cadencia (barato) y por cambio de clima. */
+            redrawSeconds: z.number().positive().default(6),
+            /** Keyframes por hora (0..24): colores del cielo + intensidad de luces + sol. */
+            keyframes: z.array(
+              z.object({
+                hour: z.number().min(0).max(24),
+                top: z.string(),
+                horizon: z.string(),
+                ambient: z.number(),
+                sun: z.number(),
+              }),
+            ),
+            /** Atenuación del sol por clima (sunny pleno; tormenta apaga). */
+            weatherDim: z
+              .record(z.string(), z.number())
+              .default({ sunny: 1, cloudy: 0.95, rain: 0.8, storm: 0.6 }),
+            sunColorDay: z.string().default('#ffd166'),
+            sunColorLow: z.string().default('#f08a4b'),
+            sunSize: z.number().positive().default(2.4),
+            sunArcHeight: z.number().positive().default(30),
+            sunZ: z.number().positive().default(64),
+            moonColor: z.string().default('#e8ecf4'),
+            moonSize: z.number().positive().default(1.6),
+            stars: z.number().int().min(0).default(110),
+            starColor: z.string().default('#dfe7f2'),
+          })
+          .default({
+            redrawSeconds: 6,
+            keyframes: [],
+            weatherDim: { sunny: 1, cloudy: 0.95, rain: 0.8, storm: 0.6 },
+            sunColorDay: '#ffd166',
+            sunColorLow: '#f08a4b',
+            sunSize: 2.4,
+            sunArcHeight: 30,
+            sunZ: 64,
+            moonColor: '#e8ecf4',
+            moonSize: 1.6,
+            stars: 110,
+            starColor: '#dfe7f2',
+          }),
+        clouds: z
+          .object({
+            count: z.number().int().min(0).default(7),
+            yMin: z.number().default(18),
+            yMax: z.number().default(34),
+            z: z.number().positive().default(58),
+            speed: z.number().default(0.4),
+            color: z.string().default('#f6f4ee'),
+            stormColor: z.string().default('#9aa0a8'),
+            alphaClear: z.number().min(0).max(1).default(0.14),
+            alphaCloudy: z.number().min(0).max(1).default(0.7),
+          })
+          .default({
+            count: 7,
+            yMin: 18,
+            yMax: 34,
+            z: 58,
+            speed: 0.4,
+            color: '#f6f4ee',
+            stormColor: '#9aa0a8',
+            alphaClear: 0.14,
+            alphaCloudy: 0.7,
+          }),
+      })
+      .default({
+        enabled: false,
+        layers: [],
+        sky: {
+          redrawSeconds: 6,
+          keyframes: [],
+          weatherDim: { sunny: 1, cloudy: 0.95, rain: 0.8, storm: 0.6 },
+          sunColorDay: '#ffd166',
+          sunColorLow: '#f08a4b',
+          sunSize: 2.4,
+          sunArcHeight: 30,
+          sunZ: 64,
+          moonColor: '#e8ecf4',
+          moonSize: 1.6,
+          stars: 110,
+          starColor: '#dfe7f2',
+        },
+        clouds: {
+          count: 7,
+          yMin: 18,
+          yMax: 34,
+          z: 58,
+          speed: 0.4,
+          color: '#f6f4ee',
+          stormColor: '#9aa0a8',
+          alphaClear: 0.14,
+          alphaCloudy: 0.7,
+        },
+      }),
     lod: z.object({
       enabled: z.boolean(),
       focus: z.literal('player'),
@@ -1145,3 +1322,59 @@ export const achievementsCatalogSchema = z.object({
 export type AchievementConditionParsed = z.infer<typeof achievementConditionSchema>;
 export type AchievementDefParsed = z.infer<typeof achievementDefSchema>;
 export type AchievementsCatalogParsed = z.infer<typeof achievementsCatalogSchema>;
+
+// ───────────────────────── Charlas de cruce (v1.20, opcional) ─────────────────────────
+
+// Cuando dos vecinos se cruzan, PUEDE que se paren a charlar (o no): lo decide su ánimo.
+// Todo vive en public/content/crossings.json; la presentación (chats.ts) solo ejecuta.
+// Las líneas alternan A/B y admiten {a}/{b} = nombres visibles de los dos vecinos.
+
+export const crossingsCatalogSchema = z.object({
+  cadence: z
+    .object({
+      /** Segundos entre rastreos de cruces. */
+      checkEvery: z.number().positive().default(2.2),
+      /** Segundos que un vecino no repite charla; lo mismo por PAREJA. */
+      residentCooldown: z.number().min(0).default(50),
+      pairCooldown: z.number().min(0).default(160),
+      /** Duración de cada línea del bocadillo y pausa tras la charla. */
+      lineSeconds: z.number().positive().default(3),
+      holdAfter: z.number().min(0).default(1.2),
+    })
+    .default({ checkEvery: 2.2, residentCooldown: 50, pairCooldown: 160, lineSeconds: 3, holdAfter: 1.2 }),
+  proximity: z
+    .object({
+      /** Distancia (m) a la que dos vecinos "se cruzan". */
+      distance: z.number().positive().default(1.6),
+      /** Charlas simultáneas máximas (anti-sobrecarga de bocadillos). */
+      maxConcurrent: z.number().int().min(1).default(2),
+    })
+    .default({ distance: 1.6, maxConcurrent: 2 }),
+  chance: z
+    .object({
+      base: z.number().min(0).max(1).default(0.6),
+      /** Buen ánimo suma opción de charla; mal ánimo resta (y saca los gruñidos). */
+      goodMoodBonus: z.number().min(0).default(0.3),
+      badMoodPenalty: z.number().min(0).default(0.45),
+    })
+    .default({ base: 0.6, goodMoodBonus: 0.3, badMoodPenalty: 0.45 }),
+  mood: z
+    .object({
+      /** Umbrales del ánimo medio (0..100): ≥ goodMin → 'good'; ≥ okMin → 'ok'; si no 'bad'. */
+      goodMin: z.number().default(55),
+      okMin: z.number().default(30),
+      /** Necesidades que promedian el ánimo y su peso (espejo de emotes.mood.needs). */
+      needs: z.record(z.string(), z.number()).default({ sleep: 1, social: 1, fun: 1 }),
+    })
+    .default({ goodMin: 55, okMin: 30, needs: { sleep: 1, social: 1, fun: 1 } }),
+  /** Grupos de temas por cubo de ánimo: al cruzarse se elige el grupo del ánimo medio. */
+  groups: z.array(
+    z.object({
+      id: z.string(),
+      mood: z.enum(['good', 'ok', 'bad']),
+      topics: z.array(z.object({ id: z.string(), lines: z.array(z.string()).min(1) })),
+    }),
+  ),
+});
+
+export type CrossingsCatalogParsed = z.infer<typeof crossingsCatalogSchema>;

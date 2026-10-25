@@ -1,7 +1,8 @@
-import type { AchievementsCatalog, AssetsCatalog, Content, EcosystemContent, Effect, EmotesCatalog } from '@/game/core/types';
+import type { AchievementsCatalog, AssetsCatalog, Content, CrossingsCatalog, EcosystemContent, Effect, EmotesCatalog } from '@/game/core/types';
 import {
   achievementsCatalogSchema,
   blockListSchema,
+  crossingsCatalogSchema,
   cutsceneListSchema,
   dialogListSchema,
   ecosystemContentSchema,
@@ -103,6 +104,16 @@ export async function loadContent(baseUrl: string = '/content/'): Promise<{ cont
       throw new Error(`achievements.json (logros) inválido: ${e instanceof Error ? e.message : String(e)}`);
     }
 
+    // Charlas de cruce (v1.20, OPCIONAL): sin el fichero los vecinos se cruzan en silencio
+    // y la partida funciona exactamente igual (patrón emotes/ecosystem/achievements).
+    let crossings: CrossingsCatalog | undefined;
+    try {
+      const res = await fetch(`${baseUrl}crossings.json`);
+      if (res.ok) crossings = crossingsCatalogSchema.parse(await res.json()) as CrossingsCatalog;
+    } catch (e) {
+      throw new Error(`crossings.json (charlas de cruce) inválido: ${e instanceof Error ? e.message : String(e)}`);
+    }
+
     const content: Content = {
       rules,
       blocks: indexById(blocks),
@@ -121,6 +132,7 @@ export async function loadContent(baseUrl: string = '/content/'): Promise<{ cont
       emotes,
       ecosystem,
       achievements,
+      crossings,
     };
 
     const issues = validateContent(content);
@@ -300,6 +312,16 @@ export function validateContent(c: Content): Issue[] {
         err(`achievements/${a.id}`, `misión desconocida: ${a.condition.mission}`);
     }
   }
+
+  // Escena exterior (v1.20): cada fila de calle referencia un bloque con props `exterior`.
+  for (const row of c.rules.view.exterior.rows) {
+    const bd = c.blocks[row.defId];
+    if (!bd) err('rules/view/exterior', `defId desconocido: ${row.defId}`);
+    else if (!bd.exterior) err('rules/view/exterior', `el bloque ${row.defId} no declara props exterior`);
+  }
+
+  // Charlas de cruce (v1.20): al menos un grupo de temas; los {a}/{b} son libres (nombres).
+  if (c.crossings && c.crossings.groups.length === 0) err('crossings', 'el catálogo de cruces necesita al menos un grupo de temas');
 
   return issues;
 }

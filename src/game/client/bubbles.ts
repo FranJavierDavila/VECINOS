@@ -62,6 +62,8 @@ export interface BubblesDirector {
   update(dt: number, localActorId: string): void;
   /** Eventos del sim → bocadillos temporales según emotes.events del catálogo. */
   onEvent(e: GameEvent): void;
+  /** Texto puntual (v1.20, charlas de cruce): pinta una línea que expira sola. */
+  sayText(id: string, text: string, seconds: number): void;
   /** Desmonta la capa DOM (cambio de mundo/escena). */
   dispose(): void;
 }
@@ -96,7 +98,7 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
   const cfg = content.emotes;
   if (!cfg) {
     // Sin catálogo: director nulo funcional (la partida no depende de los bocadillos).
-    return { update() {}, onEvent() {}, dispose() {} };
+    return { update() {}, onEvent() {}, sayText() {}, dispose() {} };
   }
 
   // ── Capa DOM: un contenedor absoluto sobre el canvas; los bocadillos son hijos suyos. ──
@@ -312,6 +314,17 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
           dirty.add(id);
         }
       }
+    },
+
+    /** Texto puntual (v1.20): charlas de cruce y futuros teatros. Prioridad alta (95):
+     *  gana a glifos de gesto/actividad pero respeta eventos mayores; expira sola. */
+    sayText(id: string, text: string, seconds: number): void {
+      if (!world.residents[id] || seconds <= 0) return;
+      const now = performance.now() / 1000;
+      const cur = transient.get(id);
+      if (cur && cur.until > now && cur.priority > 95) return;
+      transient.set(id, { emoteId: `sayx:${id}:${Math.round(now * 1000)}`, glyph: '', priority: 95, until: now + seconds, text });
+      dirty.add(id);
     },
 
     update(dt, actorId) {

@@ -18,6 +18,9 @@ export class CameraRig {
   mode: CamMode = 'edificio';
   /** Mientras no es null (cutscene en curso), update() vuela hacia este encuadre en vez del modo. */
   cinematic: CinematicFrame | null = null;
+  /** Plano frontal y calado del edificio (v1.20): para encuadrar los bloques traseros
+   *  (apilamiento 3D) a la MISMA distancia que las estancias exteriores. */
+  metric: { frontZ: number; depth: number } = { frontZ: 0, depth: 4 };
   private readonly pos: Vector3;
   private readonly look: Vector3;
 
@@ -55,7 +58,14 @@ export class CameraRig {
       cx = half * 2 >= width ? width / 2 : Math.min(width - half, Math.max(half, p.x));
       cy = (p.floor + 0.5) * this.cellH;
       // Fase C: en estancia, la cámara se asoma al fondo siguiendo en parte la profundidad (z).
-      if (this.mode === 'estancia') cz = Math.min(1.2, Math.max(0, p.z)) * 0.45;
+      // v1.20: en un bloque TRASERO (apilamiento 3D, z > calado del bloque principal) la cámara
+      // se adelanta hasta el plano del bloque activo: misma distancia de vista que una estancia
+      // exterior — el interior no se ve desde lejos ni detrás de la pared divisoria.
+      if (this.mode === 'estancia') {
+        cz = p.z > this.metric.depth + 0.05
+          ? this.metric.frontZ + Math.min(p.z, this.metric.depth + 2.8)
+          : Math.min(1.2, Math.max(0, p.z)) * 0.45;
+      }
     }
     const dist = viewH / (2 * Math.tan(FOV / 2));
     const k = 1 - Math.exp(-dt * 6);
