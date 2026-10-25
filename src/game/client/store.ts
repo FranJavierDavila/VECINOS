@@ -35,6 +35,15 @@ export interface ToastItem {
   tone: Tone;
 }
 
+/** Chip de presidencia del HUD (v1.18, support/campaign): día de mandato y término. */
+export interface CampaignHud {
+  active: boolean;
+  dayOfTerm: number;
+  termDays: number;
+  label: string;
+  over: boolean;
+}
+
 export interface LogItem {
   id: number;
   tick: number;
@@ -192,6 +201,8 @@ interface GameState {
   elevator: string;
   homeLabel: string;
   travelText: string | null;
+  /** Campaña de presidencia (v1.18): chip del HUD; null = sin mandato activo. */
+  campaign: CampaignHud | null;
   objective: { title: string; text: string } | null;
   prompt: string | null;
   params: ParamUi[];
@@ -218,6 +229,9 @@ interface GameState {
   mpParticipants: MpParticipant[];
   mpPanelOpen: boolean;
   mpError: string | null;
+
+  // ── Campaña de presidencia (v1.18): chip del HUD; la lógica vive en support/campaign ──
+  setCampaign: (c: CampaignHud | null) => void;
 
   // ── Logros tipo Steam (v1.17): perfil persistente; resetUi CONSERVA los desbloqueos ──
   achievements: AchievementUi[];
@@ -287,6 +301,7 @@ export const useGameStore = create<GameState>((set) => ({
   elevator: 'broken',
   homeLabel: '—',
   travelText: null,
+  campaign: null,
   objective: null,
   prompt: null,
   params: [],
@@ -360,6 +375,7 @@ export const useGameStore = create<GameState>((set) => ({
   setMpParticipants: (mpParticipants) => set({ mpParticipants }),
   setMpPanelOpen: (mpPanelOpen) => set({ mpPanelOpen }),
   setMpError: (mpError) => set({ mpError }),
+  setCampaign: (campaign) => set({ campaign }),
   setAchievements: (achievements) => set({ achievements }),
   setAchievementPopup: (achievementPopup) => set({ achievementPopup }),
   // Sin cambio de verdad → sin set: si siempre devolviera un array nuevo, el efecto que lo
@@ -384,6 +400,7 @@ export const useGameStore = create<GameState>((set) => ({
       junta: null,
       minigame: null,
       finale: null,
+      campaign: null,
       toasts: [],
       log: [],
       achievementPopup: null,

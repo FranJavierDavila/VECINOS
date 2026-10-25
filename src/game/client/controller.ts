@@ -6,6 +6,7 @@ import type { CommandResult } from '@/game/sim';
 import { blockLabel } from '@/game/core/types';
 import { loadContent } from '@/game/content';
 import { evaluateAchievements, type AchievementSnapshot } from '@/game/support/achievements';
+import { syncCampaign } from '@/game/support/campaign';
 import { activeObjective, applyEffects, buildCirculation, createWorld, dispatch, drainEvents, migrateRooms, tick, travelMinutes, visibleParams } from '@/game/sim';
 import { PlayerLogic } from '@/game/player-logic';
 import { createEngine } from './engine';
@@ -66,6 +67,8 @@ class GameController {
   // ── Logros tipo Steam (v1.17): perfil del navegador + cadencia de evaluación ──
   private unlockedAchievements = new Set<string>(loadUnlocked());
   private achAcc = 0;
+  /** Tick de la última junta convocada desde el tablón (cooldown del catálogo). */
+  private lastConvocaTick = -Infinity;
 
   private phoneMission = '';
   private phoneLines: { speaker: string; text: string }[] = [];
@@ -150,6 +153,11 @@ class GameController {
     if (selectModalOpen(store)) return; // los modales gestionan sus propias teclas
     if (code === 'KeyE') {
       this.interact();
+      return;
+    }
+    if (code === 'KeyJ') {
+      // Presidencia (v1.18): J junto al tablón convoca una junta con la agenda del catálogo.
+      if (this.logic?.interactTarget()?.kind === 'noticeboard') this.convocaJunta();
       return;
     }
     const cam = CAM_BY_KEY[code];
@@ -291,13 +299,40 @@ class GameController {
     } else if (kind === 'noticeboard') {
       const elevatorBlock = Object.values(this.world.blocks).find((b) => b.params.elevator_status !== undefined);
       const status = String(elevatorBlock?.params.elevator_status ?? 'ok');
-      const text = ic.noticeboard.template
+      let text = ic.noticeboard.template
         .replace('{day}', String(this.world.clock.day))
         .replace('{funds}', String(this.world.community.funds))
         .replace('{elevator}', this.content.rules.labels.elevator[status] ?? status)
         .replace('{weather}', this.content.rules.labels.weather[this.world.weather.state] ?? this.world.weather.state);
+      // Presidencia (v1.18): con el mandato activo, el tablón también convoca.
+      const cfg = this.content.rules.sim.campaign;
+      if (cfg && useGameStore.getState().campaign?.active) text += `\n🗳️ [J] Convocar junta de vecinos (${cfg.presidentLabel.toLowerCase()})`;
       useGameStore.getState().pushToast(text, 'info');
     }
+  }
+
+  /**
+   * Junta extraordinaria convocada por la presidencia desde el tablón (v1.18): la agenda
+   * sale del catálogo (rules.sim.campaign.presetAgenda) y la votación la resuelve el sim
+   * (mismo flujo que las juntas de misión). Cooldown del catálogo; solo con mandato activo.
+   */
+  private convocaJunta(): void {
+    const world = this.world;
+    const cfg = this.content.rules.sim.campaign;
+    if (!world || !cfg || world.junta) return;
+    if (!useGameStore.getState().campaign?.active) {
+      useGameStore.getState().pushToast('Solo la presidencia convoca juntas. De momento, eres un vecino más (con suerte).', 'info');
+      return;
+    }
+    if (world.tick - this.lastConvocaTick < cfg.convocationCooldownMinutes) {
+      const left = Math.ceil(cfg.convocationCooldownMinutes - (world.tick - this.lastConvocaTick));
+      useGameStore.getState().pushToast(`Juana dice que la última junta fue hace poco. Próxima disponible en ${left} min. La democracia necesita descansos.`, 'info');
+      return;
+    }
+    this.lastConvocaTick = world.tick;
+    world.junta = { agenda: cfg.presetAgenda.map((i) => ({ ...i })), votes: {}, playerVoted: false };
+    useGameStore.getState().setJunta(cfg.presetAgenda.map((i) => ({ id: i.id, title: i.title, description: i.description, cost: i.cost })));
+    useGameStore.getState().pushLog('🗳️ Junta extraordinaria convocada desde el tablón. Los vecinos, en camino.', 'info');
   }
 
   /** Editor: desplazarse a una vivienda del jugador (queda delante de su puerta). */
@@ -684,6 +719,8 @@ class GameController {
     this.pump();
     // Logros (v1.17): primera foto del catálogo para el panel (y desbloqueos de la partida restaurada).
     this.syncAchievements();
+    // Campaña (v1.18): primer estado del mandato (sobrevive a Cargar vía localStorage).
+    syncCampaign(this.world!, this.content);
   }
 
   private onResize = (): void => {
@@ -765,6 +802,8 @@ class GameController {
     if (this.achAcc >= 2) {
       this.achAcc = 0;
       this.syncAchievements();
+      // Campaña (v1.18): el día de mandato avanza con el reloj — misma cadencia.
+      syncCampaign(this.world!, this.content);
     }
 
     const pos = this.logic.position();
@@ -850,6 +889,7 @@ class GameController {
           store.pushToast(`Misión completada: ${this.titleOf(d.mission)}`, 'good');
           store.pushLog(`✔ Misión completada: ${this.titleOf(d.mission)}`, 'good');
           this.syncAchievements(); // una misión caída puede cerrar varios logros a la vez
+          syncCampaign(this.world!, this.content); // la misión del cargo activa el chip de presidencia
           break;
         case 'mission_failed':
           store.pushToast(`Misión fallida: ${this.titleOf(d.mission)}`, 'bad');
@@ -1260,6 +1300,49 @@ export function createGameController(canvas: HTMLCanvasElement): GameController 
     instance = new GameController();
     setController(instance); // la UI lo usa desde ya; sus acciones toleran mundo nulo
     void instance.init(canvas);
+    // Gancho de depuración/E2E (solo lectura + teleport QoL de pruebas).
+    const dbg = instance as unknown as { logic?: PlayerLogic; world?: World } | null;
+    (globalThis as Record<string, unknown>).__vecinosDebug = () => ({
+      player: dbg?.logic
+        ? {
+            x: +dbg.logic.x.toFixed(2),
+            z: +dbg.logic.z.toFixed(2),
+            floor: dbg.logic.floor,
+            mode: dbg.logic.mode,
+            insideBlock: dbg.logic.insideBlock,
+            climbing: !!dbg.logic.position().climbing,
+          }
+        : null,
+      clock: dbg?.world ? { ...dbg.world.clock } : null,
+      camMode: useGameStore.getState().camMode,
+      paused: useGameStore.getState().paused,
+      simLocation: dbg?.world?.residents[dbg.world.playerId]?.location ?? null,
+      missions: dbg?.world?.missions.map((m) => `${m.id}:${m.state}${m.state === 'active' ? `#${m.step}` : ''}`) ?? [],
+      /** QoL de pruebas E2E: colocar al jugador ante la puerta de un bloque (recorrido legal del grafo). */
+      tp: (blockId: string) => !!dbg?.logic?.teleportTo(blockId),
+      /** QoL de pruebas E2E: comando del sim directo (diagnóstico de pasos). */
+      cmd: (c: unknown) => {
+        const w = dbg?.world;
+        const ct = (dbg as unknown as { _content?: Content } | null)?._content;
+        return w && ct ? JSON.stringify(dispatch(w, ct, c as Command)) : 'no-world';
+      },
+      /** QoL de pruebas E2E (pestaña en segundo plano: rAF suspendido): avanza n ticks del sim. */
+      tickN: (n: number) => {
+        const w = dbg?.world;
+        const ct = (dbg as unknown as { _content?: Content } | null)?._content;
+        if (!w || !ct) return 'no-world';
+        for (let i = 0; i < n; i++) tick(w, ct);
+        (dbg as unknown as { handleEvents?: () => void }).handleEvents?.();
+        return JSON.stringify({ ...w.clock });
+      },
+      /** QoL de pruebas E2E: coloca la X del jugador (presentación) para apuntar interacciones fijas. */
+      setX: (x: number) => {
+        const lg = dbg?.logic;
+        if (!lg) return 'no-logic';
+        lg.x = x;
+        return JSON.stringify({ x: lg.x });
+      },
+    });
   }
   return instance;
 }

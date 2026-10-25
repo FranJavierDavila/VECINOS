@@ -41,7 +41,7 @@ export interface BlockDef {
   size: { w: number; h: number };
   traversable?: boolean;
   alignGroup?: string;
-  features?: { stairs?: boolean; elevator?: boolean; mailboxes?: boolean; noticeboard?: boolean; bench?: boolean };
+  features?: { stairs?: boolean; elevator?: boolean; mailboxes?: boolean; noticeboard?: boolean; bench?: boolean; innerCorridor?: boolean };
   params?: Record<string, ParamDef>;
   container?: { childKind: string; layout: string };
   view: BlockView;
@@ -840,6 +840,16 @@ export interface Rules {
       moodPenalty: number;
       clamp: { min: number; max: number };
     };
+    /** Campaña de presidencia (v1.18, presentación/support): HUD del mandato y agenda
+     *  convicable desde el tablón. El sim no la consume. */
+    campaign?: {
+      termMission: string;
+      endMission: string;
+      termDays: number;
+      presidentLabel: string;
+      convocationCooldownMinutes: number;
+      presetAgenda: { id: string; title: string; description: string; cost: number; effects: Effect[] }[];
+    };
     /** Malestar vecinal con el ascensor averiado (v1.5): coste social por tramo de escalera
      *  forzada y resoplido público ocasional (evento stairs_grumble con texto del catálogo). */
     elevator: { stairsMoodCost: number; grumbleChance: number; grumbleCooldownMinutes: number; grumbleText: string };
@@ -884,6 +894,8 @@ export interface Rules {
       landingX: number;
       stepCount: number;
       climbSpeed: number;
+      /** Forjado interior continuo del cubo (v1.18): losa a nivel de entrada en cada planta. */
+      floorSlab: { enabled: boolean; thickness: number; color: string; topAt: number };
     };
     /** Ascensor creíble (v1.5, presentación): llamadas, puertas, espera y capacidad (src/game/client/elevator.ts). */
     elevator: {
@@ -936,6 +948,17 @@ export interface Rules {
       /** Cabecera de cartel sobre la fachada de cada estantería (v1.17): el cartel numerado
        *  se monta en la propia estantería, no flotando. 0 = sin cabecera. */
       headerH: number;
+      /** ── Bloques por columna (v1.18): una planta de trasteros por letra, pasillo central,
+       *  impares a un lado y pares al otro, compartimentos cerrados, profundidad ×factor. */
+      blockDepthFactor: number;
+      corridorW: number;
+      wallT: number;
+      doorW: number;
+      doorH: number;
+      unitH: number;
+      doorColor: string;
+      oddSide: 'left' | 'right';
+      blockDefId: string;
     };
     /** Tejadillo a dos aguas que cierra el edificio (v1.16) sobre la bajocubierta. */
     roof: { pitchH: number; overhang: number; color: string; ridge: string; fascia: string };

@@ -5,6 +5,7 @@ import {
   CloudRain,
   CloudSun,
   Clock,
+  Drama,
   Home,
   Landmark,
   Star,
@@ -59,6 +60,7 @@ export function HudBar() {
   const elevator = useGameStore((s) => s.elevator);
   const homeLabel = useGameStore((s) => s.homeLabel);
   const travelText = useGameStore((s) => s.travelText);
+  const campaign = useGameStore((s) => s.campaign);
 
   const hh = String(Math.floor(clock.minute / 60)).padStart(2, '0');
   const mm = String(clock.minute % 60).padStart(2, '0');
@@ -72,6 +74,14 @@ export function HudBar() {
         <Chip icon={Clock} label={t('hud.clockAria')}>
           {t('hud.day', { d: clock.day })} · {hh}:{mm}
         </Chip>
+
+        {campaign?.active && (
+          <Chip icon={Drama} iconClassName="text-amber-500" label={t('hud.campaignAria')}>
+            {campaign.over
+              ? t('hud.campaignOver', { label: campaign.label, d: Math.min(campaign.dayOfTerm, campaign.termDays), n: campaign.termDays })
+              : t('hud.campaign', { label: campaign.label, d: campaign.dayOfTerm, n: campaign.termDays })}
+          </Chip>
+        )}
 
         <Chip icon={WeatherIcon} iconClassName={w.className} label={t('hud.weatherAria', { w: weatherLabel })}>
           {weatherLabel}

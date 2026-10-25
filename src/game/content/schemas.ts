@@ -36,6 +36,9 @@ export const blockDefSchema = z.object({
       mailboxes: z.boolean().optional(),
       noticeboard: z.boolean().optional(),
       bench: z.boolean().optional(),
+      /** Pasillo interior de circulación (v1.18): el bloque se recorre ANDANDO por su
+       *  corredor central (trasteros por columna) — el jugador y los NPCs caminan por él. */
+      innerCorridor: z.boolean().optional(),
     })
     .optional(),
   params: z.record(z.string(), paramDefSchema).optional(),
@@ -487,6 +490,27 @@ export const rulesSchema = z.object({
       moodPenalty: z.number(),
       clamp: z.object({ min: z.number(), max: z.number() }),
     }),
+    /** Campaña de presidencia (v1.18, presentación/support): la misión que otorga el cargo,
+     *  la que cierra el mandato, su duración en días de juego y la agenda que el presidente
+     *  puede convocar desde el tablón. El sim NO la usa; el HUD y el tablón sí. */
+    campaign: z
+      .object({
+        termMission: z.string(),
+        endMission: z.string(),
+        termDays: z.number().int().min(1).default(7),
+        presidentLabel: z.string().default('Presidencia'),
+        convocationCooldownMinutes: z.number().int().min(0).default(360),
+        presetAgenda: z.array(
+          z.object({
+            id: z.string(),
+            title: z.string(),
+            description: z.string(),
+            cost: z.number(),
+            effects: z.array(z.custom<Effect>(() => true as const)),
+          }),
+        ),
+      })
+      .optional(),
     /** Malestar vecinal con el ascensor averiado (v1.5): subir por la escalera cuesta ánimo
      *  social y, de vez en cuando, un resoplido público (evento stairs_grumble, texto del catálogo). */
     elevator: z
@@ -549,8 +573,20 @@ export const rulesSchema = z.object({
         landingX: z.number().positive().default(0.5),
         stepCount: z.number().int().min(4).default(8),
         climbSpeed: z.number().positive().default(1.8),
+        /** Forjado interior continuo del cubo (v1.18): losa a nivel de entrada que cubre la
+         *  huella del cubo en CADA planta — jamás se camina sobre un tramo sin suelo dentro
+         *  del bloque de escalera. La authoría glTF conserva su forjado de entrada; esta losa
+         *  (runtime) completa el resto hasta los muros. */
+        floorSlab: z
+          .object({
+            enabled: z.boolean().default(true),
+            thickness: z.number().positive().default(0.14),
+            color: z.string().default('#b8c0a8'),
+            topAt: z.number().min(0).default(0.14),
+          })
+          .default({ enabled: true, thickness: 0.14, color: '#b8c0a8', topAt: 0.14 }),
       })
-      .default({ spanW: 2, doorLocalX: -1.14, entryHalf: 0.45, laneFront: 0.35, laneBack: 1.05, flightRun: 2.19, landingX: 0.5, stepCount: 8, climbSpeed: 1.8 }),
+      .default({ spanW: 2, doorLocalX: -1.14, entryHalf: 0.45, laneFront: 0.35, laneBack: 1.05, flightRun: 2.19, landingX: 0.5, stepCount: 8, climbSpeed: 1.8, floorSlab: { enabled: true, thickness: 0.14, color: '#b8c0a8', topAt: 0.14 } }),
     /** Ascensor creíble (v1.5, presentación): semáforo de permisos con llamadas, puertas que
      *  abren/cierran, espera al embarco y capacidad limitada. TODO en el catálogo, nada a pelo. */
     elevator: z
@@ -617,6 +653,20 @@ export const rulesSchema = z.object({
         /** Cabecera de cartel sobre la fachada de cada estantería (v1.17): travesaño donde
          *  se monta el cartel numerado "en la propia estantería" (no flotando). */
         headerH: z.number().min(0).default(0.15),
+        /** ── Bloques de trasteros por COLUMNA (v1.18) ── Una sola planta de trasteros por
+         *  letra: cada bloque guarda los trasteros de TODAS las viviendas de su columna
+         *  (impares a la izquierda del pasillo central, pares a la derecha), con
+         *  compartimentos CERRADOS (el interior no se ve: qué esconderá cada vecino).
+         *  La profundidad del bloque escala la de vivienda (blockDepthFactor). */
+        blockDepthFactor: z.number().min(1).default(1),
+        corridorW: z.number().positive().default(1.2),
+        wallT: z.number().positive().default(0.08),
+        doorW: z.number().positive().default(0.82),
+        doorH: z.number().positive().default(1.72),
+        unitH: z.number().positive().default(2.16),
+        doorColor: z.string().default('#7a5230'),
+        oddSide: z.enum(['left', 'right']).default('left'),
+        blockDefId: z.string().default('trasteros_columna'),
       })
       .default({
         shelvesPerLevel: 8,
@@ -641,6 +691,15 @@ export const rulesSchema = z.object({
         partitionExtra: 0.22,
         partitionColor: '#6f4926',
         headerH: 0.15,
+        blockDepthFactor: 1,
+        corridorW: 1.2,
+        wallT: 0.08,
+        doorW: 0.82,
+        doorH: 1.72,
+        unitH: 2.16,
+        doorColor: '#7a5230',
+        oddSide: 'left',
+        blockDefId: 'trasteros_columna',
       }),
     /** Tejadillo que cierra el edificio (v1.16): faldones a dos aguas sobre la bajocubierta.
      *  CONTRATO con la authoría glTF (scripts/gen-v16-assets.ts): mismos colores y misma

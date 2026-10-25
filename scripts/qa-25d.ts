@@ -101,6 +101,8 @@ for (const s of scenarios) for (const r of s.residents) {
   residentIds.add(r.id);
   archetypes.add(r.archetype);
 }
+// El jugador también es residente (v1.18: cutscenes con línea del protagonista).
+for (const s of scenarios) if (s.player?.residentId) residentIds.add(s.player.residentId);
 let lineGestures = 0;
 for (const c of cutscenes) {
   for (const b of c.beats) {

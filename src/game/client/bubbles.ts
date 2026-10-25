@@ -51,6 +51,10 @@ interface BubbleView {
   /** Prioridad del pick actual (ordenación del tope de glifos en vista edificio). */
   priority: number;
   hidden: boolean;
+  /** v1.18: SOLO se muestra tras la primera proyección con transform real. Sin esto, un
+   *  bocadillo creado mientras su actor no proyecta nace en (0,0) — la esquina superior
+   *  izquierda — y se pinta ENCIMA del indicador de FPS hasta su primera reposición. */
+  placed: boolean;
 }
 
 export interface BubblesDirector {
@@ -152,7 +156,7 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
     inner.appendChild(tail);
     el.appendChild(inner);
     layer.appendChild(el);
-    const view: BubbleView = { el, inner, key: '', mode: 'glyph', priority: 0, hidden: true };
+    const view: BubbleView = { el, inner, key: '', mode: 'glyph', priority: 0, hidden: true, placed: false };
     bubbles.set(id, view);
     return view;
   };
@@ -235,7 +239,9 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
     return null;
   };
 
-  /** Reevalúa y pinta el bocadillo de un actor (solo toca el DOM si cambia la expresión). */
+  /** Reevalúa y pinta el bocadillo de un actor (solo toca el DOM si cambia la expresión).
+   *  v1.18: un bocadillo sin `placed` (nunca proyectado) permanece invisible — aunque el
+   *  pick exista — hasta que el pase de reposición le asigna transform real. */
   const refresh = (id: string): void => {
     const r = world.residents[id];
     const head = actors.headOf(id);
@@ -255,15 +261,16 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
     // Silenciada por el tope de la vista edificio: se actualiza el contenido en silencio
     // (sin pop ni opacity 1 — el Web Animations API taparía el opacity 0 del cap).
     const capped = cappedIds !== null && !cappedIds.has(id);
+    const shelved = !b.placed; // jamás proyectado: ni un frame en (0,0)
     if (b.key !== key || (isText && b.mode !== 'text') || (!isText && b.mode !== 'glyph')) {
       const modeChanged = b.mode !== (isText ? 'text' : 'glyph');
       b.key = key;
       if (modeChanged) applyMode(b, isText ? 'text' : 'glyph');
       (b.inner.firstChild as HTMLElement).textContent = isText ? pick.text! : pick.glyph;
-      b.hidden = capped;
-      b.inner.style.opacity = capped ? '0' : '1';
-      if (!capped) pop(b);
-    } else if (b.hidden && !capped) {
+      b.hidden = capped || shelved;
+      b.inner.style.opacity = b.hidden ? '0' : '1';
+      if (!b.hidden) pop(b);
+    } else if (b.hidden && !capped && !shelved) {
       b.hidden = false;
       b.inner.style.opacity = '1';
       pop(b);
@@ -354,25 +361,27 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
       // 1) Reevaluación a cadencia (amortigua parpadeos del sim) + eventos pendientes ya.
       decisionAcc += dt;
       const decisionS = cfg.bubble.decisionMs / 1000;
+      const inBuilding = useGameStore.getState().camMode === 'edificio';
       if (decisionAcc >= decisionS || dirty.size > 0) {
         decisionAcc = 0;
         const pending = dirty.size > 0 ? [...dirty] : [];
         dirty.clear();
         for (const id of Object.keys(world.residents)) refresh(id);
         for (const id of pending) refresh(id);
-        // TOPE DE GLIFOS EN VISTA EDIFICIO (v1.17): el plano general muestra solo los N
-        // bocadillos más relevantes (prioridad del pick, empates estables por id) — el
-        // edificio entero no se convierte en una sopa de emoticonos. Sin tope en el
-        // catálogo o fuera de la vista edificio: todo visible como siempre.
-        if (buildingMaxGlyphs !== undefined && useGameStore.getState().camMode === 'edificio') {
-          const alive = [...bubbles.entries()]
-            .filter(([, b]) => !b.hidden || b.key !== '')
-            .map(([id, b]) => ({ id, priority: b.priority }))
-            .sort((a, z) => z.priority - a.priority || (a.id < z.id ? -1 : 1));
-          cappedIds = new Set(alive.slice(0, buildingMaxGlyphs).map((e) => e.id));
-        } else {
-          cappedIds = null;
-        }
+      }
+      // TOPE DE GLIFOS EN VISTA EDIFICIO (v1.17): el plano general muestra solo los N
+      // bocadillos más relevantes — y con tope 0 (v1.18) NINGUNO: ni glifos, ni texto,
+      // ni avisos de evento (la información importante sube al HUD, no al plano).
+      // Se recalcula CADA FRAME en esa vista para que el cambio de cámara no deje
+      // escapar ni un solo bocadillo durante la cadencia de decisión.
+      if (buildingMaxGlyphs !== undefined && inBuilding) {
+        const alive = [...bubbles.entries()]
+          .filter(([, b]) => !b.hidden || b.key !== '')
+          .map(([id, b]) => ({ id, priority: b.priority }))
+          .sort((a, z) => z.priority - a.priority || (a.id < z.id ? -1 : 1));
+        cappedIds = new Set(alive.slice(0, buildingMaxGlyphs).map((e) => e.id));
+      } else {
+        cappedIds = null;
       }
 
       // 2) Reposición cada frame: proyección 3D → píxeles del contenedor.
@@ -407,6 +416,11 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
         const x = (projected.x / renderW) * rect.width;
         const y = (projected.y / renderH) * rect.height;
         b.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -105%)`;
+        if (!b.placed) {
+          // Primera proyección real: a partir de aquí puede mostrarse (nunca en (0,0)).
+          b.placed = true;
+          if (!b.hidden) b.inner.style.opacity = '1';
+        }
       }
     },
 

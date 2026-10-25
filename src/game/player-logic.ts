@@ -2,6 +2,7 @@ import type { BlockInstance, Command, CommandResult, Content, Input, InteractTar
 import { dispatch, nextStepTowards } from '@/game/sim';
 import { layoutGeometryOf, roomAt, walkable, type LayoutGeometry } from '@/game/interior';
 import { stairGeomOf, stairPathPoints } from './stairs';
+import { storageCorridorX, storageGeomOf } from './storage';
 
 
 export type InteractResult =
@@ -64,7 +65,12 @@ export class PlayerLogic {
     this.send = opts?.send ?? null;
     this.view = content.rules.view;
     const blocks = Object.values(world.blocks);
-    this.width = Math.max(...blocks.map((b) => (b.cell.col + b.size.w) * this.view.cellW));
+    // El ancho transitable lo marcan los bloques CON SUELO (v1.18): el tejado (traversable
+    // false, w 11) NO puede abrir el clamp — con él, el jugador caminaba PASADA la pared
+    // del edificio (x>24) sobre el vuelo del tejado: el "tramo que no muestra suelo".
+    this.width = Math.max(
+      ...blocks.filter((b) => this.content.blocks[b.defId]!.traversable !== false).map((b) => (b.cell.col + b.size.w) * this.view.cellW),
+    );
     this.topFloor = Math.max(
       // Solo plantas con suelo transitable (v1.16): el tejado cierra el edificio pero no
       // tiene forjado — nunca es topFloor aunque sea la planta más alta de la plantilla.
@@ -137,9 +143,13 @@ export class PlayerLogic {
   /** Bloque bajo los pies del jugador (zona común) o, si no, el pasillo.
    *  v1.17: el cubo de escalera y el núcleo (con features) ganan al pasillo cuando se
    *  solapan — los pasillos extendidos (v1.16) comparten columna con el pozo y el orden
-   *  del mapa dejaba la zona en el pasillo, dejando al jugador sin escalera en esas plantas. */
+   *  del mapa dejaba la zona en el pasillo, dejando al jugador sin escalera en esas plantas.
+   *  v1.18: los bloques SIN SUELO (tejado, traversable false) jamás son zona — encima de
+   *  ellos no se camina y no deben robar el pozo al pasillo real. */
   zone(): BlockInstance {
-    const common = this.onFloor(this.floor).filter((b) => b.layer === 'main' && b.kind !== 'dwelling' && this.within(this.x, b));
+    const common = this.onFloor(this.floor).filter(
+      (b) => b.layer === 'main' && b.kind !== 'dwelling' && this.content.blocks[b.defId]!.traversable !== false && this.within(this.x, b),
+    );
     const withShaft = common.find((b) => {
       const f = this.content.blocks[b.defId]!.features;
       return !!f && (f.stairs === true || f.elevator === true);
@@ -153,14 +163,21 @@ export class PlayerLogic {
     return this.onFloor(this.floor).find((b) => this.isDoorTarget(b) && this.within(this.x, b)) ?? null;
   }
 
-  /** Objetivos de puerta: viviendas siempre; locales comunes transitables sin features (bar, lavandería…). */
+  /** Objetivos de puerta: viviendas siempre; locales comunes transitables sin features (bar,
+   *  lavandería…); bloques con PASILLO INTERIOR (v1.18, trasteros por columna) también; y los
+   *  bloques de mobiliario común (v1.18: portal con buzones/tablón/banco) AVISAN de su puerta
+   *  (approach) — el tablón vive ahí y las misiones pueden pedirte llegar hasta él. Los pozos
+   *  (escalera/ascensor) siguen sin ser puertas: son zonas de tránsito vertical. */
   private isDoorTarget(b: BlockInstance): boolean {
     if (b.kind === 'dwelling') return true;
     if (b.layer !== 'main') return false;
     const def = this.content.blocks[b.defId]!;
     if (!def.traversable) return false;
     const f = def.features;
-    return !f || Object.keys(f).length === 0;
+    if (f?.innerCorridor) return true;
+    if (!f) return true;
+    if (f.stairs || f.elevator) return false;
+    return true;
   }
 
   position(): PlayerPosition {
@@ -399,6 +416,17 @@ export class PlayerLogic {
       const home = this.world.blocks[this.insideBlock!]!;
       const dx = dir * this.view.roomSpeed * speedMul * dt;
       const dz = ((input.up ? 1 : 0) - (input.down ? 1 : 0)) * this.view.roomSpeed * speedMul * dt;
+      // ── Pasillo interior (v1.18, trasteros por columna): banda central transitable en X,
+      //  fondo libre en Z hasta el tabique trasero. TODO sale del catálogo (storage.ts).
+      if (this.content.blocks[home.defId]!.features?.innerCorridor) {
+        const sg = storageGeomOf(this.view);
+        const [ca, cb] = storageCorridorX(home.cell.col * this.view.cellW, sg);
+        const m = this.view.margin;
+        this.x = Math.min(cb - m, Math.max(ca + m, this.x + dx));
+        this.z = Math.min(sg.depth - m, Math.max(m, this.z + dz));
+        this.sync();
+        return;
+      }
       const geo = this.geometryOf(home);
       if (!geo) {
         // Layout sin geometría 2D (catálogo antiguo): movimiento 1D de siempre.
@@ -472,16 +500,17 @@ export class PlayerLogic {
       }
       return { kind: 'door', blockId: this.insideBlock! };
     }
-    // Prioridad: puerta (acción habitual) → vecino → buzones → tablón. La tecla E y el
-    // prompt leen SIEMPRE el mismo objetivo, así lo que ves es lo que la E ejecuta.
+    // Prioridad (v1.18): las fijaciones del portal (buzones/tablón, proximidad exacta) van
+    // delante de la puerta — el portal ahora también es puerta (approach de misiones) y sin
+    // esto su propia fachada se comería la E del tablón. Después: puerta → vecino.
+    const zoneFirst = this.zone();
+    const [za, zz] = this.rangeOf(zoneFirst);
+    if (this.content.blocks[zoneFirst.defId]!.features?.mailboxes && Math.abs(this.x - (za + 1.2)) < this.view.itemRadius) return { kind: 'mailbox' };
+    if (this.content.blocks[zoneFirst.defId]!.features?.noticeboard && Math.abs(this.x - (zz - 0.8)) < this.view.itemRadius) return { kind: 'noticeboard' };
     const door = this.doorInFront();
     if (door) return { kind: 'door', blockId: door.id };
     const neighbor = this.residentNearby();
     if (neighbor) return { kind: 'resident', residentId: neighbor };
-    const z = this.zone();
-    const [za, zz] = this.rangeOf(z);
-    if (this.content.blocks[z.defId]!.features?.mailboxes && Math.abs(this.x - (za + 1.2)) < this.view.itemRadius) return { kind: 'mailbox' };
-    if (this.content.blocks[z.defId]!.features?.noticeboard && Math.abs(this.x - (zz - 0.8)) < this.view.itemRadius) return { kind: 'noticeboard' };
     return null;
   }
 
@@ -525,8 +554,18 @@ export class PlayerLogic {
       return { type: 'locked', block: door.id, reason: door.lockReason, price: door.availability?.price ?? null };
     }
     this.lastMoveTarget = door.id; // ya está en vuelo este move
-    if (door.kind === 'dwelling') this.landInside(door);
-    else this.approached = door.id; // local común (bar/lavandería): te plantas en su puerta, sin modo interior
+    if (door.kind === 'dwelling') {
+      this.landInside(door);
+    } else if (this.content.blocks[door.defId]!.features?.innerCorridor) {
+      // Trasteros por columna (v1.18): modo interior sobre su pasillo central — caminas
+      // hacia el fondo y tu celda queda a un lado (impares) o al otro (pares).
+      this.mode = 'inside';
+      this.insideBlock = door.id;
+      this.z = 0.45;
+      this.approached = door.id;
+    } else {
+      this.approached = door.id; // local común (bar/lavandería): te plantas en su puerta, sin modo interior
+    }
     return { type: 'entered', block: door.id };
   }
 

@@ -675,5 +675,80 @@
         "focus": "player"
       }
     ]
+  },
+  {
+    "id": "cut_presidencia",
+    "trigger": {
+      "on": "mission_completed",
+      "mission": "m_presidencia_voto"
+    },
+    "beats": [
+      {
+        "type": "cam",
+        "focus": "wide",
+        "hold": 1.4
+      },
+      {
+        "type": "line",
+        "who": "res_jubilada_01",
+        "speaker": "Espera · 4C",
+        "text": "Yo soy Espera. Vigilo el rellano desde 1997. El bizcocho es pillable; la información, no gratis.",
+        "gesture": "talk",
+        "seconds": 4.2
+      },
+      {
+        "type": "line",
+        "who": "res_cotilla_01",
+        "speaker": "Dolores · 1B",
+        "text": "Dolores, la 1B. Mi afición son las juntas; mi talento, saberlo TODO antes de que pase.",
+        "gesture": "talk",
+        "seconds": 4.2
+      },
+      {
+        "type": "line",
+        "who": "res_fiestero_01",
+        "speaker": "Kevin · 2B",
+        "text": "Kevin, 2B. Si oyes música los viernes no es una fiesta: es un estilo de vida.",
+        "gesture": "laugh",
+        "seconds": 4
+      },
+      {
+        "type": "line",
+        "who": "res_estudiante_01",
+        "speaker": "Laia · 4A",
+        "text": "Laia, 4A. Estudio de noche. Los taladros del domingo me los cobro con intereses.",
+        "gesture": "talk",
+        "seconds": 4
+      },
+      {
+        "type": "line",
+        "who": "res_musico_01",
+        "speaker": "Teo · 4D",
+        "text": "Teo, 4D. Músico. Ensayo de 20 a 23. El amplificador es un instrumento de paz interior.",
+        "gesture": "talk",
+        "seconds": 4
+      },
+      {
+        "type": "line",
+        "who": "res_presidente_01",
+        "speaker": "Ex presidente · 1D",
+        "text": "Yo volveré a presidir. Nací para la presidencia. ¡Esto no se acaba aquí, RECUÉRDALO!",
+        "gesture": "argue",
+        "seconds": 4.6
+      },
+      {
+        "type": "line",
+        "who": "res_player_01",
+        "speaker": "Tú",
+        "text": "Yo solo pedía un piso tranquilo...",
+        "gesture": "talk",
+        "seconds": 3.4
+      },
+      {
+        "type": "cam",
+        "focus": "player",
+        "hold": 1.6
+      }
+    ]
   }
 ]

@@ -37,10 +37,11 @@ export function ToastStack({ onDismiss }: ToastStackProps) {
 
   return (
     <div
-      className="fixed right-4 bottom-4 z-50 flex w-[calc(100vw-2rem)] max-w-sm flex-col gap-2 sm:w-auto"
+      className="pointer-events-none absolute right-3 top-3 z-30 flex w-[min(24rem,calc(100%-6rem))] flex-col items-end gap-2"
       role="status"
       aria-live="polite"
     >
+      <p className="sr-only">Avisos de la comunidad</p>
       {toasts.map((t) => {
         const tone = TONE_UI[t.tone];
         const Icon = tone.icon;
@@ -58,11 +59,12 @@ export function ToastStack({ onDismiss }: ToastStackProps) {
               }
             }}
             className={cn(
-              'animate-in fade-in slide-in-from-bottom-2 flex-row items-center gap-2 py-2 pr-3 pl-3 shadow-md hover:shadow-lg',
+              'pointer-events-auto animate-in fade-in slide-in-from-top-2 flex-row items-start gap-2 py-2 pr-3 pl-3 shadow-lg shadow-black/30 hover:shadow-xl',
               tone.cardClassName,
+              'bg-background/95 backdrop-blur-sm',
             )}
           >
-            <Icon className={cn('size-4 shrink-0', tone.iconClassName)} aria-hidden />
+            <Icon className={cn('mt-0.5 size-4 shrink-0', tone.iconClassName)} aria-hidden />
             <p className="text-sm leading-snug">{t.text}</p>
           </Card>
         );

@@ -1,10 +1,11 @@
 import type { Mesh, Scene, TransformNode } from '@babylonjs/core';
-import type { BlockInstance, Content, PlayerPosition, World } from '@/game/core/types';
+import type { BlockInstance, Content, PlayerPosition, ResidentInstance, World } from '@/game/core/types';
 import { B } from './babylon';
 import { instantiateActorAsset, type ActorRig } from './assets';
 import { hash01, interiorTarget, layoutGeometryOf, type Pt } from '@/game/interior';
 import { stairGeomOf, stairPathPoints } from '@/game/stairs';
 import { horizontalLegs } from '@/game/routing';
+import { isStorageColumnBlock, storageDoorPoint } from '@/game/storage';
 import type { ElevatorsDirector } from './elevator';
 
 /** Plano frontal de las viviendas: z local 0 de los interiores (la cara de la puerta). */
@@ -50,6 +51,10 @@ interface Actor {
   /** Estaba habilitado el frame anterior (v1.10): la REAPARICIÓN coloca al actor donde dice el
    *  sim (vuelve de la calle), nunca caminando desde su última posición visible por la pared. */
   enabledPrev: boolean;
+  /** Trastero ocupado (v1.18): id del bloque por columna cuyo compartimento habitó por última
+   *  vez. Mientras su ubicación siga siendo ese bloque, el nodo permanece oculto (está DENTRO
+   *  de su celda cerrada); al cambiar, reaparece por la puerta con la lógica de siempre. */
+  stowedBlock: string | null;
   /** Rig del arte final (null mientras carga o si hay fallback greybox). */
   rig: ActorRig | null;
 }
@@ -110,7 +115,7 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
     m.emissiveColor = m.diffuseColor.scale(0.25);
     mesh.material = m;
     mesh.isPickable = false;
-    const a: Actor = { id, node: mesh, height, pivotY: height / 2, path: [], wanderT: 0, wanderLap: 0, targetLocal: null, lastLoc: null, directed: false, yaw: 0, targetYaw: null, gesture: null, gestureT: 0, seated: false, elevatorReq: null, ridePhase: null, enabledPrev: false, rig: null };
+    const a: Actor = { id, node: mesh, height, pivotY: height / 2, path: [], wanderT: 0, wanderLap: 0, targetLocal: null, lastLoc: null, directed: false, yaw: 0, targetYaw: null, gesture: null, gestureT: 0, seated: false, elevatorReq: null, ridePhase: null, enabledPrev: false, stowedBlock: null, rig: null };
     actors.set(id, a);
 
     // Arte final (opcional): modelo glTF del manifiesto; cualquier fallo → cápsula.
@@ -165,12 +170,35 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
     return f.elevator === true && b.params.elevator_status === 'ok';
   };
   const shaftXOf = (b: BlockInstance): number => (b.cell.col + b.size.w / 2) * v.cellW;
-  /** Calado transitablo del bloque (vivienda 2×; naves del cierre v1.16 a calado de vivienda). */
+  /** Calado transitablo del bloque (vivienda 2×; naves del cierre v1.16 a calado de vivienda;
+   *  trasteros por columna v1.18: depth × blockDepthFactor). */
   const depthOfBlock = (b: BlockInstance): number => {
     if (b.kind === 'dwelling') return v.depth;
     if (b.defId === 'trasteros_planta' || b.defId === 'bajocubierta') return v.depth;
+    if (b.defId === v.trasteros.blockDefId) return v.depth * v.trasteros.blockDepthFactor;
     if (b.defId === 'tejado') return v.depth + v.roof.overhang * 2;
     return v.commonDepth;
+  };
+  /** Plano frontal de los bloques (compartido con storage.ts/building.ts). */
+  /**
+   * Punto de puerta del trastero de un residente en el bloque por columna de su letra
+   * (v1.18): pasillo central hasta su celda. null si no aplica (bloque equivocado, planta
+   * sin vivienda en el plan…).
+   */
+  const storageDoorOf = (resident: ResidentInstance): { x: number; z: number } | null => {
+    const home = world.blocks[resident.home];
+    if (!home) return null;
+    const tag = home.id.slice(home.id.lastIndexOf('_') + 1);
+    const store = Object.values(world.blocks).find(
+      (b) => isStorageColumnBlock(b, v) && b.id.endsWith(`_${tag}`),
+    );
+    if (!store) return null;
+    const colTag = store.id.slice(store.id.lastIndexOf('_') + 1);
+    const floors = Object.values(world.blocks)
+      .filter((d) => d.kind === 'dwelling' && d.id.endsWith(`_${colTag}`))
+      .map((d) => d.cell.floor)
+      .sort((a, z) => a - z);
+    return storageDoorPoint(v, store, floors, home.cell.floor);
   };
   /** Plano frontal de las viviendas: z local 0 de los interiores y origen del pasillo. */
   const frontZ = frontZOf(v.roomZ, v.commonDepth);
@@ -287,8 +315,13 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
         const r = world.residents[id]!;
         const isPlayer = id === playerResidentId;
         const nowEnabled = isPlayer || (r.present && r.location !== null);
-        a.node.setEnabled(nowEnabled);
-        if (!nowEnabled) {
+        // ── TRASTEROS POR COLUMNA (v1.18): mientras el vecino sigue "en su bloque de
+        //  trasteros", el nodo permanece oculto — está DENTRO de su celda cerrada. En cuanto
+        //  el sim lo muda (otra ubicación o se va), sale del stow y reaparece por su puerta.
+        const stowedHere = a.stowedBlock !== null && r.present && r.location === a.stowedBlock;
+        if (a.stowedBlock !== null && !stowedHere) a.stowedBlock = null;
+        a.node.setEnabled(nowEnabled && !stowedHere);
+        if (!nowEnabled || stowedHere) {
           a.enabledPrev = false;
           continue;
         }
@@ -303,7 +336,11 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
           const inside = player.mode === 'inside';
           // Dentro de la vivienda el actor sigue la posición 2D (x + profundidad z del layout);
           // en el cubo de escalera (v1.4) manda la Z absoluta del recorrido (pathZ).
-          const z = inside ? frontZ + Math.min(Math.max(player.z, 0), v.depth) : (player.pathZ ?? v.corridorZ);
+          // El calado interior es DEL BLOQUE (v1.18): el pasillo de trasteros es más profundo
+          // que una vivienda — clampear a v.depth plantaría al jugador a mitad de pasillo.
+          const insideBlock = player.insideBlock ? world.blocks[player.insideBlock] : null;
+          const insideDepth = insideBlock ? depthOfBlock(insideBlock) : v.depth;
+          const z = inside ? frontZ + Math.min(Math.max(player.z, 0), insideDepth) : (player.pathZ ?? v.corridorZ);
           goal.set(player.x, player.floor * v.cellH + (inside ? 0.12 : 0.14) + a.pivotY, z);
           if (node.lengthSquared() === 0) node.copyFrom(goal);
           node.addInPlace(goal.subtract(node).scale(Math.min(1, k * 2)));
@@ -312,6 +349,10 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
           const home = world.blocks[r.home]!;
           const inRoom = b.kind === 'dwelling';
           const x0 = b.cell.col * v.cellW;
+          // ── Trastero propio (v1.18): si el vecino está en el bloque por columna de su
+          //  letra, su objetivo es LA PUERTA DE SU CELDA (pasillo central): llega y entra
+          //  (stow: nodo oculto dentro del compartimento cerrado).
+          const storeDoor = isStorageColumnBlock(b, v) ? storageDoorOf(r) : null;
           // ── Viaje en ascensor (v1.5): mientras hay viaje registrado, el director manda —
           // esperar ante la puerta, entrar al hueco, ser llevado por la cabina y salir en la
           // planta de destino. Si el viaje se cancela (avería), status() null → el flujo
@@ -355,6 +396,11 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
           if (!a.directed && !a.elevatorReq) {
             let gx = b.layer === 'corridor' ? (home.cell.col + 0.5) * v.cellW : (x0 + b.size.w * v.cellW) / 2;
             let gz = inRoom ? frontZ + 0.6 : v.corridorZ;
+            if (storeDoor) {
+              // Trastero por columna (v1.18): se camina POR EL PASILLO CENTRAL hasta SU puerta.
+              gx = storeDoor.x;
+              gz = storeDoor.z;
+            }
             // ── Vida interior (Fase C): en vivienda, el punto lo decide el contenido. La actividad
             // con `anchor` (cama, tv, stove…) coloca al vecino en SU estancia por el catálogo de
             // anclas (rooms.json); sin ancla, deambula por las estancias abiertas. El objetivo se
@@ -389,10 +435,17 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
             goal.set(gx, b.cell.floor * v.cellH + 0.14 + a.pivotY, gz);
             // Reaparición (v1.10): el vecino vuelve de la calle o entra en escena — aparece
             // DONDE DICE EL SIM, no caminando desde su última posición visible (por la pared).
+            // CON TRASTERO (v1.18): sale en la línea del pasillo ANTE SU BLOQUE y se lo ve
+            // entrar y recorrer el pasillo central hasta su celda (nunca pop dentro del stow).
             if (!a.enabledPrev) {
               a.enabledPrev = true;
-              node.copyFrom(goal);
-              a.path = [];
+              if (storeDoor) {
+                node.set((x0 + b.size.w * v.cellW) / 2, goal.y, v.corridorZ);
+                a.path = [];
+              } else {
+                node.copyFrom(goal);
+                a.path = [];
+              }
             }
             // ── Locomoción interpolada (nada de teletransportes): el destino del sim se recorre a
             // velocidad de crucero del catálogo, tramo a tramo. El sim adelanta a los vecinos a
@@ -401,6 +454,16 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
             // Solo un estado realmente imposible (cambio de planta sin pozo utilizable, v1.10)
             // recoloca sin teatro. Con ruta en curso se consume SIEMPRE hasta el final.
             if (a.path.length === 0) {
+              // STOW (v1.18): llegó a la puerta de su trastero — entra y se oculta (la celda
+              // es cerrada: el interior jamás se ve). enabledPrev=false para que, cuando el
+              // sim lo mude, la reaparición lo coloque donde toque.
+              if (storeDoor && a.stowedBlock === null && Math.hypot(node.x - storeDoor.x, node.z - storeDoor.z) < 0.35) {
+                a.stowedBlock = b.id;
+                a.node.setEnabled(false);
+                a.enabledPrev = false;
+                a.path = [];
+                continue;
+              }
               const routed = buildRoute(a, { x: goal.x, y: goal.y, z: goal.z, inside: geo && localTarget ? { block: b, local: localTarget } : null });
               if (!routed) {
                 node.copyFrom(goal);

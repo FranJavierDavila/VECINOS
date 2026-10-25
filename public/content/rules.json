@@ -114,6 +114,74 @@
         "social": 5
       },
       "toastDone": "😴 Siesta oficial en regla. Los problemas pueden hacer cola fuera."
+    },
+    "campaign": {
+      "termMission": "m_presidencia_voto",
+      "endMission": "m_veredicto",
+      "termDays": 7,
+      "presidentLabel": "Presidencia",
+      "convocationCooldownMinutes": 360,
+      "presetAgenda": [
+        {
+          "id": "pintar_portal",
+          "title": "Pintar el portal",
+          "description": "Un color que no dé miedo al entrar. 250 € de caja.",
+          "cost": 250,
+          "effects": [
+            {
+              "op": "setParam",
+              "target": "portal.condition",
+              "delta": 12
+            },
+            {
+              "op": "toast",
+              "text": "Portal recién pintado: huele a obra y a victorias laborales.",
+              "tone": "good"
+            },
+            {
+              "op": "addReputation",
+              "resident": "player",
+              "amount": 6
+            }
+          ]
+        },
+        {
+          "id": "contingencia",
+          "title": "Engordar la caja de contingencia",
+          "description": "Cada vecino aporta 40 €. La caja de la comunidad sube 440 €.",
+          "cost": 0,
+          "effects": [
+            {
+              "op": "addFunds",
+              "to": "community",
+              "amount": 440
+            },
+            {
+              "op": "toast",
+              "text": "Aportación aprobada: la caja respira. Algunos han pagado con monedas del bote de la café.",
+              "tone": "info"
+            }
+          ]
+        },
+        {
+          "id": "macetas_extra",
+          "title": "Campaña de macetas en los pasillos",
+          "description": "Verde que da felicidad (y algo de sombra). 120 € del fondo comunal.",
+          "cost": 120,
+          "effects": [
+            {
+              "op": "toast",
+              "text": "Nuevas macetas en los pasillos. La jubilada ya ha adoptado tres.",
+              "tone": "good"
+            },
+            {
+              "op": "addReputation",
+              "resident": "player",
+              "amount": 4
+            }
+          ]
+        }
+      ]
     }
   },
   "view": {
@@ -213,7 +281,14 @@
       "flightRun": 2.19,
       "landingX": 0.5,
       "stepCount": 8,
-      "climbSpeed": 1.8
+      "climbSpeed": 1.8,
+      "floorSlab": {
+        "enabled": true,
+        "thickness": 0.14,
+        "color": "#b8c0a8",
+        "topAt": 0.14,
+        "note": "Forjado interior continuo del cubo de escalera a nivel de entrada: acabamos con el tramo 'sin suelo' dentro del bloque"
+      }
     },
     "elevator": {
       "capacity": 4,
@@ -265,7 +340,16 @@
       "plaqueH": 0.18,
       "partitionExtra": 0.22,
       "partitionColor": "#6f4926",
-      "headerH": 0.15
+      "headerH": 0.15,
+      "blockDepthFactor": 3,
+      "corridorW": 1.2,
+      "wallT": 0.08,
+      "doorW": 0.82,
+      "doorH": 1.72,
+      "unitH": 2.16,
+      "doorColor": "#7a5230",
+      "oddSide": "left",
+      "blockDefId": "trasteros_columna"
     },
     "roof": {
       "pitchH": 1.2,

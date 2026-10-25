@@ -395,5 +395,32 @@
       "color": "#f4a261",
       "altColor": "#e9c46a"
     }
+  },
+  {
+    "id": "trasteros_columna",
+    "kind": "common",
+    "layer": "main",
+    "size": {
+      "w": 2,
+      "h": 1
+    },
+    "traversable": true,
+    "features": {
+      "innerCorridor": true
+    },
+    "params": {
+      "condition": {
+        "type": "number",
+        "min": 0,
+        "max": 100,
+        "default": 80,
+        "tier": 1,
+        "label": "Estado de los trasteros"
+      }
+    },
+    "view": {
+      "color": "#a47148"
+    },
+    "label": "el bloque de trasteros"
   }
 ]

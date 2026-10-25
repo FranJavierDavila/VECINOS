@@ -2,6 +2,7 @@ import type { Color3, Color4, Mesh, Scene, StandardMaterial, TransformNode } fro
 import { blockLabel } from '@/game/core/types';
 import type { BlockInstance, Content, World } from '@/game/core/types';
 import { hash01 } from '@/game/interior';
+import { storageCorridorX, storageGeomOf, storageUnitPlan, storageUnitZ } from '@/game/storage';
 import { B } from './babylon';
 import { instantiateBlockAsset, type BlockMat } from './assets';
 
@@ -73,6 +74,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
   const depthOf = (b: BlockInstance): number => {
     if (b.kind === 'dwelling') return v.depth;
     if (b.defId === 'trasteros_planta' || b.defId === 'bajocubierta') return v.depth;
+    if (b.defId === v.trasteros.blockDefId) return v.depth * v.trasteros.blockDepthFactor;
     if (b.defId === 'tejado') return v.depth + v.roof.overhang * 2;
     return v.commonDepth;
   };
@@ -279,10 +281,12 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         });
         interiors.set(b.id, interior);
       }
-    } else if (b.defId === 'trasteros_planta' || b.defId === 'bajocubierta') {
+    } else if (b.defId === 'trasteros_planta' || b.defId === 'bajocubierta' || b.defId === v.trasteros.blockDefId) {
       // Nave de trasteros / sala de instalaciones (v1.16): forjado + trasera. El arte glTF
       // añade pilares (trasteros) o maquinaria (bajocubierta); las estanterías, trastos y
       // carteles numerados los levanta SIEMPRE el runtime desde rules.view.trasteros.
+      // El bloque por COLUMNA (v1.18) comparte estructura: sus compartimentos los levanta
+      // el runtime más abajo (pasillo central + celdas cerradas impares/pares).
       view.greybox.push(
         box(`${b.id}_forjado`, w, v.slab * 2, d, cx, bottom + v.slab, frontZ + d / 2, m),
         box(`${b.id}_trasera`, w, h, v.wall, cx, bottom + v.cellH / 2, frontZ + d - v.wall / 2, m),
@@ -295,6 +299,25 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       view.greybox.push(box(b.id, w, h, d, cx, bottom + v.cellH / 2, cz, m));
     }
     views.set(b.id, view);
+  }
+
+  // ── Forjado interior CONTINUO del cubo de escalera (v1.18): a nivel de entrada de cada
+  //  planta, una losa que cubre la huella completa del cubo (spanW celdas). La authoría glTF
+  //  solo trae el forjado de la puerta; sin esta losa se camina (y se ve el vacío) entre la
+  //  puerta y los tramos. Malla propia que SOBREVIVE a la carga del modelo (no está en el
+  //  greybox, que se oculta) — 5 mm por debajo del forjado del arte: cero z-fighting.
+  const stCfg = v.stairs.floorSlab;
+  if (stCfg.enabled) {
+    const stMat = mat('escalera_forjado_mat');
+    stMat.diffuseColor = Color3.FromHexString(stCfg.color);
+    for (const b of Object.values(world.blocks)) {
+      const f = content.blocks[b.defId]!.features;
+      if (!f || f.stairs !== true) continue;
+      const spanW = v.stairs.spanW;
+      const sw = spanW * v.cellW - v.gapW;
+      const sx = b.cell.col * v.cellW + sw / 2;
+      box(`${b.id}_forjado_interior`, sw, stCfg.thickness, v.commonDepth, sx, b.cell.floor * v.cellH + stCfg.topAt - stCfg.thickness / 2 - 0.005, frontZ + v.commonDepth / 2, stMat);
+    }
   }
 
   // ── Arte final (opcional): modelo glTF por TIPO de bloque (manifiesto assets.blocks). ──
@@ -479,6 +502,96 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         box(`${lvl.id}_suelo_trasto_${j}`, jw, jh, 0.55, fx, baseY + jh / 2, fz, jm);
       }
     });
+  }
+
+  // ── Bloques de trasteros por COLUMNA (v1.18) ── UNA sola planta de trasteros por letra:
+  // pasillo central de circulación hacia el fondo, IMPARES a un lado y PARES al otro,
+  // compartimentos CERRADOS (interiores jamás visibles — a saber qué esconden ahí los
+  // vecinos: "quizá un cadáver", "quizá una pequeña fortuna") con puerta y cartel numerado
+  // de su vivienda. La profundidad del bloque escala la de vivienda (blockDepthFactor ×3).
+  // TODO sale de rules.view.trasteros + src/game/storage.ts (una sola verdad de geometría).
+  const colBlocks = Object.values(world.blocks).filter((b) => b.defId === tr.blockDefId);
+  if (colBlocks.length > 0) {
+    const sg = storageGeomOf(v);
+    const D = sg.depth;
+    const usableD = D - 2 * sg.wallT;
+    const matWallC = mat('trasteros_col_muro_mat');
+    matWallC.diffuseColor = Color3.FromHexString(tr.partitionColor);
+    const matDoorC = mat('trasteros_col_puerta_mat');
+    matDoorC.diffuseColor = Color3.FromHexString(sg.doorColor);
+    const matCapC = mat('trasteros_col_tapa_mat');
+    matCapC.diffuseColor = Color3.FromHexString(tr.woodDark);
+    /** Cartel del compartimento (mismo patrón DynamicTexture verificado: update(true)). */
+    const colPlate = (name: string, label: string, own: boolean): Mesh => {
+      const plate = MeshBuilder.CreatePlane(name, { width: tr.plaqueW, height: tr.plaqueH, sideOrientation: B().Mesh.DOUBLESIDE }, scene);
+      const tex = new (B().DynamicTexture)(`${name}_tex`, { width: 160, height: 56 }, scene, true);
+      const ctx = tex.getContext() as unknown as CanvasRenderingContext2D;
+      ctx.fillStyle = own ? tr.ownBg : v.plaque.bg;
+      ctx.fillRect(0, 0, 160, 56);
+      ctx.font = 'bold 34px Arial, sans-serif';
+      ctx.fillStyle = own ? tr.ownText : v.plaque.text;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, 80, 30);
+      tex.update(true);
+      const pm = new StandardMaterial(`${name}_mat`, scene);
+      pm.diffuseTexture = tex;
+      pm.emissiveColor = Color3.FromHexString(own ? tr.ownBg : v.plaque.bg).scale(0.55);
+      pm.specularColor = new Color3(0, 0, 0);
+      plate.material = pm;
+      return plate;
+    };
+    for (const blk of colBlocks) {
+      const tag = blk.id.slice(blk.id.lastIndexOf('_') + 1);
+      const colDwell = dwellingsOrdered.filter((d) => d.id.endsWith(`_${tag}`));
+      const plan = storageUnitPlan(v, colDwell.map((d) => d.cell.floor));
+      const x0 = blk.cell.col * v.cellW;
+      const bottom = blk.cell.floor * v.cellH;
+      const baseY = bottom + v.slab * 2; // ras del forjado de la nave
+      const W = blk.size.w * v.cellW - v.gapW;
+      const [corA, corB] = storageCorridorX(x0, sg);
+      // Muros laterales exteriores (cierran los extremos de las dos filas de celdas).
+      box(`${blk.id}_lado_a`, sg.wallT, sg.unitH, D, x0 + sg.wallT / 2, baseY + sg.unitH / 2, frontZ + D / 2, matWallC);
+      box(`${blk.id}_lado_b`, sg.wallT, sg.unitH, D, x0 + W - sg.wallT / 2, baseY + sg.unitH / 2, frontZ + D / 2, matWallC);
+      for (const side of ['left', 'right'] as const) {
+        const units = plan.filter((u) => u.side === side).sort((a, z) => a.index - z.index);
+        const count = units.length;
+        if (count === 0) continue;
+        const bandA = side === 'left' ? x0 + sg.wallT : corB;
+        const bandB = side === 'left' ? corA : x0 + W - sg.wallT;
+        const bandW = bandB - bandA;
+        const unitD = usableD / count;
+        // Tabiques entre unidades consecutivas (corren según X, se cruzan andando en Z... jamás:
+        // son los laterales del trastero; el paso es SOLO por el pasillo central).
+        for (let k = 1; k < count; k++) {
+          const zEdge = frontZ + sg.wallT + k * unitD;
+          box(`${blk.id}_${side}_tab_${k}`, bandW, sg.unitH, sg.wallT, (bandA + bandB) / 2, baseY + sg.unitH / 2, zEdge, matWallC);
+        }
+        for (const u of units) {
+          const zC = storageUnitZ(frontZ, u.index, count, sg);
+          const z0u = zC - unitD / 2;
+          const z1u = zC + unitD / 2;
+          const dwelling = colDwell.find((d) => d.cell.floor === u.floor) ?? null;
+          const own = !!dwelling && dwelling.id === homeId;
+          const label = dwelling ? blockLabel(dwelling.id) : tr.emptyLabel;
+          // Frente de la unidad (mira AL PASILLO): muro con hueco de puerta + dintel.
+          const wallX = side === 'left' ? corA - sg.wallT / 2 : corB + sg.wallT / 2;
+          const g0 = Math.max(z0u, zC - sg.doorW / 2);
+          const g1 = Math.min(z1u, zC + sg.doorW / 2);
+          if (g0 - z0u > 0.01) box(`${blk.id}_${side}_${u.floor}_frente_i`, sg.wallT, sg.unitH, g0 - z0u, wallX, baseY + sg.unitH / 2, (z0u + g0) / 2, matWallC);
+          if (z1u - g1 > 0.01) box(`${blk.id}_${side}_${u.floor}_frente_d`, sg.wallT, sg.unitH, z1u - g1, wallX, baseY + sg.unitH / 2, (g1 + z1u) / 2, matWallC);
+          if (sg.unitH - sg.doorH > 0.01) box(`${blk.id}_${side}_${u.floor}_dintel`, sg.wallT, sg.unitH - sg.doorH, g1 - g0, wallX, baseY + sg.doorH + (sg.unitH - sg.doorH) / 2, zC, matWallC);
+          // Puerta CERRADA del compartimento: el interior no se ve nunca.
+          box(`${blk.id}_${side}_${u.floor}_puerta`, sg.doorW, sg.doorH, sg.wallT * 0.6, side === 'left' ? corA - sg.wallT * 0.3 : corB + sg.wallT * 0.3, baseY + sg.doorH / 2, zC, matDoorC);
+          // Tapa superior: la celda se lee cerrada también desde arriba.
+          box(`${blk.id}_${side}_${u.floor}_tapa`, bandW, tr.plankT, unitD, (bandA + bandB) / 2, baseY + sg.unitH - tr.plankT / 2, zC, matCapC);
+          // Cartel numerado sobre la puerta, mirando al pasillo.
+          const plate = colPlate(`${blk.id}_${side}_${u.floor}_placa`, label, own);
+          plate.rotation.y = side === 'left' ? Math.PI / 2 : -Math.PI / 2;
+          plate.position.set(side === 'left' ? corA + 0.03 : corB - 0.03, baseY + sg.doorH + tr.plaqueH, zC);
+        }
+      }
+    }
   }
 
   // ── Macetas de pasillo (v1.16): reparto aleatorio DETERMINISTA por hash del id del pasillo
