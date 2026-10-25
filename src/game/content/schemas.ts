@@ -665,8 +665,27 @@ export const rulesSchema = z.object({
         doorH: z.number().positive().default(1.72),
         unitH: z.number().positive().default(2.16),
         doorColor: z.string().default('#7a5230'),
+        /** Puerta del trastero del JUGADOR (v1.19): dorada, para encontrar la tuya a la primera. */
+        ownDoorColor: z.string().default('#ffd166'),
         oddSide: z.enum(['left', 'right']).default('left'),
         blockDefId: z.string().default('trasteros_columna'),
+        /** ── Interior presentable de la celda propia (v1.19, swap de bloques) ── el bloque
+         *  principal se desvanece y el interior del trastero aparece como bloque activo. */
+        cellRoomDepth: z.number().positive().default(2.8),
+        cellShelfTiers: z.number().int().min(1).default(3),
+        cellJunk: z.number().int().min(0).default(7),
+        /** Cartel guía EXTERIOR (v1.19): sobre el hueco del pasillo central, muestra qué
+         *  trasteros tienes a cada lado según la profundidad a la que caminas. */
+        guide: z
+          .object({
+            w: z.number().positive().default(1.9),
+            h: z.number().positive().default(0.44),
+            aboveUnit: z.number().min(0).default(0.62),
+            bg: z.string().default('#3b3129'),
+            text: z.string().default('#ffd166'),
+            frame: z.string().default('#6f4926'),
+          })
+          .default({ w: 1.9, h: 0.44, aboveUnit: 0.62, bg: '#3b3129', text: '#ffd166', frame: '#6f4926' }),
       })
       .default({
         shelvesPerLevel: 8,
@@ -698,8 +717,13 @@ export const rulesSchema = z.object({
         doorH: 1.72,
         unitH: 2.16,
         doorColor: '#7a5230',
+        ownDoorColor: '#ffd166',
         oddSide: 'left',
         blockDefId: 'trasteros_columna',
+        cellRoomDepth: 2.8,
+        cellShelfTiers: 3,
+        cellJunk: 7,
+        guide: { w: 1.9, h: 0.44, aboveUnit: 0.62, bg: '#3b3129', text: '#ffd166', frame: '#6f4926' },
       }),
     /** Tejadillo que cierra el edificio (v1.16): faldones a dos aguas sobre la bajocubierta.
      *  CONTRATO con la authoría glTF (scripts/gen-v16-assets.ts): mismos colores y misma
@@ -748,7 +772,25 @@ export const rulesSchema = z.object({
     seatAnchors: z.array(z.string()).default(['bed', 'tv', 'desk']),
     roomZ: z.number(),
     depth: z.number(),
+    /** Módulo de profundidad (v1.19): TODOS los bloques crecen 1 módulo hacia el fondo
+     *  (viviendas depth+module; comunes commonDepth+module; naves y tejado igual). */
+    depthModule: z.number().min(0).default(0),
     commonDepth: z.number().default(1.4),
+    /** ── Apilamiento 3D de bloques (v1.19) ── bloques traseros INACTIVOS (interiores de
+     *  trasteros, cuartos traseros de vivienda) que se activan al entrar: el bloque
+     *  precedente se desvanece y el nuevo aparece con transparencia hasta visualizarse,
+     *  identificado por un contorno ROJO grueso en todo el perímetro frontal. */
+    rearBlock: z
+      .object({
+        outline: z.string().default('#e63946'),
+        outlineWidth: z.number().positive().default(16),
+        fadeSeconds: z.number().positive().default(0.45),
+        peekSeconds: z.number().positive().default(0.5),
+        peekDistance: z.number().positive().default(1.05),
+        junk: z.number().int().min(0).default(6),
+        lampColor: z.string().default('#ffedbe'),
+      })
+      .default({ outline: '#e63946', outlineWidth: 16, fadeSeconds: 0.45, peekSeconds: 0.5, peekDistance: 1.05, junk: 6, lampColor: '#ffedbe' }),
     wall: z.number(),
     gapW: z.number(),
     gapH: z.number(),
@@ -805,6 +847,11 @@ export const rulesSchema = z.object({
     greet: z.string(),
     laptop: z.string(),
     bed: z.string(),
+    /** Trastero propio y bloques traseros (v1.19, apilamiento 3D). */
+    storageEnter: z.string().default('E · abrir tu trastero'),
+    storageLocked: z.string().default('Trastero ajeno · cada uno guarda lo suyo'),
+    rearExit: z.string().default('E · salir'),
+    rearRoom: z.string().default('Cuarto trasero'),
     stairs: z.string(),
     elevator: z.string(),
     elevatorBroken: z.string(),

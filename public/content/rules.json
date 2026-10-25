@@ -194,13 +194,14 @@
     "margin": 0.35,
     "nearRadius": 1.6,
     "itemRadius": 0.9,
-    "corridorZ": -1.3,
-    "corridorDepth": 1.3,
+    "corridorZ": -2.0,
+    "corridorDepth": 2.6,
     "corridorRail": 0,
+    "depthModule": 1.4,
     "npcWalkSpeed": 1.9,
     "npcWanderSeconds": 8,
     "roomZ": 0,
-    "depth": 2.8,
+    "depth": 4.2,
     "wall": 0.1,
     "gapW": 0.12,
     "gapH": 0.14,
@@ -262,7 +263,7 @@
         }
       ]
     },
-    "commonDepth": 1.4,
+    "commonDepth": 2.8,
     "actorTurnSpeed": 10,
     "runSpeed": 3.9,
     "runMultiplier": 1.75,
@@ -348,8 +349,29 @@
       "doorH": 1.72,
       "unitH": 2.16,
       "doorColor": "#7a5230",
+      "ownDoorColor": "#ffd166",
       "oddSide": "left",
-      "blockDefId": "trasteros_columna"
+      "blockDefId": "trasteros_columna",
+      "cellRoomDepth": 2.8,
+      "cellShelfTiers": 3,
+      "cellJunk": 7,
+      "guide": {
+        "w": 1.9,
+        "h": 0.44,
+        "aboveUnit": 0.62,
+        "bg": "#3b3129",
+        "text": "#ffd166",
+        "frame": "#6f4926"
+      }
+    },
+    "rearBlock": {
+      "outline": "#e63946",
+      "outlineWidth": 16,
+      "fadeSeconds": 0.45,
+      "peekSeconds": 0.5,
+      "peekDistance": 1.05,
+      "junk": 6,
+      "lampColor": "#ffedbe"
     },
     "roof": {
       "pitchH": 1.2,
@@ -462,6 +484,10 @@
     "greet": "E · saludar a {name}",
     "laptop": "E · conectarse al portátil",
     "bed": "E · echar una siesta",
+    "storageEnter": "E · abrir TU trastero (el de la puerta dorada)",
+    "storageLocked": "Trastero ajeno · cada uno guarda sus esqueletos en el suyo",
+    "rearExit": "E · salir (el trastero vuelve a su misterio)",
+    "rearRoom": "Cuarto trasero · la parte de la casa que no sale en las fotos del anuncio",
     "stairs": "W/S · escalera",
     "elevator": "E · panel de plantas · W/S sube o baja",
     "elevatorBroken": "Ascensor averiado · la escalera, al fondo del pasillo",

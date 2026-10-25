@@ -60,9 +60,11 @@ const shaftFloors = (defId: string, col: number) =>
     .filter((b) => b.defId === defId && b.cell.col === col)
     .map((b) => b.cell.floor)
     .sort((a, b) => a - b);
-const escShaft = shaftFloors('escaleras_planta', 9);
+const escShaft = [...shaftFloors('escaleras_planta', 9), ...shaftFloors('escaleras_cota', 9)];
 const nucShaft = shaftFloors('nucleo_comunicaciones', 4);
-check('shaft de escalera encadenada 0..9', escShaft.length === 10 && escShaft[0] === 0 && escShaft[9] === 9, escShaft.join(','));
+check('shaft de escalera encadenada 0..9 (cota especial arriba: sin tramos fantasma)', escShaft.length === 10 && escShaft[0] === 0 && escShaft[9] === 9, escShaft.join(','));
+check('la cota solo vive en la planta alta (tramo especial, nada que suba al vacío)', shaftFloors('escaleras_cota', 9).length === 1 && shaftFloors('escaleras_cota', 9)[0] === 9, shaftFloors('escaleras_cota', 9).join(','));
+check('el glTF de la cota existe y el catálogo lo declara', !!content.assets?.blocks?.escaleras_cota, content.assets?.blocks?.escaleras_cota?.model ?? 'ausente');
 check('pozo del ascensor encadenado 0..9 (sirve trasteros y bajocubierta)', nucShaft.length === 10 && nucShaft[9] === 9, nucShaft.join(','));
 
 // ── 3. Reparto de trasteros por COLUMNA (v1.18, la MISMA regla que building.ts/storage.ts) ──

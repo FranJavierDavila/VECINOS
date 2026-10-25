@@ -12,6 +12,11 @@ import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { Gltf, quatAxis, sinKeys, loopTimes, buildAdult, addBaseClips, addSocialClips, WALK_AMPLITUDE, WALK_PERIOD, type AdultRig } from './lib/gltf';
 
+// ── Calados del catálogo (v1.19): los nominales se leen de rules.json — una sola verdad.
+const RULES = JSON.parse(readFileSync(resolve(process.cwd(), 'public/content/rules.json'), 'utf8')) as { view: { commonDepth: number; depth: number; corridorDepth: number } };
+const CD = RULES.view.commonDepth; // 2.8 — bloques comunes
+const DP = RULES.view.depth; // 4.2 — viviendas
+
 // ───────────────────────── Pinturillas (nino_grafitero) ─────────────────────────
 
 function buildKid(): Record<string, unknown> {
@@ -142,19 +147,19 @@ function buildNucleo(): Record<string, unknown> {
   // Las puertas y la cabina son DINÁMICAS (ElevatorDirector); el hueco oscuro es el trasfondo
   // del rellano que se ve cuando las puertas se abren.
   const root = g.addNode({ name: 'Root', children: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13] });
-  g.addNode({ name: 'fachada_izq', mesh: mesh('fachada_izq', mBody), translation: [-0.89, 1.3, 0.65], scale: [0.62, 2.6, 0.1] });
-  g.addNode({ name: 'fachada_der', mesh: mesh('fachada_der', mBody), translation: [0.89, 1.3, 0.65], scale: [0.62, 2.6, 0.1] });
-  g.addNode({ name: 'fachada_sup', mesh: mesh('fachada_sup', mBody), translation: [0, 2.32, 0.65], scale: [1.16, 0.56, 0.1] });
-  g.addNode({ name: 'pozo_fondo', mesh: mesh('pozo_fondo', mInt), translation: [0, 1.3, -0.65], scale: [2.4, 2.6, 0.1] });
-  g.addNode({ name: 'pozo_izq', mesh: mesh('pozo_izq', mInt), translation: [-1.15, 1.3, 0], scale: [0.1, 2.6, 1.2] });
-  g.addNode({ name: 'pozo_der', mesh: mesh('pozo_der', mInt), translation: [1.15, 1.3, 0], scale: [0.1, 2.6, 1.2] });
-  g.addNode({ name: 'forjado', mesh: mesh('forjado', mBody), translation: [0, 0.035, 0], scale: [2.4, 0.07, 1.4] });
-  g.addNode({ name: 'hueco_puerta', mesh: mesh('hueco_puerta', mDark), translation: [0, 1.02, 0.55], scale: [1.16, 2.04, 0.06] });
-  g.addNode({ name: 'marco_izq', mesh: mesh('marco_izq', mFrame), translation: [-0.62, 1.07, 0.74], scale: [0.08, 2.14, 0.09] });
-  g.addNode({ name: 'marco_der', mesh: mesh('marco_der', mFrame), translation: [0.62, 1.07, 0.74], scale: [0.08, 2.14, 0.09] });
-  g.addNode({ name: 'marco_sup', mesh: mesh('marco_sup', mFrame), translation: [0, 2.12, 0.74], scale: [1.32, 0.08, 0.09] });
-  g.addNode({ name: 'rotulo', mesh: mesh('rotulo', mSign), translation: [0, 2.3, 0.75], scale: [0.8, 0.18, 0.06] });
-  g.addNode({ name: 'tira_luz', mesh: mesh('tira_luz', mStrip), translation: [0, 2.44, 0.75], scale: [1.7, 0.06, 0.06] });
+  g.addNode({ name: 'fachada_izq', mesh: mesh('fachada_izq', mBody), translation: [-0.89, 1.3, CD / 2 - 0.05], scale: [0.62, 2.6, 0.1] });
+  g.addNode({ name: 'fachada_der', mesh: mesh('fachada_der', mBody), translation: [0.89, 1.3, CD / 2 - 0.05], scale: [0.62, 2.6, 0.1] });
+  g.addNode({ name: 'fachada_sup', mesh: mesh('fachada_sup', mBody), translation: [0, 2.32, CD / 2 - 0.05], scale: [1.16, 0.56, 0.1] });
+  g.addNode({ name: 'pozo_fondo', mesh: mesh('pozo_fondo', mInt), translation: [0, 1.3, -(CD / 2 - 0.05)], scale: [2.4, 2.6, 0.1] });
+  g.addNode({ name: 'pozo_izq', mesh: mesh('pozo_izq', mInt), translation: [-1.15, 1.3, 0], scale: [0.1, 2.6, CD - 0.2] });
+  g.addNode({ name: 'pozo_der', mesh: mesh('pozo_der', mInt), translation: [1.15, 1.3, 0], scale: [0.1, 2.6, CD - 0.2] });
+  g.addNode({ name: 'forjado', mesh: mesh('forjado', mBody), translation: [0, 0.035, 0], scale: [2.4, 0.07, CD] });
+  g.addNode({ name: 'hueco_puerta', mesh: mesh('hueco_puerta', mDark), translation: [0, 1.02, CD / 2 - 0.15], scale: [1.16, 2.04, 0.06] });
+  g.addNode({ name: 'marco_izq', mesh: mesh('marco_izq', mFrame), translation: [-0.62, 1.07, CD / 2 + 0.04], scale: [0.08, 2.14, 0.09] });
+  g.addNode({ name: 'marco_der', mesh: mesh('marco_der', mFrame), translation: [0.62, 1.07, CD / 2 + 0.04], scale: [0.08, 2.14, 0.09] });
+  g.addNode({ name: 'marco_sup', mesh: mesh('marco_sup', mFrame), translation: [0, 2.12, CD / 2 + 0.04], scale: [1.32, 0.08, 0.09] });
+  g.addNode({ name: 'rotulo', mesh: mesh('rotulo', mSign), translation: [0, 2.3, CD / 2 + 0.05], scale: [0.8, 0.18, 0.06] });
+  g.addNode({ name: 'tira_luz', mesh: mesh('tira_luz', mStrip), translation: [0, 2.44, CD / 2 + 0.05], scale: [1.7, 0.06, 0.06] });
 
   return g.finish('vecinos-gen-pilot-assets (nucleo_comunicaciones v2 — pozo abierto, puertas dinámicas)');
 }
@@ -268,24 +273,24 @@ function buildPortal(): Record<string, unknown> {
 
   const mesh = (name: string, m: number) => g.addBoxMesh(name, m);
   g.addNode({ name: 'Root', children: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] });
-  // Nominal 4.68 × 2.46 × 1.4 (w2 · cellH · commonDepth), base y=0. FRENTE = +Z en glTF
+  // Nominal 4.68 × 2.46 × commonDepth (w2 · cellH · comunes), base y=0. FRENTE = +Z en glTF
   // (el loader de Babylon niega la Z: lo autorado en +z mira a la calle/corredor).
-  g.addNode({ name: 'cuerpo', mesh: mesh('cuerpo', mBody), translation: [0, 1.23, 0], scale: [4.68, 2.46, 1.4] });
-  g.addNode({ name: 'zocalo', mesh: mesh('zocalo', mFrame), translation: [0, 0.04, 0], scale: [4.72, 0.08, 1.44] });
-  g.addNode({ name: 'hueco', mesh: mesh('hueco', mDark), translation: [0, 0.97, 0.72], scale: [2.1, 1.94, 0.08] });
-  g.addNode({ name: 'cristal_izq', mesh: mesh('izq', mGlass), translation: [-0.51, 0.97, 0.75], scale: [0.96, 1.86, 0.06] });
-  g.addNode({ name: 'cristal_der', mesh: mesh('der', mGlass), translation: [0.51, 0.97, 0.75], scale: [0.96, 1.86, 0.06] });
-  g.addNode({ name: 'marco_izq', mesh: mesh('marco_izq', mFrame), translation: [-1.09, 0.99, 0.74], scale: [0.08, 1.98, 0.09] });
-  g.addNode({ name: 'marco_der', mesh: mesh('marco_der', mFrame), translation: [1.09, 0.99, 0.74], scale: [0.08, 1.98, 0.09] });
-  g.addNode({ name: 'marco_sup', mesh: mesh('marco_sup', mFrame), translation: [0, 2.0, 0.74], scale: [2.26, 0.08, 0.09] });
-  g.addNode({ name: 'toldo', mesh: mesh('toldo', mAwning), translation: [0, 2.08, 0.95], scale: [4.4, 0.07, 0.62] });
-  g.addNode({ name: 'rotulo', mesh: mesh('rotulo', mSign), translation: [0, 2.32, 0.75], scale: [1.7, 0.2, 0.06] });
-  g.addNode({ name: 'farol_izq', mesh: mesh('farol_izq', mLamp), translation: [-1.7, 1.95, 0.78], scale: [0.12, 0.2, 0.1] });
-  g.addNode({ name: 'farol_der', mesh: mesh('farol_der', mLamp), translation: [1.7, 1.95, 0.78], scale: [0.12, 0.2, 0.1] });
-  g.addNode({ name: 'maceta_izq', mesh: mesh('maceta_izq', mPot), translation: [-2.05, 0.17, 0.88], scale: [0.34, 0.34, 0.3] });
-  g.addNode({ name: 'arbusto_izq', mesh: mesh('arbusto_izq', mBush), translation: [-2.05, 0.5, 0.88], scale: [0.3, 0.34, 0.26] });
-  g.addNode({ name: 'maceta_der', mesh: mesh('maceta_der', mPot), translation: [2.05, 0.17, 0.88], scale: [0.34, 0.34, 0.3] });
-  g.addNode({ name: 'arbusto_der', mesh: mesh('arbusto_der', mBush), translation: [2.05, 0.5, 0.88], scale: [0.3, 0.34, 0.26] });
+  g.addNode({ name: 'cuerpo', mesh: mesh('cuerpo', mBody), translation: [0, 1.23, 0], scale: [4.68, 2.46, CD] });
+  g.addNode({ name: 'zocalo', mesh: mesh('zocalo', mFrame), translation: [0, 0.04, 0], scale: [4.72, 0.08, CD + 0.04] });
+  g.addNode({ name: 'hueco', mesh: mesh('hueco', mDark), translation: [0, 0.97, CD / 2 + 0.02], scale: [2.1, 1.94, 0.08] });
+  g.addNode({ name: 'cristal_izq', mesh: mesh('izq', mGlass), translation: [-0.51, 0.97, CD / 2 + 0.05], scale: [0.96, 1.86, 0.06] });
+  g.addNode({ name: 'cristal_der', mesh: mesh('der', mGlass), translation: [0.51, 0.97, CD / 2 + 0.05], scale: [0.96, 1.86, 0.06] });
+  g.addNode({ name: 'marco_izq', mesh: mesh('marco_izq', mFrame), translation: [-1.09, 0.99, CD / 2 + 0.04], scale: [0.08, 1.98, 0.09] });
+  g.addNode({ name: 'marco_der', mesh: mesh('marco_der', mFrame), translation: [1.09, 0.99, CD / 2 + 0.04], scale: [0.08, 1.98, 0.09] });
+  g.addNode({ name: 'marco_sup', mesh: mesh('marco_sup', mFrame), translation: [0, 2.0, CD / 2 + 0.04], scale: [2.26, 0.08, 0.09] });
+  g.addNode({ name: 'toldo', mesh: mesh('toldo', mAwning), translation: [0, 2.08, CD / 2 + 0.25], scale: [4.4, 0.07, 0.62] });
+  g.addNode({ name: 'rotulo', mesh: mesh('rotulo', mSign), translation: [0, 2.32, CD / 2 + 0.05], scale: [1.7, 0.2, 0.06] });
+  g.addNode({ name: 'farol_izq', mesh: mesh('farol_izq', mLamp), translation: [-1.7, 1.95, CD / 2 + 0.08], scale: [0.12, 0.2, 0.1] });
+  g.addNode({ name: 'farol_der', mesh: mesh('farol_der', mLamp), translation: [1.7, 1.95, CD / 2 + 0.08], scale: [0.12, 0.2, 0.1] });
+  g.addNode({ name: 'maceta_izq', mesh: mesh('maceta_izq', mPot), translation: [-2.05, 0.17, CD / 2 + 0.18], scale: [0.34, 0.34, 0.3] });
+  g.addNode({ name: 'arbusto_izq', mesh: mesh('arbusto_izq', mBush), translation: [-2.05, 0.5, CD / 2 + 0.18], scale: [0.3, 0.34, 0.26] });
+  g.addNode({ name: 'maceta_der', mesh: mesh('maceta_der', mPot), translation: [2.05, 0.17, CD / 2 + 0.18], scale: [0.34, 0.34, 0.3] });
+  g.addNode({ name: 'arbusto_der', mesh: mesh('arbusto_der', mBush), translation: [2.05, 0.5, CD / 2 + 0.18], scale: [0.3, 0.34, 0.26] });
   return g.finish('vecinos-gen-pilot-assets (portal v1)');
 }
 
@@ -313,7 +318,7 @@ function buildEscalera(): Record<string, unknown> {
   const W = st.spanW * v.cellW - v.gapW; // 4.68
   const H = v.cellH - v.gapH; // 2.46
   const halfW = W / 2;
-  const halfD = 1.4 / 2;
+  const halfD = CD / 2;
   const doorX = st.doorLocalX; // -1.14 (centro de la celda lógica)
   // Carriles en el frame del MODELO: world_z = (frontZ + nominal.d/2) − z_autorado, así que el
   // carril que el runtime quiere a world frontZ+lane se autoró a z = halfD − lane. Con el

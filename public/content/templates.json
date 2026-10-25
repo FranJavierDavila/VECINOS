@@ -22,7 +22,7 @@
       {
         "floors": [
           0,
-          9
+          8
         ],
         "blocks": [
           {
@@ -33,6 +33,24 @@
           {
             "col": 9,
             "defId": "escaleras_planta",
+            "tag": "escalera"
+          }
+        ]
+      },
+      {
+        "floors": [
+          9,
+          9
+        ],
+        "blocks": [
+          {
+            "col": 4,
+            "defId": "nucleo_comunicaciones",
+            "tag": "nucleo"
+          },
+          {
+            "col": 9,
+            "defId": "escaleras_cota",
             "tag": "escalera"
           }
         ]

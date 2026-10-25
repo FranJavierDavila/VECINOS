@@ -171,9 +171,16 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
   };
   const shaftXOf = (b: BlockInstance): number => (b.cell.col + b.size.w / 2) * v.cellW;
   /** Calado transitablo del bloque (vivienda 2×; naves del cierre v1.16 a calado de vivienda;
-   *  trasteros por columna v1.18: depth × blockDepthFactor). */
+   *  trasteros por columna v1.18: depth × blockDepthFactor).
+   *  v1.19: en vivienda manda el LAYOUT — las salas traseras viven más allá de view.depth. */
   const depthOfBlock = (b: BlockInstance): number => {
-    if (b.kind === 'dwelling') return v.depth;
+    if (b.kind === 'dwelling') {
+      const layoutId = content.blocks[b.defId]?.container?.layout;
+      const layout = layoutId ? content.layouts[layoutId] : undefined;
+      const rects = (layout?.rooms ?? []).map((r) => r.rect).filter((r): r is NonNullable<typeof r> => !!r);
+      if (rects.length > 0) return Math.max(...rects.map((r) => r.z + r.d));
+      return v.depth;
+    }
     if (b.defId === 'trasteros_planta' || b.defId === 'bajocubierta') return v.depth;
     if (b.defId === v.trasteros.blockDefId) return v.depth * v.trasteros.blockDepthFactor;
     if (b.defId === 'tejado') return v.depth + v.roof.overhang * 2;
@@ -334,16 +341,24 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
         const prevZ = node.z;
         if (isPlayer) {
           const inside = player.mode === 'inside';
+          // Apilamiento 3D (v1.19): dentro del trastero propio el cuerpo vive en el bloque
+          // trasero (posición que dicta PlayerLogic), no en el pasillo del sim.
+          if (player.rear) {
+            goal.set(player.rear.x, player.floor * v.cellH + 0.14 + a.pivotY, player.rear.z);
+            if (node.lengthSquared() === 0) node.copyFrom(goal);
+            node.addInPlace(goal.subtract(node).scale(Math.min(1, k * 2)));
+            // Skipear el resto del bloque isPlayer cayendo al flujo común de posición.
+          } else {
           // Dentro de la vivienda el actor sigue la posición 2D (x + profundidad z del layout);
           // en el cubo de escalera (v1.4) manda la Z absoluta del recorrido (pathZ).
-          // El calado interior es DEL BLOQUE (v1.18): el pasillo de trasteros es más profundo
-          // que una vivienda — clampear a v.depth plantaría al jugador a mitad de pasillo.
+          // En pasillo (v1.19) la Z del jugador es ABSOLUTA (dos carriles: interior/exterior).
           const insideBlock = player.insideBlock ? world.blocks[player.insideBlock] : null;
           const insideDepth = insideBlock ? depthOfBlock(insideBlock) : v.depth;
-          const z = inside ? frontZ + Math.min(Math.max(player.z, 0), insideDepth) : (player.pathZ ?? v.corridorZ);
+          const z = inside ? frontZ + Math.min(Math.max(player.z, 0), insideDepth) : (player.pathZ ?? player.z);
           goal.set(player.x, player.floor * v.cellH + (inside ? 0.12 : 0.14) + a.pivotY, z);
           if (node.lengthSquared() === 0) node.copyFrom(goal);
           node.addInPlace(goal.subtract(node).scale(Math.min(1, k * 2)));
+          }
         } else {
           const b = world.blocks[r.location!]!;
           const home = world.blocks[r.home]!;

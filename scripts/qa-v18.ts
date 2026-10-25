@@ -6,7 +6,7 @@
  *  2. Plantilla: 11 plantas, 4 bloques de trasteros (a-d) en la planta 8, bajocubierta 9,
  *     tejado 10; pasillo/núcleo/escalera 0..9. NADA hardcodeado: sale del JSON.
  *  3. storage.ts: plan determinista de unidades por columna (impares/pares, orden por
- *     planta), punto de puerta de cada vivienda de cada columna y calado ×3 (8.4 m).
+ *     planta), punto de puerta de cada vivienda de cada columna y calado ×3 (depth del catálogo).
  *  4. Campaña: m_junta_bienvenida → m_presidencia_voto → m_derrama_tubería → m_veredicto
  *     con diálogos existentes, efectos válidos (ops del vocabulario del sim) y cutscene de
  *     presentaciones con residentes reales del escenario.
@@ -50,7 +50,7 @@ check('features.innerCorridor en el def del bloque', content.blocks[v.trasteros.
 
 // ── 3. storage.ts: plan de unidades y puertas ──
 const sg = storageGeomOf(v);
-check('calado del bloque de trasteros = depth × 3 (8.4 m)', Math.abs(sg.depth - 8.4) < 1e-9, `${sg.depth.toFixed(1)} m`);
+check('calado del bloque de trasteros = depth × 3 (v1.19: 12.6 m con el +1 módulo)', Math.abs(sg.depth - v.depth * v.trasteros.blockDepthFactor) < 1e-9, `${sg.depth.toFixed(1)} m`);
 check('pasillo central dentro del bloque', sg.corridorW < sg.width && sg.corridorW > 0.8, `${sg.corridorW} m`);
 for (const store of storeBlocks) {
   const tag = store.id.slice(store.id.lastIndexOf('_') + 1);

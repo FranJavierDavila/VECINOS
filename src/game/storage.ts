@@ -36,6 +36,38 @@ export function frontZOf(view: Rules['view']): number {
   return view.roomZ - view.commonDepth / 2;
 }
 
+/**
+ * Los DOS carriles del pasillo frontal (v1.19): pasillos del DOBLE de calado para que quepan
+ * dos vías de movimiento — carril INTERIOR (junto a las puertas, la línea del pasillo de
+ * siempre: corridorZ) y carril EXTERIOR (junto a la barandilla, simétrico al interior).
+ * Por el exterior no salta NINGÚN aviso de interacción con elementos de pared (puertas,
+ * buzones, tablón): es la vía de adelantamiento.
+ */
+export interface CorridorLanes {
+  /** Z del carril interior (línea del pasillo, junto a puertas). */
+  inner: number;
+  /** Z del carril exterior (junto a la barandilla). */
+  outer: number;
+  /** Umbral: z < threshold = carril exterior (sin avisos de pared). */
+  threshold: number;
+  /** Límites del paseo por el pasillo (para el clamp del jugador). */
+  minZ: number;
+  maxZ: number;
+}
+
+export function corridorLanes(view: Rules['view']): CorridorLanes {
+  const front = frontZOf(view);
+  const innerGap = front - view.corridorZ; // distancia fachada → carril interior (0.6 con catálogo)
+  const outer = front - view.corridorDepth + innerGap;
+  return {
+    inner: view.corridorZ,
+    outer,
+    threshold: (view.corridorZ + outer) / 2,
+    minZ: outer + view.margin * 0.5,
+    maxZ: front - view.margin * 0.5,
+  };
+}
+
 export function storageGeomOf(view: Rules['view']): StorageGeom {
   const tr = view.trasteros;
   return {
@@ -95,10 +127,13 @@ export function storageUnitZ(frontZ: number, index: number, count: number, g: St
   return frontZ + g.wallT + (index + 0.5) * unitD;
 }
 
-/** X de la puerta de una unidad (ras del pasillo): el lado izquierdo mira a +X y viceversa. */
+/** X de la puerta de una unidad (ras del pasillo): el lado izquierdo mira a +X y viceversa.
+ *  v1.19 FIX: las celdas IZQUIERDA ocupan [borde, corA] y su puerta está en corA (el borde
+ *  IZQUIERDO del pasillo); las de la derecha, en corB. Antes devolvía el lado contrario y
+ *  los vecinos se plantaban (y se escondían) frente a la celda equivocada. */
 export function storageDoorX(x0: number, side: 'left' | 'right', g: StorageGeom): number {
   const [a, b] = storageCorridorX(x0, g);
-  return side === 'left' ? b : a;
+  return side === 'left' ? a : b;
 }
 
 /**

@@ -1,0 +1,595 @@
+    35→    35→  floor: number;
+    36→    36→  mode: 'corridor' | 'inside' = 'corridor';
+    37→    37→  insideBlock: string | null = null;
+    38→    38→  private climb: { from: number; to: number; t: number; duration: number; external?: boolean; progress?: number; zOverride?: number | null } | null = null;
+    39→    39→  /** Escalada REAL por el cubo (v1.4): el jugador recorre los peldaños del contrato
+    40→    40→   *  (rules.view.stairs vía src/game/stairs.ts) — tramos con descansillo, X/Z variables. */
+    41→    41→  private stairPath: { pts: { x: number; y: number; z: number }[]; i: number; to: number } | null = null;
+    42→    42→  private climbPos = { x: 0, y: 0, z: 0 };
+    43→    43→  private approached: string | null = null;
+    44→    44→  private readonly width: number;
+    45→    45→  private readonly topFloor: number;
+    46→    46→  private readonly view;
+    47→    47→  /** Residente controlado por esta lógica (world.playerId en solitario). */
+    48→    48→  private readonly actorId: string;
+    49→    49→  /** Vía de salida de comandos; si falta, el comando se despacha localmente (clásico). */
+    50→    50→  private readonly send: SendCommand | null;
+    51→    51→  /**
+    52→    52→   * Anti-duplicado de move en remoto: mientras el servidor no haya confirmado el destino
+    53→    53→   * (location !== z.id), no se reenvía el mismo move en cada frame.
+    54→    54→   */
+    55→    55→  private lastMoveTarget: string | null = null;
+    56→    56→  /** Llamada de ascensor del jugador ya registrada (evita pedir la misma cada frame). */
+    57→    57→  externalRequested = false;
+    58→    58→
+    59→    59→  constructor(
+    60→    60→    private readonly world: World,
+    61→    61→    private readonly content: Content,
+    62→    62→    opts?: { actorId?: string; send?: SendCommand },
+    63→    63→  ) {
+    64→    64→    this.actorId = opts?.actorId ?? world.playerId;
+    65→    65→    this.send = opts?.send ?? null;
+    66→    66→    this.view = content.rules.view;
+    67→    67→    const blocks = Object.values(world.blocks);
+    68→    68→    // El ancho transitable lo marcan los bloques CON SUELO (v1.18): el tejado (traversable
+    69→    69→    // false, w 11) NO puede abrir el clamp — con él, el jugador caminaba PASADA la pared
+    70→    70→    // del edificio (x>24) sobre el vuelo del tejado: el "tramo que no muestra suelo".
+    71→    71→    this.width = Math.max(
+    72→    72→      ...blocks.filter((b) => this.content.blocks[b.defId]!.traversable !== false).map((b) => (b.cell.col + b.size.w) * this.view.cellW),
+    73→    73→    );
+    74→    74→    this.topFloor = Math.max(
+    75→    75→      // Solo plantas con suelo transitable (v1.16): el tejado cierra el edificio pero no
+    76→    76→      // tiene forjado — nunca es topFloor aunque sea la planta más alta de la plantilla.
+    77→    77→      ...blocks.filter((b) => this.content.blocks[b.defId]!.traversable !== false).map((b) => b.cell.floor),
+    78→    78→    );
+    79→    79→    // Si el actor aún no existe en el mundo (estado del servidor en camino), se cae al jugador clásico.
+    80→    80→    const me = world.residents[this.actorId] ?? world.residents[world.playerId]!;
+    81→    81→    const start = world.blocks[me.location ?? me.home] ?? blocks.find((b) => b.kind !== 'dwelling')!;
+    82→    82→    this.floor = start.cell.floor;
+    83→    83→    this.x = this.centerOf(start);
+    84→    84→    this.z = 0;
+    85→    85→    // Guardado (o sesión remota) con el residente DENTRO de una vivienda: aterriza en el interior
+    86→    86→    // (sin esto, el modo 'corridor' del constructor sincronizaría un move al pasillo en el
+    87→    87→    // primer frame y el jugador "saldría de casa" solo al cargar la partida).
+    88→    88→    if (start.kind === 'dwelling') this.landInside(start);
+    89→    89→  }
+    90→    90→
+    91→    91→  private rangeOf(b: BlockInstance): [number, number] {
+    92→    92→    return [b.cell.col * this.view.cellW, (b.cell.col + b.size.w) * this.view.cellW];
+    93→    93→  }
+    94→    94→  private centerOf(b: BlockInstance): number {
+    95→    95→    const [a, z] = this.rangeOf(b);
+    96→    96→    return (a + z) / 2;
+    97→    97→  }
+    98→    98→  private within(x: number, b: BlockInstance): boolean {
+    99→    99→    const [a, z] = this.rangeOf(b);
+   100→   100→    return x >= a && x < z;
+   101→   101→  }
+   102→   102→
+   103→   103→  private get location(): string | null {
+   104→   104→    return this.world.residents[this.actorId]!.location;
+   105→   105→  }
+   106→   106→
+   107→   107→  private onFloor(f: number) {
+   108→   108→    return Object.values(this.world.blocks).filter((b) => b.cell.floor === f);
+   109→   109→  }
+   110→   110→
+   111→   111→  private corridor(f = this.floor): BlockInstance {
+   112→   112→    return this.onFloor(f).find((b) => b.layer === 'corridor')!;
+   113→   113→  }
+   114→   114→
+   115→   115→  private elevatorBlock(f: number): BlockInstance | undefined {
+   116→   116→    return this.onFloor(f).find((b) => this.content.blocks[b.defId]!.features?.elevator);
+   117→   117→  }
+   118→   118→
+   119→   119→  // ── Fase C: geometría interior 2D — compartida con la vida interior de los vecinos ──
+   120→   120→  // (src/game/interior.ts: rects, tabiques, huecos, rutas y anclas; UNA fuente de verdad
+   121→   121→  // para el jugador y los NPCs, siempre desde el catálogo layouts/rooms + rules.view).
+   122→   122→
+   123→   123→  /** Geometría 2D del layout de una vivienda; null si el layout no declara rects (catálogo antiguo). */
+   124→   124→  private geometryOf(block: BlockInstance): LayoutGeometry | null {
+   125→   125→    return layoutGeometryOf(this.content, block);
+   126→   126→  }
+   127→   127→
+   128→   128→  /** Aterriza dentro de una vivienda: plano frontal, y si cae en estancia cerrada, a la abierta más al frente. */
+   129→   129→  private landInside(block: BlockInstance): void {
+   130→   130→    this.mode = 'inside';
+   131→   131→    this.insideBlock = block.id;
+   132→   132→    this.z = 0.45;
+   133→   133→    const geo = this.geometryOf(block);
+   134→   134→    if (geo) {
+   135→   135→      const room = roomAt(geo, this.x - block.cell.col * this.view.cellW, this.z);
+   136→   136→      if (room.locked) {
+   137→   137→        const open = geo.rooms.find((r) => !r.locked);
+   138→   138→        if (open) this.x = block.cell.col * this.view.cellW + open.rect.x + open.rect.w / 2;
+   139→   139→      }
+   140→   140→    }
+   141→   141→  }
+   142→   142→
+   143→   143→  /** Bloque bajo los pies del jugador (zona común) o, si no, el pasillo.
+   144→   144→   *  v1.17: el cubo de escalera y el núcleo (con features) ganan al pasillo cuando se
+   145→   145→   *  solapan — los pasillos extendidos (v1.16) comparten columna con el pozo y el orden
+   146→   146→   *  del mapa dejaba la zona en el pasillo, dejando al jugador sin escalera en esas plantas.
+   147→   147→   *  v1.18: los bloques SIN SUELO (tejado, traversable false) jamás son zona — encima de
+   148→   148→   *  ellos no se camina y no deben robar el pozo al pasillo real. */
+   149→   149→  zone(): BlockInstance {
+   150→   150→    const common = this.onFloor(this.floor).filter(
+   151→   151→      (b) => b.layer === 'main' && b.kind !== 'dwelling' && this.content.blocks[b.defId]!.traversable !== false && this.within(this.x, b),
+   152→   152→    );
+   153→   153→    const withShaft = common.find((b) => {
+   154→   154→      const f = this.content.blocks[b.defId]!.features;
+   155→   155→      return !!f && (f.stairs === true || f.elevator === true);
+   156→   156→    });
+   157→   157→    return withShaft ?? common[0] ?? this.corridor();
+   158→   158→  }
+   159→   159→
+   160→   160→  /** Vivienda o local justo delante (la puerta que puede abrir), si la hay. */
+   161→   161→  doorInFront(): BlockInstance | null {
+   162→   162→    if (this.mode !== 'corridor') return null;
+   163→   163→    return this.onFloor(this.floor).find((b) => this.isDoorTarget(b) && this.within(this.x, b)) ?? null;
+   164→   164→  }
+   165→   165→
+   166→   166→  /** Objetivos de puerta: viviendas siempre; locales comunes transitables sin features (bar,
+   167→   167→   *  lavandería…); bloques con PASILLO INTERIOR (v1.18, trasteros por columna) también; y los
+   168→   168→   *  bloques de mobiliario común (v1.18: portal con buzones/tablón/banco) AVISAN de su puerta
+   169→   169→   *  (approach) — el tablón vive ahí y las misiones pueden pedirte llegar hasta él. Los pozos
+   170→   170→   *  (escalera/ascensor) siguen sin ser puertas: son zonas de tránsito vertical. */
+   171→   171→  private isDoorTarget(b: BlockInstance): boolean {
+   172→   172→    if (b.kind === 'dwelling') return true;
+   173→   173→    if (b.layer !== 'main') return false;
+   174→   174→    const def = this.content.blocks[b.defId]!;
+   175→   175→    if (!def.traversable) return false;
+   176→   176→    const f = def.features;
+   177→   177→    if (f?.innerCorridor) return true;
+   178→   178→    if (!f) return true;
+   179→   179→    if (f.stairs || f.elevator) return false;
+   180→   180→    return true;
+   181→   181→  }
+   182→   182→
+   183→   183→  position(): PlayerPosition {
+   184→   184→    // En el cubo de escalera (v1.4) la posición la marca el recorrido: X y Z absolutas del
+   185→   185→    // tramo actual y planta fraccionaria derivada de la altura de pies (nodo = floor·cellH + canto).
+   186→   186→    if (this.stairPath) {
+   187→   187→      return {
+   188→   188→        x: this.climbPos.x,
+   189→   189→        z: 0,
+   190→   190→        floor: (this.climbPos.y - this.view.slab * 2) / this.view.cellH,
+   191→   191→        mode: 'corridor',
+   192→   192→        insideBlock: null,
+   193→   193→        climbing: true,
+   194→   194→        pathZ: this.climbPos.z,
+   195→   195→      };
+   196→   196→    }
+   197→   197→    let floor = this.floor;
+   198→   198→    if (this.climb) {
+   199→   199→      if (this.climb.external) {
+   200→   200→        // Viaje en ascensor (v1.12): el progreso lo marca el director de la cabina y YA trae la
+   201→   201→        // física del viaje (trapezoide aceleración–crucero–frenado proporcional a la distancia).
+   202→   202→        // NO se re-suaviza aquí: la curva del jugador ha de ser EXACTAMENTE la de la cabina.
+   203→   203→        const k = Math.min(1, Math.max(0, this.climb.progress ?? 0));
+   204→   204→        floor = this.climb.from + (this.climb.to - this.climb.from) * k;
+   205→   205→        return { x: this.x, z: this.z, floor, mode: this.mode, insideBlock: this.insideBlock, climbing: true, pathZ: this.climb.zOverride ?? null };
+   206→   206→      }
+   207→   207→      const k = Math.min(1, this.climb.t / this.climb.duration);
+   208→   208→      floor = this.climb.from + (this.climb.to - this.climb.from) * (k * k * (3 - 2 * k));
+   209→   209→    }
+   210→   210→    return { x: this.x, z: this.z, floor, mode: this.mode, insideBlock: this.insideBlock, climbing: this.climb !== null, pathZ: null };
+   211→   211→  }
+   212→   212→
+   213→   213→  /** Info de la escalada en curso para el cableado del ascensor (null si no hay). */
+   214→   214→  climbInfo(): { from: number; to: number } | null {
+   215→   215→    return this.climb?.external ? { from: this.climb.from, to: this.climb.to } : null;
+   216→   216→  }
+   217→   217→
+   218→   218→  /** Progreso del viaje de cabina (0..1, lo pinta el director del ascensor). */
+   219→   219→  setClimbProgress(k: number): void {
+   220→   220→    if (this.climb?.external) this.climb.progress = Math.min(1, Math.max(0, k));
+   221→   221→  }
+   222→   222→
+   223→   223→  /** Z absoluta mientras el jugador "está dentro" de la cabina (null = pasillo de siempre). */
+   224→   224→  setClimbZ(z: number | null): void {
+   225→   225→    if (this.climb?.external) this.climb.zOverride = z;
+   226→   226→  }
+   227→   227→
+   228→   228→  /** Cierra el viaje externo: planta definitiva y sincronización con el sim. */
+   229→   229→  finishClimb(): void {
+   230→   230→    if (!this.climb?.external) return;
+   231→   231→    this.finishRide(this.climb.to);
+   232→   232→  }
+   233→   233→
+   234→   234→  /**
+   235→   235→   * Fin de viaje externo por AVERÍA a mitad de ruta (el director canceló la cabina): el jugador
+   236→   236→   * aterriza en la planta MÁS CERCANA al progreso alcanzado — nunca un teletransporte a destino.
+   237→   237→   */
+   238→   238→  finishClimbAtNearest(): void {
+   239→   239→    if (!this.climb?.external) return;
+   240→   240→    const { from, to, progress } = this.climb;
+   241→   241→    const nearest = Math.round(from + (to - from) * (progress ?? 0));
+   242→   242→    this.finishRide(nearest);
+   243→   243→  }
+   244→   244→
+   245→   245→  /** Aterriza el viaje externo en `landing` y sincroniza el desplazamiento vertical con el sim. */
+   246→   246→  private finishRide(landing: number): void {
+   247→   247→    const floor = Math.max(0, Math.min(this.topFloor, landing));
+   248→   248→    this.climb = null;
+   249→   249→    this.floor = floor;
+   250→   250→    this.syncRideFloors(floor);
+   251→   251→  }
+   252→   252→
+   253→   253→  /**
+   254→   254→   * Sincroniza la location del sim tras un viaje multialtura (v1.11): el comando `move` solo
+   255→   255→   * admite saltos contiguos, así que un aterrizaje a N plantas de golpe se traduce en una
+   256→   256→   * CADENA de moves calculada con el router del propio sim (nextStepTowards): por el pozo si
+   257→   257→   * el ascensor está operativo, por la escalera si no — siempre saltos legales de 1 en 1.
+   258→   258→   * Sin esto, la location del sim quedaba anclada a la planta de origen (desync permanente
+   259→   259→   * tras cualquier viaje multialtura). Si un eslabón no procede, la cadena se detiene y el
+   260→   260→   * sync normal de caminar seguirá acercando la location desde la última planta confirmada.
+   261→   261→   */
+   262→   262→  private syncRideFloors(landed: number): void {
+   263→   263→    const col = this.zone().cell.col;
+   264→   264→    const target = this.onFloor(landed).find((b) => b.layer === 'main' && b.cell.col === col && this.content.blocks[b.defId]!.features?.elevator);
+   265→   265→    if (!target) return;
+   266→   266→    this.lastMoveTarget = null;
+   267→   267→    for (let guard = 0; guard < 32; guard++) {
+   268→   268→      const loc = this.location;
+   269→   269→      if (!loc || loc === target.id) return;
+   270→   270→      const next = nextStepTowards(this.world, this.content, loc, target.id);
+   271→   271→      if (!next) return;
+   272→   272→      const r = this.exec({ type: 'move', resident: this.actorId, to: next });
+   273→   273→      if (r && !r.ok) return;
+   274→   274→    }
+   275→   275→  }
+   276→   276→
+   277→   277→
+   278→   278→
+   279→   279→  private elevatorWorks(a: number, b: number) {
+   280→   280→    const ok = (f: number) => this.elevatorBlock(f)?.params.elevator_status === 'ok';
+   281→   281→    return ok(a) && ok(b);
+   282→   282→  }
+   283→   283→
+   284→   284→  /**
+   285→   285→   * Panel de destino del ascensor (v1.9): datos del pozo donde está el jugador para pintar el
+   286→   286→   * selector de plantas (solo paradas OPERATIVAS en la misma columna). null si no está delante
+   287→   287→   * de un núcleo operativo — condición GEMELA del prompt de la E: lo que el prompt anuncia es
+   288→   288→   * exactamente lo que la E abre.
+   289→   289→   */
+   290→   290→  elevatorPanelTarget(): { col: number; current: number; floors: number[] } | null {
+   291→   291→    if (this.climb || this.stairPath || this.mode !== 'corridor') return null;
+   292→   292→    const z = this.zone();
+   293→   293→    const feat = this.content.blocks[z.defId]!.features;
+   294→   294→    if (feat?.elevator !== true || z.params.elevator_status !== 'ok') return null;
+   295→   295→    const col = z.cell.col;
+   296→   296→    const floors: number[] = [];
+   297→   297→    for (let f = 0; f <= this.topFloor; f++) {
+   298→   298→      const b = this.onFloor(f).find((x) => x.cell.col === col && x.layer === 'main' && this.content.blocks[x.defId]!.features?.elevator);
+   299→   299→      if (b && b.params.elevator_status === 'ok') floors.push(f);
+   300→   300→    }
+   301→   301→    if (floors.length < 2) return null;
+   302→   302→    return { col, current: this.floor, floors };
+   303→   303→  }
+   304→   304→
+   305→   305→  /**
+   306→   306→   * Llamada de ascensor con destino EXPLÍCITO (panel v1.9): mismo viaje externo que W/S pero a
+   307→   307→   * cualquier planta del pozo. La autoridad del viaje sigue siendo del sim (move al desembarcar);
+   308→   308→   * aquí solo se pide cabina. false si la llamada no procede (avería, planta sin parada…).
+   309→   309→   */
+   310→   310→  elevatorCall(to: number): boolean {
+   311→   311→    if (this.climb || this.stairPath || this.mode !== 'corridor') return false;
+   312→   312→    if (to < 0 || to > this.topFloor || to === this.floor) return false;
+   313→   313→    const z = this.zone();
+   314→   314→    const feat = this.content.blocks[z.defId]!.features;
+   315→   315→    if (feat?.elevator !== true || z.params.elevator_status !== 'ok') return false;
+   316→   316→    if (!this.elevatorWorks(this.floor, to)) return false;
+   317→   317→    const [a, b] = this.rangeOf(z);
+   318→   318→    this.x = (a + b) / 2;
+   319→   319→    this.climb = { from: this.floor, to, t: 0, duration: 0, external: true, progress: 0, zOverride: null };
+   320→   320→    return true;
+   321→   321→  }
+   322→   322→
+   323→   323→  /**
+   324→   324→   * Vía única de comandos: con `send` sale por ahí (multijugador; resultado null, el servidor
+   325→   325→   * decide y confirma por session:state); sin `send`, dispatch local devolviendo su resultado
+   326→   326→   * exactamente como siempre (clásico).
+   327→   327→   */
+   328→   328→  private exec(cmd: Command): CommandResult | null {
+   329→   329→    const r = this.send ? this.send(cmd) : dispatch(this.world, this.content, cmd);
+   330→   330→    return r ?? null;
+   331→   331→  }
+   332→   332→
+   333→   333→  private sync() {
+   334→   334→    const z = this.zone();
+   335→   335→    const loc = this.location;
+   336→   336→    if (loc === z.id) {
+   337→   337→      this.lastMoveTarget = null; // el servidor (o el sim local) ya confirmó este destino
+   338→   338→      return;
+   339→   339→    }
+   340→   340→    if (z.id === this.lastMoveTarget) return; // en vuelo: no reenviar el mismo move cada frame
+   341→   341→    this.lastMoveTarget = z.id;
+   342→   342→    this.exec({ type: 'move', resident: this.actorId, to: z.id });
+   343→   343→  }
+   344→   344→
+   345→   345→  /**
+   346→   346→   * Subir/bajar depende del pozo en el que estés. Escalera (v1.4): recorrido REAL por el cubo
+   347→   347→   * (tramo A, descansillo, tramo B en dirección contraria) con el ritmo del catálogo
+   348→   348→   * (stairs.climbSpeed). Ascensor operativo: viaje elevatorSeconds (cabina real en Task 30);
+   349→   349→   * núcleo averiado no da gesto: hay que ir a la escalera.
+   350→   350→   */
+   351→   351→  private startClimb(delta: 1 | -1) {
+   352→   352→    const to = this.floor + delta;
+   353→   353→    if (to < 0 || to > this.topFloor) return; // planta 0 no baja; última no sube
+   354→   354→    const z = this.zone();
+   355→   355→    const feat = this.content.blocks[z.defId]!.features;
+   356→   356→    if (!feat) return;
+   357→   357→    const ride = feat.elevator === true && this.elevatorWorks(this.floor, to);
+   358→   358→    if (!ride && feat.stairs !== true) return;
+   359→   359→    const [a, zz] = this.rangeOf(z);
+   360→   360→    this.x = (a + zz) / 2;
+   361→   361→    const geom = !ride && feat.stairs === true ? stairGeomOf(this.view) : null;
+   362→   362→    if (geom) {
+   363→   363→      const y0 = this.floor * this.view.cellH + this.view.slab * 2;
+   364→   364→      const y1 = to * this.view.cellH + this.view.slab * 2;
+   365→   365→      const pts = stairPathPoints(this.view, this.x, y0, y1);
+   366→   366→      if (pts.length > 1) {
+   367→   367→        this.stairPath = { pts, i: 1, to };
+   368→   368→        this.climbPos = { x: pts[0]!.x, y: pts[0]!.y, z: pts[0]!.z };
+   369→   369→        return;
+   370→   370→      }
+   371→   371→    }
+   372→   372→    this.climb = ride
+   373→   373→      ? { from: this.floor, to, t: 0, duration: 0, external: true, progress: 0, zOverride: null }
+   374→   374→      : { from: this.floor, to, t: 0, duration: this.view.elevatorSeconds };
+   375→   375→  }
+   376→   376→
+   377→   377→  update(dt: number, input: Input) {
+   378→   378→    // Escalada real por el cubo (v1.4): avanzar por los peldaños al ritmo del catálogo.
+   379→   379→    if (this.stairPath) {
+   380→   380→      const sp = this.stairPath;
+   381→   381→      let budget = this.view.stairs.climbSpeed * dt;
+   382→   382→      while (budget > 0 && sp.i < sp.pts.length) {
+   383→   383→        const b = sp.pts[sp.i]!;
+   384→   384→        const d = Math.hypot(b.x - this.climbPos.x, b.y - this.climbPos.y, b.z - this.climbPos.z);
+   385→   385→        if (d <= budget + 1e-6) {
+   386→   386→          this.climbPos = { x: b.x, y: b.y, z: b.z };
+   387→   387→          budget -= d;
+   388→   388→          sp.i += 1;
+   389→   389→        } else {
+   390→   390→          const t = budget / d;
+   391→   391→          this.climbPos = { x: this.climbPos.x + (b.x - this.climbPos.x) * t, y: this.climbPos.y + (b.y - this.climbPos.y) * t, z: this.climbPos.z + (b.z - this.climbPos.z) * t };
+   392→   392→          budget = 0;
+   393→   393→        }
+   394→   394→      }
+   395→   395→      if (sp.i >= sp.pts.length) {
+   396→   396→        this.floor = sp.to;
+   397→   397→        this.stairPath = null;
+   398→   398→        this.sync();
+   399→   399→      }
+   400→   400→      return;
+   401→   401→    }
+   402→   402→    if (this.climb) {
+   403→   403→      if (this.climb.external) return; // el director del ascensor marca el progreso
+   404→   404→      this.climb.t += dt;
+   405→   405→      if (this.climb.t >= this.climb.duration) {
+   406→   406→        this.floor = this.climb.to;
+   407→   407→        this.climb = null;
+   408→   408→        this.sync();
+   409→   409→      }
+   410→   410→      return;
+   411→   411→    }
+   412→   412→    const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+   413→   413→    // Correr (v1.2): multiplicador del catálogo (rules.view.runMultiplier); andar es el default.
+   414→   414→    const speedMul = input.run ? this.view.runMultiplier : 1;
+   415→   415→    if (this.mode === 'inside') {
+   416→   416→      const home = this.world.blocks[this.insideBlock!]!;
+   417→   417→      const dx = dir * this.view.roomSpeed * speedMul * dt;
+   418→   418→      const dz = ((input.up ? 1 : 0) - (input.down ? 1 : 0)) * this.view.roomSpeed * speedMul * dt;
+   419→   419→      // ── Pasillo interior (v1.18, trasteros por columna): banda central transitable en X,
+   420→   420→      //  fondo libre en Z hasta el tabique trasero. TODO sale del catálogo (storage.ts).
+   421→   421→      if (this.content.blocks[home.defId]!.features?.innerCorridor) {
+   422→   422→        const sg = storageGeomOf(this.view);
+   423→   423→        const [ca, cb] = storageCorridorX(home.cell.col * this.view.cellW, sg);
+   424→   424→        const m = this.view.margin;
+   425→   425→        this.x = Math.min(cb - m, Math.max(ca + m, this.x + dx));
+   426→   426→        this.z = Math.min(sg.depth - m, Math.max(m, this.z + dz));
+   427→   427→        this.sync();
+   428→   428→        return;
+   429→   429→      }
+   430→   430→      const geo = this.geometryOf(home);
+   431→   431→      if (!geo) {
+   432→   432→        // Layout sin geometría 2D (catálogo antiguo): movimiento 1D de siempre.
+   433→   433→        const [a, b] = this.rangeOf(home);
+   434→   434→        this.x = Math.min(b - this.view.margin, Math.max(a + this.view.margin, this.x + dx));
+   435→   435→        return;
+   436→   436→      }
+   437→   437→      // Movimiento 2D con deslizamiento: cada eje se prueba por separado contra tabiques,
+   438→   438→      // huecos de puerta y estancias cerradas. TODO sale del catálogo (layout + rules.view).
+   439→   439→      // Los rects del layout son LOCALES a la vivienda: se compara con la x local (x − borde izq.).
+   440→   440→      const [a, b] = this.rangeOf(home);
+   441→   441→      const x0 = home.cell.col * this.view.cellW;
+   442→   442→      const clampX = (x: number) => Math.min(b - this.view.margin, Math.max(a + this.view.margin, x));
+   443→   443→      const clampZ = (z: number) => Math.min(this.view.depth - this.view.margin, Math.max(this.view.margin, z));
+   444→   444→      const cur = roomAt(geo, this.x - x0, this.z);
+   445→   445→      const nx = clampX(this.x + dx);
+   446→   446→      if (walkable(geo, cur, nx - x0, this.z)) this.x = nx;
+   447→   447→      const cur2 = roomAt(geo, this.x - x0, this.z);
+   448→   448→      const nz = clampZ(this.z + dz);
+   449→   449→      if (walkable(geo, cur2, this.x - x0, nz)) this.z = nz;
+   450→   450→      return;
+   451→   451→    }
+   452→   452→    this.x = Math.min(this.width - this.view.margin, Math.max(this.view.margin, this.x + dir * this.view.walkSpeed * speedMul * dt));
+   453→   453→    this.sync();
+   454→   454→    const door = this.doorInFront()?.id ?? null;
+   455→   455→    if (door !== this.approached) {
+   456→   456→      this.approached = door;
+   457→   457→      if (door) this.exec({ type: 'approach', resident: this.actorId, block: door });
+   458→   458→    }
+   459→   459→    if (input.up) this.startClimb(1);
+   460→   460→    else if (input.down) this.startClimb(-1);
+   461→   461→  }
+   462→   462→
+   463→   463→  /** Vecino que está a tu lado en el pasillo (o en tu misma vivienda). */
+   464→   464→  residentNearby(): string | null {
+   465→   465→    const r = this.world.residents[this.actorId]!;
+   466→   466→    for (const other of Object.values(this.world.residents)) {
+   467→   467→      if (other.id === r.id || !other.present || other.location === null) continue;
+   468→   468→      const loc = this.world.blocks[other.location];
+   469→   469→      if (!loc) continue;
+   470→   470→      const myZone = this.mode === 'inside' ? this.insideBlock : this.zone().id;
+   471→   471→      const theirZone = loc.kind === 'dwelling' ? (this.mode === 'inside' && this.insideBlock === loc.id ? loc.id : null) : loc.id;
+   472→   472→      // Circulación compartida: en pasillo, un vecino en el pasillo o el núcleo de ESTA planta
+   473→   473→      // está "a tu lado" aunque zone() te asigne el núcleo (capa main) y a él el pasillo.
+   474→   474→      const sharedCirculation = this.mode === 'corridor' && loc.cell.floor === this.floor && loc.kind !== 'dwelling';
+   475→   475→      if (theirZone !== myZone && !sharedCirculation) continue;
+   476→   476→      // En circulación, la referencia es el centro del bloque donde está (pasillo ancho → su centro).
+   477→   477→      const theirX = (loc.cell.col + loc.size.w / 2) * this.view.cellW;
+   478→   478→      if (Math.abs(theirX - this.x) < this.view.nearRadius) return other.id;
+   479→   479→    }
+   480→   480→    return null;
+   481→   481→  }
+   482→   482→
+   483→   483→  /** Objetivo de interacción actual según posición (para el prompt y la tecla E). */
+   484→   484→  interactTarget(): InteractTarget | null {
+   485→   485→    if (this.climb) return null;
+   486→   486→    if (this.mode === 'inside') {
+   487→   487→      const b = this.world.blocks[this.insideBlock!]!;
+   488→   488→      if (b.ownerId === this.actorId) {
+   489→   489→        // Interactivos de la estancia actual (portátil/cama): posición 2D del catálogo, no offsets.
+   490→   490→        const geo = this.geometryOf(b);
+   491→   491→        if (geo) {
+   492→   492→          const room = roomAt(geo, this.x - b.cell.col * this.view.cellW, this.z);
+   493→   493→          const rdef = this.content.rooms[room.defId];
+   494→   494→          for (const it of rdef?.interactables ?? []) {
+   495→   495→            const wx = b.cell.col * this.view.cellW + room.rect.x + it.pos[0];
+   496→   496→            const wz = room.rect.z + it.pos[1];
+   497→   497→            if (Math.hypot(this.x - wx, this.z - wz) < this.view.itemRadius) return { kind: it.kind };
+   498→   498→          }
+   499→   499→        }
+   500→   500→      }
+   501→   501→      return { kind: 'door', blockId: this.insideBlock! };
+   502→   502→    }
+   503→   503→    // Prioridad (v1.18): las fijaciones del portal (buzones/tablón, proximidad exacta) van
+   504→   504→    // delante de la puerta — el portal ahora también es puerta (approach de misiones) y sin
+   505→   505→    // esto su propia fachada se comería la E del tablón. Después: puerta → vecino.
+   506→   506→    const zoneFirst = this.zone();
+   507→   507→    const [za, zz] = this.rangeOf(zoneFirst);
+   508→   508→    if (this.content.blocks[zoneFirst.defId]!.features?.mailboxes && Math.abs(this.x - (za + 1.2)) < this.view.itemRadius) return { kind: 'mailbox' };
+   509→   509→    if (this.content.blocks[zoneFirst.defId]!.features?.noticeboard && Math.abs(this.x - (zz - 0.8)) < this.view.itemRadius) return { kind: 'noticeboard' };
+   510→   510→    const door = this.doorInFront();
+   511→   511→    if (door) return { kind: 'door', blockId: door.id };
+   512→   512→    const neighbor = this.residentNearby();
+   513→   513→    if (neighbor) return { kind: 'resident', residentId: neighbor };
+   514→   514→    return null;
+   515→   515→  }
+   516→   516→
+   517→   517→  /** Tecla de interacción: usa el objeto cercano (portátil/cama/buzón/tablón/vecino) o resuelve la puerta. */
+   518→   518→  interact(): InteractResult {
+   519→   519→    if (this.climb) return { type: 'none' };
+   520→   520→    const t = this.interactTarget();
+   521→   521→    if (t?.kind === 'laptop') {
+   522→   522→      this.exec({ type: 'work', actor: this.actorId });
+   523→   523→      return { type: 'used', kind: 'laptop' };
+   524→   524→    }
+   525→   525→    if (t?.kind === 'bed') {
+   526→   526→      this.exec({ type: 'sleep', actor: this.actorId });
+   527→   527→      return { type: 'used', kind: 'bed' };
+   528→   528→    }
+   529→   529→    if (t?.kind === 'mailbox') return { type: 'used', kind: 'mailbox' }; // lectura: texto del catálogo en la presentación
+   530→   530→    if (t?.kind === 'noticeboard') return { type: 'used', kind: 'noticeboard' };
+   531→   531→    if (t?.kind === 'resident') {
+   532→   532→      const other = this.world.residents[t.residentId]!;
+   533→   533→      if (other.location) this.exec({ type: 'knock', block: other.location, actor: this.actorId });
+   534→   534→      return { type: 'used', kind: 'resident' };
+   535→   535→    }
+   536→   536→    if (this.mode === 'inside') {
+   537→   537→      const home = this.insideBlock!;
+   538→   538→      const corridorId = this.corridor().id;
+   539→   539→      const res = this.exec({ type: 'move', resident: this.actorId, to: corridorId });
+   540→   540→      if (res && !res.ok) return { type: 'none' };
+   541→   541→      this.mode = 'corridor';
+   542→   542→      this.insideBlock = null;
+   543→   543→      this.z = 0;
+   544→   544→      this.lastMoveTarget = corridorId; // ya está en vuelo este move
+   545→   545→      this.approached = home; // sigue delante de la misma puerta, sin repetir el aviso
+   546→   546→      return { type: 'exited', block: home };
+   547→   547→    }
+   548→   548→    const door = this.doorInFront();
+   549→   549→    if (!door) return { type: 'none' };
+   550→   550→    const res = this.exec({ type: 'move', resident: this.actorId, to: door.id });
+   551→   551→    // Rechazo = candado. En clásico lo dice el sim (res.ok false); en remoto el resultado llega
+   552→   552→    // después (res null), así que el candado visible de la puerta manda: NADIE entra aquí.
+   553→   553→    if (res ? !res.ok : door.access === 'locked') {
+   554→   554→      return { type: 'locked', block: door.id, reason: door.lockReason, price: door.availability?.price ?? null };
+   555→   555→    }
+   556→   556→    this.lastMoveTarget = door.id; // ya está en vuelo este move
+   557→   557→    if (door.kind === 'dwelling') {
+   558→   558→      this.landInside(door);
+   559→   559→    } else if (this.content.blocks[door.defId]!.features?.innerCorridor) {
+   560→   560→      // Trasteros por columna (v1.18): modo interior sobre su pasillo central — caminas
+   561→   561→      // hacia el fondo y tu celda queda a un lado (impares) o al otro (pares).
+   562→   562→      this.mode = 'inside';
+   563→   563→      this.insideBlock = door.id;
+   564→   564→      this.z = 0.45;
+   565→   565→      this.approached = door.id;
+   566→   566→    } else {
+   567→   567→      this.approached = door.id; // local común (bar/lavandería): te plantas en su puerta, sin modo interior
+   568→   568→    }
+   569→   569→    return { type: 'entered', block: door.id };
+   570→   570→  }
+   571→   571→
+   572→   572→  /**
+   573→   573→   * Colocación directa junto a la puerta de un bloque (QoL del editor multi-vivienda).
+   574→   574→   * No desbloquea nada: si la puerta está cerrada, el jugador simplemente se planta delante.
+   575→   575→   * La posición del sim se sincroniza recorriendo el camino legal del grafo de circulación
+   576→   576→   * (mismo recorrido que andar: portal → núcleo → planta), sin teletransportes prohibidos.
+   577→   577→   */
+   578→   578→  teleportTo(blockId: string): boolean {
+   579→   579→    const target = this.world.blocks[blockId];
+   580→   580→    if (!target || this.climb || this.stairPath) return false;
+   581→   581→    this.mode = 'corridor';
+   582→   582→    this.insideBlock = null;
+   583→   583→    this.z = 0;
+   584→   584→    this.approached = null;
+   585→   585→    this.externalRequested = false;
+   586→   586→    this.floor = target.cell.floor;
+   587→   587→    this.x = this.centerOf(target);
+   588→   588→    for (let guard = 0; guard < 24; guard++) {
+   589→   589→      const zone = this.zone();
+   590→   590→      if (zone.id === this.location) break;
+   591→   591→      const next = nextStepTowards(this.world, this.content, this.location ?? zone.id, zone.id);
+   592→   592→      if (!next) break;
+   593→   593→      this.exec({ type: 'move', resident: this.actorId, to: next });
+   594→   594→    }
+   595→   595→    this.lastMoveTarget = null; // los move en vuelo los confirmará el estado; sin dedup pendiente
+   596→   596→    return true;
+   597→   597→  }
+   598→   598→
+   599→   599→  /**
+   600→   600→   * Reconciliación multijugador: impone la posición que dice el servidor (autoridad).
+   601→   601→   * Fija modo, planta y coordenada X al centro del bloque indicado; con null coloca en el
+   602→   602→   * pasillo de la planta actual. Resetea climb y el dedup de move.
+   603→   603→   */
+   604→   604→  forceLocation(blockId: string | null): void {
+   605→   605→    const target = blockId !== null ? this.world.blocks[blockId] : undefined;
+   606→   606→    this.climb = null;
+   607→   607→    this.stairPath = null;
+   608→   608→    this.externalRequested = false;
+   609→   609→    this.lastMoveTarget = null;
+   610→   610→    if (!target) {
+   611→   611→      const c = this.corridor(this.floor);
+   612→   612→      this.mode = 'corridor';
+   613→   613→      this.insideBlock = null;
+   614→   614→      this.z = 0;
+   615→   615→      this.x = this.centerOf(c);
+   616→   616→      return;
+   617→   617→    }
+   618→   618→    this.floor = target.cell.floor;
+   619→   619→    this.x = this.centerOf(target);
+   620→   620→    if (target.kind === 'dwelling') {
+   621→   621→      this.landInside(target);
+   622→   622→    } else {
+   623→   623→      this.mode = 'corridor';
+   624→   624→      this.insideBlock = null;
+   625→   625→      this.z = 0;
+   626→   626→    }
+   627→   627→  }
+   628→   628→}
+   629→   629→

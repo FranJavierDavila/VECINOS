@@ -186,7 +186,11 @@ export function interiorTarget(
   residentId: string,
   lap: number,
 ): Pt | null {
-  const open = geo.rooms.filter((r) => !r.locked);
+  // Apilamiento 3D (v1.19): las salas TRASERAS (más profundas que el bloque principal) son
+  // territorio del jugador y de misiones dirigidas — la deambulación espontánea jamás mete
+  // a un vecino ahí (evita swaps de bloque por toda la fachada cada dos ticks).
+  const mainDepth = content.rules.view.depth;
+  const open = geo.rooms.filter((r) => !r.locked && r.rect.z + r.rect.d <= mainDepth + 0.01);
   if (open.length === 0) return null;
   if (anchorKind) {
     for (const room of open) {

@@ -6,24 +6,31 @@
         "key": "salon",
         "defId": "estancia_salon_cocina",
         "startsUnlocked": true,
-        "rect": { "x": 0, "z": 0, "w": 2.3, "d": 2.8 }
+        "rect": { "x": 0, "z": 0, "w": 2.3, "d": 4.2 }
       },
       {
         "key": "dormitorio",
         "defId": "estancia_dormitorio",
         "startsUnlocked": false,
-        "rect": { "x": 2.3, "z": 0, "w": 2.5, "d": 1.6 }
+        "rect": { "x": 2.3, "z": 0, "w": 2.5, "d": 2.5 }
       },
       {
         "key": "bano",
         "defId": "estancia_bano",
         "startsUnlocked": false,
-        "rect": { "x": 2.3, "z": 1.6, "w": 2.5, "d": 1.2 }
+        "rect": { "x": 2.3, "z": 2.5, "w": 2.5, "d": 1.7 }
+      },
+      {
+        "key": "trasera",
+        "defId": "estancia_trasera",
+        "startsUnlocked": true,
+        "rect": { "x": 0, "z": 4.2, "w": 4.8, "d": 1.4 }
       }
     ],
     "doorways": [
       { "a": "salon", "b": "dormitorio", "axis": "z", "at": 0.8, "width": 0.9 },
-      { "a": "salon", "b": "bano", "axis": "z", "at": 2.1, "width": 0.9 }
+      { "a": "salon", "b": "bano", "axis": "z", "at": 3.3, "width": 0.9 },
+      { "a": "salon", "b": "trasera", "axis": "x", "at": 1.15, "width": 0.95 }
     ]
   }
 ]

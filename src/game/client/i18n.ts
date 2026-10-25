@@ -27,7 +27,7 @@ const DICT: Record<string, { es: string; en: string }> = {
     es: 'Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.',
     en: 'Move-ins, noise, smells, wifi, pests, smoke and levies: the neighborhood simulator.',
   },
-  'header.version': { es: 'v1.18 · la presidencia: sobrevive 7 días', en: 'v1.18 · the presidency: survive 7 days' },
+  'header.version': { es: 'v1.19 · el edificio gana un tercer eje', en: 'v1.19 · the building gains a third axis' },
   'hud.campaign': { es: '{label} · Día {d}/{n}', en: '{label} · Day {d}/{n}' },
   'hud.campaignAria': { es: 'Días de mandato restantes', en: 'Days of your term remaining' },
   'hud.campaignOver': { es: '{label} · Día {d}/{n} · ¡juzgado pronto!', en: '{label} · Day {d}/{n} · judged soon!' },

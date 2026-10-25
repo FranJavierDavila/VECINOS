@@ -422,5 +422,32 @@
       "color": "#a47148"
     },
     "label": "el bloque de trasteros"
+  },
+  {
+    "id": "escaleras_cota",
+    "kind": "common",
+    "layer": "main",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "traversable": true,
+    "features": {
+      "stairs": true
+    },
+    "params": {
+      "condition": {
+        "type": "number",
+        "min": 0,
+        "max": 100,
+        "default": 85,
+        "tier": 1,
+        "label": "Estado de la escalera (bajada)"
+      }
+    },
+    "view": {
+      "color": "#a3b18a"
+    },
+    "label": "la escalera (bajada)"
   }
 ]

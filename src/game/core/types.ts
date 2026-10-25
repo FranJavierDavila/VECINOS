@@ -957,8 +957,17 @@ export interface Rules {
       doorH: number;
       unitH: number;
       doorColor: string;
+      /** Puerta dorada del trastero del propio jugador (v1.19). */
+      ownDoorColor: string;
       oddSide: 'left' | 'right';
       blockDefId: string;
+      /** Interior presentable de la celda propia (v1.19, apilamiento 3D de bloques). */
+      cellRoomDepth: number;
+      cellShelfTiers: number;
+      cellJunk: number;
+      /** Cartel guía exterior sobre el hueco del pasillo central (v1.19): qué trasteros
+       *  tienes a cada lado según la profundidad del pasillo en la que caminas. */
+      guide: { w: number; h: number; aboveUnit: number; bg: string; text: string; frame: string };
     };
     /** Tejadillo a dos aguas que cierra el edificio (v1.16) sobre la bajocubierta. */
     roof: { pitchH: number; overhang: number; color: string; ridge: string; fascia: string };
@@ -979,6 +988,19 @@ export interface Rules {
     roomZ: number;
     /** Calado (profundidad en Z) de las viviendas: doblado en v0.6-b para mobiliario interior. */
     depth: number;
+    /** Módulo de profundidad (v1.19): TODOS los bloques crecen 1 módulo hacia el fondo. */
+    depthModule: number;
+    /** Apilamiento 3D de bloques (v1.19): activación de bloques traseros con fundido del
+     *  precedente y contorno rojo en el perímetro frontal del bloque activo. */
+    rearBlock: {
+      outline: string;
+      outlineWidth: number;
+      fadeSeconds: number;
+      peekSeconds: number;
+      peekDistance: number;
+      junk: number;
+      lampColor: string;
+    };
     /** Calado de los bloques comunes (portal, núcleo, trasteros): mantiene el glTF del núcleo a escala 1. */
     commonDepth: number;
     wall: number;
@@ -1052,6 +1074,11 @@ export interface Rules {
     greet: string;
     laptop: string;
     bed: string;
+    /** Trastero propio y bloques traseros (v1.19, apilamiento 3D). */
+    storageEnter: string;
+    storageLocked: string;
+    rearExit: string;
+    rearRoom: string;
     stairs: string;
     elevator: string;
     elevatorBroken: string;
@@ -1206,6 +1233,11 @@ export interface PlayerPosition {
    * y la Z varían (tramos y descansillo); null fuera de la escalada (el pasillo manda).
    */
   pathZ: number | null;
+  /**
+   * Apilamiento 3D (v1.19): mientras el jugador está en un bloque TRASERO (interior de su
+   * trastero), la presentación lo planta aquí (x/z absolutos) en vez de en el sim.
+   */
+  rear: { x: number; z: number } | null;
 }
 
 export interface Input {
@@ -1223,7 +1255,9 @@ export type InteractTarget =
   | { kind: 'mailbox' }
   | { kind: 'noticeboard' }
   | { kind: 'laptop' }
-  | { kind: 'bed' };
+  | { kind: 'bed' }
+  | { kind: 'storageCell' }
+  | { kind: 'rearExit' };
 
 // ───────────────────────── Etiquetas ─────────────────────────
 

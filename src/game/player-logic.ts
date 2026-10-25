@@ -2,7 +2,7 @@ import type { BlockInstance, Command, CommandResult, Content, Input, InteractTar
 import { dispatch, nextStepTowards } from '@/game/sim';
 import { layoutGeometryOf, roomAt, walkable, type LayoutGeometry } from '@/game/interior';
 import { stairGeomOf, stairPathPoints } from './stairs';
-import { storageCorridorX, storageGeomOf } from './storage';
+import { corridorLanes, isStorageColumnBlock, storageCorridorX, storageDoorPoint, storageGeomOf } from './storage';
 
 
 export type InteractResult =
@@ -10,7 +10,9 @@ export type InteractResult =
   | { type: 'entered'; block: string }
   | { type: 'exited'; block: string }
   | { type: 'locked'; block: string; reason: string | null; price: number | null }
-  | { type: 'used'; kind: 'laptop' | 'bed' | 'mailbox' | 'noticeboard' | 'resident' };
+  | { type: 'used'; kind: 'laptop' | 'bed' | 'mailbox' | 'noticeboard' | 'resident' }
+  | { type: 'rearEnter'; block: string }
+  | { type: 'rearExit'; block: string };
 
 /**
  * Firma de la vía de salida de comandos. En partida clásica el controlador devuelve el
@@ -41,6 +43,11 @@ export class PlayerLogic {
   private stairPath: { pts: { x: number; y: number; z: number }[]; i: number; to: number } | null = null;
   private climbPos = { x: 0, y: 0, z: 0 };
   private approached: string | null = null;
+  /** Apilamiento 3D (v1.19): celda de trastero propia activa como bloque trasero.
+   *  El sim no cambia (sigues "en el bloque de trasteros"); la presentación hace el swap. */
+  rearCell: { block: string; side: 'left' | 'right'; floor: number } | null = null;
+  /** Congela la locomoción del sim mientras el cuerpo "está" dentro del bloque trasero. */
+  rearHold = false;
   private readonly width: number;
   private readonly topFloor: number;
   private readonly view;
@@ -81,7 +88,7 @@ export class PlayerLogic {
     const start = world.blocks[me.location ?? me.home] ?? blocks.find((b) => b.kind !== 'dwelling')!;
     this.floor = start.cell.floor;
     this.x = this.centerOf(start);
-    this.z = 0;
+    this.z = this.view.corridorZ; // en pasillo la Z es ABSOLUTA (v1.19: dos carriles)
     // Guardado (o sesión remota) con el residente DENTRO de una vivienda: aterriza en el interior
     // (sin esto, el modo 'corridor' del constructor sincronizaría un move al pasillo en el
     // primer frame y el jugador "saldría de casa" solo al cargar la partida).
@@ -110,6 +117,16 @@ export class PlayerLogic {
 
   private corridor(f = this.floor): BlockInstance {
     return this.onFloor(f).find((b) => b.layer === 'corridor')!;
+  }
+
+  /** ¿Carril EXTERIOR del pasillo? (v1.19): sin avisos de elementos de pared. */
+  onOuterLane(): boolean {
+    return this.mode === 'corridor' && this.z < corridorLanes(this.view).threshold;
+  }
+
+  /** Plano frontal de los bloques (compartido con building/storage). */
+  private get frontZ(): number {
+    return this.view.roomZ - this.view.commonDepth / 2;
   }
 
   private elevatorBlock(f: number): BlockInstance | undefined {
@@ -157,9 +174,12 @@ export class PlayerLogic {
     return withShaft ?? common[0] ?? this.corridor();
   }
 
-  /** Vivienda o local justo delante (la puerta que puede abrir), si la hay. */
+  /** Vivienda o local justo delante (la puerta que puede abrir), si la hay.
+   *  v1.19: desde el carril EXTERIOR del pasillo no hay puertas delante — es la vía de
+   *  adelantamiento: ni avisos ni approach; los elementos de pared no se activan. */
   doorInFront(): BlockInstance | null {
     if (this.mode !== 'corridor') return null;
+    if (this.onOuterLane()) return null;
     return this.onFloor(this.floor).find((b) => this.isDoorTarget(b) && this.within(this.x, b)) ?? null;
   }
 
@@ -192,6 +212,7 @@ export class PlayerLogic {
         insideBlock: null,
         climbing: true,
         pathZ: this.climbPos.z,
+        rear: null,
       };
     }
     let floor = this.floor;
@@ -202,12 +223,24 @@ export class PlayerLogic {
         // NO se re-suaviza aquí: la curva del jugador ha de ser EXACTAMENTE la de la cabina.
         const k = Math.min(1, Math.max(0, this.climb.progress ?? 0));
         floor = this.climb.from + (this.climb.to - this.climb.from) * k;
-        return { x: this.x, z: this.z, floor, mode: this.mode, insideBlock: this.insideBlock, climbing: true, pathZ: this.climb.zOverride ?? null };
+        return { x: this.x, z: this.z, floor, mode: this.mode, insideBlock: this.insideBlock, climbing: true, pathZ: this.climb.zOverride ?? null, rear: null };
       }
       const k = Math.min(1, this.climb.t / this.climb.duration);
       floor = this.climb.from + (this.climb.to - this.climb.from) * (k * k * (3 - 2 * k));
     }
-    return { x: this.x, z: this.z, floor, mode: this.mode, insideBlock: this.insideBlock, climbing: this.climb !== null, pathZ: null };
+    // Apilamiento 3D (v1.19): dentro del trastero propio el cuerpo vive en el bloque trasero.
+    const rear = this.rearCell ? this.rearSeat() : null;
+    return { x: this.x, z: this.z, floor, mode: this.mode, insideBlock: this.insideBlock, climbing: this.climb !== null, pathZ: null, rear };
+  }
+
+  /** Posición (mundo) del cuerpo dentro del interior presentable del trastero propio. */
+  private rearSeat(): { x: number; z: number } {
+    const b = this.world.blocks[this.rearCell!.block]!;
+    const cx = (b.cell.col + b.size.w / 2) * this.view.cellW;
+    const front = this.view.roomZ - this.view.commonDepth / 2;
+    // La sala presentable vive en el frente del bloque (mismo plano que el resto del edificio).
+    const z = front + this.view.trasteros.cellRoomDepth / 2 - 0.3;
+    return { x: cx, z };
   }
 
   /** Info de la escalada en curso para el cableado del ascensor (null si no hay). */
@@ -247,6 +280,7 @@ export class PlayerLogic {
     const floor = Math.max(0, Math.min(this.topFloor, landing));
     this.climb = null;
     this.floor = floor;
+    this.z = this.view.corridorZ; // salida de cabina: carril interior del pasillo
     this.syncRideFloors(floor);
   }
 
@@ -347,15 +381,18 @@ export class PlayerLogic {
    * (tramo A, descansillo, tramo B en dirección contraria) con el ritmo del catálogo
    * (stairs.climbSpeed). Ascensor operativo: viaje elevatorSeconds (cabina real en Task 30);
    * núcleo averiado no da gesto: hay que ir a la escalera.
+   * v1.19: devuelve true SOLO si arrancó una escalada; si no, el llamador usa W/S para
+   * cambiar de CARRIL en el pasillo (dos vías: interior junto a puertas, exterior junto a
+   * la barandilla — desde el exterior no saltan avisos de pared).
    */
-  private startClimb(delta: 1 | -1) {
+  private startClimb(delta: 1 | -1): boolean {
     const to = this.floor + delta;
-    if (to < 0 || to > this.topFloor) return; // planta 0 no baja; última no sube
+    if (to < 0 || to > this.topFloor) return false; // planta 0 no baja; última no sube
     const z = this.zone();
     const feat = this.content.blocks[z.defId]!.features;
-    if (!feat) return;
+    if (!feat) return false;
     const ride = feat.elevator === true && this.elevatorWorks(this.floor, to);
-    if (!ride && feat.stairs !== true) return;
+    if (!ride && feat.stairs !== true) return false;
     const [a, zz] = this.rangeOf(z);
     this.x = (a + zz) / 2;
     const geom = !ride && feat.stairs === true ? stairGeomOf(this.view) : null;
@@ -366,15 +403,19 @@ export class PlayerLogic {
       if (pts.length > 1) {
         this.stairPath = { pts, i: 1, to };
         this.climbPos = { x: pts[0]!.x, y: pts[0]!.y, z: pts[0]!.z };
-        return;
+        return true;
       }
     }
     this.climb = ride
       ? { from: this.floor, to, t: 0, duration: 0, external: true, progress: 0, zOverride: null }
       : { from: this.floor, to, t: 0, duration: this.view.elevatorSeconds };
+    return true;
   }
 
   update(dt: number, input: Input) {
+    // Apilamiento 3D (v1.19): el cuerpo está dentro del bloque trasero — la locomoción del
+    // sim queda congelada (la salida es por la puerta: tecla E, que gestiona el controlador).
+    if (this.rearHold) return;
     // Escalada real por el cubo (v1.4): avanzar por los peldaños al ritmo del catálogo.
     if (this.stairPath) {
       const sp = this.stairPath;
@@ -395,6 +436,7 @@ export class PlayerLogic {
       if (sp.i >= sp.pts.length) {
         this.floor = sp.to;
         this.stairPath = null;
+        this.z = this.view.corridorZ; // desembarco: al carril interior del pasillo
         this.sync();
       }
       return;
@@ -437,10 +479,12 @@ export class PlayerLogic {
       // Movimiento 2D con deslizamiento: cada eje se prueba por separado contra tabiques,
       // huecos de puerta y estancias cerradas. TODO sale del catálogo (layout + rules.view).
       // Los rects del layout son LOCALES a la vivienda: se compara con la x local (x − borde izq.).
+      // v1.19: el calado lo marca el LAYOUT (las salas traseras viven más allá de view.depth).
       const [a, b] = this.rangeOf(home);
       const x0 = home.cell.col * this.view.cellW;
+      const maxZ = Math.max(...geo.rooms.map((r) => r.rect.z + r.rect.d));
       const clampX = (x: number) => Math.min(b - this.view.margin, Math.max(a + this.view.margin, x));
-      const clampZ = (z: number) => Math.min(this.view.depth - this.view.margin, Math.max(this.view.margin, z));
+      const clampZ = (z: number) => Math.min(maxZ - this.view.margin, Math.max(this.view.margin, z));
       const cur = roomAt(geo, this.x - x0, this.z);
       const nx = clampX(this.x + dx);
       if (walkable(geo, cur, nx - x0, this.z)) this.x = nx;
@@ -449,6 +493,17 @@ export class PlayerLogic {
       if (walkable(geo, cur2, this.x - x0, nz)) this.z = nz;
       return;
     }
+    // Pasillo (v1.19): DOS carriles. A/D avanza en X; W/S, si no arrancan escalada (no hay
+    // pozo delante o ya estás en el límite), cambian de carril: W hacia la fachada (interior,
+    // junto a puertas y avisos), S hacia la barandilla (exterior, vía de adelantamiento).
+    const lanes = corridorLanes(this.view);
+    const dirZ = (input.up ? 1 : 0) - (input.down ? 1 : 0);
+    let climbing = false;
+    if (dirZ > 0) climbing = this.startClimb(1);
+    else if (dirZ < 0) climbing = this.startClimb(-1);
+    if (!climbing && dirZ !== 0) {
+      this.z = Math.min(lanes.maxZ, Math.max(lanes.minZ, this.z + dirZ * this.view.walkSpeed * speedMul * dt));
+    }
     this.x = Math.min(this.width - this.view.margin, Math.max(this.view.margin, this.x + dir * this.view.walkSpeed * speedMul * dt));
     this.sync();
     const door = this.doorInFront()?.id ?? null;
@@ -456,8 +511,6 @@ export class PlayerLogic {
       this.approached = door;
       if (door) this.exec({ type: 'approach', resident: this.actorId, block: door });
     }
-    if (input.up) this.startClimb(1);
-    else if (input.down) this.startClimb(-1);
   }
 
   /** Vecino que está a tu lado en el pasillo (o en tu misma vivienda). */
@@ -483,8 +536,20 @@ export class PlayerLogic {
   /** Objetivo de interacción actual según posición (para el prompt y la tecla E). */
   interactTarget(): InteractTarget | null {
     if (this.climb) return null;
+    // Apilamiento 3D (v1.19): dentro del trastero propio la única salida es la puerta.
+    if (this.rearCell) return { kind: 'rearExit' };
     if (this.mode === 'inside') {
       const b = this.world.blocks[this.insideBlock!]!;
+      // Trastero propio (v1.19): delante de la puerta de TU celda → E abre el swap de bloques.
+      // La puerta se compara en Z DE MUNDO (la z del jugador es local al pasillo interior).
+      if (this.content.blocks[b.defId]!.features?.innerCorridor) {
+        const cell = this.ownCellDoor(b);
+        const worldZ = this.frontZ + this.z;
+        if (cell && Math.abs(this.x - cell.x) < this.view.itemRadius * 0.75 && Math.abs(worldZ - cell.z) < this.view.itemRadius) {
+          return { kind: 'storageCell' };
+        }
+        return { kind: 'door', blockId: this.insideBlock! };
+      }
       if (b.ownerId === this.actorId) {
         // Interactivos de la estancia actual (portátil/cama): posición 2D del catálogo, no offsets.
         const geo = this.geometryOf(b);
@@ -503,20 +568,47 @@ export class PlayerLogic {
     // Prioridad (v1.18): las fijaciones del portal (buzones/tablón, proximidad exacta) van
     // delante de la puerta — el portal ahora también es puerta (approach de misiones) y sin
     // esto su propia fachada se comería la E del tablón. Después: puerta → vecino.
-    const zoneFirst = this.zone();
-    const [za, zz] = this.rangeOf(zoneFirst);
-    if (this.content.blocks[zoneFirst.defId]!.features?.mailboxes && Math.abs(this.x - (za + 1.2)) < this.view.itemRadius) return { kind: 'mailbox' };
-    if (this.content.blocks[zoneFirst.defId]!.features?.noticeboard && Math.abs(this.x - (zz - 0.8)) < this.view.itemRadius) return { kind: 'noticeboard' };
-    const door = this.doorInFront();
-    if (door) return { kind: 'door', blockId: door.id };
+    // v1.19: desde el carril EXTERIOR nada de esto salta (ni buzones ni tablón ni puertas).
+    if (!this.onOuterLane()) {
+      const zoneFirst = this.zone();
+      const [za, zz] = this.rangeOf(zoneFirst);
+      if (this.content.blocks[zoneFirst.defId]!.features?.mailboxes && Math.abs(this.x - (za + 1.2)) < this.view.itemRadius) return { kind: 'mailbox' };
+      if (this.content.blocks[zoneFirst.defId]!.features?.noticeboard && Math.abs(this.x - (zz - 0.8)) < this.view.itemRadius) return { kind: 'noticeboard' };
+      const door = this.doorInFront();
+      if (door) return { kind: 'door', blockId: door.id };
+    }
     const neighbor = this.residentNearby();
     if (neighbor) return { kind: 'resident', residentId: neighbor };
     return null;
   }
 
+  /** Puerta (mundo) de la celda del JUGADOR en un bloque de trasteros por columna; null si
+   *  el bloque no es el de su letra. La celda es la de la vivienda del jugador. */
+  private ownCellDoor(storageBlock: BlockInstance): { x: number; z: number; side: 'left' | 'right'; floor: number } | null {
+    const me = this.world.residents[this.actorId]!;
+    const home = this.world.blocks[me.home];
+    if (!home) return null;
+    const tag = home.id.slice(home.id.lastIndexOf('_') + 1);
+    if (!storageBlock.id.endsWith(`_${tag}`)) return null;
+    const floors = Object.values(this.world.blocks)
+      .filter((d) => d.kind === 'dwelling' && d.id.endsWith(`_${tag}`))
+      .map((d) => d.cell.floor)
+      .sort((a, z) => a - z);
+    const pt = storageDoorPoint(this.view, storageBlock, floors, home.cell.floor);
+    return pt ? { ...pt, floor: home.cell.floor } : null;
+  }
+
   /** Tecla de interacción: usa el objeto cercano (portátil/cama/buzón/tablón/vecino) o resuelve la puerta. */
   interact(): InteractResult {
     if (this.climb) return { type: 'none' };
+    // Apilamiento 3D (v1.19): dentro del trastero propio, E es SALIR (el controlador
+    // deshará el swap de bloques; el sim jamás supo que entraste).
+    if (this.rearCell) {
+      const block = this.rearCell.block;
+      this.rearCell = null;
+      this.rearHold = false;
+      return { type: 'rearExit', block };
+    }
     const t = this.interactTarget();
     if (t?.kind === 'laptop') {
       this.exec({ type: 'work', actor: this.actorId });
@@ -535,12 +627,24 @@ export class PlayerLogic {
     }
     if (this.mode === 'inside') {
       const home = this.insideBlock!;
+      // Apilamiento 3D (v1.19): delante de la puerta de TU celda, E entra al trastero
+      // (swap de bloques) en vez de salir del bloque — solo sale quien no está en SU puerta.
+      const homeBlock = this.world.blocks[home]!;
+      if (this.content.blocks[homeBlock.defId]!.features?.innerCorridor) {
+        const cell = this.ownCellDoor(homeBlock);
+        const worldZ = this.frontZ + this.z;
+        if (cell && Math.abs(this.x - cell.x) < this.view.itemRadius * 0.75 && Math.abs(worldZ - cell.z) < this.view.itemRadius) {
+          this.rearCell = { block: homeBlock.id, side: cell.side, floor: cell.floor };
+          this.rearHold = true;
+          return { type: 'rearEnter', block: homeBlock.id };
+        }
+      }
       const corridorId = this.corridor().id;
       const res = this.exec({ type: 'move', resident: this.actorId, to: corridorId });
       if (res && !res.ok) return { type: 'none' };
       this.mode = 'corridor';
       this.insideBlock = null;
-      this.z = 0;
+      this.z = this.view.corridorZ;
       this.lastMoveTarget = corridorId; // ya está en vuelo este move
       this.approached = home; // sigue delante de la misma puerta, sin repetir el aviso
       return { type: 'exited', block: home };
@@ -580,7 +684,9 @@ export class PlayerLogic {
     if (!target || this.climb || this.stairPath) return false;
     this.mode = 'corridor';
     this.insideBlock = null;
-    this.z = 0;
+    this.rearCell = null;
+    this.rearHold = false;
+    this.z = this.view.corridorZ;
     this.approached = null;
     this.externalRequested = false;
     this.floor = target.cell.floor;
@@ -607,11 +713,13 @@ export class PlayerLogic {
     this.stairPath = null;
     this.externalRequested = false;
     this.lastMoveTarget = null;
+    this.rearCell = null;
+    this.rearHold = false;
     if (!target) {
       const c = this.corridor(this.floor);
       this.mode = 'corridor';
       this.insideBlock = null;
-      this.z = 0;
+      this.z = this.view.corridorZ;
       this.x = this.centerOf(c);
       return;
     }
@@ -622,7 +730,7 @@ export class PlayerLogic {
     } else {
       this.mode = 'corridor';
       this.insideBlock = null;
-      this.z = 0;
+      this.z = this.view.corridorZ;
     }
   }
 }

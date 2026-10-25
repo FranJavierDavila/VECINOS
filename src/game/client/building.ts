@@ -37,6 +37,8 @@ interface BlockView {
   glowForced: boolean;
   /** true mientras el LOD oculta panel+candado; la visibilidad efectiva es la de paint() && !esto. */
   lodHiddenPanels: boolean;
+  /** Segunda pared con edges (v1.19): la pared del fondo se parte si hay puerta a sala trasera. */
+  edgesMesh2: Mesh | null;
 }
 
 /** Interior 2D de una vivienda (Fase C): suelo por estancia + tapa de puerta hacia estancia cerrada. */
@@ -57,17 +59,27 @@ interface InteriorView {
  * bloqueadas, con panel y candado como siempre.
  */
 export function createBuilding(scene: Scene, world: World, content: Content) {
-  const { Color3, Color4, MeshBuilder, StandardMaterial } = B();
+  const { Color3, Color4, MeshBuilder, StandardMaterial, TransformNode } = B();
   const v = content.rules.view;
   const glow = Object.fromEntries(Object.entries(v.channelGlow).map(([k, hex]) => [k, Color3.FromHexString(hex)])) as Record<string, Color3>;
   const views = new Map<string, BlockView>();
   const shakes = new Map<string, number>();
+  /** Raíz de escena por bloque (v1.19): colgar aquí TODA malla del bloque permite el
+   *  desvanecimiento completo del bloque principal en el apilamiento 3D (swap de bloques). */
+  const roots = new Map<string, TransformNode>();
+  const attach = (blockId: string, mesh: Mesh): Mesh => {
+    const r = roots.get(blockId);
+    if (r) mesh.parent = r;
+    return mesh;
+  };
   /** Interiores 2D (Fase C) por bloque: suelos de estancia y tapas de puertas cerradas. */
   const interiors = new Map<string, InteriorView>();
   /** Foco del LOD (posición del jugador): lo alimenta update() y lo consume paint(). */
   let lastFocus: { x: number; floor: number } | null = null;
   // Plano frontal de las estancias: la cara de la puerta. Con viviendas del doble de calado
   // (v0.6-b), el extra crece hacia el FONDO (+Z) para no envolver el pasillo ni al núcleo.
+  // v1.19: los calados del catálogo YA incluyen el +1 módulo (rules.view.depthModule) —
+  // depth 4.2 en viviendas y commonDepth 2.8 en comunes son los valores finales.
   const frontZ = v.roomZ - v.commonDepth / 2;
   /** Calado por bloque: viviendas 2× (mobiliario interior); naves del cierre (v1.16) y el
    *  tejado (con aleros) a calado de vivienda; bloques comunes, el de siempre. */
@@ -109,9 +121,12 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       centerX: cx,
       floor: b.cell.floor,
       edgesMesh: null,
+      edgesMesh2: null,
       glowForced: false,
       lodHiddenPanels: false,
     };
+    const root = new TransformNode(`${b.id}_root`, scene);
+    roots.set(b.id, root);
     if (b.layer === 'corridor') {
       // Pasillo exterior (data-driven): tira transitable saliente hacia la calle, con el borde
       // trasero a ras de fachada (frontZ) y barandilla baja en el borde exterior — sitio de
@@ -125,14 +140,40 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       }
     } else if (b.kind === 'dwelling') {
       const y = bottom + v.cellH / 2;
-      view.edgesMesh = box(`${b.id}_fondo`, w, h, v.wall, cx, y, frontZ + d, m);
-      view.greybox.push(
-        view.edgesMesh,
-        box(`${b.id}_izq`, v.wall, h, d, cx - w / 2, y, cz, m),
-        box(`${b.id}_der`, v.wall, h, d, cx + w / 2, y, cz, m),
-        box(`${b.id}_suelo`, w, v.wall, d, cx, bottom + v.slab + v.wall / 2, cz, m),
-        box(`${b.id}_techo`, w, v.wall, d, cx, bottom + v.cellH - v.slab - v.wall / 2, cz, m),
-      );
+      // ── Puerta a sala TRASERA (v1.19, apilamiento 3D): la pared del fondo se parte con el
+      // hueco del layout (doorway hacia una estancia más profunda que el bloque principal).
+      const layoutId0 = content.blocks[b.defId]?.container?.layout;
+      const layout0 = layoutId0 ? content.layouts[layoutId0] : undefined;
+      const rearKeys = new Set((layout0?.rooms ?? []).filter((r) => r.rect && r.rect.z + r.rect.d > v.depth + 0.01).map((r) => r.key));
+      const rearDoor = (layout0?.doorways ?? []).find((dw) => dw.axis === 'x' && rearKeys.has(dw.b));
+      const x0w = cx - w / 2;
+      const x1w = cx + w / 2;
+      if (rearDoor) {
+        const gapA = Math.max(x0w, x0w + rearDoor.at - rearDoor.width / 2);
+        const gapB = Math.min(x1w, x0w + rearDoor.at + rearDoor.width / 2);
+        const doorH = Math.min(h - 0.15, 1.95);
+        const lintelH = h - doorH;
+        view.edgesMesh = box(`${b.id}_fondo_i`, gapA - x0w, h, v.wall, (x0w + gapA) / 2, y, frontZ + d, m);
+        view.edgesMesh2 = box(`${b.id}_fondo_d`, x1w - gapB, h, v.wall, (gapB + x1w) / 2, y, frontZ + d, m);
+        view.greybox.push(
+          view.edgesMesh,
+          view.edgesMesh2,
+          box(`${b.id}_fondo_dintel`, gapB - gapA, lintelH, v.wall, (gapA + gapB) / 2, y + h / 2 - lintelH / 2, frontZ + d, m),
+          box(`${b.id}_izq`, v.wall, h, d, cx - w / 2, y, cz, m),
+          box(`${b.id}_der`, v.wall, h, d, cx + w / 2, y, cz, m),
+          box(`${b.id}_suelo`, w, v.wall, d, cx, bottom + v.slab + v.wall / 2, cz, m),
+          box(`${b.id}_techo`, w, v.wall, d, cx, bottom + v.cellH - v.slab - v.wall / 2, cz, m),
+        );
+      } else {
+        view.edgesMesh = box(`${b.id}_fondo`, w, h, v.wall, cx, y, frontZ + d, m);
+        view.greybox.push(
+          view.edgesMesh,
+          box(`${b.id}_izq`, v.wall, h, d, cx - w / 2, y, cz, m),
+          box(`${b.id}_der`, v.wall, h, d, cx + w / 2, y, cz, m),
+          box(`${b.id}_suelo`, w, v.wall, d, cx, bottom + v.slab + v.wall / 2, cz, m),
+          box(`${b.id}_techo`, w, v.wall, d, cx, bottom + v.cellH - v.slab - v.wall / 2, cz, m),
+        );
+      }
       view.front = box(`${b.id}_puerta`, w, h, v.wall, cx, y, frontZ, m);
       view.lock = box(`${b.id}_candado`, 0.3, 0.38, 0.12, cx, view.lockBase.y, frontZ - 0.1, mat(`${b.id}_candado_mat`));
       (view.lock.material as StandardMaterial).diffuseColor = Color3.FromHexString(v.lockColor);
@@ -196,7 +237,9 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       // TODO sale del layout del catálogo (rects + doorways); sin rects no hay interior 2D.
       const layoutId = content.blocks[b.defId]?.container?.layout;
       const layout = layoutId ? content.layouts[layoutId] : undefined;
-      const geoRooms = (layout?.rooms ?? []).filter((r) => r.rect !== undefined);
+      // Apilamiento 3D (v1.19): las salas TRASERAS no se pintan en el bloque principal — viven
+      // en su propio bloque trasero (más abajo, se activan al entrar).
+      const geoRooms = (layout?.rooms ?? []).filter((r) => r.rect !== undefined && r.rect!.z + r.rect!.d <= v.depth + 0.01);
       if (geoRooms.length > 0 && layout) {
         const interior: InteriorView = { floors: [], covers: [] };
         const x0 = b.cell.col * v.cellW;
@@ -209,7 +252,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           const fmat = mat(`${b.id}_${lr.key}_suelo_mat`);
           fmat.diffuseColor = Color3.FromHexString(content.rooms[lr.defId]?.view?.color ?? '#cccccc');
           fmat.alpha = 0.32;
-          const fm = box(`${b.id}_${lr.key}_suelo`, r.w, 0.02, r.d, x0 + r.x + r.w / 2, bottom + v.slab + v.wall + 0.02, frontZ + r.z + r.d / 2, fmat);
+          const fm = attach(b.id, box(`${b.id}_${lr.key}_suelo`, r.w, 0.02, r.d, x0 + r.x + r.w / 2, bottom + v.slab + v.wall + 0.02, frontZ + r.z + r.d / 2, fmat));
           interior.floors.push({ roomKey: lr.key, defId: lr.defId, mesh: fm, mat: fmat });
         }
         // Tabiques: para cada par de estancias que comparten borde, pared entre ambas.
@@ -247,7 +290,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
                 const g1 = Math.min(z1, frontZ + door.at + door.width / 2);
                 seg(z0, g0, 'z', wx, wallH, yC, `${b.id}_tab_${i}_${j}_i`);
                 seg(g1, z1, 'z', wx, wallH, yC, `${b.id}_tab_${i}_${j}_d`);
-                const cover = box(`${b.id}_tapa_${i}_${j}`, v.wall * 0.8, wallH, g1 - g0, wx, yC, frontZ + door.at, mat(`${b.id}_tapa_${i}_${j}_mat`));
+                const cover = attach(b.id, box(`${b.id}_tapa_${i}_${j}`, v.wall * 0.8, wallH, g1 - g0, wx, yC, frontZ + door.at, mat(`${b.id}_tapa_${i}_${j}_mat`)));
                 (cover.material as StandardMaterial).diffuseColor = Color3.FromHexString(v.lockedColor);
                 cover.setEnabled(false);
                 interior.covers.push({ mesh: cover, rooms: [lr.key, other.key] });
@@ -269,7 +312,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
                 const g1 = Math.min(xb, x0 + door.at + door.width / 2);
                 seg(xa, g0, 'x', wz, halfH, yHalf, `${b.id}_tab_${i}_${j}_i`);
                 seg(g1, xb, 'x', wz, halfH, yHalf, `${b.id}_tab_${i}_${j}_d`);
-                const cover = box(`${b.id}_tapa_${i}_${j}`, g1 - g0, halfH, v.wall * 0.8, x0 + door.at, yHalf, wz, mat(`${b.id}_tapa_${i}_${j}_mat`));
+                const cover = attach(b.id, box(`${b.id}_tapa_${i}_${j}`, g1 - g0, halfH, v.wall * 0.8, x0 + door.at, yHalf, wz, mat(`${b.id}_tapa_${i}_${j}_mat`)));
                 (cover.material as StandardMaterial).diffuseColor = Color3.FromHexString(v.lockedColor);
                 cover.setEnabled(false);
                 interior.covers.push({ mesh: cover, rooms: [lr.key, other.key] });
@@ -298,6 +341,12 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     } else {
       view.greybox.push(box(b.id, w, h, d, cx, bottom + v.cellH / 2, cz, m));
     }
+    // v1.19: toda malla estructural del bloque cuelga de su raíz (swap de bloques).
+    for (const mesh of view.greybox) mesh.parent = root;
+    if (view.front) view.front.parent = root;
+    if (view.lock) view.lock.parent = root;
+    if (view.door) view.door.parent = root;
+    if (view.handle) view.handle.parent = root;
     views.set(b.id, view);
   }
 
@@ -316,7 +365,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       const spanW = v.stairs.spanW;
       const sw = spanW * v.cellW - v.gapW;
       const sx = b.cell.col * v.cellW + sw / 2;
-      box(`${b.id}_forjado_interior`, sw, stCfg.thickness, v.commonDepth, sx, b.cell.floor * v.cellH + stCfg.topAt - stCfg.thickness / 2 - 0.005, frontZ + v.commonDepth / 2, stMat);
+      attach(b.id, box(`${b.id}_forjado_interior`, sw, stCfg.thickness, v.commonDepth, sx, b.cell.floor * v.cellH + stCfg.topAt - stCfg.thickness / 2 - 0.005, frontZ + v.commonDepth / 2, stMat));
     }
   }
 
@@ -354,6 +403,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         // El modelo se authora a dimensiones nominales con la base en y=0 y centrado en x/z.
         model.root.scaling.set(w / entry.nominal.w, h / entry.nominal.h, d / entry.nominal.d);
         model.root.position.set(b.cell.col * v.cellW + w / 2, y, cz);
+        model.root.parent = roots.get(b.id) ?? null; // v1.19: el arte también se desvanece con el bloque
         view.model = model.root;
         if (entry.overlay) {
           // Overlay (marco de puerta sobre el corte interior): DECORA — el greybox estructural
@@ -365,6 +415,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           view.baseColor = model.baseColor.map((c) => new Color3(c.r, c.g, c.b));
           view.tintStrength = entry.tintStrength ?? 0.6;
           view.edgesMesh = null; // el modelo no lleva EdgesRenderer (no hay pared destacada greybox)
+          view.edgesMesh2 = null;
           for (const mesh of view.greybox) mesh.setEnabled(false);
         }
       });
@@ -373,14 +424,17 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
 
   // ── Multi-vivienda destacada: borde blanco en la pared del fondo de TODAS las viviendas del jugador ──
   // (la actual del jugador además recibe el doble de grosor; el criterio es el ownerId, no el catálogo).
+  // v1.19: la pared del fondo puede estar PARTIDA (puerta a sala trasera) — edges en ambos tramos.
   const homeId = world.residents[world.playerId]!.home;
   for (const b of Object.values(world.blocks)) {
     if (b.kind !== 'dwelling' || b.ownerId !== world.playerId) continue;
-    const wall = views.get(b.id)!.edgesMesh;
-    if (!wall) continue;
-    wall.enableEdgesRendering();
-    wall.edgesWidth = b.id === homeId ? 14 : 8;
-    wall.edgesColor = Color4.FromHexString(v.homeEdge + 'ff');
+    const view = views.get(b.id)!;
+    for (const wall of [view.edgesMesh, view.edgesMesh2]) {
+      if (!wall) continue;
+      wall.enableEdgesRendering();
+      wall.edgesWidth = b.id === homeId ? 14 : 8;
+      wall.edgesColor = Color4.FromHexString(v.homeEdge + 'ff');
+    }
   }
 
   // ── Trasteros por planta (v1.16): nave abierta con estanterías a AMBOS LADOS del pasillo
@@ -511,6 +565,9 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
   // de su vivienda. La profundidad del bloque escala la de vivienda (blockDepthFactor ×3).
   // TODO sale de rules.view.trasteros + src/game/storage.ts (una sola verdad de geometría).
   const colBlocks = Object.values(world.blocks).filter((b) => b.defId === tr.blockDefId);
+  /** Carteles guía EXTERIORES (v1.19): uno por bloque de trasteros; se rellenan por frame
+   *  con los trasteros que tienes a cada lado según la profundidad del pasillo. */
+  const guideSigns = new Map<string, { tex: import('@babylonjs/core').DynamicTexture; x0: number; plan: ReturnType<typeof storageUnitPlan>; ownTag: string; last: string }>();
   if (colBlocks.length > 0) {
     const sg = storageGeomOf(v);
     const D = sg.depth;
@@ -519,8 +576,13 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     matWallC.diffuseColor = Color3.FromHexString(tr.partitionColor);
     const matDoorC = mat('trasteros_col_puerta_mat');
     matDoorC.diffuseColor = Color3.FromHexString(sg.doorColor);
+    const matOwnDoorC = mat('trasteros_col_puerta_propia_mat');
+    matOwnDoorC.diffuseColor = Color3.FromHexString(tr.ownDoorColor);
     const matCapC = mat('trasteros_col_tapa_mat');
     matCapC.diffuseColor = Color3.FromHexString(tr.woodDark);
+    const matFacadeC = mat('trasteros_col_fachada_mat');
+    matFacadeC.diffuseColor = Color3.Lerp(Color3.FromHexString(tr.wood), Color3.FromHexString(tr.partitionColor), 0.5);
+    const homeTag = homeId.slice(homeId.lastIndexOf('_') + 1);
     /** Cartel del compartimento (mismo patrón DynamicTexture verificado: update(true)). */
     const colPlate = (name: string, label: string, own: boolean): Mesh => {
       const plate = MeshBuilder.CreatePlane(name, { width: tr.plaqueW, height: tr.plaqueH, sideOrientation: B().Mesh.DOUBLESIDE }, scene);
@@ -550,9 +612,10 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       const baseY = bottom + v.slab * 2; // ras del forjado de la nave
       const W = blk.size.w * v.cellW - v.gapW;
       const [corA, corB] = storageCorridorX(x0, sg);
+      const own = (d: BlockInstance | null) => !!d && d.id === homeId;
       // Muros laterales exteriores (cierran los extremos de las dos filas de celdas).
-      box(`${blk.id}_lado_a`, sg.wallT, sg.unitH, D, x0 + sg.wallT / 2, baseY + sg.unitH / 2, frontZ + D / 2, matWallC);
-      box(`${blk.id}_lado_b`, sg.wallT, sg.unitH, D, x0 + W - sg.wallT / 2, baseY + sg.unitH / 2, frontZ + D / 2, matWallC);
+      attach(blk.id, box(`${blk.id}_lado_a`, sg.wallT, sg.unitH, D, x0 + sg.wallT / 2, baseY + sg.unitH / 2, frontZ + D / 2, matWallC));
+      attach(blk.id, box(`${blk.id}_lado_b`, sg.wallT, sg.unitH, D, x0 + W - sg.wallT / 2, baseY + sg.unitH / 2, frontZ + D / 2, matWallC));
       for (const side of ['left', 'right'] as const) {
         const units = plan.filter((u) => u.side === side).sort((a, z) => a.index - z.index);
         const count = units.length;
@@ -565,32 +628,56 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         // son los laterales del trastero; el paso es SOLO por el pasillo central).
         for (let k = 1; k < count; k++) {
           const zEdge = frontZ + sg.wallT + k * unitD;
-          box(`${blk.id}_${side}_tab_${k}`, bandW, sg.unitH, sg.wallT, (bandA + bandB) / 2, baseY + sg.unitH / 2, zEdge, matWallC);
+          attach(blk.id, box(`${blk.id}_${side}_tab_${k}`, bandW, sg.unitH, sg.wallT, (bandA + bandB) / 2, baseY + sg.unitH / 2, zEdge, matWallC));
         }
         for (const u of units) {
           const zC = storageUnitZ(frontZ, u.index, count, sg);
           const z0u = zC - unitD / 2;
           const z1u = zC + unitD / 2;
           const dwelling = colDwell.find((d) => d.cell.floor === u.floor) ?? null;
-          const own = !!dwelling && dwelling.id === homeId;
+          const ownU = own(dwelling);
           const label = dwelling ? blockLabel(dwelling.id) : tr.emptyLabel;
           // Frente de la unidad (mira AL PASILLO): muro con hueco de puerta + dintel.
           const wallX = side === 'left' ? corA - sg.wallT / 2 : corB + sg.wallT / 2;
           const g0 = Math.max(z0u, zC - sg.doorW / 2);
           const g1 = Math.min(z1u, zC + sg.doorW / 2);
-          if (g0 - z0u > 0.01) box(`${blk.id}_${side}_${u.floor}_frente_i`, sg.wallT, sg.unitH, g0 - z0u, wallX, baseY + sg.unitH / 2, (z0u + g0) / 2, matWallC);
-          if (z1u - g1 > 0.01) box(`${blk.id}_${side}_${u.floor}_frente_d`, sg.wallT, sg.unitH, z1u - g1, wallX, baseY + sg.unitH / 2, (g1 + z1u) / 2, matWallC);
-          if (sg.unitH - sg.doorH > 0.01) box(`${blk.id}_${side}_${u.floor}_dintel`, sg.wallT, sg.unitH - sg.doorH, g1 - g0, wallX, baseY + sg.doorH + (sg.unitH - sg.doorH) / 2, zC, matWallC);
-          // Puerta CERRADA del compartimento: el interior no se ve nunca.
-          box(`${blk.id}_${side}_${u.floor}_puerta`, sg.doorW, sg.doorH, sg.wallT * 0.6, side === 'left' ? corA - sg.wallT * 0.3 : corB + sg.wallT * 0.3, baseY + sg.doorH / 2, zC, matDoorC);
+          if (g0 - z0u > 0.01) attach(blk.id, box(`${blk.id}_${side}_${u.floor}_frente_i`, sg.wallT, sg.unitH, g0 - z0u, wallX, baseY + sg.unitH / 2, (z0u + g0) / 2, matWallC));
+          if (z1u - g1 > 0.01) attach(blk.id, box(`${blk.id}_${side}_${u.floor}_frente_d`, sg.wallT, sg.unitH, z1u - g1, wallX, baseY + sg.unitH / 2, (g1 + z1u) / 2, matWallC));
+          if (sg.unitH - sg.doorH > 0.01) attach(blk.id, box(`${blk.id}_${side}_${u.floor}_dintel`, sg.wallT, sg.unitH - sg.doorH, g1 - g0, wallX, baseY + sg.doorH + (sg.unitH - sg.doorH) / 2, zC, matWallC));
+          // Puerta CERRADA del compartimento, DENTRO del plano del muro (v1.19: rellena el
+          // hueco — antes era una flagela flotante y el hueco quedaba abierto). La del
+          // JUGADOR es dorada: "como con cualquier puerta, entras solo si es la tuya".
+          attach(blk.id, box(`${blk.id}_${side}_${u.floor}_puerta`, sg.wallT * 0.6, sg.doorH, g1 - g0, wallX, baseY + sg.doorH / 2, zC, ownU ? matOwnDoorC : matDoorC));
           // Tapa superior: la celda se lee cerrada también desde arriba.
-          box(`${blk.id}_${side}_${u.floor}_tapa`, bandW, tr.plankT, unitD, (bandA + bandB) / 2, baseY + sg.unitH - tr.plankT / 2, zC, matCapC);
+          attach(blk.id, box(`${blk.id}_${side}_${u.floor}_tapa`, bandW, tr.plankT, unitD, (bandA + bandB) / 2, baseY + sg.unitH - tr.plankT / 2, zC, matCapC));
           // Cartel numerado sobre la puerta, mirando al pasillo.
-          const plate = colPlate(`${blk.id}_${side}_${u.floor}_placa`, label, own);
+          const plate = attach(blk.id, colPlate(`${blk.id}_${side}_${u.floor}_placa`, label, ownU));
           plate.rotation.y = side === 'left' ? Math.PI / 2 : -Math.PI / 2;
           plate.position.set(side === 'left' ? corA + 0.03 : corB - 0.03, baseY + sg.doorH + tr.plaqueH, zC);
         }
       }
+      // ── FACHADA del bloque (v1.19): desde fuera solo se ve el PASILLO — muro frontal con
+      // un único hueco: el acceso al pasillo central. Con esto la nave deja de estar abierta
+      // de par en par y el bloque se lee como un cuerpo cerrado con su puerta.
+      const gapH = sg.doorH + 0.2;
+      const facH = sg.unitH + 0.28;
+      const facT = sg.wallT * 1.8;
+      if (corA - x0 > 0.05) attach(blk.id, box(`${blk.id}_fachada_i`, corA - x0, facH, facT, (x0 + corA) / 2, baseY + facH / 2, frontZ + facT / 2, matFacadeC));
+      if (x0 + W - corB > 0.05) attach(blk.id, box(`${blk.id}_fachada_d`, x0 + W - corB, facH, facT, (corB + x0 + W) / 2, baseY + facH / 2, frontZ + facT / 2, matFacadeC));
+      if (facH - gapH > 0.05) attach(blk.id, box(`${blk.id}_fachada_dintel`, corB - corA, facH - gapH, facT, (corA + corB) / 2, baseY + gapH + (facH - gapH) / 2, frontZ + facT / 2, matFacadeC));
+      // ── Cartel guía EXTERIOR: sobre el hueco de acceso, mirando a la calle. Por frame
+      // muestra los trasteros que tienes a cada lado según la profundidad del pasillo.
+      const gd = tr.guide;
+      attach(blk.id, box(`${blk.id}_guia_marco`, gd.w + 0.1, gd.h + 0.1, 0.05, x0 + W / 2, baseY + sg.unitH + gd.aboveUnit + gd.h / 2, frontZ - 0.06, matCapC));
+      const guidePlate = attach(blk.id, MeshBuilder.CreatePlane(`${blk.id}_guia`, { width: gd.w, height: gd.h, sideOrientation: B().Mesh.DOUBLESIDE }, scene));
+      const guideTex = new (B().DynamicTexture)(`${blk.id}_guia_tex`, { width: 256, height: 60 }, scene, true);
+      const gm = new StandardMaterial(`${blk.id}_guia_mat`, scene);
+      gm.diffuseTexture = guideTex;
+      gm.emissiveColor = Color3.FromHexString(gd.bg).scale(0.6);
+      gm.specularColor = new Color3(0, 0, 0);
+      guidePlate.material = gm;
+      guidePlate.position.set(x0 + W / 2, baseY + sg.unitH + gd.aboveUnit + gd.h / 2, frontZ - 0.1);
+      guideSigns.set(blk.id, { tex: guideTex, x0, plan, ownTag: homeTag, last: '' });
     }
   }
 
@@ -615,16 +702,16 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       const x = b.cell.col * v.cellW + 1.6 + hash01(b.id, 200 + i) * (b.size.w * v.cellW - 3.2);
       const z = hash01(b.id, 300 + i) < 0.5 ? frontZ - 0.18 : frontZ - v.corridorDepth + 0.2;
       const s = 0.85 + hash01(b.id, 400 + i) * 0.3;
-      const pot = MeshBuilder.CreateCylinder(`${b.id}_maceta_${i}`, { diameter: pt.potR * 2, height: pt.potH }, scene);
+      const pot = attach(b.id, MeshBuilder.CreateCylinder(`${b.id}_maceta_${i}`, { diameter: pt.potR * 2, height: pt.potH }, scene));
       pot.position.set(x, ySlab + (pt.potH * s) / 2, z);
       pot.scaling.set(s, s, s);
       pot.material = mPot;
-      const soil = MeshBuilder.CreateCylinder(`${b.id}_tierra_${i}`, { diameter: pt.potR * 1.7, height: 0.04 }, scene);
+      const soil = attach(b.id, MeshBuilder.CreateCylinder(`${b.id}_tierra_${i}`, { diameter: pt.potR * 1.7, height: 0.04 }, scene));
       soil.position.set(x, ySlab + pt.potH * s + 0.01, z);
       soil.scaling.set(s, s, s);
       soil.material = mSoil;
       const bushH = 0.3 + hash01(b.id, 500 + i) * 0.16;
-      const bush = MeshBuilder.CreateCylinder(`${b.id}_planta_${i}`, { diameterTop: 0.02, diameterBottom: pt.potR * 1.5, height: bushH }, scene);
+      const bush = attach(b.id, MeshBuilder.CreateCylinder(`${b.id}_planta_${i}`, { diameterTop: 0.02, diameterBottom: pt.potR * 1.5, height: bushH }, scene));
       bush.position.set(x, ySlab + pt.potH * s + bushH / 2 - 0.01, z);
       bush.scaling.set(s, s, s);
       bush.material = hash01(b.id, 600 + i) < 0.5 ? mPlantA : mPlantB;
@@ -661,11 +748,159 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           z = frontZ + 0.35 + slotIdx * 0.32;
         }
         const fm = mat(`${b.id}_${layoutRoom.key}_${slot.id}_furn`);
-        const mesh = box(`${b.id}_${layoutRoom.key}_${slot.id}_furn`, 1, 1, 1, x, bottom + v.slab, z, fm);
+        const mesh = attach(b.id, box(`${b.id}_${layoutRoom.key}_${slot.id}_furn`, 1, 1, 1, x, bottom + v.slab, z, fm));
         mesh.setEnabled(false);
         furnViews.set(`${b.id}:${layoutRoom.key}:${slot.id}`, { mesh, mat: fm, x, z, bottom, y: slot.y ?? null });
       });
     });
+  }
+
+  // ── APILAMIENTO 3D DE BLOQUES (v1.19) ── bloques TRASEROS inactivos que se ACTIVAN al
+  // entrar: el bloque precedente se desvanece (fundido) y el nuevo aparece con transparencia
+  // hasta visualizarse, identificado por un contorno ROJO grueso en todo el perímetro frontal
+  // (el que da hacia el pasillo). Dos familias:
+  //   · Cuarto trasero de cada vivienda (layout con estancia más profunda que el bloque).
+  //   · Interior presentable del trastero PROPIO (bloques por columna: solo tu puerta abre).
+  const rb = v.rearBlock;
+  const rears = new Map<string, { node: TransformNode; outline: Mesh[]; doorLeaf: Mesh | null; mainRoot: TransformNode; phase: 'idle' | 'peek' | 'inside'; mainAlpha: number; rearAlpha: number; settled: boolean }>();
+  const matRearWall = mat('rear_muro_mat');
+  matRearWall.diffuseColor = Color3.FromHexString('#d8d2c4');
+  const matRearOutline = mat('rear_contorno_mat');
+  matRearOutline.emissiveColor = Color3.FromHexString(rb.outline);
+  matRearOutline.diffuseColor = Color3.FromHexString(rb.outline);
+  const matRearJunk = tr.junk.map((hex, i) => {
+    const jm = mat(`rear_trasto_${i}_mat`);
+    jm.diffuseColor = Color3.FromHexString(hex);
+    return jm;
+  });
+  const matRearLamp = mat('rear_lampara_mat');
+  matRearLamp.emissiveColor = Color3.FromHexString(rb.lampColor);
+  /** Contorno ROJO grueso del perímetro frontal (4 listones): la firma del bloque activo. */
+  const outlineFrame = (name: string, cxr: number, wR: number, hR: number, yBase: number, zF: number): Mesh[] => {
+    const t = 0.06;
+    return [
+      box(`${name}_co_sup`, wR, t, t, cxr, yBase + hR, zF, matRearOutline),
+      box(`${name}_co_inf`, wR, t, t, cxr, yBase, zF, matRearOutline),
+      box(`${name}_co_izq`, t, hR, t, cxr - wR / 2, yBase + hR / 2, zF, matRearOutline),
+      box(`${name}_co_der`, t, hR, t, cxr + wR / 2, yBase + hR / 2, zF, matRearOutline),
+    ];
+  };
+  const registerRear = (blockId: string, node: TransformNode, outline: Mesh[], doorLeaf: Mesh | null): void => {
+    node.setEnabled(false);
+    rears.set(blockId, { node, outline, doorLeaf, mainRoot: roots.get(blockId)!, phase: 'idle', mainAlpha: 1, rearAlpha: 0, settled: true });
+  };
+  // ── Cuartos traseros de vivienda ──
+  for (const b of Object.values(world.blocks)) {
+    if (b.kind !== 'dwelling') continue;
+    const layoutId = content.blocks[b.defId]?.container?.layout;
+    const layout = layoutId ? content.layouts[layoutId] : undefined;
+    const rearRooms = (layout?.rooms ?? []).filter((r) => r.rect && r.rect.z + r.rect.d > v.depth + 0.01);
+    if (rearRooms.length === 0) continue;
+    const rect = rearRooms[0]!.rect!;
+    const rdef = content.rooms[rearRooms[0]!.defId];
+    const rearDoor = (layout?.doorways ?? []).find((dw) => dw.axis === 'x' && rearRooms.some((r) => r.key === dw.b));
+    const bottom = b.cell.floor * v.cellH;
+    const x0 = b.cell.col * v.cellW;
+    const rx = x0 + rect.x;
+    const rw = rect.w;
+    const rz0 = frontZ + rect.z;
+    const rd = rect.d;
+    const hR = v.cellH - v.gapH;
+    const yR = bottom + v.cellH / 2;
+    const baseR = bottom + v.slab * 2;
+    const node = new TransformNode(`${b.id}_rear_root`, scene);
+    const matFloor = mat(`${b.id}_rear_suelo_mat`);
+    matFloor.diffuseColor = Color3.FromHexString(rdef?.view?.color ?? '#b08968');
+    box(`${b.id}_rear_suelo`, rw, v.slab * 2, rd, rx + rw / 2, baseR - v.slab, rz0 + rd / 2, matFloor).parent = node;
+    box(`${b.id}_rear_fondo`, rw, hR, v.wall, rx + rw / 2, yR, rz0 + rd - v.wall / 2, matRearWall).parent = node;
+    box(`${b.id}_rear_izq`, v.wall, hR, rd, rx + v.wall / 2, yR, rz0 + rd / 2, matRearWall).parent = node;
+    box(`${b.id}_rear_der`, v.wall, hR, rd, rx + rw - v.wall / 2, yR, rz0 + rd / 2, matRearWall).parent = node;
+    box(`${b.id}_rear_techo`, rw, v.wall, rd, rx + rw / 2, bottom + v.cellH - v.slab - v.wall / 2, rz0 + rd / 2, matRearWall).parent = node;
+    box(`${b.id}_rear_lampara`, Math.min(1.2, rw * 0.4), 0.06, 0.1, rx + rw / 2, bottom + v.cellH - v.slab - v.wall - 0.08, rz0 + rd / 2, matRearLamp).parent = node;
+    // Frente con el hueco de la puerta (mismas medidas que la pared partida del bloque).
+    const gapA = rx + (rearDoor ? Math.max(0, rearDoor.at - rearDoor.width / 2) : rw / 2 - 0.5);
+    const gapB = rx + (rearDoor ? Math.min(rw, rearDoor.at + rearDoor.width / 2) : rw / 2 + 0.5);
+    const doorH = Math.min(hR - 0.15, 1.95);
+    if (gapA - rx > 0.02) box(`${b.id}_rear_frente_i`, gapA - rx, hR, v.wall, (rx + gapA) / 2, yR, rz0 + v.wall / 2 + 0.005, matRearWall).parent = node;
+    if (rx + rw - gapB > 0.02) box(`${b.id}_rear_frente_d`, rx + rw - gapB, hR, v.wall, (gapB + rx + rw) / 2, yR, rz0 + v.wall / 2 + 0.005, matRearWall).parent = node;
+    if (hR - doorH > 0.02) box(`${b.id}_rear_frente_dintel`, gapB - gapA, hR - doorH, v.wall, (gapA + gapB) / 2, yR + hR / 2 - (hR - doorH) / 2, rz0 + v.wall / 2 + 0.005, matRearWall).parent = node;
+    // Hoja de puerta cerrada: visible solo con el bloque inactivo (se abre al activarse).
+    const pv = v.privacy;
+    const doorLeaf = box(`${b.id}_rear_hoja`, gapB - gapA - 0.04, doorH - 0.04, 0.05, (gapA + gapB) / 2, baseR + (doorH - 0.04) / 2, rz0 + v.wall + 0.05, mat(`${b.id}_rear_hoja_mat`));
+    (doorLeaf.material as StandardMaterial).diffuseColor = Color3.FromHexString(pv.doorColor);
+    doorLeaf.parent = node;
+    // Bártulos deterministas (hash01 del bloque — jamás RNG del sim).
+    for (let j = 0; j < rb.junk; j++) {
+      const jw = 0.35 + hash01(b.id, 1100 + j) * 0.6;
+      const jh = 0.25 + hash01(b.id, 1200 + j) * 0.45;
+      const jm = matRearJunk[Math.floor(hash01(b.id, 1300 + j) * matRearJunk.length) % matRearJunk.length]!;
+      box(`${b.id}_rear_trasto_${j}`, jw, jh, 0.5, rx + 0.4 + hash01(b.id, 1400 + j) * Math.max(0.1, rw - 0.9), baseR + jh / 2, rz0 + 0.5 + hash01(b.id, 1500 + j) * Math.max(0.1, rd - 1.0), jm).parent = node;
+    }
+    const outline = outlineFrame(`${b.id}_rear`, rx + rw / 2, rw, hR, baseR, rz0 - 0.04);
+    for (const o of outline) o.parent = node;
+    registerRear(b.id, node, outline, doorLeaf);
+  }
+  // ── Interior presentable del TRASTERO PROPIO (uno por bloque de columna; solo tu puerta abre).
+  if (colBlocks.length > 0) {
+    const sg2 = storageGeomOf(v);
+    const homeTag2 = homeId.slice(homeId.lastIndexOf('_') + 1);
+    for (const blk of colBlocks) {
+      const tag = blk.id.slice(blk.id.lastIndexOf('_') + 1);
+      if (tag !== homeTag2) continue; // solo la columna del jugador tiene interior presentable
+      const colDwell = dwellingsOrdered.filter((d) => d.id.endsWith(`_${tag}`));
+      const plan = storageUnitPlan(v, colDwell.map((d) => d.cell.floor));
+      const unit = plan.find((u) => u.floor === (world.blocks[homeId]?.cell.floor ?? -1));
+      if (!unit) continue;
+      const x0 = blk.cell.col * v.cellW;
+      const bottom = blk.cell.floor * v.cellH;
+      const W = blk.size.w * v.cellW - v.gapW;
+      const H = sg2.unitH + 0.5;
+      const D = tr.cellRoomDepth;
+      const cxr = x0 + W / 2;
+      const baseR = bottom + v.slab * 2;
+      const czr = frontZ + D / 2;
+      const node = new TransformNode(`${blk.id}_cell_root`, scene);
+      const matCell = mat(`${blk.id}_cell_muro_mat`);
+      matCell.diffuseColor = Color3.Lerp(Color3.FromHexString(tr.wood), Color3.FromHexString(tr.partitionColor), 0.35);
+      box(`${blk.id}_cell_suelo`, W, v.slab * 2, D, cxr, bottom + v.slab, czr, matCell).parent = node;
+      box(`${blk.id}_cell_fondo`, W, H, v.wall, cxr, baseR + H / 2, frontZ + D - v.wall / 2, matCell).parent = node;
+      box(`${blk.id}_cell_izq`, v.wall, H, D, x0 + v.wall / 2, baseR + H / 2, czr, matCell).parent = node;
+      box(`${blk.id}_cell_der`, v.wall, H, D, x0 + W - v.wall / 2, baseR + H / 2, czr, matCell).parent = node;
+      box(`${blk.id}_cell_techo`, W, v.wall, D, cxr, baseR + H + v.wall / 2, czr, matCell).parent = node;
+      box(`${blk.id}_cell_lampara`, Math.min(1.2, W * 0.35), 0.06, 0.1, cxr, baseR + H - 0.08, czr, matRearLamp).parent = node;
+      // Estanterías del fondo: 2 bahías × cellShelfTiers baldas (mismo dialecto visual que
+      // las naves v1.16) y trastos deterministas del propietario.
+      const tierH = 0.5;
+      const bayW = Math.min(1.6, (W - 0.8) / 2);
+      const matPost = mat('trasteros_poste_mat');
+      matPost.diffuseColor = Color3.FromHexString(tr.woodDark);
+      const matPlank = mat('trasteros_tabla_mat');
+      matPlank.diffuseColor = Color3.FromHexString(tr.wood);
+      for (let bay = 0; bay < 2; bay++) {
+        const bx = cxr + (bay === 0 ? -1 : 1) * (bayW / 2 + 0.25);
+        for (const side of [-1, 1] as const) {
+          box(`${blk.id}_cell_poste_${bay}_${side}`, tr.postW, tr.cellShelfTiers * tierH, tr.shelfD, bx + side * (bayW / 2), baseR + (tr.cellShelfTiers * tierH) / 2, frontZ + D - 0.3, matPost).parent = node;
+        }
+        for (let t = 1; t <= tr.cellShelfTiers; t++) {
+          box(`${blk.id}_cell_balda_${bay}_${t}`, bayW, tr.plankT, tr.shelfD, bx, baseR + t * tierH - tr.plankT / 2, frontZ + D - 0.3, matPlank).parent = node;
+          if (hash01(homeId, 2100 + bay * 10 + t) < 0.6) {
+            const jw = 0.3 + hash01(homeId, 2200 + bay * 10 + t) * 0.5;
+            const jh = 0.18 + hash01(homeId, 2300 + bay * 10 + t) * 0.22;
+            const jm = matRearJunk[Math.floor(hash01(homeId, 2400 + bay * 10 + t) * matRearJunk.length) % matRearJunk.length]!;
+            box(`${blk.id}_cell_trasto_${bay}_${t}`, jw, jh, tr.shelfD * 0.7, bx + (hash01(homeId, 2500 + bay * 10 + t) - 0.5) * Math.max(0.05, bayW - jw - 0.1), baseR + (t - 1) * tierH + tr.plankT + jh / 2, frontZ + D - 0.3, jm).parent = node;
+          }
+        }
+      }
+      for (let j = 0; j < tr.cellJunk; j++) {
+        const jw = 0.35 + hash01(homeId, 2600 + j) * 0.6;
+        const jh = 0.22 + hash01(homeId, 2700 + j) * 0.4;
+        const jm = matRearJunk[Math.floor(hash01(homeId, 2800 + j) * matRearJunk.length) % matRearJunk.length]!;
+        box(`${blk.id}_cell_suelo_trasto_${j}`, jw, jh, 0.5, x0 + 0.5 + hash01(homeId, 2900 + j) * Math.max(0.1, W - 1.1), baseR + jh / 2, frontZ + 0.5 + hash01(homeId, 3000 + j) * Math.max(0.1, D - 1.2), jm).parent = node;
+      }
+      const outline = outlineFrame(`${blk.id}_cell`, cxr, W, H, baseR, frontZ - 0.04);
+      for (const o of outline) o.parent = node;
+      registerRear(blk.id, node, outline, null);
+    }
   }
 
   function color(b: BlockInstance): Color3 {
@@ -780,6 +1015,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       // lo harían: el primero lo dispone y el segundo recomputaría las aristas). El grosor/color
       // viven en la malla y sobreviven al apagado. Los modelos glTF no tienen edges (edgesMesh null).
       if (view.edgesMesh?.edgesRenderer) view.edgesMesh.edgesRenderer.isEnabled = !hideEdges;
+      if (view.edgesMesh2?.edgesRenderer) view.edgesMesh2.edgesRenderer.isEnabled = !hideEdges;
       // 'glow': pisa el emissive CADA frame (paint() pudo repintar los canales este tick); al soltarlo,
       // una única llamada repinta el cálculo de paint para no esperar al próximo tick.
       if (hideGlow) {
@@ -845,14 +1081,30 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       shakes.set(blockId, 0.4);
     },
     /**
+     * Apilamiento 3D (v1.19): fase del bloque trasero de `blockId`.
+     *  · 'idle'   — bloque inactivo (todo como siempre).
+     *  · 'peek'   — el jugador se acerca a la puerta del fondo: el bloque trasero asoma por
+     *               el hueco (transparencia → visible) y la hoja se abre.
+     *  · 'inside' — cruzaste: el bloque principal SE DESVANECE y el trasero queda en primer
+     *               plano con su contorno rojo.
+     */
+    setRearPhase(blockId: string, phase: 'idle' | 'peek' | 'inside'): void {
+      const r = rears.get(blockId);
+      if (r) r.phase = phase;
+    },
+    hasRear(blockId: string): boolean {
+      return rears.has(blockId);
+    },
+    /**
      * dt en segundos; `focus` es el punto de interés (posición del jugador) para el
      * LOD por distancia (rules.view.lod): applyLod() lo aplica SIEMPRE al final del frame
      * (con focus undefined, p. ej. cámara 'edificio', restaura el estado completo).
      * `inside` es el bloque donde está el jugador ahora (pos.insideBlock): alimenta la
      * privacidad y re-evalúa las fachadas CADA frame — un vecino que llega a casa abre
      * su interior al instante, sin esperar al siguiente tick.
+     * `pos` (v1.19) alimenta los carteles guía de trasteros y el apilamiento 3D.
      */
-    update(dt: number, focus?: { x: number; floor: number }, inside?: string | null) {
+    update(dt: number, focus?: { x: number; floor: number }, inside?: string | null, pos?: { x: number; z: number; insideBlock: string | null }) {
       if (focus) lastFocus = focus;
       if (inside !== undefined) playerInside = inside;
       // PRIVACIDAD (v1.17) cada frame: la fachada de una vivienda sin nadie dentro se cierra
@@ -865,6 +1117,72 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           if (b.kind !== 'dwelling') continue;
           applyPanels(views.get(b.id)!, b, occ);
         }
+      }
+      // CARTELES GUÍA (v1.19): visibles solo con el jugador dentro del bloque de trasteros;
+      // texto = los trasteros que tienes a cada lado según la profundidad del pasillo.
+      const sgG = colBlocks.length > 0 ? storageGeomOf(v) : null;
+      for (const [blkId, sign] of guideSigns) {
+        const active = !!pos && pos.insideBlock === blkId && !!sgG;
+        const plate = scene.getMeshByName(`${blkId}_guia`);
+        const frame = scene.getMeshByName(`${blkId}_guia_marco`);
+        plate?.setEnabled(active);
+        frame?.setEnabled(active);
+        if (!active || !sgG) continue;
+        const localZ = pos!.z; // en modo 'inside' de trasteros, z es profundidad local
+        const usable = sgG.depth - 2 * sgG.wallT;
+        const perSide = new Map<string, number>();
+        for (const u of sign.plan) perSide.set(u.side, (perSide.get(u.side) ?? 0) + 1);
+        const labelOf = (side: 'left' | 'right'): string => {
+          const count = perSide.get(side) ?? 0;
+          if (count === 0) return tr.emptyLabel;
+          const idx = Math.max(0, Math.min(count - 1, Math.floor((localZ - sgG.wallT) / (usable / count))));
+          const unit = sign.plan.find((u) => u.side === side && u.index === idx);
+          return unit ? blockLabel(`blk_p${unit.floor}_${sign.ownTag}`) : tr.emptyLabel;
+        };
+        const left = labelOf('left');
+        const right = labelOf('right');
+        const key = `${left}|${right}`;
+        if (sign.last !== key) {
+          sign.last = key;
+          const ctx = sign.tex.getContext() as unknown as CanvasRenderingContext2D;
+          ctx.fillStyle = tr.guide.bg;
+          ctx.fillRect(0, 0, 256, 60);
+          ctx.font = 'bold 30px Arial, sans-serif';
+          ctx.textBaseline = 'middle';
+          ctx.fillStyle = tr.guide.text;
+          ctx.textAlign = 'left';
+          ctx.fillText('◀', 10, 32);
+          ctx.textAlign = 'center';
+          const ownLeft = left.includes(sign.ownTag.toUpperCase());
+          const ownRight = right.includes(sign.ownTag.toUpperCase());
+          ctx.fillStyle = ownLeft ? tr.ownBg : tr.guide.text;
+          ctx.fillText((ownLeft ? '★ ' : '') + left, 88, 32);
+          ctx.fillStyle = ownRight ? tr.ownBg : tr.guide.text;
+          ctx.fillText((ownRight ? '★ ' : '') + right, 176, 32);
+          ctx.fillStyle = tr.guide.text;
+          ctx.textAlign = 'right';
+          ctx.fillText('▶', 248, 32);
+          sign.tex.update(true);
+        }
+      }
+      // APILAMIENTO 3D (v1.19): avanzar los fundidos de los bloques traseros.
+      for (const r of rears.values()) {
+        const mainT = r.phase === 'inside' ? 0 : 1;
+        const rearT = r.phase === 'idle' ? 0 : 1;
+        if (r.settled && r.mainAlpha === mainT && r.rearAlpha === rearT) continue;
+        const mRate = dt / Math.max(0.05, rb.fadeSeconds);
+        const rRate = dt / Math.max(0.05, rb.peekSeconds);
+        r.mainAlpha += Math.sign(mainT - r.mainAlpha) * Math.min(Math.abs(mainT - r.mainAlpha), mRate);
+        r.rearAlpha += Math.sign(rearT - r.rearAlpha) * Math.min(Math.abs(rearT - r.rearAlpha), rRate);
+        r.settled = r.mainAlpha === mainT && r.rearAlpha === rearT;
+        const mainKids = r.mainRoot.getChildMeshes();
+        for (const k of mainKids) k.visibility = r.mainAlpha;
+        r.mainRoot.setEnabled(r.mainAlpha > 0.002);
+        const rearKids = r.node.getChildMeshes();
+        for (const k of rearKids) k.visibility = r.rearAlpha;
+        r.node.setEnabled(r.rearAlpha > 0.002);
+        for (const o of r.outline) o.setEnabled(r.mainAlpha < 0.55 && r.rearAlpha > 0.4);
+        if (r.doorLeaf) r.doorLeaf.setEnabled(r.rearAlpha < 0.2);
       }
       for (const [id, left] of shakes) {
         const view = views.get(id)!;

@@ -344,7 +344,7 @@
       "nominal": {
         "w": 2.4,
         "h": 2.6,
-        "d": 1.4
+        "d": 2.8
       },
       "tintStrength": 0.55
     },
@@ -353,7 +353,7 @@
       "nominal": {
         "w": 4.68,
         "h": 2.46,
-        "d": 1.4
+        "d": 2.8
       },
       "tintStrength": 0.5
     },
@@ -362,7 +362,7 @@
       "nominal": {
         "w": 4.68,
         "h": 2.46,
-        "d": 1.4
+        "d": 2.8
       },
       "spanW": 2,
       "tintStrength": 0.5
@@ -447,6 +447,16 @@
         "d": 2.8
       },
       "overlay": true
+    },
+    "escaleras_cota": {
+      "model": "blocks/escaleras_cota.gltf",
+      "nominal": {
+        "w": 4.68,
+        "h": 2.46,
+        "d": 2.8
+      },
+      "spanW": 2,
+      "tintStrength": 0.5
     }
   }
 }

@@ -5,6 +5,7 @@ import type { AchievementDef, Command, Content, CutsceneDef, GameEvent, Input, M
 import type { CommandResult } from '@/game/sim';
 import { blockLabel } from '@/game/core/types';
 import { loadContent } from '@/game/content';
+import { layoutGeometryOf, roomAt } from '@/game/interior';
 import { evaluateAchievements, type AchievementSnapshot } from '@/game/support/achievements';
 import { syncCampaign } from '@/game/support/campaign';
 import { activeObjective, applyEffects, buildCirculation, createWorld, dispatch, drainEvents, migrateRooms, tick, travelMinutes, visibleParams } from '@/game/sim';
@@ -258,6 +259,18 @@ class GameController {
       }
     }
     const r = this.logic.interact();
+    if (r.type === 'rearEnter') {
+      // Apilamiento 3D (v1.19): el swap lo ejecuta building.update por fases; aquí solo
+      // encuadra la cámara dentro del bloque trasero.
+      this.setCamMode('estancia');
+      this.pump();
+      return;
+    }
+    if (r.type === 'rearExit') {
+      this.setCamMode('planta');
+      this.pump();
+      return;
+    }
     if (r.type === 'entered') this.setCamMode('estancia');
     else if (r.type === 'exited') this.setCamMode('planta');
     else if (r.type === 'used') this.presentInteraction(r.kind);
@@ -821,10 +834,59 @@ class GameController {
     // LOD por distancia: solo con cámaras cercanas (planta/estancia); el plano general (edificio) muestra todo.
     // Privacidad (v1.17): el tercer argumento es el bloque donde está el jugador — las fachadas
     // de las viviendas reaccionan al instante cuando entra o sale.
-    this.building.update(dt, useGameStore.getState().camMode === 'edificio' ? undefined : { x: pos.x, floor: pos.floor }, pos.insideBlock);
+    // v1.19: el cuarto argumento alimenta carteles guía de trasteros y el apilamiento 3D.
+    this.syncRear(pos);
+    this.building.update(
+      dt,
+      useGameStore.getState().camMode === 'edificio' ? undefined : { x: pos.x, floor: pos.floor },
+      pos.insideBlock,
+      { x: pos.x, z: pos.z, insideBlock: pos.insideBlock },
+    );
     this.rig.update(dt, pos);
     this.scene.render();
   };
+
+  /**
+   * Apilamiento 3D (v1.19): cada frame decide la fase del bloque trasero activo (y apaga el
+   * resto). Trastero propio: E manda ('inside' mientras rearCell). Cuarto trasero de la
+   * vivienda: asoma al acercarte a la puerta del fondo ('peek') y se activa al cruzar ('inside').
+   */
+  private syncRear(pos: ReturnType<PlayerLogic['position']>): void {
+    if (!this.building || !this.world || !this.logic) return;
+    let activeId: string | null = null;
+    let phase: 'idle' | 'peek' | 'inside' = 'idle';
+    if (this.logic.rearCell) {
+      activeId = this.logic.rearCell.block;
+      phase = 'inside';
+    } else if (pos.mode === 'inside' && pos.insideBlock) {
+      const b = this.world.blocks[pos.insideBlock];
+      if (b && b.kind === 'dwelling') {
+        const geo = layoutGeometryOf(this.content, b);
+        const depth = this.content.rules.view.depth;
+        const rear = geo?.rooms.find((r) => r.rect.z + r.rect.d > depth + 0.01);
+        if (geo && rear) {
+          const localX = pos.x - b.cell.col * this.content.rules.view.cellW;
+          const room = roomAt(geo, localX, pos.z);
+          const rearDoor = geo.doorways.find((d) => d.axis === 'x' && d.b === rear.key);
+          const near =
+            rearDoor &&
+            pos.z > depth - this.content.rules.view.rearBlock.peekDistance &&
+            Math.abs(localX - rearDoor.at) < rearDoor.width / 2 + 0.3;
+          if (room.key === rear.key) {
+            activeId = b.id;
+            phase = 'inside';
+          } else if (near) {
+            activeId = b.id;
+            phase = 'peek';
+          }
+        }
+      }
+    }
+    for (const b of Object.values(this.world.blocks)) {
+      if (!this.building.hasRear(b.id)) continue;
+      this.building.setRearPhase(b.id, b.id === activeId ? phase : 'idle');
+    }
+  }
 
   /** Bomba de sincronización: reparte eventos pendientes y refresca el HUD. */
   private pump(): void {
@@ -1126,6 +1188,10 @@ class GameController {
           return ic.laptop;
         case 'bed':
           return ic.bed;
+        case 'storageCell':
+          return ic.storageEnter;
+        case 'rearExit':
+          return ic.rearExit;
       }
     }
     const zone = logic.zone();
