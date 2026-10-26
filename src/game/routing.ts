@@ -26,18 +26,25 @@ export interface RouteLegXZ {
   z: number;
 }
 
-/** Bloque bajo los pies: se sale de la banda por SU puerta (x clampeada a su ancho). */
+/** Bloque bajo los pies: se sale de la banda por SU puerta (x clampeada a su ancho).
+ *  v1.28 — doorX/geo: si el anfitrión tiene puerta frontal (vivienda), la SALIDA camina por
+ *  dentro hasta el hueco (interiorRoute) y cruza POR ÉL — jamás a través de la fachada. */
 export interface HostSpan {
   x0: number;
   w: number;
+  doorX?: number;
+  geo?: LayoutGeometry | null;
 }
 
-/** Destino con interior 2D: geometría del catálogo y objetivo en coords locales. */
+/** Destino con interior 2D: geometría del catálogo y objetivo en coords locales.
+ *  v1.28 — doorX: la ENTRADA se hace por el hueco de la puerta frontal (el corte real de la
+ *  fachada), no por la x del objetivo (cruzaba la pared a la altura de la cama). */
 export interface DestInside {
   x0: number;
   w: number;
   geo: LayoutGeometry;
   target: Pt;
+  doorX?: number;
 }
 
 export interface HorizontalRouteInput {
@@ -80,9 +87,28 @@ export function horizontalLegs(input: HorizontalRouteInput): RouteLegXZ[] {
 
   // ── 1. Salida de la banda por la puerta del bloque bajo los pies (solo cambio de z en SU x).
   //    Se omite si el destino es ese mismo bloque: nadie sale de casa para irse a casa.
+  //    v1.28 — con puerta propia (doorX + geometría), la salida camina por DENTRO hasta el
+  //    hueco (tabiques del catálogo manda) y cruza por él: el vecino que duerme en la
+  //    trasera sale por la puerta, no a través del salón ni de la fachada.
   if (inBand(input.from.z) && !inThisBlock) {
-    const exitX = input.hostSpan ? clamp(input.from.x, input.hostSpan.x0 + m, input.hostSpan.x0 + input.hostSpan.w - m) : input.from.x;
-    legs.push({ x: exitX, z: frontZ + 0.45 });
+    const hs = input.hostSpan;
+    const doorExit = !!hs?.doorX && !!hs?.geo;
+    let exitX: number;
+    if (doorExit) {
+      exitX = hs!.doorX!;
+      const fromLocal: Pt = { x: input.from.x - hs!.x0, z: input.from.z - frontZ };
+      const doorLocal: Pt = { x: Math.min(hs!.w - m, Math.max(m, exitX - hs!.x0)), z: 0.45 };
+      const route = interiorRoute(hs!.geo!, fromLocal, doorLocal);
+      if (route) {
+        for (const p of route) legs.push({ x: hs!.x0 + p.x, z: frontZ + p.z });
+      } else {
+        legs.push({ x: exitX, z: input.from.z });
+        legs.push({ x: exitX, z: frontZ + 0.45 });
+      }
+    } else {
+      exitX = hs ? clamp(input.from.x, hs.x0 + m, hs.x0 + hs.w - m) : input.from.x;
+      legs.push({ x: exitX, z: frontZ + 0.45 });
+    }
     legs.push({ x: exitX, z: corr });
   }
 
@@ -99,8 +125,11 @@ export function horizontalLegs(input: HorizontalRouteInput): RouteLegXZ[] {
         legs.push({ x: d.x0 + clamp(d.target.x, m, d.w - m), z: frontZ + 0.6 });
       }
     } else {
-      // Desde fuera: pasillo hasta la x de entrada, entrar por el frente y ruta interior.
-      const entryLocal = clamp(d.target.x, m, d.w - m);
+      // Desde fuera: pasillo hasta la x de la PUERTA (v1.28: el hueco real de la fachada,
+      // no la x del objetivo — eso atravesaba la pared), entrar por el frente y ruta interior.
+      const entryLocal = d.doorX !== undefined
+        ? clamp(d.doorX - d.x0, m, d.w - m)
+        : clamp(d.target.x, m, d.w - m);
       const entryX = d.x0 + entryLocal;
       legs.push({ x: entryX, z: corr });
       legs.push({ x: entryX, z: frontZ + 0.45 });

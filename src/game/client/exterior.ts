@@ -241,6 +241,11 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
       }
     }
     // ── Vegetación: 1D a lo largo de la tira o DISPERSIÓN 2D con topes (jardines enormes). ──
+    // v1.28 — keepOut (catálogo): rectángulos del mundo donde NO nacen árboles/arbustos
+    // (el vecino no quiere verde tapando el portal); lo que cae dentro se salta.
+    const keepOut = cfg.keepOut ?? [];
+    const isKeepOut = (x: number, z: number): boolean =>
+      keepOut.some((r) => x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1);
     const scatter = ex.gridScatter || row.gridScatter;
     const cap = (n: number, max: number | undefined): number => (max === undefined ? n : Math.min(max, n));
     const treeEvery = ex.treesPer10m > 0 ? 10 / ex.treesPer10m : 0;
@@ -253,6 +258,7 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
         const u = scatter ? u0 + hash01(`tree${ri}`, i) * uLen : u0 + treeEvery * (i + 0.5) + (hash01(`tree${ri}`, i) - 0.5) * treeEvery * 0.5;
         const v = scatter ? v0 + 0.5 + hash01(`treeV${ri}`, i) * (vLen - 1) : v0 + 0.5 + hash01(`treeZ${ri}`, i) * (vLen - 1);
         const p = at(u, v);
+        if (isKeepOut(p.x, p.z)) continue; // v1.28: nada de árboles tapando el portal
         const s = 0.85 + hash01(`treeS${ri}`, i) * 0.5;
         if (arts.length > 0) {
           // RECORTE 2D (v1.24): quad frontal a escala real, variante por hash; el material
@@ -297,6 +303,7 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
         const u = scatter ? u0 + hash01(`bush${ri}`, i) * uLen : u0 + bushEvery * (i + 0.5) + (hash01(`bush${ri}`, i) - 0.5) * bushEvery * 0.6;
         const v = scatter ? v0 + 0.35 + hash01(`bushV${ri}`, i) * (vLen - 0.7) : v0 + 0.35 + hash01(`bushZ${ri}`, i) * (vLen - 0.7);
         const p = at(u, v);
+        if (isKeepOut(p.x, p.z)) continue; // v1.28: los arbustos respetan el portal también
         const s = 0.5 + hash01(`bushS${ri}`, i) * 0.45;
         const mat = bushes[Math.floor(hash01(`bushC${ri}`, i) * bushes.length) % bushes.length]!;
         sphere(`calle_${ri}_arbusto`, props, 0.9 * s, p.x, ex.height + 0.34 * s, p.z, mat).parent = propsNode;
@@ -310,6 +317,37 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
       }
     }
   });
+
+  // ── Árboles COLOCADOS (v1.28, catálogo): posiciones EXPLÍCITAS del mundo — el vecino pidió
+  // desplazar el que tapaba el portal "a la parte derecha de la imagen": el keepOut lo retira
+  // y una pieza forzada lo replanta donde la vista lo agradece. Mismo pipeline de recorte 2D
+  // y fusión que los dispersos (un draw call más por arte, nunca por árbol).
+  for (const [fi, ft] of (cfg.forcedTrees ?? []).entries()) {
+    const arts = cfg.treeArt ?? [];
+    if (arts.length === 0) break;
+    const art = ft.art ? arts.find((a) => a.art === ft.art) ?? arts[0]! : arts[Math.floor(hash01('treeF', fi) * arts.length) % arts.length]!;
+    const loaded = treeTexOf(art.art, art.keyTolerance ?? 0.12, art.w, art.h);
+    const key = `arbol:${art.art}`;
+    const tm = mats.get(key) ?? (() => {
+      const m2 = new StandardMaterial(key, scene);
+      m2.diffuseTexture = loaded!.tex;
+      m2.opacityTexture = loaded!.tex;
+      m2.useAlphaFromDiffuseTexture = true;
+      m2.transparencyMode = 2;
+      m2.alphaCutOff = 0.45;
+      m2.specularColor = new Color3(0, 0, 0);
+      m2.backFaceCulling = true;
+      mats.set(key, m2);
+      return m2;
+    })();
+    const h = art.h * (ft.s ?? 1);
+    const q = MeshBuilder.CreatePlane(`calle_forzado_arbol${fi}`, { width: h * loaded!.ar, height: h }, scene);
+    q.position.set(ft.x, -0.02 + h / 2 - 0.03, ft.z);
+    q.material = tm;
+    q.isPickable = false;
+    push(props, key, q);
+    q.parent = propsNode;
+  }
 
   // ── COCINADO (v1.22): una malla por material y grupo. El mobiliario fusionado cuelga del
   // nodo de vista "edificio"; las estáticas se quedan sueltas en la escena. Bounding infos

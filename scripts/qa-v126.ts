@@ -115,7 +115,7 @@ check('MODEL_YAW_OFFSET exportado en actors', actorsTs.includes('MODEL_YAW_OFFSE
 check('actors aplica el offset en la rotación del nodo', (actorsTs.match(/MODEL_YAW_OFFSET/g) ?? []).length >= 3);
 check('pedestrians aplica el offset', pedestriansTs.includes('MODEL_YAW_OFFSET'));
 check('ecosystem aplica el offset (vecinos y extras)', ecosystemTs.includes('MODEL_YAW_OFFSET'));
-check('la manifestación mira a la dirección de marcha (v1.27: offset compartido π)', srcOf('src/game/client/streetlife.ts').includes('rig.root.rotation.y = dir > 0 ? MODEL_YAW_OFFSET : 0;'));
+check('la manifestación mira a la dirección de marcha (v1.28: offset compartido 0)', srcOf('src/game/client/streetlife.ts').includes('rig.root.rotation.y = (dir > 0 ? 0 : Math.PI) + MODEL_YAW_OFFSET;'));
 
 // ── 11. Repartidor creíble ──
 console.log('\n── Repartidor: anda, sube y llama a puertas ──');

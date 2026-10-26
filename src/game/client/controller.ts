@@ -66,6 +66,8 @@ class GameController {
   private pedestrians: PedestriansDirector | null = null;
   private streetlife: StreetlifeDirector | null = null;
   private voices: VoicesDirector | null = null;
+  /** Bloom/glow de las luces (v1.28): halo realista sobre materiales emisivos (catálogo). */
+  private glowLayer: { dispose(): void } | null = null;
 
   private get content(): Content {
     if (!this._content) throw new Error('El catálogo de contenido todavía no se ha cargado');
@@ -721,6 +723,18 @@ class GameController {
     // evoluciona con el sol (el edificio vive la misma hora que el cielo).
     this.backdrop?.dispose();
     this.backdrop = createBackdrop(this.scene, this.world, this.content, { hemi, dir: dirLight });
+    // V1.28 — BLOOM/GLOW (catálogo): los emisivos (apliques de puerta, farolas, ventanas
+    // nocturnas del fondo, pantallitas del ascensor, luz del cubo) ganan halo suave. Una
+    // capa GlowLayer por escena; intensidad y kernel del catálogo (rules.view.glow).
+    const glowCfg = this.content.rules.view.glow;
+    this.glowLayer?.dispose();
+    this.glowLayer = null;
+    if (glowCfg?.enabled) {
+      const { GlowLayer } = B();
+      const gl = new GlowLayer('luz_bloom', this.scene, { blurKernelSize: glowCfg.blurKernelSize ?? 32 });
+      gl.intensity = glowCfg.intensity ?? 0.7;
+      this.glowLayer = gl;
+    }
     // Calle (v1.20): aceras, carretera y jardines con sus props; las farolas leen la luz
     // de día del fondo para encenderse al anochecer.
     this.exterior?.dispose();

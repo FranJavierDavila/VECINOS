@@ -12,21 +12,18 @@ import type { ElevatorsDirector } from './elevator';
 const frontZOf = (roomZ: number, commonDepth: number): number => roomZ - commonDepth / 2;
 
 /**
- * V1.27 — CORRECCIÓN DEFINITIVA DE ORIENTACIÓN (sustituye el −π/2 de v1.26, que dejaba el
- * cuerpo de FRENTE al andar de lado y las piernas/brazos bombeando en un plano PERPENDICULAR
- * a la marcha — el vaivén es rígido respecto al cuerpo, así que un solo giro mal lo torcía
- * todo). Diagnóstico empírico en vivo (probes de la escena): el visor del rig (autoría glTF
- * "mira a +X") apunta a mundo −X con rotación 0 (el loader voltea la autoría 180°) y
- * rotation.y = α lo lleva a (−cos α, +sin α). Con la convención de rutas yaw = atan2(−dz, dx)
- * la dirección de marcha es (cos yaw, −sin yaw)… y la igualdad solo se cumple con α = yaw + π:
- * π es el ÚNICO offset que alinea el morro con la marcha en TODAS las direcciones. Bonus: los
- * clips (zancadas de piernas/brazos sobre Z local, sentado con rodillas al frente, teléfono a
- * la oreja…) fueron authorados para "el modelo mira a +X", y con este offset la X del contenido
- * ES la dirección de marcha — todos los gestos quedan coherentes de una vez.
- * rotación.y = yaw + MODEL_YAW_OFFSET. El yaw INTERNO (rutas, faceToward, gestos) no cambia:
- * la corrección vive SOLO en el punto de escritura de la rotación del nodo.
+ * V1.28 — ORIENTACIÓN VERIFICADA CON PROBE EN VIVO (zanja la saga v1.26 −π/2 → v1.27 π):
+ * el rig se authora MIRANDO A +X (el visor de la gorra cuelga en +X local, la coleta en −X)
+ * y el loader glTF NO voltea nada: con rotation.y = α el morro apunta a (cos α, −sin α),
+ * EXACTAMENTE la convención de las rutas (yaw = atan2(−dz, dx) → marcha (cos yaw, −sin yaw)).
+ * Probe cuantitativo (jugador andando +X): mv=[+0.79, 0] con offset π daba front=[−1, 0]
+ * (¡caminando de espaldas!) — con offset 0 el morro coincide con la marcha en TODAS las
+ * direcciones y las extremidades siguen bombeando en plano PARALELO (el eje de swing de los
+ * clips es Z local → zancada sobre X local = eje de marcha). Los clips (sentado, teléfono…)
+ * quedan coherentes con su authoría original sin ningún giro.
+ * rotación.y = yaw + MODEL_YAW_OFFSET. El yaw INTERNO (rutas, faceToward, gestos) no cambia.
  */
-export const MODEL_YAW_OFFSET = Math.PI;
+export const MODEL_YAW_OFFSET = 0;
 
 interface Actor {
   /** Residente dueño del nodo (para las rutas de ascensor y depuración). */
@@ -235,13 +232,20 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
   };
   /** Plano frontal de las viviendas: z local 0 de los interiores y origen del pasillo. */
   const frontZ = frontZOf(v.roomZ, v.commonDepth);
-  /** Bloque main bajo los pies (v1.14): para salir de la banda de viviendas por SU puerta. */
-  const hostSpanAt = (x: number, floor: number): { x0: number; w: number } | null => {
+  /** Bloque main bajo los pies (v1.14): para salir de la banda de viviendas por SU puerta.
+   *  v1.28 — doorX/geo: las viviendas aportan la x de su puerta frontal (el hueco real de la
+   *  fachada) y su geometría 2D: la salida camina por dentro hasta el hueco y cruza por él. */
+  const hostSpanAt = (x: number, floor: number): { x0: number; w: number; doorX?: number; geo?: ReturnType<typeof layoutGeometryOf> } | null => {
     for (const b of Object.values(world.blocks)) {
       if (b.cell.floor !== floor || b.layer !== 'main') continue;
       const x0 = b.cell.col * v.cellW;
       const w = b.size.w * v.cellW;
-      if (x >= x0 && x <= x0 + w) return { x0, w };
+      if (x >= x0 && x <= x0 + w) {
+        // Puerta frontal = centro del bloque (la hoja de privacidad se monta en cx) — solo vivienda.
+        const doorX = b.kind === 'dwelling' ? x0 + w / 2 : undefined;
+        const geo = b.kind === 'dwelling' ? layoutGeometryOf(content, b) : null;
+        return { x0, w, doorX, geo };
+      }
     }
     return null;
   };
@@ -336,7 +340,17 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
       dest: { x: dest.x, z: dest.z },
       destInside:
         dest.inside && destGeo
-          ? { x0: dest.inside.block.cell.col * v.cellW, w: dest.inside.block.size.w * v.cellW, geo: destGeo, target: dest.inside.local }
+          ? {
+              x0: dest.inside.block.cell.col * v.cellW,
+              w: dest.inside.block.size.w * v.cellW,
+              geo: destGeo,
+              target: dest.inside.local,
+              // v1.28: entrar por el HUECO de la puerta (el corte de la fachada), no por la x
+              // del objetivo — la cama vive en otra x y el vecino atravesaba la pared.
+              doorX: dest.inside.block.kind === 'dwelling'
+                ? (dest.inside.block.cell.col + dest.inside.block.size.w / 2) * v.cellW
+                : undefined,
+            }
           : null,
       hostSpan: hostSpanAt(startX, Math.round(dest.y / v.cellH)),
     });
@@ -611,7 +625,7 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
           let clip: string | null;
           if (a.gesture) clip = a.gesture;
           else if (speedH > v.runSpeed) clip = 'run';
-          else if (speedH > 0.25) clip = walkClip;
+          else if (speedH > 0.15) clip = walkClip; // v1.28: parar ANTES de seguir "andando en el sitio"
           else if (activityClip) clip = activityClip;
           else if (a.seated && a.path.length === 0) clip = 'sit';
           else clip = null;

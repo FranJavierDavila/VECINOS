@@ -1045,6 +1045,8 @@ export interface Rules {
       callColor: string;
       brokenColor: string;
       rideZ: number;
+      /** v1.28 — pantallita junto a las puertas con la planta de la cabina (y flecha). */
+      indicator?: { w: number; h: number; dx: number; y: number };
     };
     /** Velocidad (m/s) a partir de la cual un actor en marcha usa el clip "run". */
     runSpeed: number;
@@ -1153,10 +1155,18 @@ export interface Rules {
       lockArt?: string;
       lockW?: number;
       lockH?: number;
+      /** v1.28 — candado SOBRE la puerta (dx del centro en fracción del ancho, yFrac de la
+       *  hoja desde su base — altura del tirador — y out separado del plano de la hoja). */
+      lockOnDoor?: { dx: number; yFrac: number; out: number };
       night?: { dayCutoff: number; dioGlow: number; floorGlow: number; lampGlow: number };
       lamp?: { side: -1 | 1; dx: number; dy: number; color: string; glowColor: string };
     };
     roomZ: number;
+    /** Suelo de los pasillos (v1.28): losetas cuadradas (~40 cm) gris clarito con junta
+     *  del catálogo; `tile` es el lado de la baldosa en metros. */
+    corridorFloor?: { color: string; grout: string; tile: number };
+    /** Bloom/glow de las luces (v1.28): halo realista de los materiales emisivos. */
+    glow?: { enabled: boolean; intensity: number; blurKernelSize?: number };
     /** Calado (profundidad en Z) de las viviendas: doblado en v0.6-b para mobiliario interior. */
     depth: number;
     /** Módulo de profundidad (v1.19): TODOS los bloques crecen 1 módulo hacia el fondo. */
@@ -1216,6 +1226,10 @@ export interface Rules {
       /** v1.24 — árboles como RECORTEs 2D (billboards de recorte, fundidos por arte).
        *  Presente → sustituye a las esferas 3D; ausente → fallback greybox de siempre. */
       treeArt?: { art: string; w: number; h: number; keyTolerance?: number }[];
+      /** v1.28 — rectángulos del mundo sin árboles ni arbustos (nada de verde tapando el
+       *  portal) y piezas COLOCADAS a mano (el árbol del portal, replantado a la derecha). */
+      keepOut?: { x0: number; x1: number; z0: number; z1: number }[];
+      forcedTrees?: { x: number; z: number; art?: string; s?: number }[];
     };
     /** ── Tráfico (v1.22) ── vehículos ocasionales (coches, bus, patrulla) por carriles;
      *  solo presentación y solo vista "edificio". */
@@ -1285,6 +1299,9 @@ export interface Rules {
         redrawSeconds: number;
         keyframes: { hour: number; top: string; horizon: string; ambient: number; sun: number }[];
         weatherDim: Record<string, number>;
+        /** v1.28 — velado de día de lluvia: el cielo se funde hacia estos colores y el
+         *  sol/luna se retiran (rain/storm marcan cuánto: 0..1). */
+        overcast?: { top: string; horizon: string; rain: number; storm: number };
         sunColorDay: string;
         sunColorLow: string;
         sunSize: number;
@@ -1307,8 +1324,11 @@ export interface Rules {
         stormColor: string;
         alphaClear: number;
         alphaCloudy: number;
+        /** v1.28 — con lluvia las nubes engordan hasta cerrar el cielo (1 = sin cambio). */
+        stormScale?: number;
       };
-      /** Lluvia (v1.21): partículas de trazo cuando el clima es rain/storm. */
+      /** Lluvia (v1.21): partículas de trazo cuando el clima es rain/storm.
+       *  v1.28: `wash` apaga la ciudad del fondo con el cielo cerrado. */
       rain: {
         count: number;
         stormCount: number;
@@ -1318,6 +1338,7 @@ export interface Rules {
         alpha: number;
         length: number;
         width: number;
+        wash?: { color: string; alpha: number };
       };
     };
   };

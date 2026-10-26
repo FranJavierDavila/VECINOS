@@ -29,6 +29,9 @@ interface BlockView {
   /** Raíz del modelo glTF si este bloque ya lo lleva (null = greybox). */
   model: TransformNode | null;
   front: Mesh | null; // fachada que cierra la vivienda (candado o privacidad)
+  /** v1.28 — la fachada PARTIDA alrededor del hueco de la puerta (izq/der/dintel/umbral):
+   *  los personajes entran y salen POR EL HUECO, nunca a través de la pared. */
+  frontParts: Mesh[];
   /** Puerta y picaporte de la fachada de privacidad (v1.17): la vivienda vacía se ve cerrada. */
   door: Mesh | null;
   handle: Mesh | null;
@@ -339,6 +342,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       tintStrength: 1,
       model: null,
       front: null,
+      frontParts: [],
       door: null,
       handle: null,
       lock: null,
@@ -360,6 +364,43 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       // sobra para que los personajes se crucen o charlen sin bailar el vacío.
       const d = v.corridorDepth;
       view.greybox.push(box(b.id, b.size.w * v.cellW, v.slab * 2, d, cx, bottom + v.slab, frontZ - d / 2, m));
+      // ── SUELO DE LOSETAS (v1.28): gris clarito con baldosas cuadradas de ~40 cm (catálogo).
+      //  Plano propio SOBRE la losa (4 mm, nada coplanar) con textura de 2×2 baldosas y
+      //  uScale/vScale derivados del metro real: la junta mide tile metros en el mundo.
+      //  Fuera del greybox a propósito: sobrevive al arte glTF del pasillo y acompaña al
+      //  bloque en el swap (cuelga de su raíz).
+      const cf = v.corridorFloor;
+      if (cf) {
+        const tex = new (B().DynamicTexture)(`${b.id}_losas_tex`, { width: 256, height: 256 }, scene, true);
+        const tctx = tex.getContext() as unknown as CanvasRenderingContext2D;
+        const half = 128;
+        for (let ty = 0; ty < 2; ty++) {
+          for (let tx = 0; tx < 2; tx++) {
+            const shade = (tx + ty) % 2 === 0 ? 1 : 0.955; // alternancia sutil tipo terrazo
+            const base = Color3.FromHexString(cf.color);
+            tctx.fillStyle = `rgb(${Math.round(base.r * 255 * shade)},${Math.round(base.g * 255 * shade)},${Math.round(base.b * 255 * shade)})`;
+            tctx.fillRect(tx * half, ty * half, half, half);
+          }
+        }
+        tctx.strokeStyle = cf.grout;
+        tctx.lineWidth = 5;
+        tctx.strokeRect(0.5, 0.5, 255, 255); // junta exterior (cada baldosa cierra contra su vecina)
+        tctx.beginPath();
+        tctx.moveTo(half, 0); tctx.lineTo(half, 256);
+        tctx.moveTo(0, half); tctx.lineTo(256, half);
+        tctx.stroke();
+        tex.update(true);
+        tex.uScale = Math.max(1, Math.round((b.size.w * v.cellW) / (cf.tile * 2)));
+        tex.vScale = Math.max(1, Math.round(d / (cf.tile * 2)));
+        const fmat = mat(`${b.id}_losas_mat`);
+        fmat.diffuseTexture = tex;
+        fmat.specularColor = new Color3(0.03, 0.03, 0.03);
+        const floor = MeshBuilder.CreateGround(`${b.id}_losas`, { width: b.size.w * v.cellW, height: d }, scene);
+        floor.position.set(cx, bottom + v.slab * 2 + 0.004, frontZ - d / 2);
+        floor.material = fmat;
+        floor.isPickable = false;
+        floor.parent = root;
+      }
       if (v.corridorRail > 0) {
         view.greybox.push(
           box(`${b.id}_barandilla`, b.size.w * v.cellW, v.corridorRail, v.wall, cx, bottom + v.slab * 2 + v.corridorRail / 2, frontZ - d, m),
@@ -406,7 +447,28 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           box(`${b.id}_techo`, w, v.wall, d, cx, bottom + v.cellH - v.slab - v.wall / 2, cz, m),
         );
       }
-      view.front = box(`${b.id}_puerta`, w, h, v.wall, cx, y, frontZ, m);
+      // ── FACHADA PARTIDA (v1.28): la pared frontal se abre con el HUECO REAL de la puerta
+      //  (privacy.doorW × doorH en el centro, la misma caja que la hoja de privacidad).
+      //  Antes la fachada era un muro sólido y el vecino ENTRABA A TRAVÉS de él cuando la
+      //  x del objetivo no coincidía con la puerta. Ahora: tramos laterales + dintel +
+      //  umbral; con la vivienda cerrada el hueco queda tapado por la hoja (mismo plano
+      //  puerta) y con alguien dentro es un acceso de verdad. Nada coplanar: los tramos
+      //  ABUTAN contra la hoja sin compartirla (la hoja vive en doorZ, delante del canto).
+      const doorGapW = pv.doorW;
+      const doorFloorY = bottom + v.slab + v.wall; // nivel del suelo interior (base de la hoja)
+      const gapL = Math.max(x0w, cx - doorGapW / 2);
+      const gapR = Math.min(x1w, cx + doorGapW / 2);
+      const doorTopY = Math.min(y + h / 2, doorFloorY + pv.doorH);
+      const frontPiece = (name: string, pw: number, ph: number, px: number, py: number): void => {
+        if (pw < 0.02 || ph < 0.02) return;
+        const piece = box(name, pw, ph, v.wall, px, py, frontZ, m);
+        view.frontParts.push(piece);
+        if (!view.front) view.front = piece;
+      };
+      frontPiece(`${b.id}_puerta_i`, gapL - x0w, h, (x0w + gapL) / 2, y); // tramo izquierdo completo
+      frontPiece(`${b.id}_puerta_d`, x1w - gapR, h, (gapR + x1w) / 2, y); // tramo derecho completo
+      frontPiece(`${b.id}_puerta_dintel`, gapR - gapL, y + h / 2 - doorTopY, (gapL + gapR) / 2, (doorTopY + y + h / 2) / 2); // dintel
+      frontPiece(`${b.id}_puerta_umbral`, gapR - gapL, doorFloorY - (y - h / 2), (gapL + gapR) / 2, (doorFloorY + y - h / 2) / 2); // umbral bajo la hoja
       // ── ZÓCALO (v1.25→v1.26): banda gris de ~25 cm desde el suelo, CORTADA en la puerta
       //  (dos tramos, sin cruzar el acceso — petición expresa del vecino). Continúa en el
       //  MARCO de la puerta (mismo material). Todo del catálogo (rules.view.privacy).
@@ -428,8 +490,13 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         attach(b.id, box(`${b.id}_zocalo_izq`, v.wall + 0.02, skH, d - 2 * v.wall, cx - w / 2 + v.wall / 2, ySk, cz, skMat)),
         attach(b.id, box(`${b.id}_zocalo_der`, v.wall + 0.02, skH, d - 2 * v.wall, cx + w / 2 - v.wall / 2, ySk, cz, skMat)),
       );
+      // Plano de la hoja de privacidad (compartido por candado y puerta): ligeramente
+      // delante del canto de la fachada para no compartir plano con ella (regla de la casa).
+      const doorZ = frontZ - v.wall / 2 - 0.035;
       // Candado DIBUJADO (v1.25): quad con silueta real de candado — los candados en forma
       // de caja desaparecen. Cuelga de la puerta de privacidad y sigue sacudiéndose.
+      // v1.28 — SOBRE LA PUERTA, a la altura del tirador y ligeramente separada de la hoja
+      // (petición del vecino): nada del candado flotando al lado de la puerta.
       const lh = pv.lockH ?? 0.28;
       const lw = lh * Math.max(0.5, Math.min(1.2, lockTexAr));
       const lockMat = mat(`${b.id}_candado_mat`);
@@ -442,7 +509,12 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       view.lock = MeshBuilder.CreatePlane(`${b.id}_candado`, { width: lw, height: lh }, scene);
       view.lock.material = lockMat;
       view.lock.isPickable = false;
-      view.lock.position.set(cx - pv.doorW / 2 - 0.32, view.lockBase.y, frontZ - v.wall / 2 - 0.07);
+      const ld = pv.lockOnDoor;
+      const lockX = ld ? cx + pv.doorW * ld.dx : cx - pv.doorW / 2 - 0.32;
+      const lockY = ld ? doorFloorY + pv.doorH * ld.yFrac : view.lockBase.y;
+      const lockZ = ld ? doorZ - ld.out : frontZ - v.wall / 2 - 0.07;
+      view.lock.position.set(lockX, lockY, lockZ);
+      view.lockBase = { x: lockX, y: lockY }; // el sacudido respeta el ancla nueva
       view.lock.setEnabled(false);
 
       // ── Privacidad (v1.24→v1.26): la puerta es un PLANO con arte real (full-bleed y
@@ -451,7 +523,6 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       //  glTF (oculto por hideNodes). Aplique de luz a un lado (brilla de noche).
       //  Se activan/desactivan cada frame según haya alguien dentro (propietario, visita…
       //  o un ladrón); medidas y colores del catálogo (rules.view.privacy).
-      const doorZ = frontZ - v.wall / 2 - 0.035;
       view.door = MeshBuilder.CreatePlane(`${b.id}_puerta_priv`, { width: pv.doorW, height: pv.doorH }, scene);
       view.door.position.set(cx, bottom + v.slab + v.wall + pv.doorH / 2, doorZ);
       const doorMat = mat(`${b.id}_puerta_priv_mat`);
@@ -722,7 +793,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     }
     // v1.19: toda malla estructural del bloque cuelga de su raíz (swap de bloques).
     for (const mesh of view.greybox) mesh.parent = root;
-    if (view.front) view.front.parent = root;
+    for (const p of view.frontParts) p.parent = root; // v1.28: fachada partida entera
     if (view.lock) view.lock.parent = root;
     if (view.door) view.door.parent = root;
     if (view.handle) view.handle.parent = root;
@@ -849,8 +920,12 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     const stairDoorTex = (art: string, numberColor: string, floor: number): DynamicTexture => {
       const hit = stairDoorTexCache.get(floor);
       if (hit) return hit;
-      const TW = 384;
-      const TH = Math.round((TW * stF.doorW) / stF.doorH);
+      // v1.28 — ENCAJE PERFECTO DE VERDAD: el canvas respeta la proporción RETRATO del plano
+      // (doorW 0.86 × doorH 1.84). v1.27 lo tenía AL REVÉS (384×apaisado): el cover-fit
+      // recortaba el arte a panorama y el vuelco al plano vertical lo APLASTABA — la hoja
+      // se veía estirada y mal colocada. Mismo patrón que doorArtTex (H fijo 768, W proporcional).
+      const TH = 768;
+      const TW = Math.max(32, Math.round((TH * stF.doorW) / stF.doorH));
       const dt = new (B().DynamicTexture)(`puerta_esc_${floor}_tex`, { width: TW, height: TH }, scene, true);
       stairDoorTexCache.set(floor, dt);
       const img = new Image();
@@ -1873,6 +1948,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     }
     const wall = (locked || privacyClosed) && !view.lodHiddenPanels;
     view.front?.setEnabled(wall);
+    for (const p of view.frontParts) p.setEnabled(wall); // v1.28: fachada partida — todo o nada
     view.door?.setEnabled(wall);
     view.handle?.setEnabled(wall);
     for (const d of view.doorDecor) d.setEnabled(wall);

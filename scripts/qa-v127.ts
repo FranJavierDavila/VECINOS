@@ -78,7 +78,7 @@ check('vidrio del ventanal entra en la autoiluminación nocturna', buildingTs.in
 console.log('── 4. Texturas de puerta: un vuelco + encaje perfecto ──');
 check('doorLeafCanvas: recorte cover-fit a la proporción del plano', buildingTs.includes('const targetAr = outW / outH;') && buildingTs.includes('ctx.drawImage(big, cx, cy, Math.max(1, cw), Math.max(1, ch), 0, 0, outW, outH);'));
 check('doorArtTex: canvas con proporción privacy.doorW/doorH', buildingTs.includes('const W = Math.round((H * pw) / ph);'));
-check('stairDoorTex: canvas con proporción doorW/doorH del cubo', buildingTs.includes('const TH = Math.round((TW * stF.doorW) / stF.doorH);'));
+check('stairDoorTex: canvas con proporción doorW/doorH del cubo (v1.28: retrato H fijo)', buildingTs.includes('const TW = Math.max(32, Math.round((TH * stF.doorW) / stF.doorH));'));
 check('ascensor: mitad re-encajada a su caja (sin 15% de compresión)', elevatorTs.includes('const TW = Math.round((768 * 0.56) / 1.94);'));
 check('puertas full-bleed nuevas en disco', exists('/art/interiors/raw/door_casa_a.png') && exists('/art/interiors/raw/door_comunal.png'));
 
@@ -135,8 +135,8 @@ const activeJson = ['missions.json', 'cutscenes.json', 'ecosystem.json', 'rules.
 check('sin referencias a bloques retirados (p4/p5/p3_d)', !/blk_p[45]_[a-z]+|blk_p3_d|blk_p4_pasillo/.test(activeJson));
 
 console.log('── 8. Orientación definitiva (offset π) ──');
-check('MODEL_YAW_OFFSET = Math.PI en actors.ts', actorsTs.includes('export const MODEL_YAW_OFFSET = Math.PI;'));
-check('streetlife marcha usa el MISMO offset', streetlifeTs.includes('rig.root.rotation.y = dir > 0 ? MODEL_YAW_OFFSET : 0;'));
+check('MODEL_YAW_OFFSET = 0 en actors.ts (v1.28, verificado con probe: el morro coincide con la marcha)', actorsTs.includes('export const MODEL_YAW_OFFSET = 0;'));
+check('streetlife marcha usa el MISMO offset (v1.28: 0/π según el sentido)', streetlifeTs.includes('rig.root.rotation.y = (dir > 0 ? 0 : Math.PI) + MODEL_YAW_OFFSET;'));
 check('pedestrians usa el offset compartido', srcOf('src/game/client/pedestrians.ts').includes('MODEL_YAW_OFFSET'));
 
 console.log('── Sim intacto ──');

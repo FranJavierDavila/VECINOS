@@ -396,6 +396,22 @@
           "w": 3.0,
           "h": 3.4
         }
+      ],
+      "keepOut": [
+        {
+          "x0": -9.0,
+          "x1": 8.5,
+          "z0": -4.4,
+          "z1": 6.6
+        }
+      ],
+      "forcedTrees": [
+        {
+          "x": 33.8,
+          "z": 2.4,
+          "art": "/art/trees/tree_round.png",
+          "s": 1.05
+        }
       ]
     },
     "traffic": {
@@ -597,7 +613,11 @@
         "color": "#cfe3f2",
         "alpha": 0.5,
         "length": 0.55,
-        "width": 0.035
+        "width": 0.035,
+        "wash": {
+          "color": "#9aa3ad",
+          "alpha": 0.34
+        }
       },
       "sky": {
         "redrawSeconds": 6,
@@ -681,7 +701,13 @@
         "moonSize": 1.8,
         "stars": 130,
         "starColor": "#dfe7f2",
-        "horizonY": 12
+        "horizonY": 12,
+        "overcast": {
+          "top": "#8e97a3",
+          "horizon": "#aeb4ba",
+          "rain": 0.85,
+          "storm": 1.0
+        }
       },
       "clouds": {
         "count": 11,
@@ -692,7 +718,8 @@
         "color": "#ffffff",
         "stormColor": "#7d848f",
         "alphaClear": 0.9,
-        "alphaCloudy": 0.95
+        "alphaCloudy": 0.95,
+        "stormScale": 1.7
       }
     },
     "lod": {
@@ -800,7 +827,13 @@
       "callColor": "#ffd166",
       "brokenColor": "#c1666b",
       "rideZ": 0.35,
-      "doorArt": "/art/interiors/raw/door_ascensor.png"
+      "doorArt": "/art/interiors/raw/door_ascensor.png",
+      "indicator": {
+        "w": 0.24,
+        "h": 0.18,
+        "dx": -0.76,
+        "y": 1.12
+      }
     },
     "plaque": {
       "w": 0.85,
@@ -930,8 +963,8 @@
       "gapFill": {
         "color": "#dbd8d2",
         "pad": 0.04,
-        "protrude": 0.012,
-        "stagger": 0.008
+        "protrude": 0.03,
+        "stagger": 0.01
       },
       "skirtingDoorGap": true,
       "coverArt": "/art/interiors/raw/door_casa_a.png",
@@ -957,9 +990,24 @@
       "solera": {
         "color": "#c9c6bf",
         "h": 0.13,
-        "protrude": 0.016,
-        "stagger": 0.008
+        "protrude": 0.034,
+        "stagger": 0.01
+      },
+      "lockOnDoor": {
+        "dx": 0.22,
+        "yFrac": 0.52,
+        "out": 0.05
       }
+    },
+    "corridorFloor": {
+      "color": "#d8d7d2",
+      "grout": "#b6b4ac",
+      "tile": 0.4
+    },
+    "glow": {
+      "enabled": true,
+      "intensity": 0.45,
+      "blurKernelSize": 32
     }
   },
   "demo": {

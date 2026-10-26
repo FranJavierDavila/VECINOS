@@ -51,6 +51,8 @@ interface Shaft {
   mats: { cabin: StandardMaterial; door: StandardMaterial; call: StandardMaterial; broken: StandardMaterial; off: StandardMaterial };
   doorPanels: Map<number, { left: Mesh; right: Mesh }>;
   callButtons: Map<number, Mesh>;
+  /** v1.28 — pantallita junto a las puertas: planta donde está la cabina (y flecha de marcha). */
+  indicator: { tex: DynamicTexture; mat: StandardMaterial; shown: string } | null;
   state: ShaftState;
   queue: { actorId: string; from: number; to: number }[];
   passengers: { actorId: string; to: number; slot: number }[];
@@ -224,6 +226,21 @@ export function createElevators(scene: Scene, world: World, content: Content): E
     cabin.position.set(info.x, info.floors[0]! * v.cellH, frontZ + 0.4);
     const doorPanels = new Map<number, { left: Mesh; right: Mesh }>();
     const callButtons = new Map<number, Mesh>();
+    // v1.28 — PANTALLA DE PLANTA (catálogo): junto a las puertas (lado espejo del botón de
+    // llamada) un display con la planta de la cabina y flecha de marcha; UNA textura por
+    // pozo (todas las plantas enseñan lo mismo, como un ascensor de vecinos) redibujada
+    // SOLO cuando cambia lo mostrado.
+    const ind = cfg.indicator;
+    let indicator: Shaft['indicator'] = null;
+    if (ind) {
+      const tex = new (B().DynamicTexture)(`asc_indicador_${col}_tex`, { width: 128, height: 96 }, scene, true) as DynamicTexture;
+      const im = new StandardMaterial(`asc_indicador_${col}_mat`, scene);
+      im.diffuseTexture = tex;
+      im.emissiveTexture = tex;
+      im.emissiveColor = new Color3(0.55, 0.55, 0.55);
+      im.specularColor = new Color3(0, 0, 0);
+      indicator = { tex, mat: im, shown: '' };
+    }
     for (const f of info.floors) {
       const y = f * v.cellH;
       const left = box(`asc_puerta_${col}_${f}_i`, 0.56, 1.94, 0.06, info.x - 0.28, y + 0.97, doorZ, doorMatL);
@@ -231,6 +248,12 @@ export function createElevators(scene: Scene, world: World, content: Content): E
       doorPanels.set(f, { left, right });
       const btn = box(`asc_llamada_${col}_${f}`, 0.12, 0.16, 0.05, info.x + 0.76, y + 1.12, frontZ - 0.08, mats.off);
       callButtons.set(f, btn);
+      if (indicator && ind) {
+        // Cuerpo empotrado en fachada + pantalla UN POCO por delante del botón (nada coplanar).
+        box(`asc_indicador_${col}_${f}`, ind.w, ind.h, 0.05, info.x + ind.dx, y + ind.y, frontZ - 0.055, mats.off);
+        const scr = box(`asc_pantalla_${col}_${f}`, ind.w * 0.86, ind.h * 0.8, 0.012, info.x + ind.dx, y + ind.y, frontZ - 0.088, indicator.mat);
+        scr.isPickable = false;
+      }
     }
     shafts.push({
       col,
@@ -240,6 +263,7 @@ export function createElevators(scene: Scene, world: World, content: Content): E
       mats,
       doorPanels,
       callButtons,
+      indicator,
       state: { s: 'idle', at: info.floors[0]! },
       queue: [],
       passengers: [],
@@ -283,6 +307,26 @@ export function createElevators(scene: Scene, world: World, content: Content): E
     for (const [f, btn] of s.callButtons) {
       const broken = !s.floors.every((fl) => elevatorOk(s.col, fl));
       btn.material = broken ? mats.broken : called.has(f) ? mats.call : mats.off;
+    }
+    // v1.28 — pantallita: planta de la cabina + flecha de marcha; solo redibuja al cambiar.
+    if (s.indicator) {
+      const broken = !s.floors.every((fl) => elevatorOk(s.col, fl));
+      let label: string;
+      if (broken) label = '✕';
+      else if (s.state.s === 'moving') label = `${s.state.target!}${s.state.target! > s.state.at ? ' ▲' : ' ▼'}`;
+      else label = `${s.state.at}`;
+      if (label !== s.indicator.shown) {
+        s.indicator.shown = label;
+        const ctx = s.indicator.tex.getContext() as unknown as CanvasRenderingContext2D;
+        ctx.fillStyle = '#161b20';
+        ctx.fillRect(0, 0, 128, 96);
+        ctx.fillStyle = broken ? Color3.FromHexString(cfg.brokenColor).toHexString() : Color3.FromHexString(cfg.callColor).toHexString();
+        ctx.font = 'bold 58px Arial, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, 64, 52);
+        s.indicator.tex.update(true);
+      }
     }
   };
 
@@ -474,6 +518,7 @@ export function createElevators(scene: Scene, world: World, content: Content): E
           p.right.dispose();
         }
         for (const b of s.callButtons.values()) b.dispose();
+        if (s.indicator) s.indicator.tex.dispose();
       }
       shafts.length = 0;
       rides.clear();

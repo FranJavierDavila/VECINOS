@@ -761,8 +761,18 @@ export const rulesSchema = z.object({
         callColor: z.string().default('#ffd166'),
         brokenColor: z.string().default('#c1666b'),
         rideZ: z.number().default(0.35),
+        /** v1.28 — pantallita junto a las puertas: planta de la cabina + flecha de marcha.
+         *  dx negativo = al otro lado del botón de llamada; y = altura sobre el forjado. */
+        indicator: z
+          .object({
+            w: z.number().positive().default(0.24),
+            h: z.number().positive().default(0.18),
+            dx: z.number().default(-0.76),
+            y: z.number().default(1.12),
+          })
+          .default({ w: 0.24, h: 0.18, dx: -0.76, y: 1.12 }),
       })
-      .default({ capacity: 4, doorWaitMs: 5000, doorMoveMs: 700, floorsPerSecond: 1.4, accelFloorsPerSecond2: 1.2, cabinColor: '#aeb8c2', doorColor: '#cbd5e1', doorArt: '', callColor: '#ffd166', brokenColor: '#c1666b', rideZ: 0.35 }),
+      .default({ capacity: 4, doorWaitMs: 5000, doorMoveMs: 700, floorsPerSecond: 1.4, accelFloorsPerSecond2: 1.2, cabinColor: '#aeb8c2', doorColor: '#cbd5e1', doorArt: '', callColor: '#ffd166', brokenColor: '#c1666b', rideZ: 0.35, indicator: { w: 0.24, h: 0.18, dx: -0.76, y: 1.12 } }),
     /** Cartel numerado sobre cada puerta de vivienda (v1.6): el label sale del id del bloque
      *  (blk_p3_c → "3C") con DynamicTexture; tamaño, posición y colores del catálogo. */
     plaque: z
@@ -968,6 +978,15 @@ export const rulesSchema = z.object({
         lockArt: z.string().default(''),
         lockW: z.number().positive().default(0.24),
         lockH: z.number().positive().default(0.3),
+        /** v1.28 — candado SOBRE la puerta, a la altura del tirador y ligeramente separado
+         *  de la hoja (dx del centro en fracción del ancho, yFrac de la hoja, out en metros). */
+        lockOnDoor: z
+          .object({
+            dx: z.number().default(0.22),
+            yFrac: z.number().min(0).max(1).default(0.52),
+            out: z.number().min(0).default(0.05),
+          })
+          .default({ dx: 0.22, yFrac: 0.52, out: 0.05 }),
         /** v1.25 — luces nocturnas de interiores: cuánto brilla una estancia habitada
          *  de noche (emissive del diorama, suelos y lámparas). dayCutoff corta el día. */
         night: z
@@ -1008,6 +1027,7 @@ export const rulesSchema = z.object({
         lockArt: '',
         lockW: 0.24,
         lockH: 0.3,
+        lockOnDoor: { dx: 0.22, yFrac: 0.52, out: 0.05 },
         night: { dayCutoff: 0.4, dioGlow: 0.85, floorGlow: 0.7, lampGlow: 1.6 },
         lamp: { side: 1, dx: 0.68, dy: 2.1, color: '#3b3129', glowColor: '#ffd166' },
       }),
@@ -1019,6 +1039,22 @@ export const rulesSchema = z.object({
     seatAnchors: z.array(z.string()).default(['bed', 'tv', 'desk']),
     roomZ: z.number(),
     depth: z.number(),
+    /** v1.28 — suelo de los pasillos: losetas cuadradas gris clarito (tile = lado en metros). */
+    corridorFloor: z
+      .object({
+        color: z.string().default('#d8d7d2'),
+        grout: z.string().default('#b6b4ac'),
+        tile: z.number().positive().default(0.4),
+      })
+      .default({ color: '#d8d7d2', grout: '#b6b4ac', tile: 0.4 }),
+    /** v1.28 — bloom/glow de las luces: halo realista de los materiales emisivos. */
+    glow: z
+      .object({
+        enabled: z.boolean().default(true),
+        intensity: z.number().min(0).default(0.75),
+        blurKernelSize: z.number().int().min(8).default(32),
+      })
+      .default({ enabled: true, intensity: 0.75, blurKernelSize: 32 }),
     /** Módulo de profundidad (v1.19): TODOS los bloques crecen 1 módulo hacia el fondo
      *  (viviendas depth+module; comunes commonDepth+module; naves y tejado igual). */
     depthModule: z.number().min(0).default(0),
@@ -1116,8 +1152,17 @@ export const rulesSchema = z.object({
             }),
           )
           .default([]),
+        /** v1.28 — rectángulos del mundo sin árboles/arbustos (nada de verde tapando el portal). */
+        keepOut: z
+          .array(z.object({ x0: z.number(), x1: z.number(), z0: z.number(), z1: z.number() }))
+          .default([]),
+        /** v1.28 — árboles COLOCADOS a mano (posiciones explícitas del mundo): el vecino pidió
+         *  desplazar el del portal "a la parte derecha de la imagen". */
+        forcedTrees: z
+          .array(z.object({ x: z.number(), z: z.number(), art: z.string().optional(), s: z.number().positive().optional() }))
+          .default([]),
       })
-      .default({ enabled: false, rows: [], ground: { color: '#a89a7c', size: 220, backZ: 0 }, treeArt: [] }),
+      .default({ enabled: false, rows: [], ground: { color: '#a89a7c', size: 220, backZ: 0 }, treeArt: [], keepOut: [], forcedTrees: [] }),
     /** ── Tráfico (v1.22) ── vehículos ocasionales por los carriles de la carretera:
      *  coches, furgonetas, autobús y patrulla con sirena. Solo presentación (nunca sim)
      *  y solo visibles en la vista "edificio". */
@@ -1228,8 +1273,12 @@ export const rulesSchema = z.object({
             alpha: z.number().min(0).max(1).default(0.5),
             length: z.number().positive().default(0.55),
             width: z.number().positive().default(0.035),
+            /** v1.28 — lavado de la ciudad del fondo con el cielo cerrado (gris azulado). */
+            wash: z
+              .object({ color: z.string().default('#9aa3ad'), alpha: z.number().min(0).max(1).default(0.34) })
+              .default({ color: '#9aa3ad', alpha: 0.34 }),
           })
-          .default({ count: 900, stormCount: 1600, fallSpeed: 26, wind: -3.5, color: '#cfe3f2', alpha: 0.5, length: 0.55, width: 0.035 }),
+          .default({ count: 900, stormCount: 1600, fallSpeed: 26, wind: -3.5, color: '#cfe3f2', alpha: 0.5, length: 0.55, width: 0.035, wash: { color: '#9aa3ad', alpha: 0.34 } }),
         sky: z
           .object({
             /** El gradiente del cielo se repinta a cadencia (barato) y por cambio de clima. */
@@ -1248,6 +1297,16 @@ export const rulesSchema = z.object({
             weatherDim: z
               .record(z.string(), z.number())
               .default({ sunny: 1, cloudy: 0.95, rain: 0.8, storm: 0.6 }),
+            /** v1.28 — velado de día de lluvia: el cielo se funde hacia estos colores y el
+             *  sol/luna se retiran (rain/storm marcan cuánto: 0..1) — cielo CERRADO. */
+            overcast: z
+              .object({
+                top: z.string().default('#8e97a3'),
+                horizon: z.string().default('#aeb4ba'),
+                rain: z.number().min(0).max(1).default(0.85),
+                storm: z.number().min(0).max(1).default(1),
+              })
+              .default({ top: '#8e97a3', horizon: '#aeb4ba', rain: 0.85, storm: 1 }),
             sunColorDay: z.string().default('#ffd166'),
             sunColorLow: z.string().default('#f08a4b'),
             sunSize: z.number().positive().default(2.4),
@@ -1264,6 +1323,7 @@ export const rulesSchema = z.object({
             redrawSeconds: 6,
             keyframes: [],
             weatherDim: { sunny: 1, cloudy: 0.95, rain: 0.8, storm: 0.6 },
+            overcast: { top: '#8e97a3', horizon: '#aeb4ba', rain: 0.85, storm: 1 },
             sunColorDay: '#ffd166',
             sunColorLow: '#f08a4b',
             sunSize: 2.4,
@@ -1286,6 +1346,8 @@ export const rulesSchema = z.object({
             stormColor: z.string().default('#9aa0a8'),
             alphaClear: z.number().min(0).max(1).default(0.14),
             alphaCloudy: z.number().min(0).max(1).default(0.7),
+            /** v1.28 — con lluvia las nubes engordan hasta cerrar el cielo (1 = sin cambio). */
+            stormScale: z.number().min(1).default(1.7),
           })
           .default({
             count: 7,
@@ -1297,16 +1359,18 @@ export const rulesSchema = z.object({
             stormColor: '#9aa0a8',
             alphaClear: 0.14,
             alphaCloudy: 0.7,
+            stormScale: 1.7,
           }),
       })
       .default({
         enabled: false,
         layers: [],
-        rain: { count: 900, stormCount: 1600, fallSpeed: 26, wind: -3.5, color: '#cfe3f2', alpha: 0.5, length: 0.55, width: 0.035 },
+        rain: { count: 900, stormCount: 1600, fallSpeed: 26, wind: -3.5, color: '#cfe3f2', alpha: 0.5, length: 0.55, width: 0.035, wash: { color: '#9aa3ad', alpha: 0.34 } },
         sky: {
           redrawSeconds: 6,
           keyframes: [],
           weatherDim: { sunny: 1, cloudy: 0.95, rain: 0.8, storm: 0.6 },
+          overcast: { top: '#8e97a3', horizon: '#aeb4ba', rain: 0.85, storm: 1 },
           sunColorDay: '#ffd166',
           sunColorLow: '#f08a4b',
           sunSize: 2.4,
@@ -1328,6 +1392,7 @@ export const rulesSchema = z.object({
           stormColor: '#9aa0a8',
           alphaClear: 0.14,
           alphaCloudy: 0.7,
+          stormScale: 1.7,
         },
       }),
     lod: z.object({

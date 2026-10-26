@@ -341,6 +341,17 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
         ctx.globalCompositeOperation = 'source-over';
       }
     }
+    // V1.28 — LAVADO DE LLUVIA: con el cielo cerrado, la ciudad del fondo se apaga (gris
+    // azulado del catálogo sobre los píxeles de edificio; source-atop respeta el alpha).
+    const wash = cfg.rain.wash;
+    if (wash && (weather === 'rain' || weather === 'storm')) {
+      ctx.globalCompositeOperation = 'source-atop';
+      ctx.globalAlpha = wash.alpha;
+      ctx.fillStyle = wash.color;
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+    }
     ctx.filter = 'none';
     ctx.restore();
     lv.lastNight = nightF;
@@ -502,6 +513,11 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
     update(dt: number) {
       const hour = (world.clock.minute / 60) % 24;
       const kf = keyframeAt(cfg.sky, hour);
+      // V1.28 — DÍA DE LLUVIA = CIELO CERRADO (petición del vecino): con rain/storm el cielo
+      // se funde hacia el velado del catálogo (overcast), el sol y la luna se retiran y las
+      // nubes ENGORDAN (stormScale) hasta cerrar el panel.
+      const oc = cfg.sky.overcast;
+      const ocF = oc ? (world.weather.state === 'storm' ? oc.storm : world.weather.state === 'rain' ? oc.rain : 0) : 0;
       // Luz global: los keyframes MODULAN la base del catálogo (ambient/sun de view).
       const dim = cfg.sky.weatherDim[world.weather.state] ?? 1;
       daylight = Math.min(1, Math.max(0, kf.sun * dim));
@@ -509,7 +525,7 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
       lights.dir.intensity = v.sun.intensity * kf.sun * dim;
       // El sol de la escena viaja: al alba entra desde -X, al ocaso se va por +X.
       const sunAngle = ((hour - 6) / 14) * Math.PI; // 6:00 → 20:00
-      const sunUp = hour >= 5.5 && hour <= 20.5 && kf.sun > 0.02;
+      const sunUp = hour >= 5.5 && hour <= 20.5 && kf.sun > 0.02 && ocF < 0.5; // bajo nubes cerradas no hay disco
       sun.mesh.setEnabled(sunUp);
       if (sunUp) {
         const arc = Math.min(Math.PI, Math.max(0, sunAngle));
@@ -518,9 +534,9 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
         sun.mat.emissiveColor = Color3.Lerp(Color3.FromHexString(cfg.sky.sunColorDay), Color3.FromHexString(cfg.sky.sunColorLow), low);
         sun.mesh.scaling.setAll(0.85 + low * 0.5); // más grande al ras del horizonte
       }
-      // Luna: relevo nocturno (20:00 → 06:00).
+      // Luna: relevo nocturno (20:00 → 06:00) — también se esconde con el cielo cerrado.
       const nightHour = hour >= 20 ? hour - 20 : hour + 4;
-      const moonUp = hour >= 20.5 || hour <= 5.5;
+      const moonUp = (hour >= 20.5 || hour <= 5.5) && ocF < 0.5;
       moon.mesh.setEnabled(moonUp);
       if (moonUp) {
         const arc = Math.min(Math.PI, Math.max(0, (nightHour / 10) * Math.PI));
@@ -529,13 +545,15 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
       // Nubes a la deriva + alpha según el clima (despejado/nublado del catálogo).
       const stormy = world.weather.state === 'storm' || world.weather.state === 'rain';
       const cloudy = world.weather.state !== 'sunny';
-      const cloudAlpha = cloudy ? cfg.clouds.alphaCloudy : cfg.clouds.alphaClear;
+      const cloudAlpha = cloudy ? Math.min(1, cfg.clouds.alphaCloudy + ocF * 0.4) : cfg.clouds.alphaClear;
       const cloudCol = Color3.FromHexString(stormy ? cfg.clouds.stormColor : cfg.clouds.color);
+      const swell = 1 + ((cfg.clouds.stormScale ?? 1) - 1) * ocF; // engordan con el chaparrón
       for (const c of clouds) {
         c.mesh.position.x += c.speed * cfg.clouds.speed * dt;
         if (c.mesh.position.x > cx + 120) c.mesh.position.x = cx - 120;
         (c.mesh.material as StandardMaterial).alpha = cloudAlpha;
         (c.mesh.material as StandardMaterial).emissiveColor = cloudCol;
+        c.mesh.scaling.setAll(swell);
       }
       // LLUVIA: densidad según el clima (rain vs storm); con cielo seco, emisión a cero.
       // Estado estacionario: vivos ≈ emitRate × vida → emitRate = count × velocidad / altura.
@@ -546,11 +564,19 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
         rain.emitRate = wantRain ? (count * cfg.rain.fallSpeed) / 38 : 0;
       }
       // CIELO de dos bandas: color directo por frame (cero texturas, cero lag) + estrellas
-      // que asoman con la noche (suben su alpha con la oscuridad).
+      // que asoman con la noche (suben su alpha con la oscuridad). Con lluvia, el velado
+      // del catálogo tiñe ambas bandas (cielo cerrado).
       const nightF = Math.max(0, Math.min(1, (0.75 - Math.min(kf.ambient, 1)) / 0.45));
-      skyTop.mat.emissiveColor.copyFrom(kf.top);
-      skyLow.mat.emissiveColor.copyFrom(kf.horizon);
-      starMat.alpha = nightF;
+      if (ocF > 0.001 && oc) {
+        const ocTop = Color3.FromHexString(oc.top);
+        const ocHor = Color3.FromHexString(oc.horizon);
+        Color3.LerpToRef(kf.top, ocTop, ocF, skyTop.mat.emissiveColor);
+        Color3.LerpToRef(kf.horizon, ocHor, ocF, skyLow.mat.emissiveColor);
+      } else {
+        skyTop.mat.emissiveColor.copyFrom(kf.top);
+        skyLow.mat.emissiveColor.copyFrom(kf.horizon);
+      }
+      starMat.alpha = nightF * (1 - ocF); // con el cielo cerrado ni las estrellas asoman
       // Capas: repintan cuando cambia el nightF (cubo de 0.09) o el clima — no cada frame.
       for (let li = 0; li < layers.length; li++) {
         const lv = layers[li]!;

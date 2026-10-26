@@ -133,9 +133,9 @@ export function createStreetlife(
       const hex = man.colors[Math.floor(hash01('marcha_color', roll + i) * man.colors.length) % man.colors.length]!;
       const rig = factory.make(hex, i === 0 ? man.megaphoneColor : hash01('marcha_gorro', roll + i) < 0.3 ? '#3b3129' : null);
       rig.root.parent = root;
-      // v1.27: la figurita MIRA hacia donde marcha con el MISMO offset que todo el juego
-      // (MODEL_YAW_OFFSET = π): yaw 0 = +X → rotación π; yaw π = −X → rotación 0.
-      rig.root.rotation.y = dir > 0 ? MODEL_YAW_OFFSET : 0;
+      // v1.28: la figurita MIRA hacia donde marcha con el MISMO offset que todo el juego
+      // (MODEL_YAW_OFFSET = 0): yaw 0 = +X → rotación 0; yaw π = −X → rotación π.
+      rig.root.rotation.y = (dir > 0 ? 0 : Math.PI) + MODEL_YAW_OFFSET;
       let placard: TransformNode | null = null;
       if (i > 0 && i % man.placard.carryEvery === 0) {
         // Cartel: palo + panel con lema (rotado para que la cámara lo lea de frente).
