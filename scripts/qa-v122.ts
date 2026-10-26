@@ -72,7 +72,7 @@ const backWalk = v.exterior.rows.filter((r) => r.defId === 'acera' && r.orient =
 check('el edificio queda RODEADO: aceras laterales + trasera', laterales.length >= 2 && backWalk.length >= 1, `2 laterales + ${backWalk.length} trasera`);
 const gardens = v.exterior.rows.filter((r) => r.defId === 'jardin');
 const campos = v.exterior.rows.filter((r) => r.defId === 'campo');
-check('jardines cercanos (densos) y campo lejano (disperso con topes)', gardens.length >= 2 && gardens.every((g) => g.gridScatter) && campos.length >= 2 && campos.every((c) => c.gridScatter && (c.maxTrees ?? 99) <= 18), `${gardens.length} jardines · ${campos.length} campos`);
+check('jardines cercanos (densos) y campo lejano (disperso con topes)', gardens.length >= 2 && gardens.every((g) => g.gridScatter) && campos.length >= 2 && campos.every((c) => c.gridScatter && (c.maxTrees ?? 99) <= 70), `${gardens.length} jardines · ${campos.length} campos · topes v1.24 con recortes 2D`);
 check('sin terreno desnudo: las filas cubren el suelo del mundo', (() => {
   // Muestreo determinista del rect del suelo (sin la huella del EDIFICIO, que no es suelo).
   const g = v.exterior.ground;

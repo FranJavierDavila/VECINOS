@@ -42,8 +42,8 @@ check('walkable: misma estancia siempre', walkable(geo0, roomAt(geo0, 1, 1), 2.0
 check('walkable: NO entra al dormitorio cerrado (ni por su hueco)', !walkable(geo0, roomAt(geo0, 1, 1), 3.0, 0.8));
 const dpDorm = doorwayPoint(geo0, 'salon', 'dormitorio');
 const dpBano = doorwayPoint(geo0, 'salon', 'bano');
-check('doorwayPoint salón↔dormitorio = (2.3, 0.8)', !!dpDorm && close(dpDorm.x, 2.3) && close(dpDorm.z, 0.8));
-check('doorwayPoint salón↔baño = (2.3, 3.3)', !!dpBano && close(dpBano.x, 2.3) && close(dpBano.z, 3.3));
+check('doorwayPoint salón↔dormitorio = centro del borde abierto (2.3, 1.25)', !!dpDorm && close(dpDorm.x, 2.3) && close(dpDorm.z, 1.25), JSON.stringify(dpDorm)); // v1.24: sin tabique central
+check('doorwayPoint salón↔baño = centro del borde abierto (2.3, 3.35)', !!dpBano && close(dpBano.x, 2.3) && close(dpBano.z, 3.35), JSON.stringify(dpBano)); // v1.24
 const dpTras = doorwayPoint(geo0, 'salon', 'trasera');
 check('doorwayPoint salón↔trasera = puerta en la pared del FONDO (1.15, 4.2)', !!dpTras && close(dpTras.x, 1.15) && close(dpTras.z, content.rules.view.depth), JSON.stringify(dpTras));
 check('roomRoute a baño cerrado = null', roomRoute(geo0, 'salon', 'bano') === null);
@@ -85,7 +85,7 @@ check('cruza por el hueco del fondo al baño reformado', logic.position().x > X0
 const geoB = layoutGeometryOf(content, homeBlock)!;
 check('roomRoute salón→baño reformado', JSON.stringify(roomRoute(geoB, 'salon', 'bano')) === '["bano"]');
 const rtB = interiorRoute(geoB, { x: 0.5, z: 0.5 }, { x: 3.5, z: 3.3 });
-check('ruta interior por el hueco del fondo', !!rtB && rtB.length === 2 && close(rtB[0]!.x, 2.3) && close(rtB[0]!.z, 3.3) && close(rtB[1]!.x, 3.5) && close(rtB[1]!.z, 3.3), JSON.stringify(rtB));
+check('ruta interior al baño: cruce por el borde abierto (x=2.3)', !!rtB && rtB.length >= 1 && rtB.some((pt) => close(pt.x, 2.3)), JSON.stringify(rtB)); // v1.24: borde completo
 
 // ── Interactivos por posición 2D del catálogo
 logic.x = X0 + 0.4 + 0.05; // portátil del salón en [0.4, 0.55]
@@ -110,7 +110,7 @@ const tTv = interiorTarget(content, geoD, 'tv', 'qa_vecino', 0);
 check('ancla tv en el salón (local 1.15, 0.75 del rect)', !!tTv && close(tTv.x, 1.15) && close(tTv.z, 0.75), JSON.stringify(tTv));
 check('walkable ya entra al dormitorio por su hueco', walkable(geoD, roomAt(geoD, 1, 1), 3.0, 0.8));
 const rtD = interiorRoute(geoD, { x: 0.5, z: 0.5 }, { x: 4.05, z: 0.8 });
-check('ruta al dormitorio por su hueco', !!rtD && rtD.length === 2 && close(rtD[0]!.x, 2.3) && close(rtD[0]!.z, 0.8) && close(rtD[1]!.x, 4.05) && close(rtD[1]!.z, 0.8), JSON.stringify(rtD));
+check('ruta al dormitorio: cruce por el borde abierto (x=2.3)', !!rtD && rtD.length >= 1 && rtD.some((pt) => close(pt.x, 2.3)), JSON.stringify(rtD)); // v1.24: borde completo
 check('ancla desconocida → deambula por estancias abiertas', (() => { const t = interiorTarget(content, geoD, 'inexistente', 'qa_vecino', 2); return !!t && t.x >= 0 && t.x <= 4.8 && t.z >= 0 && t.z <= 4.2; })());
 const usedBed = logic.interact();
 const needs = world.residents[world.playerId]!.needs;

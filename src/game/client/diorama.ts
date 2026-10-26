@@ -45,8 +45,9 @@ export interface DioramaDirector {
   dispose(): void;
 }
 
-/** Caja del contenido visible (alpha > umbral) del canvas. */
-function alphaBounds(c: HTMLCanvasElement): { x0: number; y0: number; x1: number; y1: number } | null {
+/** Caja del contenido visible (alpha > umbral) del canvas. Exportada: los recortes de
+ *  árboles del exterior (v1.24) reutilizan el mismo encaje que los dioramas. */
+export function alphaBoundsOf(c: HTMLCanvasElement): { x0: number; y0: number; x1: number; y1: number } | null {
   const ctx = c.getContext('2d');
   if (!ctx) return null;
   const { width: W, height: H } = c;
@@ -68,8 +69,9 @@ function alphaBounds(c: HTMLCanvasElement): { x0: number; y0: number; x1: number
   return x1 < 0 ? null : { x0, y0, x1, y1 };
 }
 
-/** Vuelca el blanco de fondo a alpha (flood-fill 4-conexo desde los bordes). */
-function stripWhite(c: HTMLCanvasElement, hex: string, tolerance: number, alphaCutoff: number): void {
+/** Vuelca el blanco de fondo a alpha (flood-fill 4-conexo desde los bordes). Exportado:
+ *  v1.24 lo reutiliza para los RECORTEs de árboles del exterior. */
+export function stripWhite(c: HTMLCanvasElement, hex: string, tolerance: number, alphaCutoff: number): void {
   const ctx = c.getContext('2d', { willReadFrequently: true });
   if (!ctx) return;
   const W = c.width;
@@ -178,7 +180,7 @@ export function createDioramaDirector(scene: Scene, content: Content): DioramaDi
       cx.drawImage(img, 0, 0, S, S);
       if (keyed) {
         stripWhite(c, cat.keyColor, cat.keyTolerance, cat.alphaCutoff);
-        const b = alphaBounds(c);
+        const b = alphaBoundsOf(c);
         if (b) {
           const bw = Math.max(1, b.x1 - b.x0);
           const bh = Math.max(1, b.y1 - b.y0);
@@ -250,19 +252,24 @@ export function createDioramaDirector(scene: Scene, content: Content): DioramaDi
         if (roomRoot) q.parent = roomRoot;
       };
 
-      // ── Pared del fondo: quad(s) con el arte (respeta el hueco de la puerta trasera) ──
+      // ── Pared del fondo: quad(s) con el arte (respeta el hueco de la puerta trasera).
+      // v1.24: cada tramo se SOLAPA 1 cm por lado — sin costuras blancas entre quads
+      // contiguos (estancias vecinas comparten borde y el anti-aliasing abría una raja). ──
       const wall: DioramaSurface[] = [];
       const wallMat = surfMat(`${id}_dio_pared`, false);
       const wallTiles = Math.max(1, Math.round(rect.w / Math.max(0.6, wallH)));
       wallMat.diffuseTexture = artTex(`${id}_dio_pared_tex`, dio.wall, false, wallTiles, 1);
       const gap = opts?.wallGap ?? null;
+      const SEAM = 0.01;
       const segs: Array<[number, number]> = gap
         ? [
             [rect.x, gap.a - origin.x0],
             [gap.b - origin.x0, rect.x + rect.w],
           ]
         : [[rect.x, rect.x + rect.w]];
-      for (const [a, b] of segs) {
+      for (const [a0, b0] of segs) {
+        const a = a0 - SEAM;
+        const b = b0 + SEAM;
         const sw = b - a;
         if (sw < 0.05) continue;
         const q = quad(`${id}_dio_pared`, sw, wallH, origin.x0 + a + sw / 2, slabTop + wallH / 2, backZ - 0.09, wallMat, false);

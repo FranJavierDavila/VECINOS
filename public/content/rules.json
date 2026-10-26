@@ -255,8 +255,8 @@
           "depth": 13.4,
           "body": true,
           "gridScatter": true,
-          "maxTrees": 10,
-          "maxBushes": 16
+          "maxTrees": 26,
+          "maxBushes": 34
         },
         {
           "defId": "jardin",
@@ -266,8 +266,8 @@
           "depth": 13.4,
           "body": true,
           "gridScatter": true,
-          "maxTrees": 10,
-          "maxBushes": 16
+          "maxTrees": 26,
+          "maxBushes": 34
         },
         {
           "defId": "campo",
@@ -277,8 +277,8 @@
           "depth": 106.2,
           "body": true,
           "gridScatter": true,
-          "maxTrees": 18,
-          "maxBushes": 26
+          "maxTrees": 70,
+          "maxBushes": 90
         },
         {
           "defId": "campo",
@@ -288,8 +288,8 @@
           "depth": 106.2,
           "body": true,
           "gridScatter": true,
-          "maxTrees": 18,
-          "maxBushes": 26
+          "maxTrees": 70,
+          "maxBushes": 90
         },
         {
           "defId": "acera",
@@ -357,19 +357,62 @@
           "depth": 108.5,
           "body": true,
           "orient": "z"
+        },
+        {
+          "defId": "jardin",
+          "x0": -102,
+          "x1": 132,
+          "z0": 9.2,
+          "depth": 24,
+          "body": true,
+          "gridScatter": true,
+          "maxTrees": 26,
+          "maxBushes": 34
         }
       ],
       "ground": {
-        "color": "#a89a7c",
+        "color": "#96a46f",
         "size": 240,
-        "backZ": 9
-      }
+        "backZ": 34
+      },
+      "treeArt": [
+        {
+          "art": "/art/trees/tree_round.png",
+          "w": 3.4,
+          "h": 4.4
+        },
+        {
+          "art": "/art/trees/tree_pine.png",
+          "w": 3.2,
+          "h": 5.4
+        },
+        {
+          "art": "/art/trees/tree_poplar.png",
+          "w": 2.2,
+          "h": 5.8
+        },
+        {
+          "art": "/art/trees/tree_bushy.png",
+          "w": 3.0,
+          "h": 3.4
+        }
+      ]
     },
     "traffic": {
       "enabled": true,
       "lanes": [
-        { "z": -8.3, "dir": 1, "speedMin": 6.5, "speedMax": 9.5 },
-        { "z": -10.3, "dir": -1, "speedMin": 6.5, "speedMax": 9.5 }
+        {
+          "z": -8.3,
+          "dir": 1,
+          "speedMin": 6.5,
+          "speedMax": 9.5
+        },
+        {
+          "z": -10.3,
+          "dir": -1,
+          "speedMin": 6.5,
+          "speedMax": 9.5
+        }
       ],
       "spawnEveryMin": 6,
       "spawnEveryMax": 20,
@@ -386,7 +429,13 @@
           "width": 1.6,
           "height": 0.95,
           "cabin": 0.5,
-          "colors": ["#c9564c", "#e0b54e", "#7fa05f", "#e8e2d4", "#5d6b7a"]
+          "colors": [
+            "#c9564c",
+            "#e0b54e",
+            "#7fa05f",
+            "#e8e2d4",
+            "#5d6b7a"
+          ]
         },
         {
           "kind": "furgoneta",
@@ -395,7 +444,10 @@
           "width": 1.8,
           "height": 1.6,
           "cabin": 0.28,
-          "colors": ["#d8d2c2", "#9fb8c8"]
+          "colors": [
+            "#d8d2c2",
+            "#9fb8c8"
+          ]
         },
         {
           "kind": "bus",
@@ -404,7 +456,10 @@
           "width": 1.9,
           "height": 2.2,
           "cabin": 0.1,
-          "colors": ["#c9564c", "#4e7a8a"]
+          "colors": [
+            "#c9564c",
+            "#4e7a8a"
+          ]
         },
         {
           "kind": "policia",
@@ -413,7 +468,9 @@
           "width": 1.65,
           "height": 1.05,
           "cabin": 0.5,
-          "colors": ["#eef0f2"],
+          "colors": [
+            "#eef0f2"
+          ],
           "siren": true
         }
       ]
@@ -429,14 +486,47 @@
       "exitChance": 0.35,
       "enterX": 13.1,
       "paths": [
-        { "z": -5.5, "x0": -84, "x1": 116, "dir": 1 },
-        { "z": -6.1, "x0": 116, "x1": -84, "dir": -1 },
-        { "z": -12.6, "x0": -84, "x1": 116, "dir": 1 },
-        { "z": -13.2, "x0": 116, "x1": -84, "dir": -1 }
+        {
+          "z": -5.5,
+          "x0": -84,
+          "x1": 116,
+          "dir": 1
+        },
+        {
+          "z": -6.1,
+          "x0": 116,
+          "x1": -84,
+          "dir": -1
+        },
+        {
+          "z": -12.6,
+          "x0": -84,
+          "x1": 116,
+          "dir": 1
+        },
+        {
+          "z": -13.2,
+          "x0": 116,
+          "x1": -84,
+          "dir": -1
+        }
       ],
-      "colors": ["#c9564c", "#e0b54e", "#5a9367", "#9fb8c8", "#b06f9e", "#8a5a33", "#5d6b7a", "#e07a5f"],
+      "colors": [
+        "#c9564c",
+        "#e0b54e",
+        "#5a9367",
+        "#9fb8c8",
+        "#b06f9e",
+        "#8a5a33",
+        "#5d6b7a",
+        "#e07a5f"
+      ],
       "hatChance": 0.3,
-      "hatColors": ["#3b3129", "#c9564c", "#4e7a8a"]
+      "hatColors": [
+        "#3b3129",
+        "#c9564c",
+        "#4e7a8a"
+      ]
     },
     "backdrop": {
       "enabled": true,
@@ -590,18 +680,19 @@
         "moonColor": "#e8ecf4",
         "moonSize": 1.8,
         "stars": 130,
-        "starColor": "#dfe7f2"
+        "starColor": "#dfe7f2",
+        "horizonY": 12
       },
       "clouds": {
-        "count": 8,
-        "yMin": 16,
-        "yMax": 30,
-        "z": 55,
-        "speed": 0.5,
-        "color": "#f6f2e8",
-        "stormColor": "#8f959e",
-        "alphaClear": 0.15,
-        "alphaCloudy": 0.75
+        "count": 11,
+        "yMin": 17,
+        "yMax": 34,
+        "z": 27,
+        "speed": 1.1,
+        "color": "#ffffff",
+        "stormColor": "#7d848f",
+        "alphaClear": 0.9,
+        "alphaCloudy": 0.95
       }
     },
     "lod": {
@@ -649,6 +740,33 @@
         "color": "#b8c0a8",
         "topAt": 0.14,
         "note": "Forjado interior continuo del cubo de escalera a nivel de entrada: acabamos con el tramo 'sin suelo' dentro del bloque"
+      },
+      "facade": {
+        "enabled": true,
+        "halfW": 1.2,
+        "color": "#ddd1b8",
+        "doorW": 0.86,
+        "doorH": 1.84,
+        "doorBottom": 0.14,
+        "doorZ": 0.14,
+        "wallT": 0.1,
+        "art": "/art/interiors/raw/door_comunal.png",
+        "numberColor": "#1c1c1c",
+        "hinge": "left",
+        "openAngle": 1.75,
+        "openAhead": 1.05,
+        "openSpeed": 3.2
+      },
+      "activityLight": {
+        "enabled": true,
+        "dayCutoff": 0.4,
+        "glow": 0.9,
+        "fade": 2.4,
+        "meshes": [
+          "luz_interior",
+          "tira_luz"
+        ],
+        "color": "#ffedc2"
       }
     },
     "elevator": {
@@ -666,7 +784,7 @@
     "plaque": {
       "w": 0.85,
       "h": 0.3,
-      "y": 2.12,
+      "y": 2.3,
       "z": -0.13,
       "bg": "#3b3129",
       "text": "#ffd166",
@@ -768,7 +886,28 @@
       "doorColor": "#5d4a3a",
       "handleColor": "#ffd166",
       "doorW": 0.95,
-      "doorH": 1.85
+      "doorH": 1.85,
+      "doorArts": [
+        "/art/interiors/raw/door_casa_a.png",
+        "/art/interiors/raw/door_casa_b.png",
+        "/art/interiors/raw/door_casa_c.png"
+      ],
+      "frameW": 0.075,
+      "frameDepth": 0.1,
+      "hideNodes": [
+        "jamba_izq",
+        "jamba_der",
+        "dintel",
+        "placa",
+        "toldito"
+      ],
+      "lamp": {
+        "side": 1,
+        "dx": 0.68,
+        "dy": 2.1,
+        "color": "#3b3129",
+        "glowColor": "#ffd166"
+      }
     }
   },
   "demo": {

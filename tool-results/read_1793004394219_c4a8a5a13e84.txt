@@ -1,0 +1,565 @@
+     1→import type { Color3, DynamicTexture, HemisphericLight, DirectionalLight, Mesh, ParticleSystem, Scene, StandardMaterial } from '@babylonjs/core';
+     2→import type { Content, World } from '@/game/core/types';
+     3→import { hash01 } from '@/game/interior';
+     4→import { B } from './babylon';
+     5→/**
+     6→ * FONDO URBANO (v1.21) — capa de presentación pura, todo del catálogo (rules.view.backdrop).
+     7→ *
+     8→ * · CIELO DINÁMICO: plano lejano con gradiente repintado a cadencia según la HORA DEL DÍA
+     9→ *   (keyframes 0..24): amanecer, mediodía, ocaso y noche con estrellas. El clima del sim
+    10→ *   elige cielo despejado o nublado (las nubes engordan y se tiñen con la tormenta).
+    11→ * · SOL Y LUNA: discos emisivos que recorren su arco; color del mediodía al ocaso.
+    12→ * · FACHADAS PARALLAX (v1.21, reescrito): CAPAS DE SELLOS REALES — el catálogo declara un
+    13→ *   PNG RGBA de fachada por capa (public/content/backdrop/, blur HORNEADO en el asset:
+    14→ *   cuanto más lejos, más desenfocada) y el runtime lo REPTIE a lo largo de la banda
+    15→ *   formando un paisaje de edificios "como el nuestro". Planos 3D reales a distintas z →
+    16→ *   el parallax sale del barrido de cámara sin un cálculo extra. De noche, la capa se
+    17→ *   oscurece SOLO sobre los edificios (composite source-atop) y una retícula de ventanas
+    18→ *   se enciende con nightGlow (color windowLitColor del catálogo).
+    19→ * · LLUVIA (v1.21): partículas de trazo que caen con viento cuando el clima es rain/storm;
+    20→ *   velocidad y densidad del catálogo (look cartoon, caída creíble).
+    21→ * · LUZ GLOBAL: los keyframes modularizan la hemisférica y el direccional para que el
+    22→ *   edificio viva la misma hora que el cielo.
+    23→ */
+    24→
+    25→interface LayerView {
+    26→  plane: Mesh;
+    27→  mat: StandardMaterial;
+    28→  tex: DynamicTexture;
+    29→  /** Carga del sello PNG (capas con `image`): null en capas procedurales. */
+    30→  img: HTMLImageElement | null;
+    31→  ready: boolean;
+    32→  lastNight: number;
+    33→  lastWeather: string;
+    34→  /** Filas del canvas POT (2048×256) que ocupa la banda (el resto, transparente). */
+    35→  usedH: number;
+    36→}
+    37→
+    38→export interface BackdropDirector {
+    39→  /** Avanza el cielo/sol/nubes/lluvia y las luces con la hora del sim. dt en segundos. */
+    40→  update(dt: number): void;
+    41→  /** Luz de día efectiva 0..1 (1 = mediodía pleno): la usan farolas y luces interiores. */
+    42→  readonly daylight: number;
+    43→  dispose(): void;
+    44→}
+    45→
+    46→/** Interpola entre los keyframes por hora (el último y el primero cierran el círculo 0..24). */
+    47→function keyframeAt(cfg: Content['rules']['view']['backdrop']['sky'], hour: number): { top: Color3; horizon: Color3; ambient: number; sun: number } {
+    48→  const { Color3 } = B();
+    49→  const kfs = cfg.keyframes;
+    50→  if (kfs.length === 0) {
+    51→    return { top: Color3.White(), horizon: Color3.White(), ambient: 1, sun: 1 };
+    52→  }
+    53→  let i = 0;
+    54→  while (i < kfs.length - 1 && kfs[i]!.hour <= hour) i++;
+    55→  const a = kfs[i - 1] ?? kfs[kfs.length - 1]!;
+    56→  const b = kfs[i % kfs.length]!;
+    57→  const span = Math.max(0.001, b.hour - a.hour);
+    58→  const t = Math.min(1, Math.max(0, (hour - a.hour) / span));
+    59→  const lerp = (ha: string, hb: string) => Color3.Lerp(Color3.FromHexString(ha), Color3.FromHexString(hb), t);
+    60→  return {
+    61→    top: lerp(a.top, b.top),
+    62→    horizon: lerp(a.horizon, b.horizon),
+    63→    ambient: a.ambient + (b.ambient - a.ambient) * t,
+    64→    sun: a.sun + (b.sun - a.sun) * t,
+    65→  };
+    66→}
+    67→
+    68→/** Medidas del plano de una capa: 360 m de banda y su altura del catálogo. */
+    69→const STRIP_W = 360;
+    70→
+    71→export function createBackdrop(scene: Scene, world: World, content: Content, lights: { hemi: HemisphericLight; dir: DirectionalLight }): BackdropDirector {
+    72→  const { Color3, DynamicTexture, MeshBuilder, ParticleSystem, StandardMaterial, Vector3 } = B();
+    73→  const cfg = content.rules.view.backdrop;
+    74→  if (!cfg.enabled) {
+    75→    return { update() {}, daylight: 1, dispose() {} };
+    76→  }
+    77→  const v = content.rules.view;
+    78→  const width = Math.max(...Object.values(world.blocks).map((b) => b.cell.col + b.size.w)) * v.cellW;
+    79→  const cx = width / 2;
+    80→
+    81→  // ── CIELO DE DOS BANDAS (v1.21): planos de COLOR PLANO (emissiveColor, la vía probada
+    82→  // del sol/luna — cero texturas que re-subir: el canvas iba siempre con un ciclo de retraso
+    83→  // respecto al render). La banda superior sigue kf.top y la inferior kf.horizon.
+    84→  const horizonY = cfg.sky.horizonY;
+    85→  const flat = (name: string, y0: number, y1: number): { mesh: Mesh; mat: StandardMaterial } => {
+    86→    const mesh = MeshBuilder.CreatePlane(name, { width: 320, height: y1 - y0, sideOrientation: B().Mesh.DOUBLESIDE }, scene);
+    87→    const mat = new StandardMaterial(`${name}_mat`, scene);
+    88→    mat.emissiveColor = Color3.White();
+    89→    mat.diffuseColor = Color3.Black();
+    90→    mat.specularColor = new Color3(0, 0, 0);
+    91→    mat.disableLighting = true;
+    92→    mesh.material = mat;
+    93→    mesh.isPickable = false;
+    94→    mesh.position.set(cx, (y0 + y1) / 2, cfg.sky.sunZ + 12);
+    95→    return { mesh, mat };
+    96→  };
+    97→  const skyTop = flat('cielo_alto', horizonY, 109);
+    98→  const skyLow = flat('cielo_bajo', -41, horizonY);
+    99→
+   100→  // Estrellas: textura estática pintada UNA vez (subida única → sin lag); el alpha del
+   101→  // material sube con la noche. useAlphaFromDiffuseTexture: el alpha del canvas manda
+   102→  // (sin esto, las zonas transparentes del canvas se mezclan como NEGRO).
+   103→  const starTex = new DynamicTexture('estrellas_tex', { width: 1024, height: 512 }, scene, false);
+   104→  starTex.hasAlpha = true;
+   105→  {
+   106→    const sctx = starTex.getContext() as unknown as CanvasRenderingContext2D;
+   107→    sctx.clearRect(0, 0, 1024, 512);
+   108→    for (let i = 0; i < cfg.sky.stars; i++) {
+   109→      const sx = hash01('estrella', i) * 1024;
+   110→      const sy = hash01('estrella_alto', i) * 512 * 0.62;
+   111→      const r = 0.7 + hash01('estrella_r', i) * 1.6;
+   112→      sctx.globalAlpha = 0.35 + hash01('estrella_a', i) * 0.65;
+   113→      sctx.fillStyle = cfg.sky.starColor;
+   114→      sctx.beginPath();
+   115→      sctx.arc(sx, sy, r, 0, Math.PI * 2);
+   116→      sctx.fill();
+   117→    }
+   118→    sctx.globalAlpha = 1;
+   119→    starTex.update(true);
+   120→  }
+   121→  const starMat = new StandardMaterial('estrellas_mat', scene);
+   122→  starMat.diffuseTexture = starTex;
+   123→  starMat.emissiveTexture = starTex;
+   124→  starMat.useAlphaFromDiffuseTexture = true;
+   125→  starMat.disableLighting = true;
+   126→  starMat.specularColor = new Color3(0, 0, 0);
+   127→  starMat.disableDepthWrite = true;
+   128→  starMat.alpha = 0;
+   129→  const starsMesh = MeshBuilder.CreatePlane('estrellas', { width: 320, height: 150, sideOrientation: B().Mesh.DOUBLESIDE }, scene);
+   130→  starsMesh.material = starMat;
+   131→  starsMesh.isPickable = false;
+   132→  starsMesh.position.set(cx, 34, cfg.sky.sunZ + 11.5);
+   133→
+   134→  // ── Sol y luna: discos emisivos que recorren el arco del día / de la noche. ──
+   135→  const disc = (name: string, color: string, size: number): { mesh: Mesh; mat: StandardMaterial } => {
+   136→    const mesh = MeshBuilder.CreateDisc(name, { radius: size, tessellation: 40, sideOrientation: B().Mesh.DOUBLESIDE }, scene);
+   137→    const mat = new StandardMaterial(`${name}_mat`, scene);
+   138→    mat.emissiveColor = Color3.FromHexString(color);
+   139→    mat.diffuseColor = Color3.Black();
+   140→    mat.disableLighting = true;
+   141→    mesh.material = mat;
+   142→    mesh.isPickable = false;
+   143→    return { mesh, mat };
+   144→  };
+   145→  const sun = disc('sol', cfg.sky.sunColorDay, cfg.sky.sunSize);
+   146→  const moon = disc('luna', cfg.sky.moonColor, cfg.sky.moonSize);
+   147→
+   148→  // ── Nubes: textura blanda compartida; planos a la deriva con alpha según el clima. ──
+   149→  const CLOUD_W = 512;
+   150→  const CLOUD_H = 256;
+   151→  const cloudTex = new DynamicTexture('nube_tex', { width: CLOUD_W, height: CLOUD_H }, scene, false);
+   152→  cloudTex.hasAlpha = true;
+   153→  {
+   154→    const ctx = cloudTex.getContext() as unknown as CanvasRenderingContext2D;
+   155→    ctx.clearRect(0, 0, CLOUD_W, CLOUD_H);
+   156→    for (let i = 0; i < 26; i++) {
+   157→      const px = 60 + hash01('nube', i * 7) * (CLOUD_W - 120);
+   158→      const py = 70 + hash01('nube', i * 13) * (CLOUD_H - 130);
+   159→      const r = 26 + hash01('nube', i * 29) * 52;
+   160→      const g = ctx.createRadialGradient(px, py, 2, px, py, r);
+   161→      g.addColorStop(0, 'rgba(255,255,255,0.85)');
+   162→      g.addColorStop(1, 'rgba(255,255,255,0)');
+   163→      ctx.fillStyle = g;
+   164→      ctx.beginPath();
+   165→      ctx.arc(px, py, r, 0, Math.PI * 2);
+   166→      ctx.fill();
+   167→    }
+   168→    cloudTex.update(true);
+   169→  }
+   170→  const clouds: { mesh: Mesh; speed: number }[] = [];
+   171→  for (let i = 0; i < cfg.clouds.count; i++) {
+   172→    const w = 16 + hash01('nube_tam', i) * 22;
+   173→    const mesh = MeshBuilder.CreatePlane(`nube_${i}`, { width: w, height: w * (CLOUD_H / CLOUD_W) * 0.7, sideOrientation: B().Mesh.DOUBLESIDE }, scene);
+   174→    const mat = new StandardMaterial(`nube_${i}_mat`, scene);
+   175→    mat.diffuseTexture = cloudTex;
+   176→    mat.emissiveColor = new Color3(1, 1, 1);
+   177→    mat.opacityTexture = cloudTex;
+   178→    mat.disableLighting = true;
+   179→    mat.specularColor = new Color3(0, 0, 0);
+   180→    mat.disableDepthWrite = true; // las nubes se mezclan con el cielo, jamás lo tapan
+   181→    mesh.material = mat;
+   182→    mesh.isPickable = false;
+   183→    const x = cx + (hash01('nube_x', i) - 0.5) * 220;
+   184→    const y = cfg.clouds.yMin + hash01('nube_y', i) * (cfg.clouds.yMax - cfg.clouds.yMin);
+   185→    mesh.position.set(x, y, cfg.clouds.z);
+   186→    clouds.push({ mesh, speed: 0.6 + hash01('nube_v', i) * 0.8 });
+   187→  }
+   188→
+   189→  // ── Capas de fachadas: sello PNG real (v1.21) o pintado procedural (fallback). ──
+   190→  // Canvas POT 2048×256 (los NPOT de canvas re-subido hacen que SwiftShader muestre un velo
+   191→  // negro al minificar); los sellos se dibujan en las filas inferiores y el plano recorta
+   192→  // por UV (vScale = filas usadas / 256). El resultado visual es idéntico y estable.
+   193→  const layers: LayerView[] = cfg.layers.map((l, li) => {
+   194→    const usedH = Math.min(256, Math.max(32, Math.round((2048 * l.height) / STRIP_W)));
+   195→    const tex = new DynamicTexture(`fachada_${li}_tex`, { width: 2048, height: 256 }, scene, false);
+   196→    // hasAlpha: fuera de los edificios el canvas es transparente (el cielo asoma entre ellos).
+   197→    tex.hasAlpha = true;
+   198→    tex.vScale = usedH / 256;
+   199→    const mat = new StandardMaterial(`fachada_${li}_mat`, scene);
+   200→    mat.diffuseTexture = tex;
+   201→    mat.emissiveTexture = tex;
+   202→    // v1.21: el ALPHA del canvas manda (sin esto las zonas transparentes se mezclan como
+   203→    // NEGRO con el alpha uniforme — el velo oscuro entre edificios del fondo).
+   204→    mat.useAlphaFromDiffuseTexture = true;
+   205→    mat.disableLighting = true;
+   206→    mat.specularColor = new Color3(0, 0, 0);
+   207→    mat.alpha = l.alpha;
+   208→    // Sin escritura de depth: las capas se MEZCLAN (nunca ocultan el cielo/sol/luna detrás).
+   209→    mat.disableDepthWrite = true;
+   210→    const plane = MeshBuilder.CreatePlane(`fachada_${li}`, { width: STRIP_W, height: l.height, sideOrientation: B().Mesh.DOUBLESIDE }, scene);
+   211→    plane.material = mat;
+   212→    plane.isPickable = false;
+   213→    plane.position.set(cx, l.height / 2 - 0.2, l.z);
+   214→    // Sello real: se carga el PNG del catálogo (blur ya horneado por distancia).
+   215→    let img: HTMLImageElement | null = null;
+   216→    if (l.image) {
+   217→      img = new Image();
+   218→      img.onload = () => {
+   219→        lv.ready = true;
+   220→      };
+   221→      img.src = l.image;
+   222→    }
+   223→    const lv: LayerView = { plane, mat, tex, img, ready: !img, lastNight: -1, lastWeather: '', usedH };
+   224→    return lv;
+   225→  });
+   226→
+   227→  /** Pinta una capa al canvas: sellos repetidos (image) o edificios procedurales. */
+   228→  const paintLayer = (lv: LayerView, li: number, nightF: number, weather: string): void => {
+   229→    const l = cfg.layers[li]!;
+   230→    const W = 2048;
+   231→    const H = lv.usedH;
+   232→    const offY = 256 - H;
+   233→    const ctx = lv.tex.getContext() as unknown as CanvasRenderingContext2D;
+   234→    ctx.clearRect(0, 0, W, 256);
+   235→    ctx.save();
+   236→    ctx.translate(0, offY);
+   237→    // NIEBLA (v1.22): los bloques del fondo se DEsaturan (perspectiva aérea) y se funden
+   238→    // hacia su fogColor — se intuyen sin distraer. El filtro actúa solo al dibujar los
+   239→    // sellos (sin tocar el alpha del canvas); el lavado posterior respeta la transparencia.
+   240→    if (l.fog > 0.01) {
+   241→      const sat = Math.max(5, Math.round((1 - l.fog * 0.85) * 100));
+   242→      ctx.filter = `saturate(${sat}%)`;
+   243→    }
+   244→    if (lv.img && lv.ready) {
+   245→      // ── SELLOS: la fachada del catálogo repetida a lo ancho (edificios similares al nuestro). ──
+   246→      const aspect = lv.img.naturalWidth / Math.max(1, lv.img.naturalHeight);
+   247→      const stampW = l.height * aspect; // ancho del sello en metros (sin deformar)
+   248→      const stampPx = (stampW / STRIP_W) * W;
+   249→      const n = Math.ceil(W / stampPx) + 1;
+   250→      for (let k = 0; k < n; k++) {
+   251→        const jitter = (hash01(`sello${li}`, k) - 0.5) * stampPx * 0.14;
+   252→        const scale = 0.86 + hash01(`selloS${li}`, k) * 0.16;
+   253→        const drawH = H * scale;
+   254→        const drawW = stampPx * scale;
+   255→        const flip = hash01(`selloF${li}`, k) < 0.5;
+   256→        const x = k * stampPx + (stampPx - drawW) / 2 + jitter;
+   257→        ctx.save();
+   258→        if (flip) {
+   259→          ctx.translate(x + drawW, 0);
+   260→          ctx.scale(-1, 1);
+   261→          ctx.drawImage(lv.img, 0, H - drawH, drawW, drawH);
+   262→        } else {
+   263→          ctx.drawImage(lv.img, x, H - drawH, drawW, drawH);
+   264→        }
+   265→        ctx.restore();
+   266→      }
+   267→      // Armonización con la paleta: tinte sutil SOLO sobre los píxeles del sello.
+   268→      if (l.tint && l.tint.toLowerCase() !== '#ffffff') {
+   269→        ctx.globalCompositeOperation = 'multiply';
+   270→        ctx.fillStyle = l.tint;
+   271→        ctx.fillRect(0, 0, W, H);
+   272→        // destination-in con la copia limpia: recupera la transparencia fuera de los sellos.
+   273→        ctx.globalCompositeOperation = 'destination-in';
+   274→        ctx.drawImage(canvasCopyOf(lv, li), 0, 0);
+   275→        ctx.globalCompositeOperation = 'source-over';
+   276→      }
+   277→      // Noche: oscurecer SOLO los edificios (source-atop respeta la transparencia del cielo).
+   278→      if (l.fog > 0.01) {
+   279→        // Lavado de niebla hacia fogColor, solo sobre píxeles de edificio (perspectiva aérea).
+   280→        ctx.filter = 'none';
+   281→        ctx.globalCompositeOperation = 'source-atop';
+   282→        ctx.globalAlpha = l.fog * 0.45;
+   283→        ctx.fillStyle = l.fogColor;
+   284→        ctx.fillRect(0, 0, W, H);
+   285→        ctx.globalAlpha = 1;
+   286→        ctx.globalCompositeOperation = 'source-over';
+   287→      }
+   288→      if (nightF > 0.02) {
+   289→        ctx.globalCompositeOperation = 'source-atop';
+   290→        ctx.fillStyle = `rgba(18,24,40,${(nightF * 0.55).toFixed(3)})`;
+   291→        ctx.fillRect(0, 0, W, H);
+   292→        ctx.globalCompositeOperation = 'source-over';
+   293→        // Ventanas encendidas: retícula determinista por sello, brillo del catálogo.
+   294→        const lit = Color3.FromHexString(l.windowLitColor);
+   295→        const stampWm = l.height * (lv.img.naturalWidth / Math.max(1, lv.img.naturalHeight));
+   296→        const stamps = Math.ceil(STRIP_W / stampWm) + 1;
+   297→        const rows = Math.max(2, Math.round(l.height / 2.4));
+   298→        const cols = Math.max(2, Math.round(stampWm / 2.6));
+   299→        ctx.fillStyle = hexOf(lit);
+   300→        for (let k = 0; k < stamps; k++) {
+   301→          for (let r = 0; r < rows; r++) {
+   302→            for (let c = 0; c < cols; c++) {
+   303→              const h = hash01(`vw${li}`, (k * rows + r) * cols + c);
+   304→              if (h > l.nightGlow) continue;
+   305→              const px = ((k + 0.14 + (c + 0.5) / cols) * stampWm) / STRIP_W * W;
+   306→              const py = H - (0.1 + (r + 0.5) / rows) * H * 0.84;
+   307→              ctx.globalAlpha = 0.35 + nightF * 0.65 * (0.5 + hash01(`vwa${li}`, (k * rows + r) * cols + c) * 0.5);
+   308→              ctx.fillRect(px, py, (W / STRIP_W) * 0.34, (H / Math.max(1, l.height)) * 0.4);
+   309→            }
+   310→          }
+   311→        }
+   312→        ctx.globalAlpha = 1;
+   313→      }
+   314→    } else {
+   315→      // ── Fallback procedural (v1.20): siluetas con ventanas y galerías. ──
+   316→      paintProcedural(lv, li, nightF, ctx, W, H);
+   317→      ctx.filter = 'none';
+   318→      if (l.fog > 0.01) {
+   319→        ctx.globalCompositeOperation = 'source-atop';
+   320→        ctx.globalAlpha = l.fog * 0.45;
+   321→        ctx.fillStyle = l.fogColor;
+   322→        ctx.fillRect(0, 0, W, H);
+   323→        ctx.globalAlpha = 1;
+   324→        ctx.globalCompositeOperation = 'source-over';
+   325→      }
+   326→    }
+   327→    ctx.filter = 'none';
+   328→    ctx.restore();
+   329→    lv.lastNight = nightF;
+   330→    lv.lastWeather = weather;
+   331→    lv.tex.update(true);
+   332→  };
+   333→
+   334→  /** Copia limpia de los sellos (para el tinte multiply sin perder alpha). */
+   335→  const copies = new Map<number, HTMLCanvasElement>();
+   336→  function canvasCopyOf(lv: LayerView, li: number): HTMLCanvasElement {
+   337→    let c = copies.get(li)!;
+   338→    if (!c) {
+   339→      c = document.createElement('canvas');
+   340→      c.width = 2048;
+   341→      c.height = 256;
+   342→      const cctx = c.getContext('2d')!;
+   343→      const H = lv.usedH;
+   344→      const offY = 256 - H;
+   345→      cctx.save();
+   346→      cctx.translate(0, offY);
+   347→      const aspect = lv.img!.naturalWidth / Math.max(1, lv.img!.naturalHeight);
+   348→      const stampW = cfg.layers[li]!.height * aspect;
+   349→      const stampPx = (stampW / STRIP_W) * c.width;
+   350→      const n = Math.ceil(c.width / stampPx) + 1;
+   351→      for (let k = 0; k < n; k++) {
+   352→        const jitter = (hash01(`sello${li}`, k) - 0.5) * stampPx * 0.14;
+   353→        const scale = 0.86 + hash01(`selloS${li}`, k) * 0.16;
+   354→        const drawH = H * scale;
+   355→        const drawW = stampPx * scale;
+   356→        const flip = hash01(`selloF${li}`, k) < 0.5;
+   357→        cctx.save();
+   358→        if (flip) {
+   359→          cctx.translate(k * stampPx + (stampPx - drawW) / 2 + jitter + drawW, 0);
+   360→          cctx.scale(-1, 1);
+   361→          cctx.drawImage(lv.img!, 0, H - drawH, drawW, drawH);
+   362→        } else {
+   363→          cctx.drawImage(lv.img!, k * stampPx + (stampPx - drawW) / 2 + jitter, H - drawH, drawW, drawH);
+   364→        }
+   365→        cctx.restore();
+   366→      }
+   367→      cctx.restore();
+   368→      copies.set(li, c);
+   369→    }
+   370→    return c;
+   371→  }
+   372→
+   373→  /** Fachada procedural (catálogo antiguo sin image): misma rutina verificada de v1.20. */
+   374→  function paintProcedural(lv: LayerView, li: number, nightF: number, ctx: CanvasRenderingContext2D, W: number, H: number): void {
+   375→    const l = cfg.layers[li]!;
+   376→    const tint = Color3.FromHexString(l.tint);
+   377→    const winCol = Color3.FromHexString(l.windowColor);
+   378→    const litCol = Color3.FromHexString(l.windowLitColor);
+   379→    const galCol = Color3.FromHexString(l.galleryColor);
+   380→    const shadeOf = (bi: number, k: number): string => {
+   381→      const s = 0.82 + hash01(`f${li}b${bi}`, k) * 0.3;
+   382→      return hexOf(new Color3(tint.r * s, tint.g * s, tint.b * s));
+   383→    };
+   384→    const n = l.buildings;
+   385→    const slot = W / n;
+   386→    for (let bi = 0; bi < n; bi++) {
+   387→      const bw = slot * (0.62 + hash01(`f${li}b${bi}`, 1) * 0.34);
+   388→      const bx = bi * slot + (slot - bw) / 2;
+   389→      const floors = Math.round(l.floors[0] + hash01(`f${li}b${bi}`, 2) * (l.floors[1] - l.floors[0]));
+   390→      const floorH = (H * 0.86) / Math.max(1, l.floors[1]);
+   391→      const bh = floors * floorH;
+   392→      const by = H - bh;
+   393→      ctx.fillStyle = shadeOf(bi, 3);
+   394→      ctx.fillRect(bx, by, bw, bh);
+   395→      ctx.fillStyle = hexOf(new Color3(tint.r * 0.6, tint.g * 0.6, tint.b * 0.6));
+   396→      ctx.fillRect(bx - 4, by - 10, bw + 8, 10);
+   397→      if (hash01(`f${li}b${bi}`, 4) < l.galleryChance) {
+   398→        const gw = bw * (0.16 + hash01(`f${li}b${bi}`, 5) * 0.12);
+   399→        const gx = hash01(`f${li}b${bi}`, 6) < 0.5 ? bx + bw * 0.1 : bx + bw - gw - bw * 0.1;
+   400→        ctx.fillStyle = hexOf(galCol);
+   401→        ctx.globalAlpha = 0.55;
+   402→        ctx.fillRect(gx, by + floorH * 0.3, gw, bh - floorH * 0.3);
+   403→        ctx.globalAlpha = 1;
+   404→      }
+   405→      const cols = Math.max(2, Math.floor(bw / 42));
+   406→      const cw = bw / cols;
+   407→      for (let f = 0; f < floors; f++) {
+   408→        for (let c = 0; c < cols; c++) {
+   409→          if (hash01(`f${li}b${bi}w${f}_${c}`, 7) > l.windowChance) continue;
+   410→          const wx = bx + c * cw + cw * 0.22;
+   411→          const wy = by + f * floorH + floorH * 0.28;
+   412→          const ww = cw * 0.56;
+   413→          const wh = floorH * 0.42;
+   414→          const lit = nightF > 0.05 && hash01(`f${li}b${bi}l${f}_${c}`, 8) < l.nightGlow * nightF + 0.02;
+   415→          ctx.fillStyle = lit ? hexOf(litCol) : hexOf(winCol);
+   416→          ctx.globalAlpha = lit ? 0.4 + nightF * 0.6 : 0.8;
+   417→          ctx.fillRect(wx, wy, ww, wh);
+   418→          ctx.globalAlpha = 1;
+   419→        }
+   420→      }
+   421→      ctx.fillStyle = hexOf(new Color3(tint.r * 0.55, tint.g * 0.55, tint.b * 0.55));
+   422→      ctx.fillRect(bx, H - floorH * 0.9, bw, floorH * 0.9);
+   423→      if (hash01(`f${li}b${bi}s`, 9) < 0.5) {
+   424→        ctx.fillStyle = hexOf(litCol);
+   425→        ctx.globalAlpha = 0.5;
+   426→        ctx.fillRect(bx + bw * 0.1, H - floorH * 0.9, bw * 0.8, floorH * 0.16);
+   427→        ctx.globalAlpha = 1;
+   428→      }
+   429→    }
+   430→    void lv;
+   431→  }
+   432→
+   433→  // ── LLUVIA (v1.21): partículas de trazo; velocidad/viento/densidad del catálogo. ──
+   434→  const rain = new ParticleSystem('lluvia', Math.max(1, cfg.rain.stormCount * 2), scene);
+   435→  {
+   436→    const rainTex = new DynamicTexture('lluvia_tex', { width: 16, height: 96 }, scene, false);
+   437→    rainTex.hasAlpha = true;
+   438→    const rctx = rainTex.getContext() as unknown as CanvasRenderingContext2D;
+   439→    const grad = rctx.createLinearGradient(0, 0, 0, 96);
+   440→    grad.addColorStop(0, 'rgba(255,255,255,0)');
+   441→    grad.addColorStop(0.35, 'rgba(255,255,255,0.9)');
+   442→    grad.addColorStop(1, 'rgba(255,255,255,0.15)');
+   443→    rctx.clearRect(0, 0, 16, 96);
+   444→    rctx.fillStyle = grad;
+   445→    rctx.fillRect(5, 0, 6, 96);
+   446→    rainTex.update(true);
+   447→    rain.particleTexture = rainTex;
+   448→    rain.emitter = new Vector3(cx, 20, -2);
+   449→    rain.minEmitBox = new Vector3(-95, -20, -22);
+   450→    rain.maxEmitBox = new Vector3(95, 18, 16);
+   451→    // Física calibrada con la integración de Babylon (velocity = dir·power·updateSpeed·60fps):
+   452→    // updateSpeed = fallSpeed/60 con power ≈ 1 → caída EXACTA a fallSpeed m/s.
+   453→    rain.updateSpeed = cfg.rain.fallSpeed / 60;
+   454→    rain.minEmitPower = 0.92;
+   455→    rain.maxEmitPower = 1.08;
+   456→    rain.direction1 = new Vector3(cfg.rain.wind / cfg.rain.fallSpeed - 0.03, -1, 0.015);
+   457→    rain.direction2 = new Vector3(cfg.rain.wind / cfg.rain.fallSpeed + 0.03, -1, -0.015);
+   458→    const boxH = 38;
+   459→    rain.minLifeTime = (boxH / cfg.rain.fallSpeed) * 0.9;
+   460→    rain.maxLifeTime = (boxH / cfg.rain.fallSpeed) * 1.2;
+   461→    rain.minSize = 1;
+   462→    rain.maxSize = 1;
+   463→    rain.minScaleX = cfg.rain.width;
+   464→    rain.maxScaleX = cfg.rain.width * 1.5;
+   465→    rain.minScaleY = cfg.rain.length;
+   466→    rain.maxScaleY = cfg.rain.length * 1.35;
+   467→    const col = Color3.FromHexString(cfg.rain.color);
+   468→    rain.color1 = new (B().Color4)(col.r, col.g, col.b, cfg.rain.alpha);
+   469→    rain.color2 = new (B().Color4)(Math.min(1, col.r + 0.08), Math.min(1, col.g + 0.08), Math.min(1, col.b + 0.08), cfg.rain.alpha * 0.8);
+   470→    rain.colorDead = new (B().Color4)(col.r, col.g, col.b, 0);
+   471→    rain.emitRate = 0; // sin lluvia: nada nace (las gotas vivas caen y mueren solas)
+   472→    rain.blendMode = ParticleSystem.BLENDMODE_STANDARD;
+   473→    rain.minAngularSpeed = 0;
+   474→    rain.maxAngularSpeed = 0;
+   475→    rain.start();
+   476→  }
+   477→  let lastRainState: string = world.weather.state;
+   478→
+   479→  let daylight = 1;
+   480→
+   481→  return {
+   482→    get daylight(): number {
+   483→      return daylight;
+   484→    },
+   485→    update(dt: number) {
+   486→      const hour = (world.clock.minute / 60) % 24;
+   487→      const kf = keyframeAt(cfg.sky, hour);
+   488→      // Luz global: los keyframes MODULAN la base del catálogo (ambient/sun de view).
+   489→      const dim = cfg.sky.weatherDim[world.weather.state] ?? 1;
+   490→      daylight = Math.min(1, Math.max(0, kf.sun * dim));
+   491→      lights.hemi.intensity = v.ambient.intensity * kf.ambient;
+   492→      lights.dir.intensity = v.sun.intensity * kf.sun * dim;
+   493→      // El sol de la escena viaja: al alba entra desde -X, al ocaso se va por +X.
+   494→      const sunAngle = ((hour - 6) / 14) * Math.PI; // 6:00 → 20:00
+   495→      const sunUp = hour >= 5.5 && hour <= 20.5 && kf.sun > 0.02;
+   496→      sun.mesh.setEnabled(sunUp);
+   497→      if (sunUp) {
+   498→        const arc = Math.min(Math.PI, Math.max(0, sunAngle));
+   499→        sun.mesh.position.set(cx - Math.cos(arc) * 70, 3 + Math.sin(arc) * cfg.sky.sunArcHeight, cfg.sky.sunZ);
+   500→        const low = 1 - Math.min(1, Math.sin(arc) / 0.45);
+   501→        sun.mat.emissiveColor = Color3.Lerp(Color3.FromHexString(cfg.sky.sunColorDay), Color3.FromHexString(cfg.sky.sunColorLow), low);
+   502→        sun.mesh.scaling.setAll(0.85 + low * 0.5); // más grande al ras del horizonte
+   503→      }
+   504→      // Luna: relevo nocturno (20:00 → 06:00).
+   505→      const nightHour = hour >= 20 ? hour - 20 : hour + 4;
+   506→      const moonUp = hour >= 20.5 || hour <= 5.5;
+   507→      moon.mesh.setEnabled(moonUp);
+   508→      if (moonUp) {
+   509→        const arc = Math.min(Math.PI, Math.max(0, (nightHour / 10) * Math.PI));
+   510→        moon.mesh.position.set(cx - Math.cos(arc) * 70, 6 + Math.sin(arc) * cfg.sky.sunArcHeight * 0.8, cfg.sky.sunZ - 2);
+   511→      }
+   512→      // Nubes a la deriva + alpha según el clima (despejado/nublado del catálogo).
+   513→      const stormy = world.weather.state === 'storm' || world.weather.state === 'rain';
+   514→      const cloudy = world.weather.state !== 'sunny';
+   515→      const cloudAlpha = cloudy ? cfg.clouds.alphaCloudy : cfg.clouds.alphaClear;
+   516→      const cloudCol = Color3.FromHexString(stormy ? cfg.clouds.stormColor : cfg.clouds.color);
+   517→      for (const c of clouds) {
+   518→        c.mesh.position.x += c.speed * cfg.clouds.speed * dt;
+   519→        if (c.mesh.position.x > cx + 120) c.mesh.position.x = cx - 120;
+   520→        (c.mesh.material as StandardMaterial).alpha = cloudAlpha;
+   521→        (c.mesh.material as StandardMaterial).emissiveColor = cloudCol;
+   522→      }
+   523→      // LLUVIA: densidad según el clima (rain vs storm); con cielo seco, emisión a cero.
+   524→      // Estado estacionario: vivos ≈ emitRate × vida → emitRate = count × velocidad / altura.
+   525→      const wantRain = world.weather.state === 'rain' || world.weather.state === 'storm';
+   526→      if (lastRainState !== world.weather.state) {
+   527→        lastRainState = world.weather.state;
+   528→        const count = world.weather.state === 'storm' ? cfg.rain.stormCount : cfg.rain.count;
+   529→        rain.emitRate = wantRain ? (count * cfg.rain.fallSpeed) / 38 : 0;
+   530→      }
+   531→      // CIELO de dos bandas: color directo por frame (cero texturas, cero lag) + estrellas
+   532→      // que asoman con la noche (suben su alpha con la oscuridad).
+   533→      const nightF = Math.max(0, Math.min(1, (0.75 - Math.min(kf.ambient, 1)) / 0.45));
+   534→      skyTop.mat.emissiveColor.copyFrom(kf.top);
+   535→      skyLow.mat.emissiveColor.copyFrom(kf.horizon);
+   536→      starMat.alpha = nightF;
+   537→      // Capas: repintan cuando cambia el nightF (cubo de 0.09) o el clima — no cada frame.
+   538→      for (let li = 0; li < layers.length; li++) {
+   539→        const lv = layers[li]!;
+   540→        if (lv.ready && (Math.abs(nightF - lv.lastNight) > 0.09 || lv.lastWeather !== world.weather.state || lv.lastNight < 0)) {
+   541→          paintLayer(lv, li, Math.round(nightF / 0.09) * 0.09, world.weather.state);
+   542→        }
+   543→      }
+   544→    },
+   545→    dispose() {
+   546→      skyTop.mesh.dispose(false, true);
+   547→      skyLow.mesh.dispose(false, true);
+   548→      starsMesh.dispose(false, true);
+   549→      starTex.dispose();
+   550→      sun.mesh.dispose(false, true);
+   551→      moon.mesh.dispose(false, true);
+   552→      for (const c of clouds) c.mesh.dispose(false, true);
+   553→      for (const lv of layers) lv.plane.dispose(false, true);
+   554→      rain.stop();
+   555→      rain.dispose();
+   556→      cloudTex.dispose();
+   557→    },
+   558→  };
+   559→}
+   560→
+   561→/** Color3 → #rrggbb (helper local del canvas; los helpers del catálogo no saben de canvas). */
+   562→function hexOf(c: Color3): string {
+   563→  return `#${[c.r, c.g, c.b].map((x) => Math.round(Math.min(1, Math.max(0, x)) * 255).toString(16).padStart(2, '0')).join('')}`;
+   564→}
+   565→

@@ -514,16 +514,30 @@
     "label": "el jardín",
     "exterior": {
       "height": 0.18,
-      "treesPer10m": 1.6,
-      "bushesPer10m": 3.2,
+      "treesPer10m": 2.2,
+      "bushesPer10m": 4.2,
       "flowerChance": 0.45,
       "gridScatter": true,
       "maxTrees": 10,
       "maxBushes": 16,
       "trunkColor": "#6f4926",
-      "leafColors": ["#5a9367", "#84a59d", "#708c5a", "#6f9b72"],
-      "bushColors": ["#5a9367", "#6f9b72", "#8fb573"],
-      "flowerColors": ["#e07a5f", "#ffd166", "#f2cc8f", "#e56b6f"],
+      "leafColors": [
+        "#5a9367",
+        "#84a59d",
+        "#708c5a",
+        "#6f9b72"
+      ],
+      "bushColors": [
+        "#5a9367",
+        "#6f9b72",
+        "#8fb573"
+      ],
+      "flowerColors": [
+        "#e07a5f",
+        "#ffd166",
+        "#f2cc8f",
+        "#e56b6f"
+      ],
       "grassColor": "#7fa05f"
     }
   },
@@ -586,16 +600,29 @@
     "label": "el campo",
     "exterior": {
       "height": 0.16,
-      "treesPer10m": 0.5,
-      "bushesPer10m": 1.1,
+      "treesPer10m": 0.8,
+      "bushesPer10m": 1.6,
       "flowerChance": 0.18,
       "maxTrees": 18,
       "maxBushes": 26,
       "gridScatter": true,
       "trunkColor": "#6f4926",
-      "leafColors": ["#5a9367", "#84a59d", "#708c5a", "#6f9b72"],
-      "bushColors": ["#5a9367", "#6f9b72", "#8fb573"],
-      "flowerColors": ["#e07a5f", "#ffd166", "#f2cc8f"],
+      "leafColors": [
+        "#5a9367",
+        "#84a59d",
+        "#708c5a",
+        "#6f9b72"
+      ],
+      "bushColors": [
+        "#5a9367",
+        "#6f9b72",
+        "#8fb573"
+      ],
+      "flowerColors": [
+        "#e07a5f",
+        "#ffd166",
+        "#f2cc8f"
+      ],
       "grassColor": "#7c9a58"
     }
   }

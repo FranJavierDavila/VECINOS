@@ -1,8 +1,9 @@
-import type { Color3, Mesh, Scene, StandardMaterial, TransformNode } from '@babylonjs/core';
+import type { Color3, DynamicTexture, Mesh, Scene, StandardMaterial, TransformNode } from '@babylonjs/core';
 import type { Content, World } from '@/game/core/types';
 import { hash01 } from '@/game/interior';
 import { B } from './babylon';
 import type { BackdropDirector } from './backdrop';
+import { alphaBoundsOf, stripWhite } from './diorama';
 
 /**
  * ESCENA EXTERIOR (v1.20→v1.22) — decorado urbano a pie de calle, 100% del catálogo.
@@ -94,9 +95,52 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
     return mesh;
   };
 
+  // ── Árboles RECORTE 2D (v1.24): el catálogo declara PNGs recortados (treeArt) y cada
+  // variante comparte UN material con ALPHATEST — los quads miran a cámara (yaw fijo como
+  // el diorama) y se FUNDEN en una malla por arte: recorte bonito a coste cero de draw calls.
+  // Sin catálogo de arte, fallback a las esferas 3D de siempre.
+  const treeTexCache = new Map<string, { tex: DynamicTexture; ar: number }>();
+  const treeTexOf = (file: string, tolerance: number, artW: number, artH: number): { tex: DynamicTexture; ar: number } | null => {
+    const hit = treeTexCache.get(file);
+    if (hit) return hit;
+    const S = 512;
+    const tex = new (B().DynamicTexture)(`arbol_tex_${treeTexCache.size}`, { width: S, height: S }, scene, true);
+    tex.hasAlpha = true;
+    const entry: { tex: DynamicTexture; ar: number } = { tex, ar: artW / artH };
+    treeTexCache.set(file, entry);
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = S;
+      c.height = S;
+      const cctx = c.getContext('2d', { willReadFrequently: true });
+      if (!cctx) return;
+      cctx.drawImage(img, 0, 0, S, S);
+      stripWhite(c, '#ffffff', tolerance, 0.45);
+      const b = alphaBoundsOf(c);
+      if (b) {
+        // ENCAJAR (contain) el contenido recortado en el canvas cuadrado, sin deformar:
+        // el aspecto real lo da el quad del catálogo (w × h del treeArt).
+        const bw = Math.max(1, b.x1 - b.x0);
+        const bh = Math.max(1, b.y1 - b.y0);
+        const k = Math.min(S / bw, S / bh);
+        const dw = bw * k;
+        const dh = bh * k;
+        const dctx = tex.getContext() as unknown as CanvasRenderingContext2D;
+        dctx.clearRect(0, 0, S, S);
+        dctx.drawImage(c, b.x0, b.y0, bw, bh, (S - dw) / 2, (S - dh) / 2, dw, dh);
+      }
+      tex.update(true);
+    };
+    img.onerror = () => console.warn(`exterior: arte de árbol no disponible (${file})`);
+    img.src = file;
+    return entry;
+  };
+
   // ── Suelo del mundo: cierra el horizonte bajo todo el decorado. v1.21: NO se cuela tras
   // el edificio (backZ del catálogo) — más allá, cielo; el suelo no hace de muralla oscura
-  // entre el edificio y las capas de fachadas del fondo.
+  // entre el edificio y las capas de fachadas del fondo. v1.24: backZ mayor — el prado
+  // alcanza las capas del fondo (sin franja vacía detrás del edificio).
   const blocks = Object.values(world.blocks);
   const cx = (Math.max(...blocks.map((b) => b.cell.col + b.size.w)) * content.rules.view.cellW) / 2;
   const groundDepth = cfg.ground.size / 2 + cfg.ground.backZ;
@@ -204,16 +248,44 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
       const n = cap(scatter ? Math.round(((uLen * vLen) / 100) * ex.treesPer10m) : Math.floor(uLen / treeEvery), row.maxTrees ?? ex.maxTrees);
       const trunk = matOf(ex.trunkColor, 'tronco');
       const leafs = ex.leafColors.map((hex, i) => matOf(hex, `hoja_${i}`));
+      const arts = cfg.treeArt ?? [];
       for (let i = 0; i < n; i++) {
         const u = scatter ? u0 + hash01(`tree${ri}`, i) * uLen : u0 + treeEvery * (i + 0.5) + (hash01(`tree${ri}`, i) - 0.5) * treeEvery * 0.5;
         const v = scatter ? v0 + 0.5 + hash01(`treeV${ri}`, i) * (vLen - 1) : v0 + 0.5 + hash01(`treeZ${ri}`, i) * (vLen - 1);
         const p = at(u, v);
         const s = 0.85 + hash01(`treeS${ri}`, i) * 0.5;
-        const trunkH = 1.7 * s;
-        cyl(`calle_${ri}_arbol_tronco`, props, 0.12 * s, 0.18 * s, trunkH, p.x, ex.height + trunkH / 2, p.z, trunk).parent = propsNode;
-        const leaf = leafs[Math.floor(hash01(`treeC${ri}`, i) * leafs.length) % leafs.length]!;
-        sphere(`calle_${ri}_arbol_copa_a`, props, 1.9 * s, p.x, ex.height + trunkH + 0.7 * s, p.z, leaf).parent = propsNode;
-        sphere(`calle_${ri}_arbol_copa_b`, props, 1.3 * s, p.x + 0.5 * s, ex.height + trunkH + 1.3 * s, p.z - 0.3 * s, leaf).parent = propsNode;
+        if (arts.length > 0) {
+          // RECORTE 2D (v1.24): quad frontal a escala real, variante por hash; el material
+          // compartido por arte permite la fusión (una malla por PNG).
+          const art = arts[Math.floor(hash01(`treeA${ri}`, i) * arts.length) % arts.length]!;
+          const loaded = treeTexOf(art.art, art.keyTolerance ?? 0.12, art.w, art.h);
+          const key = `arbol:${art.art}`;
+          const tm = mats.get(key) ?? (() => {
+            const m2 = new StandardMaterial(key, scene);
+            m2.diffuseTexture = loaded!.tex;
+            m2.opacityTexture = loaded!.tex;
+            m2.useAlphaFromDiffuseTexture = true;
+            m2.transparencyMode = 2; // ALPHATEST: sin líos de orden de mezcla
+            m2.alphaCutOff = 0.45;
+            m2.specularColor = new Color3(0, 0, 0);
+            m2.backFaceCulling = true;
+            mats.set(key, m2);
+            return m2;
+          })();
+          const h = art.h * s;
+          const q = MeshBuilder.CreatePlane(`calle_${ri}_arbol_q${i}`, { width: h * loaded!.ar, height: h }, scene);
+          q.position.set(p.x, ex.height + h / 2 - 0.03, p.z);
+          q.material = tm;
+          q.isPickable = false;
+          push(props, key, q);
+          q.parent = propsNode;
+        } else {
+          const trunkH = 1.7 * s;
+          cyl(`calle_${ri}_arbol_tronco`, props, 0.12 * s, 0.18 * s, trunkH, p.x, ex.height + trunkH / 2, p.z, trunk).parent = propsNode;
+          const leaf = leafs[Math.floor(hash01(`treeC${ri}`, i) * leafs.length) % leafs.length]!;
+          sphere(`calle_${ri}_arbol_copa_a`, props, 1.9 * s, p.x, ex.height + trunkH + 0.7 * s, p.z, leaf).parent = propsNode;
+          sphere(`calle_${ri}_arbol_copa_b`, props, 1.3 * s, p.x + 0.5 * s, ex.height + trunkH + 1.3 * s, p.z - 0.3 * s, leaf).parent = propsNode;
+        }
       }
     }
     const bushEvery = ex.bushesPer10m > 0 ? 10 / ex.bushesPer10m : 0;
@@ -263,6 +335,20 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
   bake(props, propsNode);
   for (const m of frozen) m.freeze();
 
+  const dispose = () => {
+    for (const m of root) m.dispose(false, true);
+    ground.dispose(false, true);
+    propsNode.dispose(false, false);
+    for (const t of treeTexCache.values()) t.tex.dispose();
+    treeTexCache.clear();
+    for (const m of mats.values()) m.unfreeze();
+    for (const m of mats.values()) m.dispose();
+    mats.clear();
+    root.length = 0;
+    lampMats.length = 0;
+    frozen.clear();
+  };
+
   return {
     update() {
       // Farolas: el anochecer las enciende (luz de día del fondo), el mediodía las apaga.
@@ -276,15 +362,7 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
       propsNode.setEnabled(visible);
     },
     dispose() {
-      for (const m of root) m.dispose(false, true);
-      ground.dispose(false, true);
-      propsNode.dispose(false, false);
-      for (const m of mats.values()) m.unfreeze();
-      for (const m of mats.values()) m.dispose();
-      mats.clear();
-      root.length = 0;
-      lampMats.length = 0;
-      frozen.clear();
+      dispose();
     },
   };
 }

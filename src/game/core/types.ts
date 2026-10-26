@@ -976,6 +976,36 @@ export interface Rules {
       climbSpeed: number;
       /** Forjado interior continuo del cubo (v1.18): losa a nivel de entrada en cada planta. */
       floorSlab: { enabled: boolean; thickness: number; color: string; topAt: number };
+      /** v1.24 — acceso a la escalera DE VERDAD: muro frontal alrededor de la puerta (antes
+       *  flotaba sin pared), hoja con arte de zonas comunes + número de planta grande negro
+       *  centrado (vinculado a la hoja: bascula al abrirse), bisagras en el lado izquierdo
+       *  visto desde el pasillo, y apertura automática al acercarse alguien a entrar/salir. */
+      facade: {
+        enabled: boolean;
+        halfW: number;
+        color: string;
+        doorW: number;
+        doorH: number;
+        doorBottom: number;
+        doorZ: number;
+        wallT: number;
+        art: string;
+        numberColor: string;
+        hinge: 'left' | 'right';
+        openAngle: number;
+        openAhead: number;
+        openSpeed: number;
+      };
+      /** v1.24 — iluminación COMPARTIDA de todos los cubos de escalera: de noche se enciende
+       *  si algún vecino se mueve por las escaleras (materiales de los sellos de luz del arte). */
+      activityLight: {
+        enabled: boolean;
+        dayCutoff: number;
+        glow: number;
+        fade: number;
+        meshes: string[];
+        color: string;
+      };
     };
     /** Ascensor creíble (v1.5, presentación): llamadas, puertas, espera y capacidad (src/game/client/elevator.ts). */
     elevator: {
@@ -1063,8 +1093,22 @@ export interface Rules {
       potH: number;
     };
     /** Privacidad de viviendas (v1.17): el interior solo se ve con alguien dentro; vacía,
-     *  la fachada se cierra con su puerta al pasillo (propietario, visita… o un ladrón). */
-    privacy: { enabled: boolean; doorColor: string; handleColor: string; doorW: number; doorH: number };
+     *  la fachada se cierra con su puerta al pasillo (propietario, visita… o un ladrón).
+     *  v1.24: la puerta es un PLANO con arte real + marco 3D pequeño del color de la puerta
+     *  + aplique de luz a un lado; la placa numerada queda por ENCIMA del marco (sin taparse).
+     *  `hideNodes` retira del modelo glTF overlay la decoración de puerta antigua. */
+    privacy: {
+      enabled: boolean;
+      doorColor: string;
+      handleColor: string;
+      doorW: number;
+      doorH: number;
+      doorArts?: string[];
+      frameW?: number;
+      frameDepth?: number;
+      hideNodes?: string[];
+      lamp?: { side: -1 | 1; dx: number; dy: number; color: string; glowColor: string };
+    };
     roomZ: number;
     /** Calado (profundidad en Z) de las viviendas: doblado en v0.6-b para mobiliario interior. */
     depth: number;
@@ -1122,6 +1166,9 @@ export interface Rules {
         maxBushes?: number;
       }[];
       ground: { color: string; size: number; backZ: number };
+      /** v1.24 — árboles como RECORTEs 2D (billboards de recorte, fundidos por arte).
+       *  Presente → sustituye a las esferas 3D; ausente → fallback greybox de siempre. */
+      treeArt?: { art: string; w: number; h: number; keyTolerance?: number }[];
     };
     /** ── Tráfico (v1.22) ── vehículos ocasionales (coches, bus, patrulla) por carriles;
      *  solo presentación y solo vista "edificio". */

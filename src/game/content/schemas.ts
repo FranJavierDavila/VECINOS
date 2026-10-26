@@ -636,8 +636,67 @@ export const rulesSchema = z.object({
             topAt: z.number().min(0).default(0.14),
           })
           .default({ enabled: true, thickness: 0.14, color: '#b8c0a8', topAt: 0.14 }),
+        /** v1.24 — acceso a la escalera: muro frontal + hoja numerada con apertura automática. */
+        facade: z
+          .object({
+            enabled: z.boolean().default(true),
+            halfW: z.number().positive().default(1.2),
+            color: z.string().default('#ddd1b8'),
+            doorW: z.number().positive().default(0.86),
+            doorH: z.number().positive().default(1.84),
+            doorBottom: z.number().min(0).default(0.14),
+            doorZ: z.number().default(0.14),
+            wallT: z.number().positive().default(0.1),
+            art: z.string().default('/art/interiors/raw/door_comunal.png'),
+            numberColor: z.string().default('#1c1c1c'),
+            hinge: z.enum(['left', 'right']).default('left'),
+            openAngle: z.number().positive().default(1.75),
+            openAhead: z.number().positive().default(1.05),
+            openSpeed: z.number().positive().default(3.2),
+          })
+          .default({
+            enabled: true,
+            halfW: 1.2,
+            color: '#ddd1b8',
+            doorW: 0.86,
+            doorH: 1.84,
+            doorBottom: 0.14,
+            doorZ: 0.14,
+            wallT: 0.1,
+            art: '/art/interiors/raw/door_comunal.png',
+            numberColor: '#1c1c1c',
+            hinge: 'left',
+            openAngle: 1.75,
+            openAhead: 1.05,
+            openSpeed: 3.2,
+          }),
+        activityLight: z
+          .object({
+            enabled: z.boolean().default(true),
+            dayCutoff: z.number().min(0).max(1).default(0.4),
+            glow: z.number().min(0).default(0.9),
+            fade: z.number().positive().default(2.4),
+            meshes: z.array(z.string()).default(['luz_interior', 'tira_luz']),
+            color: z.string().default('#ffedc2'),
+          })
+          .default({
+            enabled: true,
+            dayCutoff: 0.4,
+            glow: 0.9,
+            fade: 2.4,
+            meshes: ['luz_interior', 'tira_luz'],
+            color: '#ffedc2',
+          })
       })
-      .default({ spanW: 2, doorLocalX: -1.14, entryHalf: 0.45, laneFront: 0.35, laneBack: 1.05, flightRun: 2.19, landingX: 0.5, stepCount: 8, climbSpeed: 1.8, floorSlab: { enabled: true, thickness: 0.14, color: '#b8c0a8', topAt: 0.14 } }),
+      .default({
+        spanW: 2, doorLocalX: -1.14, entryHalf: 0.45, laneFront: 0.35, laneBack: 1.05, flightRun: 2.19, landingX: 0.5, stepCount: 8, climbSpeed: 1.8,
+        floorSlab: { enabled: true, thickness: 0.14, color: '#b8c0a8', topAt: 0.14 },
+        facade: {
+          enabled: true, halfW: 1.2, color: '#ddd1b8', doorW: 0.86, doorH: 1.84, doorBottom: 0.14, doorZ: 0.14, wallT: 0.1,
+          art: '/art/interiors/raw/door_comunal.png', numberColor: '#1c1c1c', hinge: 'left', openAngle: 1.75, openAhead: 1.05, openSpeed: 3.2,
+        },
+        activityLight: { enabled: true, dayCutoff: 0.4, glow: 0.9, fade: 2.4, meshes: ['luz_interior', 'tira_luz'], color: '#ffedc2' },
+      }),
     /** Ascensor creíble (v1.5, presentación): semáforo de permisos con llamadas, puertas que
      *  abren/cierran, espera al embarco y capacidad limitada. TODO en el catálogo, nada a pelo. */
     elevator: z
@@ -813,8 +872,34 @@ export const rulesSchema = z.object({
         handleColor: z.string().default('#ffd166'),
         doorW: z.number().positive().default(0.95),
         doorH: z.number().positive().default(1.85),
+        /** v1.24: arte full-bleed de la hoja (variantes por hash), marco fino, nodos del
+         *  overlay glTF que se retiran y aplique de luz a un lado. */
+        doorArts: z.array(z.string()).default([]),
+        frameW: z.number().positive().default(0.075),
+        frameDepth: z.number().positive().default(0.1),
+        hideNodes: z.array(z.string()).default([]),
+        lamp: z
+          .object({
+            side: z.union([z.literal(-1), z.literal(1)]).default(1),
+            dx: z.number().default(0.68),
+            dy: z.number().default(2.1),
+            color: z.string().default('#3b3129'),
+            glowColor: z.string().default('#ffd166'),
+          })
+          .default({ side: 1, dx: 0.68, dy: 2.1, color: '#3b3129', glowColor: '#ffd166' }),
       })
-      .default({ enabled: true, doorColor: '#5d4a3a', handleColor: '#ffd166', doorW: 0.95, doorH: 1.85 }),
+      .default({
+        enabled: true,
+        doorColor: '#5d4a3a',
+        handleColor: '#ffd166',
+        doorW: 0.95,
+        doorH: 1.85,
+        doorArts: [],
+        frameW: 0.075,
+        frameDepth: 0.1,
+        hideNodes: [],
+        lamp: { side: 1, dx: 0.68, dy: 2.1, color: '#3b3129', glowColor: '#ffd166' },
+      }),
     /** Velocidad (m/s) a partir de la cual un actor en marcha usa el clip "run". */
     runSpeed: z.number().positive().default(4.2),
     /** Multiplicador de velocidad del jugador mientras corre (Shift / botón del mando). */
@@ -909,8 +994,19 @@ export const rulesSchema = z.object({
         ground: z
           .object({ color: z.string().default('#a89a7c'), size: z.number().positive().default(220), backZ: z.number().default(0) })
           .default({ color: '#a89a7c', size: 220, backZ: 0 }),
+        /** v1.24 — árboles como recortes 2D (billboards fundidos por arte); vacío = esferas 3D. */
+        treeArt: z
+          .array(
+            z.object({
+              art: z.string(),
+              w: z.number().positive(),
+              h: z.number().positive(),
+              keyTolerance: z.number().min(0.02).max(0.5).default(0.12),
+            }),
+          )
+          .default([]),
       })
-      .default({ enabled: false, rows: [], ground: { color: '#a89a7c', size: 220, backZ: 0 } }),
+      .default({ enabled: false, rows: [], ground: { color: '#a89a7c', size: 220, backZ: 0 }, treeArt: [] }),
     /** ── Tráfico (v1.22) ── vehículos ocasionales por los carriles de la carretera:
      *  coches, furgonetas, autobús y patrulla con sirena. Solo presentación (nunca sim)
      *  y solo visibles en la vista "edificio". */
@@ -1246,6 +1342,10 @@ export const streetCatalogSchema = z.object({
     minPeople: z.number().int().min(10),
     maxPeople: z.number().int().min(10),
     spacing: z.number().positive().default(0.75),
+    /** v1.24: irregularidad de la multitud — jitter longitudinal (m) y ancho de banda (m).
+     *  Con ellos la marcha deja de ser una fila exacta: columnas torpeas de gente real. */
+    slotJitter: z.number().min(0).default(0.5),
+    spreadZ: z.number().min(0).default(1.6),
     speed: z.number().positive().default(0.55),
     lanes: z.array(z.object({ z: z.number(), x0: z.number(), x1: z.number() })).min(1),
     placard: z.object({

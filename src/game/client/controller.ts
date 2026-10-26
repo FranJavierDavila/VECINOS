@@ -937,6 +937,16 @@ class GameController {
     // de las viviendas reaccionan al instante cuando entra o sale.
     // v1.19: el cuarto argumento alimenta carteles guía de trasteros y el apilamiento 3D.
     this.syncRear(pos);
+    // v1.24: posiciones de todos los vecinos en escena — abren las puertas de escalera al
+    // acercarse y encienden su iluminación compartida de noche al moverse por los cubos.
+    const movers: { x: number; y: number; z: number }[] = [{ x: pos.x, y: pos.floor * (this.content?.rules.view.cellH ?? 2.6), z: pos.z }];
+    if (this.world && this.actors) {
+      for (const r of Object.values(this.world.residents)) {
+        if (!r.present || r.location === null) continue;
+        const p = this.actors.director?.nodeOf(r.id);
+        if (p) movers.push(p);
+      }
+    }
     this.building.update(
       dt,
       useGameStore.getState().camMode === 'edificio' ? undefined : { x: pos.x, floor: pos.floor },
@@ -944,7 +954,8 @@ class GameController {
       { x: pos.x, z: pos.z, insideBlock: pos.insideBlock },
       // v1.21: luz de día del fondo → luces nocturnas de interiores (encendidas solo con
       // gente despierta dentro) y pasillos a oscuras de noche salvo presencia + instalación OK.
-      { daylight: this.backdrop ? this.backdrop.daylight : 1 },
+      // v1.24: movers → puertas de escalera + su luz compartida nocturna.
+      { daylight: this.backdrop ? this.backdrop.daylight : 1, movers },
     );
     this.rig.update(dt, pos);
     this.scene.render();

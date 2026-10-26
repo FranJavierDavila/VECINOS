@@ -4,20 +4,27 @@ import { hash01 } from '@/game/interior';
 import { B } from './babylon';
 
 /**
- * VIANDANTES (v1.22) — paseantes anónimos por las aceras: caminan, algunos ENTRAN al
+ * VIANDANTES (v1.22→v1.24) — paseantes anónimos por las aceras: caminan, algunos ENTRAN al
  * edificio (se desvanecen en el portal) y otros SALEN de él. Solo presentación (el sim
  * no sabe de ellos) y solo visibles en la vista "edificio" — en planta/estancia se apagan
  * para no estorbar ni cargar recursos.
  *
- * La fábrica de figuritas (makePedRig) se comparte con streetlife.ts: las manifestaciones
- * están hechas de la misma gente, con carteles y megáfono.
+ * v1.24 — RIG MÁS DEFINIDO Y QUE ANDA DE VERDAD: las piernas llegan AL SUELO (antes flotaban
+ * 0.28 m y la figura "patinaba"), con brazos que oscilan en contrafase del paso, cabeza
+ * mayor y silueta cartoon. La fábrica (makePedRig) se comparte con streetlife.ts: las
+ * manifestaciones están hechas de la misma gente, con pose de CARTEL en alto (brazos
+ * estirados hacia arriba agarrando el palo).
  */
 
 export interface PedRig {
   root: TransformNode;
   legs: Mesh[];
+  arms: Mesh[];
   bodyMat: StandardMaterial;
   height: number;
+  /** true mientras porta algo en alto (cartel): brazos estirados hacia arriba. */
+  carrying: boolean;
+  phase: number;
 }
 
 /** Fábrica de figuritas cartoon (cuerpo cilíndrico, cabeza esférica, gorro opcional). */
@@ -37,38 +44,81 @@ export function createPedFactory(scene: Scene) {
     return m;
   };
 
+  /**
+   * Muñeco articulado (proporciones sobre altura 1.3 m):
+   *   pies en y=0 → piernas 0..0.5 (pivote de cadera en 0.5) → torso 0.5..1.14
+   *   → brazos colgando del hombro 1.08 → cabeza 1.32 (Ø 0.34) → gorro opcional.
+   * El paso: piernas en péndulo contrafasado, brazos al revés de las piernas.
+   */
   const make = (bodyHex: string, hatHex: string | null, height = 1.3): PedRig => {
     const root = new TransformNode('viandante', scene);
     const bodyMat = matOf(bodyHex);
     const s = height / 1.3;
-    const torso = MeshBuilder.CreateCylinder('ped_torso', { diameter: 0.36, height: 0.66, tessellation: 10 }, scene);
-    torso.position.y = 0.86 * s;
+    const torso = MeshBuilder.CreateCylinder('ped_torso', { diameterTop: 0.3, diameterBottom: 0.4, height: 0.64, tessellation: 10 }, scene);
+    torso.position.y = 0.82 * s;
     torso.material = bodyMat;
     torso.parent = root;
-    const head = MeshBuilder.CreateSphere('ped_cabeza', { diameter: 0.3, segments: 8 }, scene);
-    head.position.y = 1.32 * s;
+    const head = MeshBuilder.CreateSphere('ped_cabeza', { diameter: 0.34, segments: 8 }, scene);
+    head.position.y = 1.31 * s;
     head.material = matOf(bodyHex, 0.82); // cabeza en tono más oscuro: muñeco sin datos extra
     head.parent = root;
     if (hatHex) {
-      const hat = MeshBuilder.CreateCylinder('ped_gorro', { diameter: 0.3, height: 0.14, tessellation: 10 }, scene);
-      hat.position.y = 1.5 * s;
+      const hat = MeshBuilder.CreateCylinder('ped_gorro', { diameterTop: 0.24, diameterBottom: 0.34, height: 0.16, tessellation: 10 }, scene);
+      hat.position.y = 1.52 * s;
       hat.material = matOf(hatHex);
       hat.parent = root;
     }
     const legs: Mesh[] = [];
-    for (const sx of [-0.09, 0.09]) {
-      const leg = MeshBuilder.CreateBox('ped_pierna', { width: 0.12, height: 0.5, depth: 0.14 }, scene);
-      leg.setPivotPoint(new Vector3(0, 0.25 * s, 0)); // pivote en la cadera para el péndulo
-      leg.position.set(sx, 0.53 * s, 0);
+    for (const sx of [-0.1, 0.1]) {
+      const leg = MeshBuilder.CreateBox('ped_pierna', { width: 0.13, height: 0.5, depth: 0.15 }, scene);
+      leg.setPivotPoint(new Vector3(0, 0.25 * s, 0)); // pivote en la CADERA (punta superior)
+      leg.position.set(sx, 0.5 * s, 0); // la caja llega AL SUELO: pies en y=0, sin flotar
       leg.material = matOf(bodyHex, 0.62);
       leg.parent = root;
       legs.push(leg);
     }
-    return { root, legs, bodyMat, height };
+    const arms: Mesh[] = [];
+    for (const sx of [-0.25, 0.25]) {
+      const arm = MeshBuilder.CreateBox('ped_brazo', { width: 0.1, height: 0.46, depth: 0.12 }, scene);
+      arm.setPivotPoint(new Vector3(0, 0.23 * s, 0)); // pivote en el HOMBRO (punta superior)
+      arm.position.set(sx, 1.08 * s, 0);
+      arm.material = matOf(bodyHex, 0.78);
+      arm.parent = root;
+      arms.push(arm);
+    }
+    return { root, legs, arms, bodyMat, height, carrying: false, phase: 0 };
+  };
+
+  /**
+   * Pose del rig según el paso y la carga. `swing` 0 = quieto.
+   *  · Normal: brazos en contrafase de las piernas (andar creíble).
+   *  · carrying: ambos brazos ESTIRADOS HACIA ARRIBA agarrando el palo del cartel
+   *    (rotación ~180° con leve convergencia hacia el eje).
+   */
+  const pose = (rig: PedRig, swing: number): void => {
+    const s = rig.height / 1.3;
+    rig.legs[0]!.rotation.x = Math.sin(rig.phase) * 0.6 * swing;
+    rig.legs[1]!.rotation.x = -Math.sin(rig.phase) * 0.6 * swing;
+    rig.root.position.y = Math.abs(Math.sin(rig.phase)) * 0.045 * swing;
+    if (rig.carrying) {
+      for (let i = 0; i < rig.arms.length; i++) {
+        const arm = rig.arms[i]!;
+        arm.rotation.x = Math.PI * 0.94;
+        arm.rotation.z = (i === 0 ? 1 : -1) * 0.16; // manos convergen sobre el palo
+      }
+    } else {
+      for (let i = 0; i < rig.arms.length; i++) {
+        const arm = rig.arms[i]!;
+        arm.rotation.x = (i === 0 ? -1 : 1) * Math.sin(rig.phase) * 0.45 * swing;
+        arm.rotation.z = 0;
+      }
+    }
+    void s;
   };
 
   return {
     make,
+    pose,
     dispose() {
       for (const m of mats.values()) m.dispose();
       mats.clear();
@@ -113,13 +163,6 @@ export function createPedestrians(scene: Scene, world: World, content: Content):
   const walkers = new Set<Walker>();
   let nextSpawn = 2;
   let roll = 0;
-
-  const poseAt = (w: Walker): void => {
-    w.rig.root.position.set(w.x, Math.abs(Math.sin(w.phase)) * 0.045, w.z);
-    w.rig.legs[0]!.rotation.x = Math.sin(w.phase) * 0.55;
-    w.rig.legs[1]!.rotation.x = -Math.sin(w.phase) * 0.55;
-    w.rig.root.scaling.setAll(w.scale);
-  };
 
   const spawn = (): void => {
     const pathIndex = Math.floor(hash01('viandante_ruta', roll) * cfg.paths.length) % cfg.paths.length;
@@ -175,7 +218,7 @@ export function createPedestrians(scene: Scene, world: World, content: Content):
             }
           }
         } else if (w.mode === 'exit') {
-          // Sale del portal: crece y toma su ruta hasta el borde de la calle.
+          // Sale del portal: crece y toma su ruta hasta el borde.
           w.scale = Math.min(1, w.scale + dt * 2.4);
           if (w.scale >= 1) {
             w.mode = 'walk';
@@ -192,7 +235,11 @@ export function createPedestrians(scene: Scene, world: World, content: Content):
             continue;
           }
         }
-        poseAt(w);
+        w.rig.phase = w.phase;
+        factory.pose(w.rig, 1);
+        w.rig.root.position.x = w.x;
+        w.rig.root.position.z = w.z;
+        w.rig.root.scaling.setAll(w.scale);
       }
     },
     setVisible(v: boolean) {

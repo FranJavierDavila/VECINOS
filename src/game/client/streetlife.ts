@@ -20,8 +20,10 @@ import type { BubblesDirector } from './bubbles';
 interface Marcher {
   rig: PedRig;
   placard: TransformNode | null;
-  /** Desfase propio dentro de la columna (metros). */
+  /** Desfase propio dentro de la columna (metros, con jitter irregular v1.24). */
   slot: number;
+  /** Desvío lateral propio dentro de la acera (v1.24: multitud irregular, sin fila exacta). */
+  zOff: number;
   phase: number;
 }
 
@@ -134,6 +136,8 @@ export function createStreetlife(
       let placard: TransformNode | null = null;
       if (i > 0 && i % man.placard.carryEvery === 0) {
         // Cartel: palo + panel con lema (rotado para que la cámara lo lea de frente).
+        // v1.24: en ALTO (liftY del catálogo por encima de las cabezas) y con los BRAZOS
+        // ESTIRADOS hacia arriba agarrando el palo — el lema se lee desde la cámara.
         placard = new TransformNode('cartel', scene);
         placard.parent = rig.root;
         const stick = MeshBuilder.CreateBox('cartel_palo', { width: 0.05, height: man.placard.stickH, depth: 0.05 }, scene);
@@ -151,16 +155,22 @@ export function createStreetlife(
         panel.material = mat;
         panel.position.y = man.placard.liftY;
         panel.parent = placard;
+        rig.carrying = true;
       }
       if (i === 0) {
-        // Portavoz: megáfono cónico apuntando al frente de la marcha.
+        // Portavoz: megáfono cónico apuntando al frente de la marcha (brazos en alto).
         const mega = MeshBuilder.CreateCylinder('megafono', { diameterTop: 0.05, diameterBottom: 0.19, height: 0.34, tessellation: 10 }, scene);
         mega.rotation.z = dir > 0 ? -Math.PI / 2 : Math.PI / 2;
-        mega.position.set(dir * 0.26, 1.18, 0.14);
+        mega.position.set(dir * 0.26, 1.62, 0.14);
         mega.material = megaMat;
         mega.parent = rig.root;
+        rig.carrying = true;
       }
-      marchers.push({ rig, placard, slot: i * man.spacing, phase: hash01('marcha_fase', roll + i) * 6 });
+      // v1.24: MULTITUD IRREGULAR — desfase longitudinal con jitter y banda lateral propia;
+      // la columna deja de ser una fila exacta (dos manos de gente que avanza a la par).
+      const slot = i * man.spacing + (hash01('marcha_jit', roll + i) - 0.5) * man.slotJitter;
+      const zOff = (hash01('marcha_z', roll + i) - 0.5) * man.spreadZ;
+      marchers.push({ rig, placard, slot, zOff, phase: hash01('marcha_fase', roll + i) * 6 });
     }
     // Comentarios de vecinos: agendados con retardo (ven la marcha y la comentan según ánimo).
     const pending: { at: number; who: string; text: string }[] = [];
@@ -227,9 +237,10 @@ export function createStreetlife(
         for (const marcher of m.marchers) {
           const x = m.headX - m.dir * marcher.slot;
           marcher.phase += dt * m.speed * 4.6;
-          marcher.rig.root.position.set(x, Math.abs(Math.sin(marcher.phase)) * 0.04, lane.z);
-          marcher.rig.legs[0]!.rotation.x = Math.sin(marcher.phase) * 0.5;
-          marcher.rig.legs[1]!.rotation.x = -Math.sin(marcher.phase) * 0.5;
+          marcher.rig.phase = marcher.phase;
+          factory.pose(marcher.rig, 1);
+          marcher.rig.root.position.x = x;
+          marcher.rig.root.position.z = lane.z + marcher.zOff;
           if (marcher.placard) marcher.placard.rotation.z = Math.sin(marcher.phase * 0.5) * 0.06;
         }
         // Grito del portavoz (megáfono) mientras la marcha avanza.

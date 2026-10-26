@@ -145,36 +145,53 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
   const sun = disc('sol', cfg.sky.sunColorDay, cfg.sky.sunSize);
   const moon = disc('luna', cfg.sky.moonColor, cfg.sky.moonSize);
 
-  // ── Nubes: textura blanda compartida; planos a la deriva con alpha según el clima. ──
+  // ── Nubes (v1.24): nubecillas cartoon DE DIBUJO — tres sellos distintos (grumos planos
+  // con base sombreada) dibujados en canvas y a la deriva. Alpha del catálogo alto: se VEN. ──
   const CLOUD_W = 512;
-  const CLOUD_H = 256;
-  const cloudTex = new DynamicTexture('nube_tex', { width: CLOUD_W, height: CLOUD_H }, scene, false);
-  cloudTex.hasAlpha = true;
-  {
-    const ctx = cloudTex.getContext() as unknown as CanvasRenderingContext2D;
-    ctx.clearRect(0, 0, CLOUD_W, CLOUD_H);
-    for (let i = 0; i < 26; i++) {
-      const px = 60 + hash01('nube', i * 7) * (CLOUD_W - 120);
-      const py = 70 + hash01('nube', i * 13) * (CLOUD_H - 130);
-      const r = 26 + hash01('nube', i * 29) * 52;
-      const g = ctx.createRadialGradient(px, py, 2, px, py, r);
-      g.addColorStop(0, 'rgba(255,255,255,0.85)');
-      g.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(px, py, r, 0, Math.PI * 2);
-      ctx.fill();
+  const CLOUD_H = 288;
+  const paintPuff = (ctx: CanvasRenderingContext2D, px: number, py: number, r: number, flat: boolean): void => {
+    ctx.beginPath();
+    ctx.arc(px, py, r, 0, Math.PI * 2);
+    if (flat) {
+      // Base aplanada: recorta la mitad inferior con la silueta del propio canvas.
+      ctx.arc(px + r * 0.9, py + r * 0.32, r * 0.62, 0, Math.PI * 2);
+      ctx.arc(px - r * 0.9, py + r * 0.28, r * 0.58, 0, Math.PI * 2);
     }
-    cloudTex.update(true);
-  }
+    ctx.fill();
+  };
+  const cloudTexs = [0, 1, 2].map((variant) => {
+    const tex = new DynamicTexture(`nube_tex_${variant}`, { width: CLOUD_W, height: CLOUD_H }, scene, false);
+    tex.hasAlpha = true;
+    const ctx = tex.getContext() as unknown as CanvasRenderingContext2D;
+    ctx.clearRect(0, 0, CLOUD_W, CLOUD_H);
+    // Silueta blanca: 5-7 grumos solapados, composición distinta por variante.
+    ctx.fillStyle = '#ffffff';
+    const blobs = 5 + variant;
+    for (let i = 0; i < blobs; i++) {
+      const px = 90 + (i / Math.max(1, blobs - 1)) * (CLOUD_W - 180) + (hash01(`nubeV${variant}`, i) - 0.5) * 46;
+      const py = 150 + (hash01(`nubeY${variant}`, i) - 0.5) * 52;
+      const r = 42 + hash01(`nubeR${variant}`, i) * 40;
+      paintPuff(ctx, px, py, r, i === Math.floor(blobs / 2));
+    }
+    // Base sombreada (tono del catálogo, alfa suave) SOLO sobre la silueta.
+    ctx.globalCompositeOperation = 'source-atop';
+    ctx.fillStyle = 'rgba(148,158,172,0.28)';
+    ctx.beginPath();
+    ctx.ellipse(CLOUD_W / 2, CLOUD_H * 0.86, CLOUD_W * 0.42, CLOUD_H * 0.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    tex.update(true);
+    return tex;
+  });
   const clouds: { mesh: Mesh; speed: number }[] = [];
   for (let i = 0; i < cfg.clouds.count; i++) {
-    const w = 16 + hash01('nube_tam', i) * 22;
-    const mesh = MeshBuilder.CreatePlane(`nube_${i}`, { width: w, height: w * (CLOUD_H / CLOUD_W) * 0.7, sideOrientation: B().Mesh.DOUBLESIDE }, scene);
+    const w = 13 + hash01('nube_tam', i) * 17;
+    const tex = cloudTexs[i % cloudTexs.length]!;
+    const mesh = MeshBuilder.CreatePlane(`nube_${i}`, { width: w, height: w * (CLOUD_H / CLOUD_W) }, scene);
     const mat = new StandardMaterial(`nube_${i}_mat`, scene);
-    mat.diffuseTexture = cloudTex;
+    mat.diffuseTexture = tex;
     mat.emissiveColor = new Color3(1, 1, 1);
-    mat.opacityTexture = cloudTex;
+    mat.opacityTexture = tex;
     mat.disableLighting = true;
     mat.specularColor = new Color3(0, 0, 0);
     mat.disableDepthWrite = true; // las nubes se mezclan con el cielo, jamás lo tapan
@@ -550,10 +567,10 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
       sun.mesh.dispose(false, true);
       moon.mesh.dispose(false, true);
       for (const c of clouds) c.mesh.dispose(false, true);
+      for (const t of cloudTexs) t.dispose();
       for (const lv of layers) lv.plane.dispose(false, true);
       rain.stop();
       rain.dispose();
-      cloudTex.dispose();
     },
   };
 }

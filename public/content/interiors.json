@@ -1,7 +1,7 @@
 {
   "artBase": "/art/interiors/raw/",
   "keyColor": "#ffffff",
-  "keyTolerance": 0.09,
+  "keyTolerance": 0.15,
   "processSize": 512,
   "alphaCutoff": 0.45,
   "doorDecal": {

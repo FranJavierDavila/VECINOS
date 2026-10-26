@@ -1,4 +1,4 @@
-import type { Color3, Color4, Mesh, Scene, StandardMaterial, TransformNode } from '@babylonjs/core';
+import type { Color3, Color4, DynamicTexture, Mesh, Scene, StandardMaterial, TransformNode } from '@babylonjs/core';
 import { blockLabel } from '@/game/core/types';
 import type { BlockInstance, Content, World } from '@/game/core/types';
 import { hash01 } from '@/game/interior';
@@ -40,6 +40,8 @@ interface BlockView {
   lodHiddenPanels: boolean;
   /** Segunda pared con edges (v1.19): la pared del fondo se parte si hay puerta a sala trasera. */
   edgesMesh2: Mesh | null;
+  /** v1.24: decoración de la puerta de privacidad (marco + aplique) — se activa junto a view.door. */
+  doorDecor: Mesh[];
 }
 
 /** Interior 2D de una vivienda (Fase C): suelo por estancia + tapa de puerta hacia estancia cerrada. */
@@ -100,6 +102,32 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     return v.commonDepth;
   };
   const mat = (name: string) => new StandardMaterial(name, scene);
+  /** Texturas de puerta cacheadas por fichero (v1.24): 3 arte de vivienda compartidos por
+   *  decenas de pisos — una sola subida por PNG. Full-bleed: la textura ES la hoja (el arte
+   *  llega con un borde pintado de pared/suelo que se RECUERTA al volcarlo a la textura). */
+  const doorArtCache = new Map<string, DynamicTexture>();
+  const doorArtTex = (sc: Scene, file: string): DynamicTexture => {
+    const hit = doorArtCache.get(file);
+    if (hit) return hit;
+    const dt = new (B().DynamicTexture)(`puerta_tex_${doorArtCache.size}`, { width: 384, height: 768 }, sc, true);
+    doorArtCache.set(file, dt);
+    const img = new Image();
+    img.onload = () => {
+      const dctx = dt.getContext() as unknown as CanvasRenderingContext2D;
+      dctx.clearRect(0, 0, 384, 768);
+      // Recorte del borde pintado (pared de fondo y suelo del sello): la hoja llena el plano.
+      const sx = img.naturalWidth * 0.07;
+      const sy = img.naturalHeight * 0.05;
+      const sw = img.naturalWidth * 0.86;
+      const sh = img.naturalHeight * 0.9;
+      dctx.drawImage(img, sx, sy, sw, sh, 0, 0, 384, 768);
+      dt.update(true);
+    };
+    img.src = file;
+    return dt;
+  };
+  /** Apliques de las puertas de vivienda: el foco cálido amaanece con la noche (update). */
+  const doorLampMats: { mat: StandardMaterial; hex: string }[] = [];
   /** Dioramas interiores (v1.23): null sin catálogo interiors.json — greybox como siempre. */
   const diro: DioramaDirector | null = createDioramaDirector(scene, content);
   const box = (name: string, w: number, h: number, d: number, x: number, y: number, z: number, m: StandardMaterial) => {
@@ -135,6 +163,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       edgesMesh2: null,
       glowForced: false,
       lodHiddenPanels: false,
+      doorDecor: [],
     };
     const root = new TransformNode(`${b.id}_root`, scene);
     roots.set(b.id, root);
@@ -189,34 +218,56 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       view.lock = box(`${b.id}_candado`, 0.3, 0.38, 0.12, cx, view.lockBase.y, frontZ - 0.1, mat(`${b.id}_candado_mat`));
       (view.lock.material as StandardMaterial).diffuseColor = Color3.FromHexString(v.lockColor);
 
-      // ── Privacidad (v1.17): puerta y picaporte sobre la fachada de la vivienda vacía.
+      // ── Privacidad (v1.24): la puerta es un PLANO con arte real (full-bleed), marco 3D
+      // pequeño del color de la puerta que SÍ contornea la hoja, y un aplique de luz a un
+      // lado (brilla de noche). La placa numerada sube POR ENCIMA del marco (sin taparse).
       // Se activan/desactivan cada frame según haya alguien dentro (propietario, visita…
       // o un ladrón); medidas y colores del catálogo (rules.view.privacy).
       const pv = v.privacy;
-      view.door = box(
-        `${b.id}_puerta_priv`,
-        pv.doorW,
-        pv.doorH,
-        0.06,
-        cx,
-        bottom + v.slab + v.wall + pv.doorH / 2,
-        frontZ - v.wall / 2 - 0.035,
-        mat(`${b.id}_puerta_priv_mat`),
-      );
-      (view.door.material as StandardMaterial).diffuseColor = Color3.FromHexString(pv.doorColor);
-      view.handle = box(
-        `${b.id}_picaporte`,
-        0.07,
-        0.07,
-        0.05,
-        cx + pv.doorW / 2 - 0.14,
-        bottom + v.slab + v.wall + pv.doorH * 0.55,
-        frontZ - v.wall / 2 - 0.07,
-        mat(`${b.id}_picaporte_mat`),
-      );
-      (view.handle.material as StandardMaterial).diffuseColor = Color3.FromHexString(pv.handleColor);
+      const doorZ = frontZ - v.wall / 2 - 0.035;
+      view.door = MeshBuilder.CreatePlane(`${b.id}_puerta_priv`, { width: pv.doorW, height: pv.doorH }, scene);
+      view.door.position.set(cx, bottom + v.slab + v.wall + pv.doorH / 2, doorZ);
+      const doorMat = mat(`${b.id}_puerta_priv_mat`);
+      doorMat.specularColor = new Color3(0, 0, 0);
+      // Arte: una variante por hash del id (3 puertas del catálogo); textura cacheada por fichero.
+      const artFile = pv.doorArts?.length ? pv.doorArts[Math.floor(hash01(b.id, 3) * pv.doorArts.length) % pv.doorArts.length]! : null;
+      if (artFile) doorMat.diffuseTexture = doorArtTex(scene, artFile);
+      else doorMat.diffuseColor = Color3.FromHexString(pv.doorColor);
+      view.door.material = doorMat;
+      view.door.isPickable = false;
       view.door.setEnabled(false);
-      view.handle.setEnabled(false);
+      // Marco pequeño del color de la puerta: dos jambas + dintel ABRAZANDO la hoja.
+      const fw = pv.frameW ?? 0.075;
+      const fd = pv.frameDepth ?? 0.1;
+      const frameMat = mat(`${b.id}_marco_puerta_mat`);
+      frameMat.diffuseColor = Color3.FromHexString(pv.doorColor);
+      frameMat.specularColor = new Color3(0.03, 0.03, 0.03);
+      const fz = frontZ - v.wall / 2 - 0.045;
+      const jambL = box(`${b.id}_marco_izq`, fw, pv.doorH + fw * 2, fd, cx - pv.doorW / 2 - fw / 2, bottom + v.slab + v.wall + pv.doorH / 2, fz, frameMat);
+      const jambR = box(`${b.id}_marco_der`, fw, pv.doorH + fw * 2, fd, cx + pv.doorW / 2 + fw / 2, bottom + v.slab + v.wall + pv.doorH / 2, fz, frameMat);
+      const lintel = box(`${b.id}_marco_sup`, pv.doorW + fw * 2, fw, fd, cx, bottom + v.slab + v.wall + pv.doorH + fw / 2, fz, frameMat);
+      for (const j of [jambL, jambR, lintel]) {
+        j.isPickable = false;
+        j.setEnabled(false);
+        view.doorDecor.push(j);
+      }
+      // Aplique de luz ENCIMA a un lado (catálogo): cuerpo oscuro + foco cálido que amaanece de noche.
+      if (pv.lamp) {
+        const bodyMat = mat(`${b.id}_aplique_mat`);
+        bodyMat.diffuseColor = Color3.FromHexString(pv.lamp.color);
+        const lampBody = box(`${b.id}_aplique`, 0.1, 0.14, 0.08, cx + pv.lamp.side * pv.lamp.dx, bottom + pv.lamp.dy, fz - 0.02, bodyMat);
+        lampBody.isPickable = false;
+        lampBody.setEnabled(false);
+        view.doorDecor.push(lampBody);
+        const glowMat = mat(`${b.id}_aplique_foco_mat`);
+        glowMat.diffuseColor = Color3.FromHexString(pv.lamp.glowColor);
+        glowMat.emissiveColor = Color3.FromHexString(pv.lamp.glowColor).scale(0.06);
+        doorLampMats.push({ mat: glowMat, hex: pv.lamp.glowColor });
+        const lampGlow = box(`${b.id}_aplique_foco`, 0.06, 0.07, 0.06, cx + pv.lamp.side * pv.lamp.dx, bottom + pv.lamp.dy - 0.08, fz - 0.05, glowMat);
+        lampGlow.isPickable = false;
+        lampGlow.setEnabled(false);
+        view.doorDecor.push(lampGlow);
+      }
 
       // ── Cartel numerado (v1.6): rótulo sobre la puerta con el identificador de la vivienda
       // (blk_p3_c → "3C", blockLabel). Textura dinámica con colores/fuente del catálogo
@@ -414,6 +465,98 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     }
   }
 
+  // ── ACCESO A LA ESCALERA (v1.24): hasta ahora la puerta flotaba sin pared. Ahora:
+  //  · MURO FRONTAL alrededor de la puerta (dos tramos + dintel, color del catálogo) que
+  //    enmarca el hueco real por donde cruzan los vecinos (la celda lógica del pozo).
+  //  · HOJA con arte de zonas comunes y el GRAN NÚMERO de planta centrado (negro), pintado
+  //    EN la textura de la hoja: al abrirse/cerrarse, el número bascula con ella.
+  //  · Bisagras a la IZQUIERDA vista desde el pasillo (x mayor; la cámara mira +z).
+  //  · Apertura automática: el update abre la hoja antes de que crucen (mover cerca).
+  //  · ILUMINACIÓN COMPARTIDA de todos los cubos: de noche se enciende si algún vecino
+  //    se mueve por las escaleras (materiales de los sellos de luz del arte glTF).
+  const stF = v.stairs.facade;
+  const stairDoors: { hinge: TransformNode; openT: number; doorX: number; doorZ: number; floorY: number }[] = [];
+  const stairFootprints: { x0: number; x1: number; floorY: number }[] = [];
+  const stairLightMats: { mat: { emissiveColor: Color3 } }[] = [];
+  let stairLightLevel = 0;
+  if (stF.enabled) {
+    const wallMat = mat('escalera_fachada_mat');
+    wallMat.diffuseColor = Color3.FromHexString(stF.color);
+    wallMat.specularColor = new Color3(0.02, 0.02, 0.02);
+    /** Textura de la hoja por PLANTA: arte de zonas comunes + gran número centrado. */
+    const stairDoorTexCache = new Map<number, DynamicTexture>();
+    const stairDoorTex = (art: string, numberColor: string, floor: number): DynamicTexture => {
+      const hit = stairDoorTexCache.get(floor);
+      if (hit) return hit;
+      const dt = new (B().DynamicTexture)(`puerta_esc_${floor}_tex`, { width: 384, height: 768 }, scene, true);
+      stairDoorTexCache.set(floor, dt);
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        c.width = 384;
+        c.height = 768;
+        const cctx = c.getContext('2d');
+        if (!cctx) return;
+        // Recorte del borde pintado del sello (pared/suelo) antes de estampar el número.
+        const sx = img.naturalWidth * 0.07;
+        const sy = img.naturalHeight * 0.05;
+        const sw = img.naturalWidth * 0.86;
+        const sh = img.naturalHeight * 0.9;
+        cctx.drawImage(img, sx, sy, sw, sh, 0, 0, 384, 768);
+        // Gran número de planta, centrado en la hoja (vinculado a la puerta: bascula con ella).
+        cctx.font = 'bold 230px Arial, sans-serif';
+        cctx.textAlign = 'center';
+        cctx.textBaseline = 'middle';
+        cctx.fillStyle = numberColor;
+        cctx.fillText(String(floor), 192, 384);
+        const dctx = dt.getContext() as unknown as CanvasRenderingContext2D;
+        dctx.clearRect(0, 0, 384, 768);
+        dctx.drawImage(c, 0, 0);
+        dt.update(true);
+      };
+      img.src = art;
+      return dt;
+    };
+    for (const b of Object.values(world.blocks)) {
+      const f = content.blocks[b.defId]!.features;
+      if (!f || f.stairs !== true) continue;
+      const spanW = v.stairs.spanW;
+      const sw = spanW * v.cellW - v.gapW;
+      const left = b.cell.col * v.cellW + v.gapW / 2;
+      const right = left + sw;
+      const doorX = (b.cell.col + b.size.w / 2) * v.cellW; // entrada real (el pozo del sim)
+      const y0 = b.cell.floor * v.cellH;
+      const zF = frontZ + stF.doorZ;
+      const hFull = v.cellH - v.gapH;
+      const dL = doorX - stF.doorW / 2;
+      const dR = doorX + stF.doorW / 2;
+      const dTop = y0 + stF.doorBottom + stF.doorH;
+      const wallSeg = (x0: number, x1: number, yA: number, yB: number): void => {
+        if (x1 - x0 < 0.02 || yB - yA < 0.02) return;
+        attach(b.id, box(`${b.id}_fachada_${x0.toFixed(2)}_${yA.toFixed(2)}`, x1 - x0, yB - yA, stF.wallT, (x0 + x1) / 2, yA + (yB - yA) / 2, zF, wallMat));
+      };
+      wallSeg(Math.max(left, dL - stF.halfW), dL, y0, y0 + hFull);
+      wallSeg(dR, Math.min(right, dR + stF.halfW), y0, y0 + hFull);
+      wallSeg(dL, dR, dTop, y0 + hFull);
+      // Hoja: bisagras en el lado izquierdo VISTO desde el pasillo (= x mayor mirando +z).
+      const hingeAtRightX = stF.hinge === 'left';
+      const hinge = new TransformNode(`${b.id}_puerta_hinge`, scene);
+      hinge.position.set(hingeAtRightX ? dR : dL, y0 + stF.doorBottom, zF);
+      hinge.parent = roots.get(b.id) ?? null;
+      const leaf = MeshBuilder.CreatePlane(`${b.id}_puerta_hoja`, { width: stF.doorW, height: stF.doorH }, scene);
+      const leafMat = new StandardMaterial(`${b.id}_puerta_hoja_mat`, scene);
+      leafMat.diffuseTexture = stairDoorTex(stF.art, stF.numberColor, b.cell.floor);
+      leafMat.emissiveColor = new Color3(0.16, 0.16, 0.16); // legible en fachada norte
+      leafMat.specularColor = new Color3(0, 0, 0);
+      leaf.material = leafMat;
+      leaf.isPickable = false;
+      leaf.position.set(((hingeAtRightX ? -1 : 1) * stF.doorW) / 2, stF.doorH / 2, 0);
+      leaf.parent = hinge;
+      stairDoors.push({ hinge, openT: 0, doorX, doorZ: zF, floorY: y0 });
+      stairFootprints.push({ x0: left, x1: right, floorY: y0 });
+    }
+  }
+
   // ── Arte final (opcional): modelo glTF por TIPO de bloque (manifiesto assets.blocks). ──
   // Cada instancia se clona del contenedor cacheado y escala a la celda real; si carga, la
   // caja greybox estructural se oculta (el panel/candado de viviendas sigue siendo greybox).
@@ -450,6 +593,22 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         model.root.position.set(b.cell.col * v.cellW + w / 2, y, cz);
         model.root.parent = roots.get(b.id) ?? null; // v1.19: el arte también se desvanece con el bloque
         view.model = model.root;
+        // v1.24: retirar la decoración de puerta antigua del overlay (marco gris que tapaba
+        // la placa y no contorneaba la hoja) — lista hideNodes del catálogo. Los clones del
+        // loader llevan prefijo "Clone of ": se compara por sufijo.
+        for (const nodeName of v.privacy.hideNodes ?? []) {
+          for (const child of model.root.getChildren()) {
+            if (child.name === nodeName || child.name.endsWith(nodeName)) child.setEnabled(false);
+          }
+        }
+        // v1.24: materiales de la ILUMINACIÓN COMPARTIDA de los cubos de escalera.
+        if (content.blocks[b.defId]!.features?.stairs === true && v.stairs.activityLight.enabled) {
+          for (const mesh of model.root.getChildMeshes()) {
+            if (v.stairs.activityLight.meshes.some((n) => mesh.name === n || mesh.name.endsWith(n)) && mesh.material) {
+              stairLightMats.push({ mat: (mesh.material as unknown as { emissiveColor: Color3 }) });
+            }
+          }
+        }
         if (entry.overlay) {
           // Overlay (marco de puerta sobre el corte interior): DECORA — el greybox estructural
           // sigue visible con sus materiales (tinte de estado y glow intactos), y el edge de
@@ -1099,6 +1258,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     view.front?.setEnabled(wall);
     view.door?.setEnabled(wall);
     view.handle?.setEnabled(wall);
+    for (const d of view.doorDecor) d.setEnabled(wall);
     view.lock?.setEnabled(locked && !view.lodHiddenPanels);
     // Diorama (v1.23): visibilidad ESPEJO de la fachada — fachada cerrada = interior oculto,
     // fachada abierta = diorama a la vista (y cero draw calls de interiores tapados).
@@ -1220,7 +1380,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
      * su interior al instante, sin esperar al siguiente tick.
      * `pos` (v1.19) alimenta los carteles guía de trasteros y el apilamiento 3D.
      */
-    update(dt: number, focus?: { x: number; floor: number }, inside?: string | null, pos?: { x: number; z: number; insideBlock: string | null }, env?: { daylight: number }) {
+    update(dt: number, focus?: { x: number; floor: number }, inside?: string | null, pos?: { x: number; z: number; insideBlock: string | null }, env?: { daylight: number; movers?: { x: number; y: number; z: number }[] }) {
       if (focus) lastFocus = focus;
       if (inside !== undefined) playerInside = inside;
       // PRIVACIDAD (v1.17) cada frame: la fachada de una vivienda sin nadie dentro se cierra
@@ -1240,6 +1400,59 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       {
         const day = env?.daylight ?? 1;
         const litWorld = day < 0.4;
+        // Apliques de las puertas (v1.24): foco cálido al anochecer, apagados de día.
+        const lampGlow = litWorld ? 1.0 : 0.06;
+        for (const { mat: lm, hex } of doorLampMats) lm.emissiveColor = Color3.FromHexString(hex).scale(lampGlow);
+        // PUERTAS DE ESCALERA (v1.24): se abren antes de que alguien entre o salga (cualquier
+        // mover cerca del umbral) y la ILUMINACIÓN COMPARTIDA de TODOS los cubos se enciende
+        // de noche si algún vecino se mueve por las escaleras (un solo nivel para todos).
+        const movers = env?.movers ?? [];
+        const al = v.stairs.activityLight;
+        for (const d of stairDoors) {
+          let near = false;
+          for (const mv of movers) {
+            if (
+              Math.abs(mv.x - d.doorX) < 0.85 &&
+              Math.abs(mv.z - d.doorZ) < stF.openAhead &&
+              Math.abs(mv.y - d.floorY) < v.cellH * 0.6
+            ) {
+              near = true;
+              break;
+            }
+          }
+          const next = d.openT + (near ? dt : -dt * 0.8) * stF.openSpeed;
+          d.openT = Math.min(1, Math.max(0, next));
+          if (d.openT !== (near ? 1 : 0) || d.hinge.rotation.y !== 0) {
+            // Bisagras a la izquierda (vista pasillo = x mayor): girar +Y mete la hoja
+            // hacia el interior del cubo; espejo para hinge 'right'.
+            const sign = stF.hinge === 'left' ? 1 : -1;
+            d.hinge.rotation.y = sign * stF.openAngle * d.openT;
+          }
+        }
+        if (al.enabled && stairLightMats.length > 0) {
+          let busy = false;
+          if (litWorld) {
+            for (const mv of movers) {
+              for (const fp of stairFootprints) {
+                if (
+                  mv.x >= fp.x0 &&
+                  mv.x <= fp.x1 &&
+                  mv.z > frontZ + 0.3 &&
+                  mv.z < frontZ + v.commonDepth - 0.1 &&
+                  Math.abs(mv.y - fp.floorY) < v.cellH * 0.6
+                ) {
+                  busy = true;
+                  break;
+                }
+              }
+              if (busy) break;
+            }
+          }
+          const next = stairLightLevel + (busy ? dt : -dt) / Math.max(0.4, al.fade);
+          stairLightLevel = Math.min(1, Math.max(0, next));
+          const lc = Color3.FromHexString(al.color);
+          for (const { mat: lm } of stairLightMats) lm.emissiveColor = lc.scale(al.glow * stairLightLevel);
+        }
         for (const [blockId, interior] of interiors) {
           let lit = false;
           if (litWorld && occSet.has(blockId)) {
