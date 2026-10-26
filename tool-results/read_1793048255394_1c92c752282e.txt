@@ -1,0 +1,730 @@
+     1→import type { Mesh, Scene, TransformNode } from '@babylonjs/core';
+     2→import type { BlockInstance, Content, PlayerPosition, ResidentInstance, World } from '@/game/core/types';
+     3→import { B } from './babylon';
+     4→import { instantiateActorAsset, type ActorRig } from './assets';
+     5→import { hash01, interiorTarget, layoutGeometryOf, type Pt } from '@/game/interior';
+     6→import { stairGeomOf, stairPathPoints } from '@/game/stairs';
+     7→import { horizontalLegs } from '@/game/routing';
+     8→import { isStorageColumnBlock, storageDoorPoint } from '@/game/storage';
+     9→import type { ElevatorsDirector } from './elevator';
+    10→
+    11→/** Plano frontal de las viviendas: z local 0 de los interiores (la cara de la puerta). */
+    12→const frontZOf = (roomZ: number, commonDepth: number): number => roomZ - commonDepth / 2;
+    13→
+    14→/**
+    15→ * V1.26 — CORRECCIÓN DE ORIENTACIÓN DE LOS RIGS glTF: los modelos están authorados mirando
+    16→ * a −Z (frontal hacia la cámara) y la convención de rutas usa yaw 0 = +X (perfil). Sin la
+    17→ * corrección, los personajes caminaban de lado viéndose DE FRENTE (piernas cruzadas) y de
+    18→ * frente viéndose DE LADO — exactamente el intercambio de 90° que reportaba el vecino.
+    19→ * rotación.y = yaw + MODEL_YAW_OFFSET aplica el giro que alinea el morro del modelo con la
+    20→ * dirección real de marcha. El yaw INTERNO (rutas, faceToward, gestos) no cambia: la
+    21→ * corrección vive SOLO en el punto de escritura de la rotación del nodo.
+    22→ */
+    23→export const MODEL_YAW_OFFSET = -Math.PI / 2;
+    24→
+    25→interface Actor {
+    26→  /** Residente dueño del nodo (para las rutas de ascensor y depuración). */
+    27→  id: string;
+    28→  /** Nodo posicionable: cápsula greybox o raíz del modelo glTF (pivote en pies). */
+    29→  node: Mesh | TransformNode;
+    30→  height: number;
+    31→  /** Offset Y del pivote: cápsula centrada (+h/2) o modelo con pies en el origen (+margen). */
+    32→  pivotY: number;
+    33→  /** Cola de tramos en curso: el actor la agota ANTES de capturar el destino del mundo de nuevo
+    34→   *  (ir al pozo → subir → salir: un salto del sim se ve como un viaje, nunca un teletransporte). */
+    35→  path: { x: number; y: number; z: number }[];
+    36→  /** Vida interior (Fase C): cuenta atrás para el próximo punto de deambulación y nº de vuelta
+    37→   *  (el punto es determinista por residente+ vuelta: sin RNG global ni capturas irreproducibles). */
+    38→  wanderT: number;
+    39→  wanderLap: number;
+    40→  /** Objetivo interior VIGENTE (coords locales de la vivienda): se refresca con la cadencia del
+    41→   *  catálogo (npcWanderSeconds), no cada tick — amortigua el parpadeo de actividades con chance. */
+    42→  targetLocal: Pt | null;
+    43→  lastLoc: string | null;
+    44→  /** Dirección de cutscenes (Fase D): mientras está activa, la IA normal no captura destinos;
+    45→   *  el actor solo consume la cola de tramos que le marca el director (nunca teletransporta). */
+    46→  directed: boolean;
+    47→  /** Rumbo actual (rad): el actor MIRA hacia donde camina (v1.2, credibilidad 2.5D).
+    48→   *  0 = el modelo mira +X (perfil); ±π/2 = de espaldas/frente al entrar o salir de casa. */
+    49→  yaw: number;
+    50→  /** Rumbo pendiente de terminar: el actor remata el giro aunque se pare (nunca queda torcido). */
+    51→  targetYaw: number | null;
+    52→  /** Gesto social en curso (stateAnimations: talk/laugh/argue/phone/sit…) o null. */
+    53→  gesture: string | null;
+    54→  /** Cuenta atrás del gesto temporal (0 = persistente hasta que alguien lo quite). */
+    55→  gestureT: number;
+    56→  /** El objetivo interior vigente es un ancla de asiento (rules.view.seatAnchors): se sienta al llegar. */
+    57→  seated: boolean;
+    58→  /** Viaje en ascensor registrado (v1.5): { x: puerta; from/to: plantas }. null = sin viaje. */
+    59→  elevatorReq: { x: number; from: number; to: number } | null;
+    60→  /** Fase del viaje que se estaba atendiendo (para detectar transiciones y encolar tramos). */
+    61→  ridePhase: string | null;
+    62→  /** Estaba habilitado el frame anterior (v1.10): la REAPARICIÓN coloca al actor donde dice el
+    63→   *  sim (vuelve de la calle), nunca caminando desde su última posición visible por la pared. */
+    64→  enabledPrev: boolean;
+    65→  /** Trastero ocupado (v1.18): id del bloque por columna cuyo compartimento habitó por última
+    66→   *  vez. Mientras su ubicación siga siendo ese bloque, el nodo permanece oculto (está DENTRO
+    67→   *  de su celda cerrada); al cambiar, reaparece por la puerta con la lógica de siempre. */
+    68→  stowedBlock: string | null;
+    69→  /** Rig del arte final (null mientras carga o si hay fallback greybox). */
+    70→  rig: ActorRig | null;
+    71→  /** Pausa de charla (v1.20): mientras > 0, el actor NO avanza (ni ruta ni objetivo) —
+    72→   *  está parado charlando con otro vecino; la presentación lo suelta al terminar. */
+    73→  chatT: number;
+    74→}
+    75→
+    76→/**
+    77→ * API de dirección de cutscenes (Fase D): toma actores, colócalos en escena y márcales rutas.
+    78→ * Mientras un actor está "taken", el bucle normal de IA no le captura destinos: solo consume
+    79→ * la cola de tramos (la misma locomoción interpolada de siempre, cero teletransportes).
+    80→ */
+    81→export interface ActorsDirector {
+    82→  /** Posición del nodo (null si el actor no existe o está oculto). */
+    83→  nodeOf(id: string): { x: number; y: number; z: number } | null;
+    84→  /** Crea el actor si falta y lo marca como dirigido. false si el residente no está en escena. */
+    85→  take(id: string): boolean;
+    86→  /** Suelta al actor: la IA vuelve a decidir destino (cola y objetivo interior reseteados). */
+    87→  release(id: string): void;
+    88→  /** Coloca al actor en un punto de escena (staging teatral, decisión del contenido). */
+    89→  stageAt(id: string, x: number, floor: number, z: number): void;
+    90→  /** Encola la ruta del nodo actual al destino (pozo incluido si cambia la planta). */
+    91→  walkTo(id: string, dest: { x: number; z: number; floor: number; inside?: { block: string; local: Pt } }): boolean;
+    92→  /** true cuando el actor no tiene tramos pendientes (llegó — o no existe). */
+    93→  idle(id: string): boolean;
+    94→  /** Punto sobre la cabeza del actor (bocadillos v1.10); null si no está en escena. */
+    95→  headOf(id: string): { x: number; y: number; z: number } | null;
+    96→  /** Gesto social en curso (stateAnimations: talk/laugh/argue/phone…) o null. */
+    97→  gestureOf(id: string): string | null;
+    98→  /** true si el actor está tomado por el director de cutscenes (el staging manda). */
+    99→  isDirected(id: string): boolean;
+   100→  /** true si el actor está en un viaje de ascensor (v1.20: las charlas no lo pausan). */
+   101→  isRiding(id: string): boolean;
+   102→  /**
+   103→   * Estado social explícito (v1.2): talk/laugh/argue/phone/sit… según stateAnimations del
+   104→   * manifiesto. Con `seconds` > 0 el gesto expira solo (líneas de diálogo); null lo suelta
+   105→   * ya (al colgar el teléfono, al cerrar el modal). El clip que falte cae al default del rig.
+   106→   */
+   107→  setGesture(id: string, state: string | null, seconds?: number): void;
+   108→  /** Pausa de charla (v1.20): congela la locomoción del actor `seconds` (0 lo suelta). */
+   109→  setHold(id: string, seconds: number): void;
+   110→  /** Gira el actor hacia un punto del mundo (charla de cruce: mirarse al hablar). */
+   111→  faceToward(id: string, x: number, z: number): void;
+   112→}
+   113→
+   114→/**
+   115→ * El jugador y los vecinos: cápsulas greybox o, si el manifiesto de assets declara un
+   116→ * modelo glTF para el arquetipo (Content.assets.actors), el modelo con sus animaciones
+   117→ * (idle/walk por desplazamiento y clip por actividad vía activityAnimations).
+   118→ * Color y altura salen de la vista del arquetipo; radios y fallbacks, de content.rules.view.
+   119→ *
+   120→ * Dinámico (multijugador): la plantilla se sincroniza con world.residents en cada
+   121→ * update — residentes nuevos reciben nodo y residentes que ya no existen lo pierden.
+   122→ */
+   123→export function createActors(scene: Scene, world: World, content: Content, elevators?: ElevatorsDirector | null) {
+   124→  const { Color3, MeshBuilder, Quaternion, StandardMaterial, Vector3 } = B();
+   125→  const v = content.rules.view;
+   126→  const actors = new Map<string, Actor>();
+   127→
+   128→  /** Crea la cápsula de un residente (greybox/fallback) y lanza la carga del modelo si el manifiesto lo declara. */
+   129→  const ensureActor = (id: string, archetype: string): Actor => {
+   130→    const view = content.archetypes[archetype]?.view;
+   131→    const height = view?.height ?? v.actorFallbackHeight;
+   132→    const mesh = MeshBuilder.CreateCapsule(id, { height, radius: v.actorRadius }, scene);
+   133→    const m = new StandardMaterial(`${id}_mat`, scene);
+   134→    m.diffuseColor = Color3.FromHexString(view?.color ?? v.actorFallbackColor);
+   135→    m.emissiveColor = m.diffuseColor.scale(0.25);
+   136→    mesh.material = m;
+   137→    mesh.isPickable = false;
+   138→    const a: Actor = { id, node: mesh, height, pivotY: height / 2, path: [], wanderT: 0, wanderLap: 0, targetLocal: null, lastLoc: null, directed: false, yaw: 0, targetYaw: null, gesture: null, gestureT: 0, seated: false, elevatorReq: null, ridePhase: null, enabledPrev: false, stowedBlock: null, rig: null, chatT: 0 };
+   139→    actors.set(id, a);
+   140→
+   141→    // Arte final (opcional): modelo glTF del manifiesto; cualquier fallo → cápsula.
+   142→    const def = content.assets?.actors?.[archetype];
+   143→    if (def && content.assets) {
+   144→      void instantiateActorAsset(scene, def, content.assets.base, `${id}:${archetype}`).then((rig) => {
+   145→        // La escena pudo morir mientras cargaba (restart/Cargar partida): no adjuntar nada viejo.
+   146→        if (rig && scene.isDisposed) {
+   147→          rig.dispose();
+   148→          return;
+   149→        }
+   150→        if (!rig) return; // fallback greybox permanente
+   151→        const cur = actors.get(id);
+   152→        if (!cur || cur.rig) {
+   153→          rig.dispose(); // el residente se fue (o ya llegó otro rig): no dejar basura
+   154→          return;
+   155→        }
+   156→        // PRESERVAR POSE (v1.10): el modelo puede terminar de cargar EN PLENO paseo (los assets
+   157→        // llegan async). Sin esto, el swap cápsula→rig recolocaba el nodo a origen y el actor
+   158→        // "saltaba" (el guard antiguo lo enmascaraba con OTRO teletransporte al objetivo: la
+   159→        // vecina con la maleta cambiando de planta de golpe). Pies y rumbo se conservan 1:1.
+   160→        const feetY = cur.node.position.y - cur.pivotY;
+   161→        rig.root.position.set(cur.node.position.x, feetY + 0.02, cur.node.position.z);
+   162→        if (rig.root.rotationQuaternion) Quaternion.RotationYawPitchRollToRef(cur.yaw + MODEL_YAW_OFFSET, 0, 0, rig.root.rotationQuaternion);
+   163→        else rig.root.rotation.y = cur.yaw + MODEL_YAW_OFFSET;
+   164→        // El modelo se authora a nominalHeight: escala uniforme a la altura del arquetipo.
+   165→        rig.root.scaling.setAll(height / def.nominalHeight);
+   166→        cur.node.dispose(false, true); // cápsula fuera (libera también su material propio)
+   167→        cur.node = rig.root;
+   168→        cur.pivotY = 0.02; // pies en el suelo
+   169→        cur.rig = rig;
+   170→      });
+   171→    }
+   172→    return a;
+   173→  };
+   174→
+   175→  const goal = new Vector3();
+   176→  /** true si la fase del viaje cambió desde el último frame (hay que recolocar la cola). */
+   177→  const stalePhase = (a: Actor, phase: string): boolean => a.ridePhase !== phase;
+   178→  /** Pozos verticales del mundo (features stairs/elevator), para el RITMO de los tramos verticales. */
+   179→  const shafts = Object.values(world.blocks).filter((b) => {
+   180→    const f = content.blocks[b.defId]!.features;
+   181→    return !!f && (f.stairs === true || f.elevator === true);
+   182→  });
+   183→  /** ¿Pozo UTILIZABLE para rutear EN ESTE MOMENTO? (v1.10) La escalera siempre; el ascensor
+   184→   *  SOLO si funciona (elevator_status 'ok'). Se comprueba EN CADA RUTA porque el estado del
+   185→   *  sim cambia en vivo (avería/reparación): un filtro estático enlazaría llamadas al pozo
+   186→   *  averiado que el director cancela al frame siguiente (bucle llamada/cancelación). */
+   187→  const shaftUsable = (b: BlockInstance): boolean => {
+   188→    const f = content.blocks[b.defId]!.features!;
+   189→    if (f.stairs === true) return true;
+   190→    return f.elevator === true && b.params.elevator_status === 'ok';
+   191→  };
+   192→  const shaftXOf = (b: BlockInstance): number => (b.cell.col + b.size.w / 2) * v.cellW;
+   193→  /** Calado transitablo del bloque (vivienda 2×; naves del cierre v1.16 a calado de vivienda;
+   194→   *  trasteros por columna v1.18: depth × blockDepthFactor).
+   195→   *  v1.19: en vivienda manda el LAYOUT — las salas traseras viven más allá de view.depth. */
+   196→  const depthOfBlock = (b: BlockInstance): number => {
+   197→    if (b.kind === 'dwelling') {
+   198→      const layoutId = content.blocks[b.defId]?.container?.layout;
+   199→      const layout = layoutId ? content.layouts[layoutId] : undefined;
+   200→      const rects = (layout?.rooms ?? []).map((r) => r.rect).filter((r): r is NonNullable<typeof r> => !!r);
+   201→      if (rects.length > 0) return Math.max(...rects.map((r) => r.z + r.d));
+   202→      return v.depth;
+   203→    }
+   204→    if (b.defId === 'trasteros_planta' || b.defId === 'bajocubierta') return v.depth;
+   205→    if (b.defId === v.trasteros.blockDefId) return v.depth * v.trasteros.blockDepthFactor;
+   206→    if (b.defId === 'tejado') return v.depth + v.roof.overhang * 2;
+   207→    return v.commonDepth;
+   208→  };
+   209→  /** Plano frontal de los bloques (compartido con storage.ts/building.ts). */
+   210→  /**
+   211→   * Punto de puerta del trastero de un residente en el bloque por columna de su letra
+   212→   * (v1.18): pasillo central hasta su celda. null si no aplica (bloque equivocado, planta
+   213→   * sin vivienda en el plan…).
+   214→   */
+   215→  const storageDoorOf = (resident: ResidentInstance): { x: number; z: number } | null => {
+   216→    const home = world.blocks[resident.home];
+   217→    if (!home) return null;
+   218→    const tag = home.id.slice(home.id.lastIndexOf('_') + 1);
+   219→    const store = Object.values(world.blocks).find(
+   220→      (b) => isStorageColumnBlock(b, v) && b.id.endsWith(`_${tag}`),
+   221→    );
+   222→    if (!store) return null;
+   223→    const colTag = store.id.slice(store.id.lastIndexOf('_') + 1);
+   224→    const floors = Object.values(world.blocks)
+   225→      .filter((d) => d.kind === 'dwelling' && d.id.endsWith(`_${colTag}`))
+   226→      .map((d) => d.cell.floor)
+   227→      .sort((a, z) => a - z);
+   228→    return storageDoorPoint(v, store, floors, home.cell.floor);
+   229→  };
+   230→  /** Plano frontal de las viviendas: z local 0 de los interiores y origen del pasillo. */
+   231→  const frontZ = frontZOf(v.roomZ, v.commonDepth);
+   232→  /** Bloque main bajo los pies (v1.14): para salir de la banda de viviendas por SU puerta. */
+   233→  const hostSpanAt = (x: number, floor: number): { x0: number; w: number } | null => {
+   234→    for (const b of Object.values(world.blocks)) {
+   235→      if (b.cell.floor !== floor || b.layer !== 'main') continue;
+   236→      const x0 = b.cell.col * v.cellW;
+   237→      const w = b.size.w * v.cellW;
+   238→      if (x >= x0 && x <= x0 + w) return { x0, w };
+   239→    }
+   240→    return null;
+   241→  };
+   242→
+   243→  /**
+   244→   * Ruta (cola de tramos) del nodo actual al destino: cambio de planta → pozo más cercano
+   245→   * (andar hasta él por el pasillo, subir/bajar, salir), y dentro de una vivienda con
+   246→   * geometría 2D la ruta pasa por los huecos del catálogo (nunca a través de tabiques).
+   247→   * La comparten la IA normal y el director de cutscenes: una sola verdad de locomoción.
+   248→   *
+   249→   * v1.14 — LEY DEL PASILLO (rutas blindadas): todo el tramo horizontal lo calcula
+   250→   * horizontalLegs() (@/game/routing): el avance en X solo ocurre sobre la línea del
+   251→   * pasillo y la banda de bloques solo se entra/sale en vertical en la x del bloque
+   252→   * propio — jamás una diagonal atravesando el 2C (o el núcleo del ascensor) para
+   253→   * llegar al 2B. Devuelve false SOLO cuando el destino exige cambiar de planta y no
+   254→   * hay pozo utilizable (estado imposible: el llamador decide si recoloca sin teatro).
+   255→   */
+   256→  const buildRoute = (a: Actor, dest: { x: number; y: number; z: number; inside?: { block: BlockInstance; local: Pt } | null }): boolean => {
+   257→    const node = a.node.position;
+   258→    let startX = node.x;
+   259→    let startZ = node.z;
+   260→    let verticalOk = true;
+   261→    if (Math.abs(dest.y - node.y) > 0.05) {
+   262→      const floorNow = Math.round(node.y / v.cellH);
+   263→      // Como el sim: ASCENSOR primero si funciona (coste 1 < 3 de la escalera); la escalera
+   264→      // es la vía de emergencia cuando el núcleo está averiado (v1.10: estado comprobado EN VIVO).
+   265→      const elevHere = shafts
+   266→        .filter((s) => s.cell.floor === floorNow && content.blocks[s.defId]!.features!.elevator === true && s.params.elevator_status === 'ok')
+   267→        .sort((s1, s2) => Math.abs(shaftXOf(s1) - startX) - Math.abs(shaftXOf(s2) - startX))[0];
+   268→      const here = elevHere ?? shafts
+   269→        .filter((s) => s.cell.floor === floorNow && shaftUsable(s))
+   270→        .sort((s1, s2) => Math.abs(shaftXOf(s1) - startX) - Math.abs(shaftXOf(s2) - startX))[0];
+   271→      if (here) {
+   272→        const sx = shaftXOf(here);
+   273→        // Salir del interior por la puerta propia (si procede) y andar hasta el pozo SOLO
+   274→        // por la línea del pasillo: la diagonal directa cruzaba viviendas vecinas.
+   275→        for (const l of horizontalLegs({ view: v, from: { x: startX, z: startZ }, dest: { x: sx, z: v.corridorZ }, hostSpan: hostSpanAt(startX, floorNow) })) {
+   276→          a.path.push({ x: l.x, y: node.y, z: l.z });
+   277→        }
+   278→        // ¿Escalera o ascensor? La escalera REAL (v1.4) va por los peldaños; el ascensor
+   279→        // OPERATIVO (v1.5) registra una LLAMADA: el actor camina a la puerta y espera a la
+   280→        // cabina (capacidad, puertas y semáforo los lleva el director del ascensor).
+   281→        const feat = content.blocks[here.defId]!.features!;
+   282→        if (feat.stairs === true) {
+   283→          // v1.23 — ESCALERA REAL POR PLANTAS: la escalera física conecta plantas ADYACENTES.
+   284→          // Llamar a stairPathPoints con una subida de varias plantas estiraba cada peldaño a
+   285→          // media planta (el vecino flotaba y atravesaba forjados). Ahora se ENCADENA un vuelo
+   286→          // por planta: sube a la planta vecina, desembarca (el path termina en la línea del
+   287→          // pasillo, exactamente donde arranca el siguiente vuelo) y repite hasta el destino.
+   288→          const frac = node.y - Math.round(node.y / v.cellH) * v.cellH; // offset intra-planta (forjado + pivote)
+   289→          const startFloor = Math.round(node.y / v.cellH);
+   290→          const targetFloor = Math.round(dest.y / v.cellH);
+   291→          const dir = targetFloor >= startFloor ? 1 : -1;
+   292→          let curY = node.y;
+   293→          let curFloor = startFloor;
+   294→          while (curFloor !== targetFloor) {
+   295→            curFloor += dir;
+   296→            const nextY = curFloor * v.cellH + frac;
+   297→            const flight = stairPathPoints(v, sx, curY, nextY);
+   298→            if (flight.length > 1) {
+   299→              // Enganche sin duplicar el punto donde ya está el actor (el desembarco del
+   300→              // vuelo anterior ES el arranque del siguiente).
+   301→              if (a.path.length > 0 || curY !== node.y) flight.shift();
+   302→              for (const pt of flight) a.path.push({ x: pt.x, y: pt.y, z: pt.z });
+   303→              curY = nextY;
+   304→            }
+   305→          }
+   306→          if (a.path.length === 0) a.path.push({ x: sx, y: dest.y, z: v.corridorZ });
+   307→        } else if (elevators && feat.elevator === true) {
+   308→          const from = Math.round(node.y / v.cellH);
+   309→          const to = Math.round(dest.y / v.cellH);
+   310→          if (to !== from) {
+   311→            elevators.requestRide(a.id, here.cell.col, from, to);
+   312→            a.elevatorReq = { x: sx, from, to };
+   313→            a.ridePhase = null;
+   314→          }
+   315→        } else {
+   316→          a.path.push({ x: sx, y: dest.y, z: v.corridorZ });
+   317→        }
+   318→        startX = sx;
+   319→        startZ = v.corridorZ;
+   320→      } else {
+   321→        verticalOk = false;
+   322→      }
+   323→    }
+   324→    // Tramos horizontales al destino bajo la ley del pasillo (misma función que el enfoque
+   325→    // al pozo: entrada al bloque solo en vertical, en la x del destino, o ruta interior).
+   326→    const destGeo = dest.inside ? layoutGeometryOf(content, dest.inside.block) : null;
+   327→    const legs = horizontalLegs({
+   328→      view: v,
+   329→      from: { x: startX, z: startZ },
+   330→      dest: { x: dest.x, z: dest.z },
+   331→      destInside:
+   332→        dest.inside && destGeo
+   333→          ? { x0: dest.inside.block.cell.col * v.cellW, w: dest.inside.block.size.w * v.cellW, geo: destGeo, target: dest.inside.local }
+   334→          : null,
+   335→      hostSpan: hostSpanAt(startX, Math.round(dest.y / v.cellH)),
+   336→    });
+   337→    for (const p of legs) a.path.push({ x: p.x, y: dest.y, z: p.z });
+   338→    return verticalOk;
+   339→  };
+   340→
+   341→  return {
+   342→    /** playerResidentId identifica al residente del jugador local (multijugador: puede ser un invitado). */
+   343→    update(dt: number, player: PlayerPosition, playerResidentId: string) {
+   344→      // Altas y bajas: residentes sin nodo → crear; nodos huérfanos → dispose + remove.
+   345→      for (const id in world.residents) {
+   346→        if (!actors.has(id)) ensureActor(id, world.residents[id]!.archetype);
+   347→      }
+   348→      const gone: string[] = [];
+   349→      for (const [id, a] of actors) {
+   350→        if (!world.residents[id]) gone.push(id);
+   351→      }
+   352→      for (const id of gone) {
+   353→        const a = actors.get(id)!;
+   354→        actors.delete(id);
+   355→        if (a.rig) a.rig.dispose();
+   356→        else if (a.node instanceof B().Mesh) a.node.dispose(false, true);
+   357→        else a.node.dispose(false, false);
+   358→      }
+   359→
+   360→      const k = 1 - Math.exp(-dt * 10);
+   361→      // Ritmos del catálogo (rules.view): crucero de vecinos y subida por pozo.
+   362→      const npcSpeed = v.npcWalkSpeed;
+   363→      for (const [id, a] of actors) {
+   364→        const r = world.residents[id]!;
+   365→        const isPlayer = id === playerResidentId;
+   366→        const nowEnabled = isPlayer || (r.present && r.location !== null);
+   367→        // ── TRASTEROS POR COLUMNA (v1.18): mientras el vecino sigue "en su bloque de
+   368→        //  trasteros", el nodo permanece oculto — está DENTRO de su celda cerrada. En cuanto
+   369→        //  el sim lo muda (otra ubicación o se va), sale del stow y reaparece por su puerta.
+   370→        const stowedHere = a.stowedBlock !== null && r.present && r.location === a.stowedBlock;
+   371→        if (a.stowedBlock !== null && !stowedHere) a.stowedBlock = null;
+   372→        a.node.setEnabled(nowEnabled && !stowedHere);
+   373→        if (!nowEnabled || stowedHere) {
+   374→          a.enabledPrev = false;
+   375→          continue;
+   376→        }
+   377→        // En escena lo coloca el director (v1.10): marcar habilitado SIN snap — si no, al soltar
+   378→        // al actor tras una cutscene, el primer frame normal lo trataría como "reaparición"
+   379→        // y lo teletransportaría al objetivo en vez de rutear desde donde está.
+   380→        if (a.directed) a.enabledPrev = true;
+   381→        const node = a.node.position;
+   382→        const prevX = node.x;
+   383→        const prevZ = node.z;
+   384→        // Charla de cruce (v1.20): mientras dura, el actor NO avanza — se queda donde está,
+   385→        // mira a su vecino y conversa. Ni rutas ni objetivos: al soltar, la IA recaptura.
+   386→        if (a.chatT > 0) a.chatT -= dt;
+   387→        const chatting = a.chatT > 0;
+   388→        if (isPlayer) {
+   389→          const inside = player.mode === 'inside';
+   390→          // Apilamiento 3D (v1.19): dentro del trastero propio el cuerpo vive en el bloque
+   391→          // trasero (posición que dicta PlayerLogic), no en el pasillo del sim.
+   392→          if (player.rear) {
+   393→            goal.set(player.rear.x, player.floor * v.cellH + 0.14 + a.pivotY, player.rear.z);
+   394→            if (node.lengthSquared() === 0) node.copyFrom(goal);
+   395→            node.addInPlace(goal.subtract(node).scale(Math.min(1, k * 2)));
+   396→            // Skipear el resto del bloque isPlayer cayendo al flujo común de posición.
+   397→          } else {
+   398→          // Dentro de la vivienda el actor sigue la posición 2D (x + profundidad z del layout);
+   399→          // en el cubo de escalera (v1.4) manda la Z absoluta del recorrido (pathZ).
+   400→          // En pasillo (v1.19) la Z del jugador es ABSOLUTA (dos carriles: interior/exterior).
+   401→          const insideBlock = player.insideBlock ? world.blocks[player.insideBlock] : null;
+   402→          const insideDepth = insideBlock ? depthOfBlock(insideBlock) : v.depth;
+   403→          const z = inside ? frontZ + Math.min(Math.max(player.z, 0), insideDepth) : (player.pathZ ?? player.z);
+   404→          goal.set(player.x, player.floor * v.cellH + (inside ? 0.12 : 0.14) + a.pivotY, z);
+   405→          if (node.lengthSquared() === 0) node.copyFrom(goal);
+   406→          node.addInPlace(goal.subtract(node).scale(Math.min(1, k * 2)));
+   407→          }
+   408→        } else if (!chatting) {
+   409→          const b = world.blocks[r.location!]!;
+   410→          const home = world.blocks[r.home]!;
+   411→          const inRoom = b.kind === 'dwelling';
+   412→          const x0 = b.cell.col * v.cellW;
+   413→          // ── Trastero propio (v1.18): si el vecino está en el bloque por columna de su
+   414→          //  letra, su objetivo es LA PUERTA DE SU CELDA (pasillo central): llega y entra
+   415→          //  (stow: nodo oculto dentro del compartimento cerrado).
+   416→          const storeDoor = isStorageColumnBlock(b, v) ? storageDoorOf(r) : null;
+   417→          // ── Viaje en ascensor (v1.5): mientras hay viaje registrado, el director manda —
+   418→          // esperar ante la puerta, entrar al hueco, ser llevado por la cabina y salir en la
+   419→          // planta de destino. Si el viaje se cancela (avería), status() null → el flujo
+   420→          // normal recaptura destino y la ruta pasará por la escalera.
+   421→          const elev = elevators ?? undefined;
+   422→          const ride = a.elevatorReq && elev ? elev.status(id) : null;
+   423→          if (a.elevatorReq && !ride) {
+   424→            a.elevatorReq = null;
+   425→            a.ridePhase = null;
+   426→            a.path = [];
+   427→          }
+   428→          if (a.elevatorReq && ride) {
+   429→            if (stalePhase(a, ride.phase)) {
+   430→              // Transición de fase: recolocar la cola según a dónde hay que caminar ahora.
+   431→              if (ride.phase === 'boarding') {
+   432→                a.path = [{ x: ride.slotX, y: Math.round(ride.floor) * v.cellH + 0.14 + a.pivotY, z: ride.slotZ }];
+   433→              } else if (ride.phase === 'exiting') {
+   434→                a.path = [{ x: a.elevatorReq.x, y: a.elevatorReq.to * v.cellH + 0.14 + a.pivotY, z: v.corridorZ }];
+   435→              } else {
+   436→                a.path = [];
+   437→              }
+   438→              a.ridePhase = ride.phase;
+   439→            }
+   440→            if (ride.phase === 'waiting') {
+   441→              goal.set(a.elevatorReq.x, a.elevatorReq.from * v.cellH + 0.14 + a.pivotY, v.corridorZ);
+   442→              if (node.lengthSquared() === 0) node.copyFrom(goal);
+   443→              node.addInPlace(goal.subtract(node).scale(Math.min(1, k * 2)));
+   444→            } else if (ride.phase === 'riding') {
+   445→              // La cabina manda: posición directa en el hueco (sin teatro ni interpolación propia).
+   446→              a.path = [];
+   447→              node.set(ride.slotX, ride.floor * v.cellH + 0.14 + a.pivotY, ride.slotZ);
+   448→            } else if (ride.phase === 'boarding' && a.path.length === 0) {
+   449→              elev!.notifyBoarded(id); // ya está en su hueco: la puerta puede cerrar
+   450→            } else if (ride.phase === 'exiting' && a.path.length === 0) {
+   451→              a.elevatorReq = null;
+   452→              a.ridePhase = null;
+   453→            }
+   454→          }
+   455→          // Con dirección de cutscene (Fase D) el actor solo consume su cola de tramos:
+   456→          // ni objetivo de IA ni captura de ruta (el director ya se la ha dado).
+   457→          if (!a.directed && !a.elevatorReq) {
+   458→            let gx = b.layer === 'corridor' ? (home.cell.col + 0.5) * v.cellW : (x0 + b.size.w * v.cellW) / 2;
+   459→            let gz = inRoom ? frontZ + 0.6 : v.corridorZ;
+   460→            if (storeDoor) {
+   461→              // Trastero por columna (v1.18): se camina POR EL PASILLO CENTRAL hasta SU puerta.
+   462→              gx = storeDoor.x;
+   463→              gz = storeDoor.z;
+   464→            }
+   465→            // ── Vida interior (Fase C): en vivienda, el punto lo decide el contenido. La actividad
+   466→            // con `anchor` (cama, tv, stove…) coloca al vecino en SU estancia por el catálogo de
+   467→            // anclas (rooms.json); sin ancla, deambula por las estancias abiertas. El objetivo se
+   468→            // REFRESCA con la cadencia npcWanderSeconds (no cada tick): una actividad con chance
+   469→            // que parpadea en el sim no arrastra al vecino por la casa. Cerradas jamás son destino.
+   470→            const geo = inRoom ? layoutGeometryOf(content, b) : null;
+   471→            let localTarget: Pt | null = null;
+   472→            if (a.lastLoc !== r.location) {
+   473→              a.lastLoc = r.location;
+   474→              a.targetLocal = null;
+   475→              a.wanderT = 0;
+   476→              a.seated = false;
+   477→            }
+   478→            if (geo) {
+   479→              a.wanderT -= dt;
+   480→              if (a.path.length === 0 && a.wanderT <= 0) {
+   481→                a.wanderLap += 1;
+   482→                a.wanderT = v.npcWanderSeconds * (0.7 + 0.6 * hash01(id, a.wanderLap));
+   483→                const act = r.activity ? content.archetypes[r.archetype]?.activities[r.activity] : undefined;
+   484→                const anchorKind = act?.anchor;
+   485→                const anchored = anchorKind ? interiorTarget(content, geo, anchorKind, id, 0) : null;
+   486→                a.targetLocal = anchored ?? interiorTarget(content, geo, undefined, id, a.wanderLap);
+   487→                // Ancla de asiento (catálogo: rules.view.seatAnchors): al llegar se sienta (clip "sit").
+   488→                a.seated = anchored !== null && !!anchorKind && v.seatAnchors.includes(anchorKind);
+   489→              }
+   490→              localTarget = a.targetLocal;
+   491→            }
+   492→            if (localTarget) {
+   493→              gx = x0 + localTarget.x;
+   494→              gz = frontZ + localTarget.z;
+   495→            }
+   496→            goal.set(gx, b.cell.floor * v.cellH + 0.14 + a.pivotY, gz);
+   497→            // Reaparición (v1.10): el vecino vuelve de la calle o entra en escena — aparece
+   498→            // DONDE DICE EL SIM, no caminando desde su última posición visible (por la pared).
+   499→            // CON TRASTERO (v1.18): sale en la línea del pasillo ANTE SU BLOQUE y se lo ve
+   500→            // entrar y recorrer el pasillo central hasta su celda (nunca pop dentro del stow).
+   501→            if (!a.enabledPrev) {
+   502→              a.enabledPrev = true;
+   503→              if (storeDoor) {
+   504→                node.set((x0 + b.size.w * v.cellW) / 2, goal.y, v.corridorZ);
+   505→                a.path = [];
+   506→              } else {
+   507→                node.copyFrom(goal);
+   508→                a.path = [];
+   509→              }
+   510→            }
+   511→            // ── Locomoción interpolada (nada de teletransportes): el destino del sim se recorre a
+   512→            // velocidad de crucero del catálogo, tramo a tramo. El sim adelanta a los vecinos a
+   513→            // saltos del grafo (varias plantas de golpe): la ruta se RECALCULA DESDE EL PUNTO
+   514→            // ACTUAL (andar al pozo → subir/bajar → salir) y el viaje se ve entero, pieza a pieza.
+   515→            // Solo un estado realmente imposible (cambio de planta sin pozo utilizable, v1.10)
+   516→            // recoloca sin teatro. Con ruta en curso se consume SIEMPRE hasta el final.
+   517→            if (a.path.length === 0) {
+   518→              // STOW (v1.18): llegó a la puerta de su trastero — entra y se oculta (la celda
+   519→              // es cerrada: el interior jamás se ve). enabledPrev=false para que, cuando el
+   520→              // sim lo mude, la reaparición lo coloque donde toque.
+   521→              if (storeDoor && a.stowedBlock === null && Math.hypot(node.x - storeDoor.x, node.z - storeDoor.z) < 0.35) {
+   522→                a.stowedBlock = b.id;
+   523→                a.node.setEnabled(false);
+   524→                a.enabledPrev = false;
+   525→                a.path = [];
+   526→                continue;
+   527→              }
+   528→              const routed = buildRoute(a, { x: goal.x, y: goal.y, z: goal.z, inside: geo && localTarget ? { block: b, local: localTarget } : null });
+   529→              if (!routed) {
+   530→                node.copyFrom(goal);
+   531→                a.path = [];
+   532→              }
+   533→            }
+   534→          }
+   535→          if (a.path.length > 0) {
+   536→            const w = a.path[0]!;
+   537→            const wdh = Math.hypot(w.x - node.x, w.z - node.z);
+   538→            const wdy = w.y - node.y;
+   539→            if (Math.abs(wdy) > 0.02 && wdh < 0.05) {
+   540→              // Tramo VERTICAL PURO (v1.23, umbral 0.05): solo el arranque/parada vertical del
+   541→              // fallback sin escalera. El umbral anterior (0.3) atrapaba los PELDAÑOS de la
+   542→              // escalera real (run ≈ 0.27 m): el vecino subía en vertical como un ascensor y
+   543→              // LUEGO patinaba en horizontal hasta el siguiente peldaño — el "sube mal".
+   544→              const shaftHere = shafts
+   545→                .filter((s) => s.cell.floor === b.cell.floor && Math.abs(shaftXOf(s) - node.x) < 0.3)
+   546→                .sort((s1, s2) => Math.abs(shaftXOf(s1) - node.x) - Math.abs(shaftXOf(s2) - node.x))[0];
+   547→              const feat = shaftHere ? content.blocks[shaftHere.defId]!.features : undefined;
+   548→              const rate = feat?.elevator && shaftHere!.params.elevator_status === 'ok' ? v.cellH / v.elevatorSeconds : v.cellH / v.stairsSeconds;
+   549→              node.y += Math.sign(wdy) * Math.min(Math.abs(wdy), rate * dt);
+   550→            } else if (wdh > 0.001) {
+   551→              // Tramo con componente horizontal: crucero con llegada suave (frena al acercarse,
+   552→              // nunca sobrepasa). Con dy el tramo es 3D (pendiente de escalera, Task 29): el paso
+   553→              // reparte X/Z/Y con la MISMA velocidad de crucero, así la subida es física.
+   554→              const step = Math.min(npcSpeed * dt, (0.35 + wdh * 2.5) * dt, wdh);
+   555→              const t = step / wdh;
+   556→              node.x += (w.x - node.x) * t;
+   557→              node.z += (w.z - node.z) * t;
+   558→              node.y += wdy * t;
+   559→            }
+   560→            // Tramo terminado → siguiente tramo de la ruta.
+   561→            if (Math.hypot(w.x - node.x, w.z - node.z) < 0.06 && Math.abs(w.y - node.y) < 0.03) a.path.shift();
+   562→          }
+   563→        }
+   564→
+   565→        // ── Rotación 2.5D (v1.2): el actor MIRA hacia donde camina. El pasillo es lateral (eje
+   566→        // X, perfil); entrar/salir de una vivienda es profundidad (eje Z: de espaldas al alejarse,
+   567→        // de frente al acercarse). Giro por el arco corto con el ritmo del catálogo
+   568→        // (rules.view.actorTurnSpeed). El rumbo queda PENDIENTE hasta rematarse: aunque el actor
+   569→        // se pare a mitad de giro, termina de encarar la dirección en la que iba (nadie se queda
+   570→        // torcido en una puerta).
+   571→        // Aplicación ROBUSTA (v1.3): si el nodo lleva rotationQuaternion (el loader glTF puede
+   572→        // ponérselo), Babylon IGNORA rotation.y — hay que escribir el cuaternión; si no,
+   573→        // rotation.y de toda la vida. En ambos casos SOLO yaw: nadie se ladea ni se tumba.
+   574→        const mdx = node.x - prevX;
+   575→        const mdz = node.z - prevZ;
+   576→        if (Math.hypot(mdx, mdz) / Math.max(1e-4, dt) > 0.25) a.targetYaw = Math.atan2(-mdz, mdx);
+   577→        if (a.targetYaw !== null) {
+   578→          let dYaw = a.targetYaw - a.yaw;
+   579→          dYaw = ((dYaw + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+   580→          if (Math.abs(dYaw) < 0.02) {
+   581→            a.yaw = a.targetYaw; // rematado
+   582→            a.targetYaw = null;
+   583→          } else {
+   584→            a.yaw += dYaw * Math.min(1, dt * v.actorTurnSpeed);
+   585→          }
+   586→        }
+   587→        const q = a.node.rotationQuaternion;
+   588→        if (q) Quaternion.RotationYawPitchRollToRef(a.yaw + MODEL_YAW_OFFSET, 0, 0, q);
+   589→        else a.node.rotation.y = a.yaw + MODEL_YAW_OFFSET;
+   590→
+   591→        // ── Animación (solo rigs) por prioridad de estados (v1.2) + SINCRONÍA DE ZANCADA (v1.3):
+   592→        //   gesto explícito → run (speed > runSpeed) → walk (mientras se avanza) → clip de
+   593→        //   actividad parado → sentado en ancla → idle. El ratio de playback sale de la
+   594→        //   velocidad PLANA real (m/s en el suelo; la Y no mueve piernas) contra la velocidad
+   595→        //   natural del clip (rules.view.animSync): las piernas acompañan al cuerpo, cero patinaje.
+   596→        if (a.gestureT > 0) {
+   597→          a.gestureT -= dt;
+   598→          if (a.gestureT <= 0) a.gesture = null;
+   599→        }
+   600→        if (a.rig) {
+   601→          const speedH = Math.hypot(node.x - prevX, node.z - prevZ) / Math.max(1e-4, dt);
+   602→          const def = content.assets?.actors?.[r.archetype];
+   603→          const activityClip = def?.activityAnimations?.[r.activity ?? ''] ?? null;
+   604→          const walkClip = def?.walkAnimation ?? 'walk';
+   605→          let clip: string | null;
+   606→          if (a.gesture) clip = a.gesture;
+   607→          else if (speedH > v.runSpeed) clip = 'run';
+   608→          else if (speedH > 0.25) clip = walkClip;
+   609→          else if (activityClip) clip = activityClip;
+   610→          else if (a.seated && a.path.length === 0) clip = 'sit';
+   611→          else clip = null;
+   612→          const sync = v.animSync;
+   613→          let rate = 1;
+   614→          if (!a.gesture && clip === 'run') rate = speedH / sync.runRefSpeed;
+   615→          else if (!a.gesture && clip === walkClip) rate = speedH / sync.walkRefSpeed;
+   616→          rate = Math.min(sync.maxRate, Math.max(sync.minRate, rate));
+   617→          a.rig.play(clip, rate);
+   618→        }
+   619→      }
+   620→    },
+   621→    /** Dirección de cutscenes (Fase D): toma/coloca/ruta/suelta actores como teatro. */
+   622→    director: {
+   623→      nodeOf(id: string): { x: number; y: number; z: number } | null {
+   624→        const a = actors.get(id);
+   625→        return a && a.node.isEnabled() ? { x: a.node.position.x, y: a.node.position.y, z: a.node.position.z } : null;
+   626→      },
+   627→      take(id: string): boolean {
+   628→        const r = world.residents[id];
+   629→        if (!r || !r.present || r.location === null) return false;
+   630→        if (!actors.has(id)) ensureActor(id, r.archetype);
+   631→        const a = actors.get(id)!;
+   632→        a.directed = true;
+   633→        a.seated = false;
+   634→        a.node.setEnabled(true);
+   635→        return true;
+   636→      },
+   637→      release(id: string): void {
+   638→        const a = actors.get(id);
+   639→        if (!a) return;
+   640→        a.directed = false;
+   641→        a.path = [];
+   642→        a.targetLocal = null;
+   643→        a.wanderT = 0;
+   644→        a.seated = false;
+   645→        a.gesture = null;
+   646→        a.gestureT = 0;
+   647→        a.targetYaw = null;
+   648→        // Si estaba esperando el ascensor, se cancela la llamada (el director libera el hueco).
+   649→        if (a.elevatorReq && elevators) {
+   650→          elevators.cancel(a.id);
+   651→          a.elevatorReq = null;
+   652→          a.ridePhase = null;
+   653→        }
+   654→      },
+   655→      stageAt(id: string, x: number, floor: number, z: number): void {
+   656→        const a = actors.get(id);
+   657→        if (!a) return;
+   658→        a.path = [];
+   659→        // El teatro manda: cualquier viaje en curso se cancela antes de colocar al actor.
+   660→        if (a.elevatorReq && elevators) {
+   661→          elevators.cancel(a.id);
+   662→          a.elevatorReq = null;
+   663→          a.ridePhase = null;
+   664→        }
+   665→        a.node.position.set(x, floor * v.cellH + 0.14 + a.pivotY, z);
+   666→      },
+   667→      walkTo(id: string, dest: { x: number; z: number; floor: number; inside?: { block: string; local: Pt } }): boolean {
+   668→        const a = actors.get(id);
+   669→        if (!a) return false;
+   670→        const b = dest.inside ? world.blocks[dest.inside.block] : undefined;
+   671→        const inside = b && dest.inside
+   672→          ? {
+   673→              block: b,
+   674→              local: {
+   675→                x: Math.min(b.size.w * v.cellW - 0.2, Math.max(0.2, dest.inside.local.x)),
+   676→                z: Math.min(depthOfBlock(b) - 0.2, Math.max(0.2, dest.inside.local.z)),
+   677→              },
+   678→            }
+   679→          : null;
+   680→        buildRoute(a, { x: dest.x, y: dest.floor * v.cellH + 0.14 + a.pivotY, z: dest.z, inside });
+   681→        return true;
+   682→      },
+   683→      idle(id: string): boolean {
+   684→        const a = actors.get(id);
+   685→        return !a || (a.path.length === 0 && !a.elevatorReq);
+   686→      },
+   687→      headOf(id: string): { x: number; y: number; z: number } | null {
+   688→        const a = actors.get(id);
+   689→        if (!a || !a.node.isEnabled()) return null;
+   690→        const p = a.node.position;
+   691→        return { x: p.x, y: p.y + a.height + 0.18, z: p.z };
+   692→      },
+   693→      gestureOf(id: string): string | null {
+   694→        return actors.get(id)?.gesture ?? null;
+   695→      },
+   696→      isDirected(id: string): boolean {
+   697→        return actors.get(id)?.directed ?? false;
+   698→      },
+   699→      isRiding(id: string): boolean {
+   700→        return actors.get(id)?.elevatorReq !== null && actors.get(id)?.elevatorReq !== undefined;
+   701→      },
+   702→      setGesture(id: string, state: string | null, seconds = 0): void {
+   703→        const a = actors.get(id);
+   704→        if (!a) return;
+   705→        a.gesture = state;
+   706→        a.gestureT = state && seconds > 0 ? seconds : 0;
+   707→      },
+   708→      /** Pausa de charla (v1.20): congela la locomoción; 0 suelta. */
+   709→      setHold(id: string, seconds: number): void {
+   710→        const a = actors.get(id);
+   711→        if (!a) return;
+   712→        a.chatT = Math.max(0, seconds);
+   713→        if (a.chatT === 0) {
+   714→          a.targetLocal = null;
+   715→          a.wanderT = 0;
+   716→        }
+   717→      },
+   718→      /** Gira hacia un punto del mundo (arco corto con el ritmo del catálogo). */
+   719→      faceToward(id: string, x: number, z: number): void {
+   720→        const a = actors.get(id);
+   721→        if (!a) return;
+   722→        const dx = x - a.node.position.x;
+   723→        const dz = z - a.node.position.z;
+   724→        if (Math.hypot(dx, dz) < 0.05) return;
+   725→        a.targetYaw = Math.atan2(-dz, dx);
+   726→      },
+   727→    },
+   728→  };
+   729→}
+   730→

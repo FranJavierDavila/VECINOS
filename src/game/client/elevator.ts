@@ -137,10 +137,14 @@ export function createElevators(scene: Scene, world: World, content: Content): E
   };
   /** v1.25 — PUERTAS DE ASCENSOR con textura correcta: el arte (dos hojas metálicas con la
    *  partida central) se reparte en DOS texturas (mitad izquierda / mitad derecha), una por
-   *  hoja. Recorte full-bleed del fondo cocinado con stripCorners. Sin arte → color plano. */
+   *  hoja. v1.27 — ENCAJE PERFECTO: cada mitad se re-encaja a la proporción EXACTA de su
+   *  caja (0.56 × 1.94) con recorte centrado del exceso — el arte llena la hoja sin estirar
+   *  (antes el lienzo 192×768 forzaba un 15% de compresión horizontal) y UN solo vuelco. */
   const halfTex = (side: 'l' | 'r'): DynamicTexture | null => {
     if (!cfg.doorArt) return null;
-    const dt = new (B().DynamicTexture)(`asc_puerta_tex_${side}`, { width: 192, height: 768 }, scene, true) as DynamicTexture;
+    const TW = Math.round((768 * 0.56) / 1.94);
+    const TH = 768;
+    const dt = new (B().DynamicTexture)(`asc_puerta_tex_${side}`, { width: TW, height: TH }, scene, true) as DynamicTexture;
     const img = new Image();
     img.onload = () => {
       const big = document.createElement('canvas');
@@ -155,9 +159,25 @@ export function createElevators(scene: Scene, world: World, content: Content): E
       const sy = b ? b.y0 : 0;
       const sw = b ? b.x1 - b.x0 : img.naturalWidth;
       const sh = b ? b.y1 - b.y0 : img.naturalHeight;
+      // Mitad del arte + cover-fit a la proporción de la hoja (sin estirar).
+      const halfW = sw / 2;
+      const x0 = side === 'l' ? sx : sx + halfW;
+      const targetAr = TW / TH;
+      const srcAr = halfW / Math.max(1, sh);
+      let cw = halfW;
+      let ch = sh;
+      let cx = x0;
+      let cy = sy;
+      if (srcAr > targetAr) {
+        cw = ch * targetAr;
+        cx = x0 + (halfW - cw) / 2;
+      } else {
+        ch = cw / targetAr;
+        cy = sy + (sh - ch) / 2;
+      }
       const dctx = dt.getContext() as unknown as CanvasRenderingContext2D;
-      dctx.clearRect(0, 0, 192, 768);
-      dctx.drawImage(big, side === 'l' ? sx : sx + sw / 2, sy, sw / 2, sh, 0, 0, 192, 768);
+      dctx.clearRect(0, 0, TW, TH);
+      dctx.drawImage(big, cx, cy, Math.max(1, cw), Math.max(1, ch), 0, 0, TW, TH);
       dt.update(true);
     };
     img.src = cfg.doorArt;

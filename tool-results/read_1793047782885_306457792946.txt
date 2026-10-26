@@ -1,0 +1,2002 @@
+     1→import type { Color3, Color4, DynamicTexture, Mesh, Scene, StandardMaterial, Texture, TransformNode } from '@babylonjs/core';
+     2→import { blockLabel } from '@/game/core/types';
+     3→import type { BlockInstance, Content, World } from '@/game/core/types';
+     4→import { hash01 } from '@/game/interior';
+     5→import { storageCorridorX, storageGeomOf, storageUnitPlan, storageUnitZ } from '@/game/storage';
+     6→import { B } from './babylon';
+     7→import {
+     8→  alphaBoundsOf,
+     9→  createDioramaDirector,
+    10→  newDioramaSet,
+    11→  stripCorners,
+    12→  type DioramaDirector,
+    13→  type DioramaSet,
+    14→  type DioramaVariant,
+    15→} from './diorama';
+    16→import { instantiateBlockAsset, type BlockMat } from './assets';
+    17→
+    18→interface BlockView {
+    19→  /** Cajas greybox estructurales (se ocultan cuando llega el modelo glTF; panel/candado NO van aquí). */
+    20→  greybox: Mesh[];
+    21→  /** Materiales que reciben glow de canales y tintado de estado (1 en greybox, N en modelos). */
+    22→  mats: BlockMat[];
+    23→  /** Emissive base por material (lo que paint() deja sin canales); lo usa el LOD 'glow'. */
+    24→  baseEmissive: Color3[];
+    25→  /** Color base por material (view.color en greybox; albedo capturado en modelos). */
+    26→  baseColor: Color3[];
+    27→  /** Fuerza del tintado de estado: 1 = color plano (greybox), 0..1 = mezcla sobre el arte (modelos). */
+    28→  tintStrength: number;
+    29→  /** Raíz del modelo glTF si este bloque ya lo lleva (null = greybox). */
+    30→  model: TransformNode | null;
+    31→  front: Mesh | null; // fachada que cierra la vivienda (candado o privacidad)
+    32→  /** Puerta y picaporte de la fachada de privacidad (v1.17): la vivienda vacía se ve cerrada. */
+    33→  door: Mesh | null;
+    34→  handle: Mesh | null;
+    35→  lock: Mesh | null;
+    36→  lockBase: { x: number; y: number };
+    37→  // ── LOD por distancia (rules.view.lod) ──
+    38→  /** Centro X del bloque en metros (dx del LOD: |centerX − focus.x|). */
+    39→  centerX: number;
+    40→  /** Planta del bloque (dy del LOD: |floor − focus.floor| * view.cellH). */
+    41→  floor: number;
+    42→  /** Pared del fondo de la vivienda (la única malla que puede llevar edgesRendering) o null;
+    43→   *  el EdgesRenderer activo solo existe en las paredes destacadas del jugador. */
+    44→  edgesMesh: Mesh | null;
+    45→  /** true mientras el LOD fuerza baseEmissive (al soltarlo se repinta el cálculo de paint una vez). */
+    46→  glowForced: boolean;
+    47→  /** true mientras el LOD oculta panel+candado; la visibilidad efectiva es la de paint() && !esto. */
+    48→  lodHiddenPanels: boolean;
+    49→  /** Segunda pared con edges (v1.19): la pared del fondo se parte si hay puerta a sala trasera. */
+    50→  edgesMesh2: Mesh | null;
+    51→  /** v1.24: decoración de la puerta de privacidad (marco + aplique) — se activa junto a view.door. */
+    52→  doorDecor: Mesh[];
+    53→  /** v1.25: color FIJO de la vivienda (pared gris clarito) — el tintado de estado no la repinta;
+    54→   *  el emissive de canales (ruido/agua) sigue funcionando. null = tintado clásico. */
+    55→  fixedDiffuse: Color3 | null;
+    56→}
+    57→
+    58→/** Interior 2D de una vivienda (Fase C): suelo por estancia + tapa de puerta hacia estancia cerrada. */
+    59→interface InteriorView {
+    60→  /** Suelo tintado por estancia (color del catálogo; lockedColor si está cerrada). */
+    61→  floors: { roomKey: string; defId: string; mesh: Mesh; mat: StandardMaterial }[];
+    62→  /** Tapas de los huecos de puerta que llevan a una estancia cerrada ("en obras"). */
+    63→  covers: { mesh: Mesh; rooms: [string, string] }[];
+    64→  /** Lamparita de techo por estancia (v1.21): se enciende de noche si hay gente despierta. */
+    65→  lamps: { roomKey: string; mesh: Mesh; mat: StandardMaterial }[];
+    66→  /** Diorama v1.23: billboards con paralaje (pared/suelo/mobiliario) por estancia. */
+    67→  dio: DioramaSet;
+    68→  /** Materiales del diorama del bloque (tinte nocturno idéntico a suelos/lámparas). */
+    69→  dioMats: StandardMaterial[];
+    70→  /** Raíz de los quads de diorama (visibilidad espejo de la fachada en applyPanels). */
+    71→  dioRoot: TransformNode | null;
+    72→}
+    73→
+    74→/**
+    75→ * Una caja por bloque (placeholder greybox del futuro prefab) y, si el manifiesto de assets
+    76→ * (Content.assets.blocks) declara un modelo glTF para el tipo de bloque, el modelo en su lugar
+    77→ * (con la caja oculta). TODA la geometría y los colores salen de content.rules.view +
+    78→ * block.view + assets: sustituir el greybox por arte final no toca este código.
+    79→ * Las viviendas se dibujan en corte (interior visible) SOLO mientras hay alguien dentro;
+    80→ * vacías, la fachada se cierra con su puerta al pasillo (rules.view.privacy) — y las
+    81→ * bloqueadas, con panel y candado como siempre.
+    82→ */
+    83→export function createBuilding(scene: Scene, world: World, content: Content) {
+    84→  const { Color3, Color4, MeshBuilder, StandardMaterial, TransformNode } = B();
+    85→  const v = content.rules.view;
+    86→  const glow = Object.fromEntries(Object.entries(v.channelGlow).map(([k, hex]) => [k, Color3.FromHexString(hex)])) as Record<string, Color3>;
+    87→  const views = new Map<string, BlockView>();
+    88→  const shakes = new Map<string, number>();
+    89→  /** Raíz de escena por bloque (v1.19): colgar aquí TODA malla del bloque permite el
+    90→   *  desvanecimiento completo del bloque principal en el apilamiento 3D (swap de bloques). */
+    91→  const roots = new Map<string, TransformNode>();
+    92→  const attach = (blockId: string, mesh: Mesh): Mesh => {
+    93→    const r = roots.get(blockId);
+    94→    if (r) mesh.parent = r;
+    95→    return mesh;
+    96→  };
+    97→  /** Interiores 2D (Fase C) por bloque: suelos de estancia y tapas de puertas cerradas. */
+    98→  const interiors = new Map<string, InteriorView>();
+    99→  /** Foco del LOD (posición del jugador): lo alimenta update() y lo consume paint(). */
+   100→  let lastFocus: { x: number; floor: number } | null = null;
+   101→  // Plano frontal de las estancias: la cara de la puerta. Con viviendas del doble de calado
+   102→  // (v0.6-b), el extra crece hacia el FONDO (+Z) para no envolver el pasillo ni al núcleo.
+   103→  // v1.19: los calados del catálogo YA incluyen el +1 módulo (rules.view.depthModule) —
+   104→  // depth 4.2 en viviendas y commonDepth 2.8 en comunes son los valores finales.
+   105→  const frontZ = v.roomZ - v.commonDepth / 2;
+   106→  /** Calado por bloque: viviendas 2× (mobiliario interior); naves del cierre (v1.16) y el
+   107→   *  tejado (con aleros) a calado de vivienda; bloques comunes, el de siempre. */
+   108→  const depthOf = (b: BlockInstance): number => {
+   109→    if (b.kind === 'dwelling') return v.depth;
+   110→    if (b.defId === 'trasteros_planta' || b.defId === 'bajocubierta') return v.depth;
+   111→    if (b.defId === v.trasteros.blockDefId) return v.depth * v.trasteros.blockDepthFactor;
+   112→    if (b.defId === 'tejado') return v.depth + v.roof.overhang * 2;
+   113→    return v.commonDepth;
+   114→  };
+   115→  const mat = (name: string) => new StandardMaterial(name, scene);
+   116→  /**
+   117→   * V1.26 — OPACIDAD TOTAL para hojas de puerta: los DynamicTexture con píxeles alpha=0 se
+   118→   * renderizan a NEGRO en esta config (WebGPU/CDN — diagnóstico v1.25). Las artes de puerta
+   119→   * traen sombras cocinadas que el flood-fill de esquinas deja a medias: las rendijas
+   120→   * transparentes sobrevivientes dentro del recorte se rellenan con el color opaco más
+   121→   * cercano (dilatación horizontal en dos pasadas) — la textura queda 100% opaca y el
+   122→   * perímetro de la hoja deja de verse negro/rojizo.
+   123→   */
+   124→  const dilateOpaque = (c: HTMLCanvasElement): void => {
+   125→    const ctx = c.getContext('2d', { willReadFrequently: true });
+   126→    if (!ctx) return;
+   127→    const W = c.width;
+   128→    const H = c.height;
+   129→    const img = ctx.getImageData(0, 0, W, H);
+   130→    const d = img.data;
+   131→    for (let y = 0; y < H; y++) {
+   132→      const row = y * W;
+   133→      let pr = -1;
+   134→      let pg = -1;
+   135→      let pb = -1;
+   136→      for (let x = 0; x < W; x++) {
+   137→        const p = (row + x) * 4;
+   138→        if (d[p + 3]! > 250) {
+   139→          pr = d[p]!;
+   140→          pg = d[p + 1]!;
+   141→          pb = d[p + 2]!;
+   142→        } else if (pr >= 0) {
+   143→          d[p] = pr;
+   144→          d[p + 1] = pg!;
+   145→          d[p + 2] = pb!;
+   146→          d[p + 3] = 255;
+   147→        }
+   148→      }
+   149→      pr = -1;
+   150→      pg = -1;
+   151→      pb = -1;
+   152→      for (let x = W - 1; x >= 0; x--) {
+   153→        const p = (row + x) * 4;
+   154→        if (d[p + 3]! > 250) {
+   155→          pr = d[p]!;
+   156→          pg = d[p + 1]!;
+   157→          pb = d[p + 2]!;
+   158→        } else if (pr >= 0) {
+   159→          d[p] = pr;
+   160→          d[p + 1] = pg!;
+   161→          d[p + 2] = pb!;
+   162→          d[p + 3] = 255;
+   163→        }
+   164→      }
+   165→    }
+   166→    ctx.putImageData(img, 0, 0);
+   167→  };
+   168→  /** Texturas de puerta cacheadas por fichero (v1.24→v1.26): FULL-BLEED y OPACA. El arte
+   169→   *  llega con pared/suelo cocinados alrededor de la hoja: flood-fill contra los colores de
+   170→   *  las esquinas (stripCorners) + recorte a la caja del contenido (alphaBoundsOf) +
+   171→   *  dilatación opaca (dilateOpaque) → la textura ES la hoja, sin rendijas negras. */
+   172→  const doorArtCache = new Map<string, DynamicTexture>();
+   173→  const doorArtTex = (sc: Scene, file: string): DynamicTexture => {
+   174→    const hit = doorArtCache.get(file);
+   175→    if (hit) return hit;
+   176→    const dt = new (B().DynamicTexture)(`puerta_tex_${doorArtCache.size}`, { width: 384, height: 768 }, sc, true);
+   177→    doorArtCache.set(file, dt);
+   178→    const img = new Image();
+   179→    img.onload = () => {
+   180→      const big = document.createElement('canvas');
+   181→      big.width = img.naturalWidth;
+   182→      big.height = img.naturalHeight;
+   183→      const bx = big.getContext('2d', { willReadFrequently: true });
+   184→      if (!bx) return;
+   185→      bx.drawImage(img, 0, 0);
+   186→      stripCorners(big, 0.14);
+   187→      const b = alphaBoundsOf(big);
+   188→      if (b) bx.drawImage(big, b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0, 0, 0, 384, 768);
+   189→      else bx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, 384, 768);
+   190→      dilateOpaque(big);
+   191→      const dctx = dt.getContext() as unknown as CanvasRenderingContext2D;
+   192→      dctx.clearRect(0, 0, 384, 768);
+   193→      dctx.drawImage(big, 0, 0, 384, 768);
+   194→      dt.update(true);
+   195→    };
+   196→    img.src = file;
+   197→    return dt;
+   198→  };
+   199→  /** Candado DIBUJADO (v1.25→v1.26): silueta real de candado — nada de cajas 3D. Colores
+   200→   *  del catálogo (lockColor); grillete de acero fijo. v1.26: la subida sale por
+   201→   *  TEXTURE(dataURL) — los DynamicTexture desde canvas pierden el canal alpha en esta
+   202→   *  config (WebGPU/CDN: píxeles alpha=0 → NEGRO) y el candado se veía con halo negro. */
+   203→  let lockTex: Texture | null = null;
+   204→  let lockTexAr = 0.8;
+   205→  const canvasTex = (name: string, c: HTMLCanvasElement): Texture => {
+   206→    const t = new (B().Texture)(c.toDataURL('image/png'), scene, false, true);
+   207→    t.name = name;
+   208→    t.hasAlpha = true;
+   209→    return t;
+   210→  };
+   211→  const padlockTex = (): Texture => {
+   212→    if (lockTex) return lockTex;
+   213→    const c = document.createElement('canvas');
+   214→    c.width = 128;
+   215→    c.height = 128;
+   216→    const ctx = c.getContext('2d', { willReadFrequently: true });
+   217→    if (!ctx) {
+   218→      const fallback = canvasTex('candado_tex', c);
+   219→      lockTex = fallback;
+   220→      return fallback;
+   221→    }
+   222→    ctx.clearRect(0, 0, 128, 128);
+   223→    const body = Color3.FromHexString(v.lockColor).toHexString();
+   224→    // Grillete: arco de acero.
+   225→    ctx.strokeStyle = '#8d939c';
+   226→    ctx.lineWidth = 11;
+   227→    ctx.beginPath();
+   228→    ctx.arc(64, 52, 26, Math.PI, 0);
+   229→    ctx.stroke();
+   230→    // Cuerpo de latón con borde.
+   231→    ctx.fillStyle = body;
+   232→    ctx.strokeStyle = 'rgba(60,40,10,0.9)';
+   233→    ctx.lineWidth = 4;
+   234→    const r = 12;
+   235→    ctx.beginPath();
+   236→    ctx.moveTo(24, 124);
+   237→    ctx.lineTo(24, 66 + r);
+   238→    ctx.arcTo(24, 66, 24 + r, 66, r);
+   239→    ctx.lineTo(104 - r, 66);
+   240→    ctx.arcTo(104, 66, 104, 66 + r, r);
+   241→    ctx.lineTo(104, 124);
+   242→    ctx.closePath();
+   243→    ctx.fill();
+   244→    ctx.stroke();
+   245→    // Ojo de la cerradura.
+   246→    ctx.fillStyle = 'rgba(50,32,8,0.95)';
+   247→    ctx.beginPath();
+   248→    ctx.arc(64, 90, 8, 0, Math.PI * 2);
+   249→    ctx.fill();
+   250→    ctx.fillRect(60, 90, 8, 20);
+   251→    // Recorte a la caja del contenido: el quad queda del tamaño exacto de la silueta.
+   252→    const b = alphaBoundsOf(c);
+   253→    const out = document.createElement('canvas');
+   254→    out.width = 128;
+   255→    out.height = 128;
+   256→    const octx = out.getContext('2d');
+   257→    if (b && octx) {
+   258→      const bw = Math.max(1, b.x1 - b.x0);
+   259→      const bh = Math.max(1, b.y1 - b.y0);
+   260→      lockTexAr = bw / bh;
+   261→      octx.drawImage(c, b.x0, b.y0, bw, bh, 0, 0, bw, bh);
+   262→    } else {
+   263→      octx?.drawImage(c, 0, 0);
+   264→    }
+   265→    lockTex = canvasTex('candado_tex', out);
+   266→    return lockTex;
+   267→  };
+   268→  /** Apliques de las puertas de vivienda: el foco cálido amaanece con la noche (update). */
+   269→  const doorLampMats: { mat: StandardMaterial; hex: string }[] = [];
+   270→  /** Dioramas interiores (v1.23): null sin catálogo interiors.json — greybox como siempre. */
+   271→  const diro: DioramaDirector | null = createDioramaDirector(scene, content);
+   272→  const box = (name: string, w: number, h: number, d: number, x: number, y: number, z: number, m: StandardMaterial) => {
+   273→    const mesh = MeshBuilder.CreateBox(name, { width: w, height: h, depth: d }, scene);
+   274→    mesh.position.set(x, y, z);
+   275→    mesh.material = m;
+   276→    return mesh;
+   277→  };
+   278→
+   279→  for (const b of Object.values(world.blocks)) {
+   280→    const m = mat(`${b.id}_mat`);
+   281→    const cx = (b.cell.col + b.size.w / 2) * v.cellW;
+   282→    const bottom = b.cell.floor * v.cellH;
+   283→    const w = b.size.w * v.cellW - v.gapW;
+   284→    const h = v.cellH - v.gapH;
+   285→    const d = depthOf(b);
+   286→    const cz = frontZ + d / 2;
+   287→    const view: BlockView = {
+   288→      greybox: [],
+   289→      mats: [m],
+   290→      baseEmissive: [m.emissiveColor.clone()],
+   291→      baseColor: [Color3.FromHexString(content.blocks[b.defId]!.view?.color ?? '#cccccc')],
+   292→      tintStrength: 1,
+   293→      model: null,
+   294→      front: null,
+   295→      door: null,
+   296→      handle: null,
+   297→      lock: null,
+   298→      lockBase: { x: cx, y: bottom + v.cellH / 2 - 0.2 },
+   299→      centerX: cx,
+   300→      floor: b.cell.floor,
+   301→      edgesMesh: null,
+   302→      edgesMesh2: null,
+   303→      glowForced: false,
+   304→      lodHiddenPanels: false,
+   305→      doorDecor: [],
+   306→      fixedDiffuse: null,
+   307→    };
+   308→    const root = new TransformNode(`${b.id}_root`, scene);
+   309→    roots.set(b.id, root);
+   310→    if (b.layer === 'corridor') {
+   311→      // Pasillo exterior (data-driven): tira transitable saliente hacia la calle, con el borde
+   312→      // trasero a ras de fachada (frontZ) y barandilla baja en el borde exterior — sitio de
+   313→      // sobra para que los personajes se crucen o charlen sin bailar el vacío.
+   314→      const d = v.corridorDepth;
+   315→      view.greybox.push(box(b.id, b.size.w * v.cellW, v.slab * 2, d, cx, bottom + v.slab, frontZ - d / 2, m));
+   316→      if (v.corridorRail > 0) {
+   317→        view.greybox.push(
+   318→          box(`${b.id}_barandilla`, b.size.w * v.cellW, v.corridorRail, v.wall, cx, bottom + v.slab * 2 + v.corridorRail / 2, frontZ - d, m),
+   319→        );
+   320→      }
+   321→    } else if (b.kind === 'dwelling') {
+   322→      const y = bottom + v.cellH / 2;
+   323→      const pv = v.privacy;
+   324→      // v1.25 — acabado de la vivienda: pared GRIS CLARITO fija (el tintado de estado no la
+   325→      // repinta; el glow de canales sigue) + ZÓCALO gris de 25 cm desde el suelo + marcos de
+   326→      // puerta DEL COLOR del zócalo. Todo del catálogo (rules.view.privacy).
+   327→      view.fixedDiffuse = Color3.FromHexString(pv.wallColor ?? '#dbd8d2');
+   328→      // ── Puerta a sala TRASERA (v1.19, apilamiento 3D): la pared del fondo se parte con el
+   329→      // hueco del layout (doorway hacia una estancia más profunda que el bloque principal).
+   330→      const layoutId0 = content.blocks[b.defId]?.container?.layout;
+   331→      const layout0 = layoutId0 ? content.layouts[layoutId0] : undefined;
+   332→      const rearKeys = new Set((layout0?.rooms ?? []).filter((r) => r.rect && r.rect.z + r.rect.d > v.depth + 0.01).map((r) => r.key));
+   333→      const rearDoor = (layout0?.doorways ?? []).find((dw) => dw.axis === 'x' && rearKeys.has(dw.b));
+   334→      const x0w = cx - w / 2;
+   335→      const x1w = cx + w / 2;
+   336→      if (rearDoor) {
+   337→        const gapA = Math.max(x0w, x0w + rearDoor.at - rearDoor.width / 2);
+   338→        const gapB = Math.min(x1w, x0w + rearDoor.at + rearDoor.width / 2);
+   339→        const doorH = Math.min(h - 0.15, 1.95);
+   340→        const lintelH = h - doorH;
+   341→        view.edgesMesh = box(`${b.id}_fondo_i`, gapA - x0w, h, v.wall, (x0w + gapA) / 2, y, frontZ + d, m);
+   342→        view.edgesMesh2 = box(`${b.id}_fondo_d`, x1w - gapB, h, v.wall, (gapB + x1w) / 2, y, frontZ + d, m);
+   343→        view.greybox.push(
+   344→          view.edgesMesh,
+   345→          view.edgesMesh2,
+   346→          box(`${b.id}_fondo_dintel`, gapB - gapA, lintelH, v.wall, (gapA + gapB) / 2, y + h / 2 - lintelH / 2, frontZ + d, m),
+   347→          box(`${b.id}_izq`, v.wall, h, d, cx - w / 2, y, cz, m),
+   348→          box(`${b.id}_der`, v.wall, h, d, cx + w / 2, y, cz, m),
+   349→          box(`${b.id}_suelo`, w, v.wall, d, cx, bottom + v.slab + v.wall / 2, cz, m),
+   350→          box(`${b.id}_techo`, w, v.wall, d, cx, bottom + v.cellH - v.slab - v.wall / 2, cz, m),
+   351→        );
+   352→      } else {
+   353→        view.edgesMesh = box(`${b.id}_fondo`, w, h, v.wall, cx, y, frontZ + d, m);
+   354→        view.greybox.push(
+   355→          view.edgesMesh,
+   356→          box(`${b.id}_izq`, v.wall, h, d, cx - w / 2, y, cz, m),
+   357→          box(`${b.id}_der`, v.wall, h, d, cx + w / 2, y, cz, m),
+   358→          box(`${b.id}_suelo`, w, v.wall, d, cx, bottom + v.slab + v.wall / 2, cz, m),
+   359→          box(`${b.id}_techo`, w, v.wall, d, cx, bottom + v.cellH - v.slab - v.wall / 2, cz, m),
+   360→        );
+   361→      }
+   362→      view.front = box(`${b.id}_puerta`, w, h, v.wall, cx, y, frontZ, m);
+   363→      // ── ZÓCALO (v1.25→v1.26): banda gris de ~25 cm desde el suelo, CORTADA en la puerta
+   364→      //  (dos tramos, sin cruzar el acceso — petición expresa del vecino). Continúa en el
+   365→      //  MARCO de la puerta (mismo material). Todo del catálogo (rules.view.privacy).
+   366→      const skH = pv.skirtingH ?? 0.25;
+   367→      const skMat = mat(`${b.id}_zocalo_mat`);
+   368→      skMat.diffuseColor = Color3.FromHexString(pv.skirtingColor ?? '#a3a19b');
+   369→      skMat.specularColor = new Color3(0.02, 0.02, 0.02);
+   370→      const ySk = bottom + v.slab + v.wall + skH / 2;
+   371→      const cutSkirting = pv.skirtingDoorGap ?? false;
+   372→      const skL = cutSkirting ? Math.max(x0w, cx - pv.doorW / 2) : x0w;
+   373→      const skR = cutSkirting ? Math.min(x1w, cx + pv.doorW / 2) : x1w;
+   374→      if (skL - x0w > 0.02) {
+   375→        view.greybox.push(attach(b.id, box(`${b.id}_zocalo_frente_i`, skL - x0w, skH, v.wall + 0.02, (x0w + skL) / 2, ySk, frontZ, skMat)));
+   376→      }
+   377→      if (x1w - skR > 0.02) {
+   378→        view.greybox.push(attach(b.id, box(`${b.id}_zocalo_frente_d`, x1w - skR, skH, v.wall + 0.02, (skR + x1w) / 2, ySk, frontZ, skMat)));
+   379→      }
+   380→      view.greybox.push(
+   381→        attach(b.id, box(`${b.id}_zocalo_izq`, v.wall + 0.02, skH, d - 2 * v.wall, cx - w / 2 + v.wall / 2, ySk, cz, skMat)),
+   382→        attach(b.id, box(`${b.id}_zocalo_der`, v.wall + 0.02, skH, d - 2 * v.wall, cx + w / 2 - v.wall / 2, ySk, cz, skMat)),
+   383→      );
+   384→      // Candado DIBUJADO (v1.25): quad con silueta real de candado — los candados en forma
+   385→      // de caja desaparecen. Cuelga de la puerta de privacidad y sigue sacudiéndose.
+   386→      const lh = pv.lockH ?? 0.28;
+   387→      const lw = lh * Math.max(0.5, Math.min(1.2, lockTexAr));
+   388→      const lockMat = mat(`${b.id}_candado_mat`);
+   389→      lockMat.diffuseTexture = padlockTex();
+   390→      lockMat.emissiveColor = Color3.FromHexString(v.lockColor).scale(0.22);
+   391→      lockMat.specularColor = new Color3(0, 0, 0);
+   392→      lockMat.transparencyMode = 2;
+   393→      lockMat.alphaCutOff = 0.35;
+   394→      lockMat.useAlphaFromDiffuseTexture = true; // v1.26: alpha de la textura → shader (ver diorama)
+   395→      view.lock = MeshBuilder.CreatePlane(`${b.id}_candado`, { width: lw, height: lh }, scene);
+   396→      view.lock.material = lockMat;
+   397→      view.lock.isPickable = false;
+   398→      view.lock.position.set(cx - pv.doorW / 2 - 0.32, view.lockBase.y, frontZ - v.wall / 2 - 0.07);
+   399→      view.lock.setEnabled(false);
+   400→
+   401→      // ── Privacidad (v1.24→v1.26): la puerta es un PLANO con arte real (full-bleed y
+   402→      //  opaco — dilateOpaque mata las rendijas negras). SIN marco 3D con frameW 0: el
+   403→      //  arte ya lleva su marco pintado y el gris que se veía alrededor era el overlay
+   404→      //  glTF (oculto por hideNodes). Aplique de luz a un lado (brilla de noche).
+   405→      //  Se activan/desactivan cada frame según haya alguien dentro (propietario, visita…
+   406→      //  o un ladrón); medidas y colores del catálogo (rules.view.privacy).
+   407→      const doorZ = frontZ - v.wall / 2 - 0.035;
+   408→      view.door = MeshBuilder.CreatePlane(`${b.id}_puerta_priv`, { width: pv.doorW, height: pv.doorH }, scene);
+   409→      view.door.position.set(cx, bottom + v.slab + v.wall + pv.doorH / 2, doorZ);
+   410→      const doorMat = mat(`${b.id}_puerta_priv_mat`);
+   411→      doorMat.specularColor = new Color3(0, 0, 0);
+   412→      // Arte: una variante por hash del id (3 puertas del catálogo); textura cacheada por fichero.
+   413→      const artFile = pv.doorArts?.length ? pv.doorArts[Math.floor(hash01(b.id, 3) * pv.doorArts.length) % pv.doorArts.length]! : null;
+   414→      if (artFile) doorMat.diffuseTexture = doorArtTex(scene, artFile);
+   415→      else doorMat.diffuseColor = Color3.FromHexString(pv.doorColor);
+   416→      view.door.material = doorMat;
+   417→      view.door.isPickable = false;
+   418→      view.door.setEnabled(false);
+   419→      // Marco DEL COLOR DEL ZÓCALO (v1.25) — v1.26: SOLO si el catálogo pide grosor
+   420→      // (frameW > 0); con frameW 0 la hoja queda a sangre (el arte ya trae su marco
+   421→      // pintado y el "marco gris clarito" que se veía alrededor era el overlay glTF,
+   422→      // hoy oculto de verdad por hideNodes recursivo).
+   423→      const fw = pv.frameW ?? 0.075;
+   424→      const fz = frontZ - v.wall / 2 - 0.045;
+   425→      if (fw > 0.001) {
+   426→        const fd = pv.frameDepth ?? 0.1;
+   427→        const frameMat = mat(`${b.id}_marco_puerta_mat`);
+   428→        frameMat.diffuseColor = Color3.FromHexString(pv.skirtingColor ?? '#a3a19b');
+   429→        frameMat.specularColor = new Color3(0.03, 0.03, 0.03);
+   430→        const jambL = box(`${b.id}_marco_izq`, fw, pv.doorH + fw * 2, fd, cx - pv.doorW / 2 - fw / 2, bottom + v.slab + v.wall + pv.doorH / 2, fz, frameMat);
+   431→        const jambR = box(`${b.id}_marco_der`, fw, pv.doorH + fw * 2, fd, cx + pv.doorW / 2 + fw / 2, bottom + v.slab + v.wall + pv.doorH / 2, fz, frameMat);
+   432→        const lintel = box(`${b.id}_marco_sup`, pv.doorW + fw * 2, fw, fd, cx, bottom + v.slab + v.wall + pv.doorH + fw / 2, fz, frameMat);
+   433→        for (const j of [jambL, jambR, lintel]) {
+   434→          j.isPickable = false;
+   435→          j.setEnabled(false);
+   436→          view.doorDecor.push(j);
+   437→        }
+   438→      }
+   439→      // Aplique de luz ENCIMA a un lado (catálogo): cuerpo oscuro + foco cálido que amaanece de noche.
+   440→      if (pv.lamp) {
+   441→        const bodyMat = mat(`${b.id}_aplique_mat`);
+   442→        bodyMat.diffuseColor = Color3.FromHexString(pv.lamp.color);
+   443→        const lampBody = box(`${b.id}_aplique`, 0.1, 0.14, 0.08, cx + pv.lamp.side * pv.lamp.dx, bottom + pv.lamp.dy, fz - 0.02, bodyMat);
+   444→        lampBody.isPickable = false;
+   445→        lampBody.setEnabled(false);
+   446→        view.doorDecor.push(lampBody);
+   447→        const glowMat = mat(`${b.id}_aplique_foco_mat`);
+   448→        glowMat.diffuseColor = Color3.FromHexString(pv.lamp.glowColor);
+   449→        glowMat.emissiveColor = Color3.FromHexString(pv.lamp.glowColor).scale(0.06);
+   450→        doorLampMats.push({ mat: glowMat, hex: pv.lamp.glowColor });
+   451→        const lampGlow = box(`${b.id}_aplique_foco`, 0.06, 0.07, 0.06, cx + pv.lamp.side * pv.lamp.dx, bottom + pv.lamp.dy - 0.08, fz - 0.05, glowMat);
+   452→        lampGlow.isPickable = false;
+   453→        lampGlow.setEnabled(false);
+   454→        view.doorDecor.push(lampGlow);
+   455→      }
+   456→
+   457→      // ── Cartel numerado (v1.6): rótulo sobre la puerta con el identificador de la vivienda
+   458→      // (blk_p3_c → "3C", blockLabel). Textura dinámica con colores/fuente del catálogo
+   459→      // (rules.view.plaque); se añade a greybox porque la vivienda usa modelo OVERLAY (el
+   460→      // greybox no se oculta) y no entra en mats: es señalización, no tinte ni glow.
+   461→      const pl = v.plaque;
+   462→      const plate = MeshBuilder.CreatePlane(`${b.id}_cartel`, { width: pl.w, height: pl.h, sideOrientation: B().Mesh.DOUBLESIDE }, scene);
+   463→      const tex = new (B().DynamicTexture)(`${b.id}_cartel_tex`, { width: 256, height: 96 }, scene, true);
+   464→      const ctx = tex.getContext() as unknown as CanvasRenderingContext2D;
+   465→      ctx.fillStyle = pl.bg;
+   466→      ctx.fillRect(0, 0, 256, 96);
+   467→      ctx.font = `bold ${pl.fontPx}px Arial, sans-serif`;
+   468→      ctx.fillStyle = pl.text;
+   469→      ctx.textAlign = 'center';
+   470→      ctx.textBaseline = 'middle';
+   471→      ctx.fillText(blockLabel(b.id), 128, 52);
+   472→      // update(true): el flag es invertY. Con false el canvas se sube SIN voltear y el texto
+   473→      // sale CABEZA ABAJO (la "A" se ve como "V"; B/C/D pasan por simétricas y esquivan el ojo).
+   474→      tex.update(true);
+   475→      const pmat = new StandardMaterial(`${b.id}_cartel_mat`, scene);
+   476→      pmat.diffuseTexture = tex;
+   477→      pmat.emissiveColor = Color3.FromHexString(pl.bg).scale(0.55); // legible en fachada norte
+   478→      pmat.specularColor = new Color3(0, 0, 0);
+   479→      plate.material = pmat;
+   480→      plate.position.set(cx, bottom + pl.y, frontZ + pl.z);
+   481→      view.greybox.push(plate);
+   482→
+   483→      // ── Interior 2D (Fase C): tabiques con huecos, suelo por estancia y tapas "en obras". ──
+   484→      // TODO sale del layout del catálogo (rects + doorways); sin rects no hay interior 2D.
+   485→      const layoutId = content.blocks[b.defId]?.container?.layout;
+   486→      const layout = layoutId ? content.layouts[layoutId] : undefined;
+   487→      // Apilamiento 3D (v1.19): las salas TRASERAS no se pintan en el bloque principal — viven
+   488→      // en su propio bloque trasero (más abajo, se activan al entrar).
+   489→      const geoRooms = (layout?.rooms ?? []).filter((r) => r.rect !== undefined && r.rect!.z + r.rect!.d <= v.depth + 0.01);
+   490→      if (geoRooms.length > 0 && layout) {
+   491→        const interior: InteriorView = { floors: [], covers: [], lamps: [], dio: newDioramaSet(), dioMats: [], dioRoot: null };
+   492→        const x0 = b.cell.col * v.cellW;
+   493→        const wallH = v.cellH - 2 * v.slab - 2 * v.wall;
+   494→        const partMat = mat(`${b.id}_tabique_mat`);
+   495→        partMat.diffuseColor = Color3.FromHexString('#d8d2c4');
+   496→        // v1.26: material compartido de las tapas — hoja con arte de puerta (coverArt) o
+   497→        // color de bloqueado como respaldo.
+   498→        const coverMat = mat(`${b.id}_tapa_mat`);
+   499→        if (pv.coverArt) {
+   500→          coverMat.diffuseTexture = doorArtTex(scene, pv.coverArt);
+   501→          coverMat.specularColor = new Color3(0, 0, 0);
+   502→        } else {
+   503→          coverMat.diffuseColor = Color3.FromHexString(v.lockedColor);
+   504→        }
+   505→        // Suelo tintado por estancia (plancha fina sobre el suelo, alpha suave).
+   506→        for (const lr of geoRooms) {
+   507→          const r = lr.rect!;
+   508→          const fmat = mat(`${b.id}_${lr.key}_suelo_mat`);
+   509→          fmat.diffuseColor = Color3.FromHexString(content.rooms[lr.defId]?.view?.color ?? '#cccccc');
+   510→          fmat.alpha = 0.32;
+   511→          const fm = attach(b.id, box(`${b.id}_${lr.key}_suelo`, r.w, 0.02, r.d, x0 + r.x + r.w / 2, bottom + v.slab + v.wall + 0.02, frontZ + r.z + r.d / 2, fmat));
+   512→          interior.floors.push({ roomKey: lr.key, defId: lr.defId, mesh: fm, mat: fmat });
+   513→          // Lamparita de techo (v1.21): apagada de día; de noche ilumina la estancia si hay
+   514→          // alguien dentro despierto (sin propietario despierto, la estancia vive a oscuras).
+   515→          const lmat = mat(`${b.id}_${lr.key}_lampara_mat`);
+   516→          lmat.emissiveColor = Color3.FromHexString(v.privacy.handleColor); // cálido del catálogo
+   517→          const lm = attach(b.id, box(`${b.id}_${lr.key}_lampara`, Math.min(0.9, r.w * 0.4), 0.05, 0.22, x0 + r.x + r.w / 2, bottom + v.cellH - v.slab - v.wall - 0.05, frontZ + r.z + r.d / 2, lmat));
+   518→          lm.setEnabled(false);
+   519→          interior.lamps.push({ roomKey: lr.key, mesh: lm, mat: lmat });
+   520→        }
+   521→        // Tabiques: para cada par de estancias que comparten borde, pared entre ambas.
+   522→        // Los doorways del catálogo recortan el hueco (y añaden tapa visible si alguna de las
+   523→        // dos estancias está cerrada). Sin hueco declarado → tabique sólido (tampoco se puede
+   524→        // pasar: walkable() exige doorway). Tabiques según X a media altura para no tapar la vista.
+   525→        const eps = 0.01;
+   526→        const seg = (a: number, b: number, along: 'x' | 'z', at: number, height: number, yC: number, name: string) => {
+   527→          const len = b - a;
+   528→          if (len <= 0.01) return;
+   529→          view.greybox.push(
+   530→            along === 'z'
+   531→              ? box(name, v.wall, height, len, at, yC, (a + b) / 2, partMat)
+   532→              : box(name, len, height, v.wall, (a + b) / 2, yC, at, partMat),
+   533→          );
+   534→        };
+   535→        geoRooms.forEach((lr, i) => {
+   536→          geoRooms.forEach((other, j) => {
+   537→            if (j <= i) return;
+   538→            const ra = lr.rect!;
+   539→            const rb = other.rect!;
+   540→            const door = (layout.doorways ?? []).find(
+   541→              (dw) => (dw.a === lr.key && dw.b === other.key) || (dw.a === other.key && dw.b === lr.key),
+   542→            );
+   543→            // v1.25 — SIN TABIQUES en el interior: si el par comparte puerta (los layouts
+   544→            // abiertos declaran huecos de borde completo) no se levanta NINGÚN muro: libertad
+   545→            // de movimientos total. Sin hueco declarado sigue habiendo pared (el walkable()
+   546→            // del catálogo lo prohíbe: una sola verdad).
+   547→            // v1.26 — las TAPAS de estancia cerrada son HOJAS DE PUERTA con arte (coverArt):
+   548→            // un panel a altura de puerta (más dintel arriba) — dejaron de leerse como
+   549→            // tabiques (el vecino las señalaba una y otra vez).
+   550→            // Borde vertical compartido → tabique que corre según Z (se cruza andando en X).
+   551→            const touchX = Math.abs(ra.x + ra.w - rb.x) < eps || Math.abs(rb.x + rb.w - ra.x) < eps;
+   552→            const overlapZ = Math.min(ra.z + ra.d, rb.z + rb.d) - Math.max(ra.z, rb.z);
+   553→            if (touchX && overlapZ > eps) {
+   554→              const wx = x0 + Math.max(ra.x, rb.x);
+   555→              const z0 = frontZ + Math.max(ra.z, rb.z);
+   556→              const z1 = frontZ + Math.min(ra.z + ra.d, rb.z + rb.d);
+   557→              const yC = bottom + v.slab + v.wall + wallH / 2;
+   558→              if (door && door.axis === 'z') {
+   559→                const coverW = Math.min(overlapZ, pv.doorW * 1.15);
+   560→                const cAt = Math.min(z1 - coverW / 2, Math.max(z0 + coverW / 2, frontZ + door.at));
+   561→                const dH = Math.min(pv.doorH, wallH);
+   562→                const cover = attach(
+   563→                  b.id,
+   564→                  MeshBuilder.CreatePlane(`${b.id}_tapa_${i}_${j}`, { width: coverW, height: dH, sideOrientation: B().Mesh.DOUBLESIDE }, scene),
+   565→                );
+   566→                cover.rotation.y = Math.PI / 2;
+   567→                cover.position.set(wx, bottom + v.slab + v.wall + dH / 2, cAt);
+   568→                cover.material = coverMat;
+   569→                cover.isPickable = false;
+   570→                cover.setEnabled(false);
+   571→                interior.covers.push({ mesh: cover, rooms: [lr.key, other.key] });
+   572→                // Dintel sobre la hoja: la unión queda cerrada también por arriba.
+   573→                if (wallH - dH > 0.04) {
+   574→                  const header = attach(b.id, box(`${b.id}_tapa_dintel_${i}_${j}`, v.wall * 0.8, wallH - dH, coverW, wx, bottom + v.slab + v.wall + dH + (wallH - dH) / 2, cAt, partMat));
+   575→                  header.setEnabled(false);
+   576→                  interior.covers.push({ mesh: header, rooms: [lr.key, other.key] });
+   577→                }
+   578→              } else if (!door) {
+   579→                seg(z0, z1, 'z', wx, wallH, yC, `${b.id}_tab_${i}_${j}`);
+   580→              }
+   581→            }
+   582→            // Borde horizontal compartido → tabique que corre según X (se cruza andando en Z).
+   583→            const touchZ = Math.abs(ra.z + ra.d - rb.z) < eps || Math.abs(rb.z + rb.d - ra.z) < eps;
+   584→            const overlapX = Math.min(ra.x + ra.w, rb.x + rb.w) - Math.max(ra.x, rb.x);
+   585→            if (touchZ && overlapX > eps) {
+   586→              const wz = frontZ + Math.max(ra.z, rb.z);
+   587→              const xa = x0 + Math.max(ra.x, rb.x);
+   588→              const xb = x0 + Math.min(ra.x + ra.w, rb.x + rb.w);
+   589→              const halfH = wallH * 0.45;
+   590→              const yHalf = bottom + v.slab + v.wall + halfH / 2;
+   591→              if (door && door.axis === 'x') {
+   592→                const coverW = Math.min(overlapX, pv.doorW * 1.15);
+   593→                const cAt = Math.min(xb - coverW / 2, Math.max(xa + coverW / 2, x0 + door.at));
+   594→                const cover = attach(
+   595→                  b.id,
+   596→                  MeshBuilder.CreatePlane(`${b.id}_tapa_${i}_${j}`, { width: coverW, height: halfH, sideOrientation: B().Mesh.DOUBLESIDE }, scene),
+   597→                );
+   598→                cover.position.set(cAt, yHalf, wz);
+   599→                cover.material = coverMat;
+   600→                cover.isPickable = false;
+   601→                cover.setEnabled(false);
+   602→                interior.covers.push({ mesh: cover, rooms: [lr.key, other.key] });
+   603→              } else if (!door) {
+   604→                seg(xa, xb, 'x', wz, halfH, yHalf, `${b.id}_tab_${i}_${j}`);
+   605→              }
+   606→            }
+   607→          });
+   608→        });
+   609→        interiors.set(b.id, interior);
+   610→        // ── DIORAMA (v1.23): pared ilustrada + suelo + capas de mobiliario billboard. Los
+   611→        // quads cuelgan de dioRoot (visibilidad espejo de la fachada en applyPanels) y del
+   612→        // root del bloque (se desvanecen con él en el apilamiento 3D).
+   613→        if (diro) {
+   614→          const dioRoot = new TransformNode(`${b.id}_dio_root`, scene);
+   615→          dioRoot.parent = roots.get(b.id)!;
+   616→          interior.dioRoot = dioRoot;
+   617→          const x0w = x0 + v.gapW / 2; // margen de la caja del bloque (cx − w/2)
+   618→          const x1w = x0 + b.size.w * v.cellW - v.gapW / 2;
+   619→          // v1.25 — VARIEDAD ALEATORIA entre viviendas (determinista por hash01 del bloque,
+   620→          // jamás RNG del sim): tinte de pared del catálogo, espejo del reparto, jitter y
+   621→          // pared alternativa (dio.walls). Cada vivienda se ve distinta; el sim no se entera.
+   622→          const catI = content.interiors;
+   623→          const mkVariant = (salt: number): DioramaVariant | undefined => {
+   624→            if (!catI) return undefined;
+   625→            const tints = catI.wallTints.length > 0 ? catI.wallTints : ['#ffffff'];
+   626→            return {
+   627→              tintHex: tints[Math.floor(hash01(b.id, 7700 + salt) * tints.length) % tints.length]!,
+   628→              mirror: hash01(b.id, 7800 + salt) < (catI.mirrorChance ?? 0),
+   629→              jitter: (catI.jitter ?? 0) * (hash01(b.id, 7900 + salt) - 0.5) * 2,
+   630→              wallIndex: Math.floor(hash01(b.id, 8000 + salt) * 1000),
+   631→              salt,
+   632→            };
+   633→          };
+   634→          geoRooms.forEach((lr, ri) => {
+   635→            const r = lr.rect!;
+   636→            // ¿La puerta a la sala trasera cae DENTRO de esta estancia? → pared con hueco + puerta pintada.
+   637→            const gapCenter = rearDoor ? x0w + rearDoor.at : NaN;
+   638→            const hostsDoor = !!rearDoor && gapCenter >= x0 + r.x && gapCenter <= x0 + r.x + r.w;
+   639→            const wallGap = hostsDoor && rearDoor
+   640→              ? { a: Math.max(x0w, x0w + rearDoor.at - rearDoor.width / 2), b: Math.min(x1w, x0w + rearDoor.at + rearDoor.width / 2) }
+   641→              : null;
+   642→            const room = diro.room(
+   643→              `${b.id}_${lr.key}`,
+   644→              lr.defId,
+   645→              r,
+   646→              { x0, frontZ, yBottom: bottom + v.slab + v.wall, yTop: bottom + v.cellH - v.slab - v.wall },
+   647→              { withRearDoor: hostsDoor, wallGap, parent: dioRoot, variant: mkVariant(ri * 13) },
+   648→            );
+   649→            if (room) {
+   650→              interior.dio.rooms.set(lr.key, room);
+   651→              for (const s of room.wall) interior.dioMats.push(s.mat);
+   652→              if (room.floor) interior.dioMats.push(room.floor.mat);
+   653→              if (room.door) interior.dioMats.push(room.door.mat);
+   654→              for (const s of room.sprites) interior.dioMats.push(s.mat);
+   655→            }
+   656→          });
+   657→        }
+   658→      }
+   659→    } else if (b.defId === 'trasteros_planta' || b.defId === 'bajocubierta' || b.defId === v.trasteros.blockDefId) {
+   660→      // Nave de trasteros / sala de instalaciones (v1.16): forjado + trasera. El arte glTF
+   661→      // añade pilares (trasteros) o maquinaria (bajocubierta); las estanterías, trastos y
+   662→      // carteles numerados los levanta SIEMPRE el runtime desde rules.view.trasteros.
+   663→      // El bloque por COLUMNA (v1.18) comparte estructura: sus compartimentos los levanta
+   664→      // el runtime más abajo (pasillo central + celdas cerradas impares/pares).
+   665→      view.greybox.push(
+   666→        box(`${b.id}_forjado`, w, v.slab * 2, d, cx, bottom + v.slab, frontZ + d / 2, m),
+   667→        box(`${b.id}_trasera`, w, h, v.wall, cx, bottom + v.cellH / 2, frontZ + d - v.wall / 2, m),
+   668→      );
+   669→    } else if (b.defId === 'tejado') {
+   670→      // Tejadillo (v1.16): fallback = canto de cerramiento (el glTF trae faldones, cumbrera,
+   671→      // chimenea y antena).
+   672→      view.greybox.push(box(`${b.id}_canto`, w, v.slab * 2, d, cx, bottom + v.slab, frontZ + d / 2, m));
+   673→    } else {
+   674→      view.greybox.push(box(b.id, w, h, d, cx, bottom + v.cellH / 2, cz, m));
+   675→    }
+   676→    // v1.19: toda malla estructural del bloque cuelga de su raíz (swap de bloques).
+   677→    for (const mesh of view.greybox) mesh.parent = root;
+   678→    if (view.front) view.front.parent = root;
+   679→    if (view.lock) view.lock.parent = root;
+   680→    if (view.door) view.door.parent = root;
+   681→    if (view.handle) view.handle.parent = root;
+   682→    views.set(b.id, view);
+   683→  }
+   684→
+   685→  // ── RELLENO DE JUNTAS ENTRE BLOQUES (v1.26): entre bloque y bloque queda una ranura de
+   686→  //  gapW por la que se veía la parte trasera del edificio. Una tapa del color de la pared
+   687→  //  (privacy.gapFill) cierra cada hueco de la banda principal — data-driven, sin tocar el
+   688→  //  catálogo de bloques: cualquier reordenación re-crea los rellenos sola.
+   689→  {
+   690→    const gf = v.privacy.gapFill;
+   691→    if (gf) {
+   692→      const fillMat = mat('junta_relleno_mat');
+   693→      fillMat.diffuseColor = Color3.FromHexString(gf.color);
+   694→      fillMat.specularColor = new Color3(0.02, 0.02, 0.02);
+   695→      const mainBlocks = Object.values(world.blocks).filter((b) => b.layer === 'main');
+   696→      const byFloor = new Map<number, BlockInstance[]>();
+   697→      for (const b of mainBlocks) {
+   698→        const arr = byFloor.get(b.cell.floor) ?? [];
+   699→        arr.push(b);
+   700→        byFloor.set(b.cell.floor, arr);
+   701→      }
+   702→      for (const [floor, arr] of byFloor) {
+   703→        arr.sort((a, z) => a.cell.col - z.cell.col);
+   704→        for (let i = 1; i < arr.length; i++) {
+   705→          const prev = arr[i - 1]!;
+   706→          const cur = arr[i]!;
+   707→          const prevRight = (prev.cell.col + prev.size.w) * v.cellW - v.gapW / 2;
+   708→          const curLeft = cur.cell.col * v.cellW + v.gapW / 2;
+   709→          const a = prevRight - gf.pad;
+   710→          const z = curLeft + gf.pad;
+   711→          if (z - a <= 0.02) continue;
+   712→          const dep = Math.max(depthOf(prev), depthOf(cur));
+   713→          attach(cur.id, box(`junta_p${floor}_${i}`, z - a, v.cellH - v.gapH, dep, (a + z) / 2, floor * v.cellH + (v.cellH - v.gapH) / 2, frontZ + dep / 2, fillMat));
+   714→        }
+   715→      }
+   716→    }
+   717→  }
+   718→
+   719→  // ── Forjado interior CONTINUO del cubo de escalera (v1.18): a nivel de entrada de cada
+   720→  //  planta, una losa que cubre la huella completa del cubo (spanW celdas). La authoría glTF
+   721→  //  solo trae el forjado de la puerta; sin esta losa se camina (y se ve el vacío) entre la
+   722→  //  puerta y los tramos. Malla propia que SOBREVIVE a la carga del modelo (no está en el
+   723→  //  greybox, que se oculta) — 5 mm por debajo del forjado del arte: cero z-fighting.
+   724→  const stCfg = v.stairs.floorSlab;
+   725→  /** v1.25: materiales estructurales de los cubos de escalera (autoiluminación nocturna). */
+   726→  const stairWallMats: { mat: BlockMat }[] = [];
+   727→  /** Color compartido del glow de muros (cero allocations por frame). */
+   728→  const stairWallGlow = new Color3(0, 0, 0);
+   729→  if (stCfg.enabled) {
+   730→    const stMat = mat('escalera_forjado_mat');
+   731→    stMat.diffuseColor = Color3.FromHexString(stCfg.color);
+   732→    stairWallMats.push({ mat: stMat as unknown as BlockMat });
+   733→    for (const b of Object.values(world.blocks)) {
+   734→      const f = content.blocks[b.defId]!.features;
+   735→      if (!f || f.stairs !== true) continue;
+   736→      const spanW = v.stairs.spanW;
+   737→      const sw = spanW * v.cellW - v.gapW;
+   738→      const sx = b.cell.col * v.cellW + sw / 2;
+   739→      attach(b.id, box(`${b.id}_forjado_interior`, sw, stCfg.thickness, v.commonDepth, sx, b.cell.floor * v.cellH + stCfg.topAt - stCfg.thickness / 2 - 0.005, frontZ + v.commonDepth / 2, stMat));
+   740→    }
+   741→  }
+   742→
+   743→  // ── ACCESO A LA ESCALERA (v1.24): hasta ahora la puerta flotaba sin pared. Ahora:
+   744→  //  · MURO FRONTAL alrededor de la puerta (dos tramos + dintel, color del catálogo) que
+   745→  //    enmarca el hueco real por donde cruzan los vecinos (la celda lógica del pozo).
+   746→  //  · HOJA con arte de zonas comunes y el GRAN NÚMERO de planta centrado (negro), pintado
+   747→  //    EN la textura de la hoja: al abrirse/cerrarse, el número bascula con ella.
+   748→  //  · Bisagras a la IZQUIERDA vista desde el pasillo (x mayor; la cámara mira +z).
+   749→  //  · Apertura automática: el update abre la hoja antes de que crucen (mover cerca).
+   750→  //  · ILUMINACIÓN COMPARTIDA de todos los cubos: de noche se enciende si algún vecino
+   751→  //    se mueve por las escaleras (materiales de los sellos de luz del arte glTF).
+   752→  const stF = v.stairs.facade;
+   753→  const stairDoors: { hinge: TransformNode; openT: number; doorX: number; doorZ: number; floorY: number }[] = [];
+   754→  const stairFootprints: { x0: number; x1: number; floorY: number }[] = [];
+   755→  const stairLightMats: { mat: { emissiveColor: Color3 } }[] = [];
+   756→  let stairLightLevel = 0;
+   757→  if (stF.enabled) {
+   758→    const wallMat = mat('escalera_fachada_mat');
+   759→    wallMat.diffuseColor = Color3.FromHexString(stF.color);
+   760→    wallMat.specularColor = new Color3(0.02, 0.02, 0.02);
+   761→    /** Textura de la hoja por PLANTA: arte de zonas comunes + gran número centrado.
+   762→     *  v1.25: full-bleed REAL — flood-fill contra las esquinas (stripCorners) y recorte a la
+   763→     *  caja de la hoja: nada de pared/suelo cocinados alrededor. */
+   764→    const stairDoorTexCache = new Map<number, DynamicTexture>();
+   765→    const stairDoorTex = (art: string, numberColor: string, floor: number): DynamicTexture => {
+   766→      const hit = stairDoorTexCache.get(floor);
+   767→      if (hit) return hit;
+   768→      const dt = new (B().DynamicTexture)(`puerta_esc_${floor}_tex`, { width: 384, height: 768 }, scene, true);
+   769→      stairDoorTexCache.set(floor, dt);
+   770→      const img = new Image();
+   771→      img.onload = () => {
+   772→        const big = document.createElement('canvas');
+   773→        big.width = img.naturalWidth;
+   774→        big.height = img.naturalHeight;
+   775→        const bx = big.getContext('2d', { willReadFrequently: true });
+   776→        if (!bx) return;
+   777→        bx.drawImage(img, 0, 0);
+   778→        stripCorners(big, 0.14);
+   779→        const b = alphaBoundsOf(big);
+   780→        const c = document.createElement('canvas');
+   781→        c.width = 384;
+   782→        c.height = 768;
+   783→        const cctx = c.getContext('2d');
+   784→        if (!cctx) return;
+   785→        if (b) cctx.drawImage(big, b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0, 0, 0, 384, 768);
+   786→        else cctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, 384, 768);
+   787→        // Gran número de planta, centrado en la hoja (vinculado a la puerta: bascula con ella).
+   788→        cctx.font = 'bold 230px Arial, sans-serif';
+   789→        cctx.textAlign = 'center';
+   790→        cctx.textBaseline = 'middle';
+   791→        cctx.fillStyle = numberColor;
+   792→        cctx.fillText(String(floor), 192, 384);
+   793→        // v1.26: textura 100% OPACA — las rendijas transparentes que sobreviven al recorte
+   794→        // (sombras cocinadas del arte) se rellenan con el color vecino: adiós perímetro negro.
+   795→        dilateOpaque(c);
+   796→        const dctx = dt.getContext() as unknown as CanvasRenderingContext2D;
+   797→        dctx.clearRect(0, 0, 384, 768);
+   798→        dctx.drawImage(c, 0, 0);
+   799→        dt.update(true);
+   800→      };
+   801→      img.src = art;
+   802→      return dt;
+   803→    };
+   804→    for (const b of Object.values(world.blocks)) {
+   805→      const f = content.blocks[b.defId]!.features;
+   806→      if (!f || f.stairs !== true) continue;
+   807→      const spanW = v.stairs.spanW;
+   808→      const sw = spanW * v.cellW - v.gapW;
+   809→      const left = b.cell.col * v.cellW + v.gapW / 2;
+   810→      const right = left + sw;
+   811→      const doorX = (b.cell.col + b.size.w / 2) * v.cellW; // entrada real (el pozo del sim)
+   812→      const y0 = b.cell.floor * v.cellH;
+   813→      const zF = frontZ + stF.doorZ;
+   814→      // v1.26 — MURO GRUESO: los peldaños/barandillas del arte glTF asoman por delante del
+   815→      // plano de la pared (z del arte −1.38..−1.21 frente al muro fino −1.31..−1.21) y se
+   816→      // veían "a través de la pared" cuando la fachada vecina estaba abierta. Con wallT 0.3
+   817→      // el muro envuelve esas geometrías y la HOJA se monta DELANTE del canto (leafZ).
+   818→      const leafZ = zF - stF.wallT / 2 - 0.015;
+   819→      const hFull = v.cellH - v.gapH;
+   820→      const dL = doorX - stF.doorW / 2;
+   821→      const dR = doorX + stF.doorW / 2;
+   822→      const dTop = y0 + stF.doorBottom + stF.doorH;
+   823→      const wallSeg = (x0: number, x1: number, yA: number, yB: number): void => {
+   824→        if (x1 - x0 < 0.02 || yB - yA < 0.02) return;
+   825→        attach(b.id, box(`${b.id}_fachada_${x0.toFixed(2)}_${yA.toFixed(2)}`, x1 - x0, yB - yA, stF.wallT, (x0 + x1) / 2, yA + (yB - yA) / 2, zF, wallMat));
+   826→      };
+   827→      wallSeg(Math.max(left, stF.fullWall === false ? dL - stF.halfW : left), dL, y0, y0 + hFull);
+   828→      wallSeg(dR, Math.min(right, stF.fullWall === false ? dR + stF.halfW : right), y0, y0 + hFull);
+   829→      wallSeg(dL, dR, dTop, y0 + hFull);
+   830→      // Hoja: bisagras en el lado izquierdo VISTO desde el pasillo (= x mayor mirando +z).
+   831→      const hingeAtRightX = stF.hinge === 'left';
+   832→      const hinge = new TransformNode(`${b.id}_puerta_hinge`, scene);
+   833→      hinge.position.set(hingeAtRightX ? dR : dL, y0 + stF.doorBottom, leafZ);
+   834→      hinge.parent = roots.get(b.id) ?? null;
+   835→      const leaf = MeshBuilder.CreatePlane(`${b.id}_puerta_hoja`, { width: stF.doorW, height: stF.doorH }, scene);
+   836→      const leafMat = new StandardMaterial(`${b.id}_puerta_hoja_mat`, scene);
+   837→      leafMat.diffuseTexture = stairDoorTex(stF.art, stF.numberColor, b.cell.floor);
+   838→      leafMat.emissiveColor = new Color3(0.16, 0.16, 0.16); // legible en fachada norte
+   839→      leafMat.specularColor = new Color3(0, 0, 0);
+   840→      leaf.material = leafMat;
+   841→      leaf.isPickable = false;
+   842→      leaf.position.set(((hingeAtRightX ? -1 : 1) * stF.doorW) / 2, stF.doorH / 2, 0);
+   843→      leaf.parent = hinge;
+   844→      stairDoors.push({ hinge, openT: 0, doorX, doorZ: zF, floorY: y0 });
+   845→      stairFootprints.push({ x0: left, x1: right, floorY: y0 });
+   846→    }
+   847→  }
+   848→
+   849→  // ── Arte final (opcional): modelo glTF por TIPO de bloque (manifiesto assets.blocks). ──
+   850→  // Cada instancia se clona del contenedor cacheado y escala a la celda real; si carga, la
+   851→  // caja greybox estructural se oculta (el panel/candado de viviendas sigue siendo greybox).
+   852→  const blockAssets = content.assets?.blocks;
+   853→  if (blockAssets && content.assets) {
+   854→    for (const b of Object.values(world.blocks)) {
+   855→      const entry = blockAssets[b.defId];
+   856→      if (!entry) continue;
+   857→      void instantiateBlockAsset(scene, entry, content.assets.base).then((model) => {
+   858→        // La escena pudo morir mientras cargaba (restart/Cargar partida): no tocar vistas viejas.
+   859→        if (model && scene.isDisposed) {
+   860→          model.root.dispose(false, false);
+   861→          return;
+   862→        }
+   863→        if (!model) return; // fallback greybox permanente
+   864→        const view = views.get(b.id);
+   865→        if (!view || view.model) {
+   866→          model.root.dispose(false, false); // bloque ya servido: no dejar instancias sueltas
+   867→          return;
+   868→        }
+   869→        // Dimensiones reales de la celda: el pasillo (tira saliente) tiene geometría propia,
+   870→        // espejo exacto de su greybox (ancho completo, canto slab*2, calado corridorDepth).
+   871→        // Con spanW (v1.4, cubo de escalera) el modelo escala a spanW celdas y se ancla al
+   872→        // borde IZQUIERDO de la celda lógica: sobresale por la derecha como torre real.
+   873→        const isCorridor = b.layer === 'corridor';
+   874→        const spanCells = entry.spanW ?? b.size.w;
+   875→        const w = isCorridor ? b.size.w * v.cellW : spanCells * v.cellW - v.gapW;
+   876→        const h = isCorridor ? v.slab * 2 : v.cellH - v.gapH;
+   877→        const d = isCorridor ? v.corridorDepth : depthOf(b);
+   878→        const cz = isCorridor ? frontZ - d / 2 : frontZ + d / 2;
+   879→        const y = isCorridor ? b.cell.floor * v.cellH + v.slab : b.cell.floor * v.cellH;
+   880→        // El modelo se authora a dimensiones nominales con la base en y=0 y centrado en x/z.
+   881→        model.root.scaling.set(w / entry.nominal.w, h / entry.nominal.h, d / entry.nominal.d);
+   882→        model.root.position.set(b.cell.col * v.cellW + w / 2, y, cz);
+   883→        model.root.parent = roots.get(b.id) ?? null; // v1.19: el arte también se desvanece con el bloque
+   884→        view.model = model.root;
+   885→        // v1.24: retirar la decoración de puerta antigua del overlay (marco gris que tapaba
+   886→        // la placa y no contorneaba la hoja) — lista hideNodes del catálogo. Los clones del
+   887→        // loader llevan prefijo "Clone of ": se compara por sufijo.
+   888→        // v1.25: los cubos de escalera ocultan TAMBIÉN sus nodos sobrantes (el hueco oscuro
+   889→        // viejo flotaba a la derecha de los tramos — stairs.facade.hideNodes).
+   890→        // v1.26 — BÚSQUEDA RECURSIVA: el loader cuelga los nodos nombrados bajo
+   891→        // "__root__ → Root", y el bucle de hijos directos jamás los veía (los hideNodes
+   892→        // eran un no-op silencioso: jambas, la repisa sobre la puerta y el hueco oscuro
+   893→        // flotante seguían en escena — la raíz de las quejas del vecino).
+   894→        const hideList = [
+   895→          ...(v.privacy.hideNodes ?? []),
+   896→          ...(content.blocks[b.defId]!.features?.stairs === true ? (v.stairs.facade.hideNodes ?? []) : []),
+   897→        ];
+   898→        const hideTree = (node: { name: string }, suffix: string): void => {
+   899→          if (node.name === suffix || node.name.endsWith(suffix)) {
+   900→            (node as unknown as { setEnabled(v: boolean): void }).setEnabled(false);
+   901→            return; // con el padre oculto, su subárbol desaparece entero
+   902→          }
+   903→          const kids = (node as unknown as { getChildren?: () => unknown[] }).getChildren?.() ?? [];
+   904→          for (const k of kids) hideTree(k as never, suffix);
+   905→        };
+   906→        for (const nodeName of hideList) {
+   907→          for (const child of model.root.getChildren()) {
+   908→            hideTree(child as never, nodeName);
+   909→          }
+   910→        }
+   911→        // v1.25: materiales del PROPIO cubo de escalera — la autoiluminación nocturna
+   912→        // (activityLight.wallGlow) ilumina los muros/tramos, no solo la bombilla.
+   913→        if (content.blocks[b.defId]!.features?.stairs === true) {
+   914→          stairWallMats.push(...model.mats.map((m) => ({ mat: m })));
+   915→        }
+   916→        // v1.24: materiales de la ILUMINACIÓN COMPARTIDA de los cubos de escalera.
+   917→        if (content.blocks[b.defId]!.features?.stairs === true && v.stairs.activityLight.enabled) {
+   918→          for (const mesh of model.root.getChildMeshes()) {
+   919→            if (v.stairs.activityLight.meshes.some((n) => mesh.name === n || mesh.name.endsWith(n)) && mesh.material) {
+   920→              stairLightMats.push({ mat: (mesh.material as unknown as { emissiveColor: Color3 }) });
+   921→            }
+   922→          }
+   923→        }
+   924→        if (entry.overlay) {
+   925→          // Overlay (marco de puerta sobre el corte interior): DECORA — el greybox estructural
+   926→          // sigue visible con sus materiales (tinte de estado y glow intactos), y el edge de
+   927→          // vivienda del jugador (edgesMesh) no se toca. El overlay no entra en tintado/glow.
+   928→        } else {
+   929→          view.mats = model.mats;
+   930→          view.baseEmissive = model.mats.map((mm) => new Color3(mm.emissiveColor.r, mm.emissiveColor.g, mm.emissiveColor.b));
+   931→          view.baseColor = model.baseColor.map((c) => new Color3(c.r, c.g, c.b));
+   932→          view.tintStrength = entry.tintStrength ?? 0.6;
+   933→          view.edgesMesh = null; // el modelo no lleva EdgesRenderer (no hay pared destacada greybox)
+   934→          view.edgesMesh2 = null;
+   935→          for (const mesh of view.greybox) mesh.setEnabled(false);
+   936→        }
+   937→      });
+   938→    }
+   939→  }
+   940→
+   941→  // ── Multi-vivienda destacada: borde blanco en la pared del fondo de TODAS las viviendas del jugador ──
+   942→  // (la actual del jugador además recibe el doble de grosor; el criterio es el ownerId, no el catálogo).
+   943→  // v1.19: la pared del fondo puede estar PARTIDA (puerta a sala trasera) — edges en ambos tramos.
+   944→  const homeId = world.residents[world.playerId]!.home;
+   945→  for (const b of Object.values(world.blocks)) {
+   946→    if (b.kind !== 'dwelling' || b.ownerId !== world.playerId) continue;
+   947→    const view = views.get(b.id)!;
+   948→    for (const wall of [view.edgesMesh, view.edgesMesh2]) {
+   949→      if (!wall) continue;
+   950→      wall.enableEdgesRendering();
+   951→      wall.edgesWidth = b.id === homeId ? 14 : 8;
+   952→      wall.edgesColor = Color4.FromHexString(v.homeEdge + 'ff');
+   953→    }
+   954→  }
+   955→
+   956→  // ── Trasteros por planta (v1.16): nave abierta con estanterías a AMBOS LADOS del pasillo
+   957→  // interior. Cada estantería lleva cartel dinámico con la vivienda propietaria (blockLabel,
+   958→  // patrón del plaque) y trastos deterministas (hash01 del id de la vivienda — jamás
+   959→  // nextRandom del sim). El reparto es SECUENCIAL: estantería k del nivel i → vivienda
+   960→  // k + i·shelvesPerLevel del listado de viviendas ordenado por (planta, columna); así
+   961→  // "todos los vecinos tienen su trastero" y sobran ranuras donde las haya. TODO sale de
+   962→  // rules.view.trasteros (nada a pelo): añadir viviendas o cambiar shelvesPerLevel re-crea
+   963→  // el mapa solo. La estantería del JUGADOR luce colores propios (ownBg/ownText).
+   964→  const tr = v.trasteros;
+   965→  const dwellingsOrdered = Object.values(world.blocks)
+   966→    .filter((b) => b.kind === 'dwelling')
+   967→    .sort((a, b) => a.cell.floor - b.cell.floor || a.cell.col - b.cell.col);
+   968→  const storageLevels = Object.values(world.blocks)
+   969→    .filter((b) => b.defId === 'trasteros_planta')
+   970→    .sort((a, b) => a.cell.floor - b.cell.floor);
+   971→  if (storageLevels.length > 0 && dwellingsOrdered.length > 0) {
+   972→    const matPost = mat('trasteros_poste_mat');
+   973→    matPost.diffuseColor = Color3.FromHexString(tr.woodDark);
+   974→    const matPlank = mat('trasteros_tabla_mat');
+   975→    matPlank.diffuseColor = Color3.FromHexString(tr.wood);
+   976→    const matPart = mat('trasteros_tabique_mat');
+   977→    matPart.diffuseColor = Color3.FromHexString(tr.partitionColor);
+   978→    const matJunk = tr.junk.map((hex, i) => {
+   979→      const jm = mat(`trasteros_trasto_${i}_mat`);
+   980→      jm.diffuseColor = Color3.FromHexString(hex);
+   981→      return jm;
+   982→    });
+   983→    /** Cartel numerado (DynamicTexture, MISMO patrón verificado del plaque de vivienda:
+   984→     *  update(true) — con false el texto sale cabeza abajo). */
+   985→    const shelfPlate = (name: string, label: string, own: boolean): Mesh => {
+   986→      const plate = MeshBuilder.CreatePlane(name, { width: tr.plaqueW, height: tr.plaqueH, sideOrientation: B().Mesh.DOUBLESIDE }, scene);
+   987→      const tex = new (B().DynamicTexture)(`${name}_tex`, { width: 160, height: 56 }, scene, true);
+   988→      const ctx = tex.getContext() as unknown as CanvasRenderingContext2D;
+   989→      ctx.fillStyle = own ? tr.ownBg : v.plaque.bg;
+   990→      ctx.fillRect(0, 0, 160, 56);
+   991→      ctx.font = 'bold 34px Arial, sans-serif';
+   992→      ctx.fillStyle = own ? tr.ownText : v.plaque.text;
+   993→      ctx.textAlign = 'center';
+   994→      ctx.textBaseline = 'middle';
+   995→      ctx.fillText(label, 80, 30);
+   996→      tex.update(true);
+   997→      const pm = new StandardMaterial(`${name}_mat`, scene);
+   998→      pm.diffuseTexture = tex;
+   999→      pm.emissiveColor = Color3.FromHexString(own ? tr.ownBg : v.plaque.bg).scale(0.55);
+  1000→      pm.specularColor = new Color3(0, 0, 0);
+  1001→      plate.material = pm;
+  1002→      return plate;
+  1003→    };
+  1004→    storageLevels.forEach((lvl, li) => {
+  1005→      const bottom = lvl.cell.floor * v.cellH;
+  1006→      const baseY = bottom + v.slab * 2; // ras del forjado de la nave
+  1007→      const x0 = lvl.cell.col * v.cellW;
+  1008→      const wTot = lvl.size.w * v.cellW - v.gapW;
+  1009→      const perSide = Math.max(1, Math.floor(tr.shelvesPerLevel / 2));
+  1010→      const pitch = (wTot - tr.margin * 2) / perSide;
+  1011→      // Dos filas por nivel ("a ambos lados" del pasillo interior): frontal baja y trasera
+  1012→      // alta — los carteles de la trasera se ven por encima de la frontal. Numeración: la
+  1013→      // mitad baja de la lista en la fila frontal y el resto en la de fondo.
+  1014→      const rows = [
+  1015→        { key: 'frente', front: true, tiers: tr.frontTiers, zC: frontZ + v.wall + tr.shelfD / 2 },
+  1016→        { key: 'fondo', front: false, tiers: tr.backTiers, zC: frontZ + v.depth - v.wall - tr.shelfD / 2 },
+  1017→      ] as const;
+  1018→      for (let s = 0; s < tr.shelvesPerLevel; s++) {
+  1019→        const row = s < perSide ? rows[0]! : rows[1]!;
+  1020→        const sideIdx = s % perSide;
+  1021→        const bx = x0 + tr.margin + pitch * (sideIdx + 0.5);
+  1022→        const dwelling = dwellingsOrdered[li * tr.shelvesPerLevel + s] ?? null;
+  1023→        const own = !!dwelling && dwelling.id === homeId;
+  1024→        const label = dwelling ? blockLabel(dwelling.id) : tr.emptyLabel;
+  1025→        const unitH = row.tiers * tr.tierH;
+  1026→        for (const side of ['a', 'b'] as const) {
+  1027→          const px = bx + (side === 'a' ? -1 : 1) * (tr.bayW / 2);
+  1028→          box(`${lvl.id}_est_${s}_${row.key}_poste_${side}`, tr.postW, unitH, tr.shelfD, px, baseY + unitH / 2, row.zC, matPost);
+  1029→          // Tabique divisorio (v1.17): panel lateral algo más alto que la unidad — cada
+  1030→          // ranura se lee como trastero propio, no como baldas sueltas.
+  1031→          const pH = unitH + tr.partitionExtra;
+  1032→          box(`${lvl.id}_est_${s}_${row.key}_tabique_${side}`, tr.postW * 1.3, pH, tr.shelfD, px, baseY + pH / 2, row.zC, matPart);
+  1033→        }
+  1034→        for (let t = 1; t <= row.tiers; t++) {
+  1035→          box(`${lvl.id}_est_${s}_${row.key}_balda_${t}`, tr.bayW, tr.plankT, tr.shelfD, bx, baseY + t * tr.tierH - tr.plankT / 2, row.zC, matPlank);
+  1036→        }
+  1037→        // Trastos deterministas de la vivienda (paquetes y cacharros viejos): nada en las
+  1038→        // baldas de ranuras vacías.
+  1039→        if (dwelling) {
+  1040→          for (let t = 0; t < row.tiers; t++) {
+  1041→            if (hash01(`${dwelling.id}:${row.key}:${t}`, 41) >= tr.junkChance) continue;
+  1042→            const jw = 0.4 + hash01(dwelling.id, 61 + t) * 0.7;
+  1043→            const jh = 0.2 + hash01(dwelling.id, 71 + t) * 0.2;
+  1044→            const jm = matJunk[Math.floor(hash01(dwelling.id, 81 + t) * matJunk.length) % matJunk.length]!;
+  1045→            const jy = baseY + t * tr.tierH + (t > 0 ? tr.plankT : 0) + jh / 2;
+  1046→            const jx = bx + (hash01(dwelling.id, 91 + t) - 0.5) * Math.max(0, tr.bayW - jw - 0.2);
+  1047→            box(`${lvl.id}_est_${s}_${row.key}_trasto_${t}`, jw, jh, tr.shelfD * 0.7, jx, jy, row.zC, jm);
+  1048→          }
+  1049→        }
+  1050→        // Cartel: montado EN LA PROPIA ESTANTERÍA (v1.17) — travesaño de cabecera sobre la
+  1051→        // fachada de la unidad y placa sobre él, mirando al pasillo (ambas filas).
+  1052→        if (tr.headerH > 0) {
+  1053→          box(`${lvl.id}_est_${s}_${row.key}_cabecera`, tr.bayW, tr.headerH, tr.shelfD, bx, baseY + unitH + tr.headerH / 2, row.zC, matPost);
+  1054→        }
+  1055→        const plate = shelfPlate(`${lvl.id}_est_${s}_placa`, label, own);
+  1056→        const rowFrontZ = row.zC - tr.shelfD / 2;
+  1057→        plate.position.set(
+  1058→          bx,
+  1059→          baseY + unitH + (tr.headerH > 0 ? tr.headerH / 2 : 0.16),
+  1060→          rowFrontZ - 0.015,
+  1061→        );
+  1062→      }
+  1063→      // Paquetería y cacharros sueltos por el suelo de la nave (entre estanterías).
+  1064→      for (let j = 0; j < tr.floorJunk; j++) {
+  1065→        const hx = hash01(lvl.id, 701 + j);
+  1066→        const hz = hash01(lvl.id, 801 + j);
+  1067→        const jw = 0.5 + hash01(lvl.id, 901 + j) * 0.8;
+  1068→        const jh = 0.25 + hash01(lvl.id, 911 + j) * 0.25;
+  1069→        const jm = matJunk[Math.floor(hash01(lvl.id, 921 + j) * matJunk.length) % matJunk.length]!;
+  1070→        const fx = x0 + tr.margin + (hx * (wTot - tr.margin * 2 - jw));
+  1071→        const fz = frontZ + v.depth * (0.3 + hz * 0.4);
+  1072→        box(`${lvl.id}_suelo_trasto_${j}`, jw, jh, 0.55, fx, baseY + jh / 2, fz, jm);
+  1073→      }
+  1074→    });
+  1075→  }
+  1076→
+  1077→  // ── Bloques de trasteros por COLUMNA (v1.18) ── UNA sola planta de trasteros por letra:
+  1078→  // pasillo central de circulación hacia el fondo, IMPARES a un lado y PARES al otro,
+  1079→  // compartimentos CERRADOS (interiores jamás visibles — a saber qué esconden ahí los
+  1080→  // vecinos: "quizá un cadáver", "quizá una pequeña fortuna") con puerta y cartel numerado
+  1081→  // de su vivienda. La profundidad del bloque escala la de vivienda (blockDepthFactor ×3).
+  1082→  // TODO sale de rules.view.trasteros + src/game/storage.ts (una sola verdad de geometría).
+  1083→  const colBlocks = Object.values(world.blocks).filter((b) => b.defId === tr.blockDefId);
+  1084→  /** Carteles guía EXTERIORES (v1.19): uno por bloque de trasteros; se rellenan por frame
+  1085→   *  con los trasteros que tienes a cada lado según la profundidad del pasillo. */
+  1086→  const guideSigns = new Map<string, { tex: import('@babylonjs/core').DynamicTexture; x0: number; plan: ReturnType<typeof storageUnitPlan>; ownTag: string; last: string }>();
+  1087→  /** FACHADA de cada bloque de trasteros (v1.21): se DESVANECE mientras el jugador camina su
+  1088→   *  pasillo central — la regla de cámara frontal ve entonces TODO el pasillo hasta el fondo
+  1089→   *  (corte de casa de muñecas, el mismo lenguaje que las viviendas abiertas). */
+  1090→  const storageFacades = new Map<string, Mesh[]>();
+  1091→  /** Alpha actual del fundido de cada fachada (idempotente: solo escribe en transición). */
+  1092→  const facadeAlphas = new Map<string, number>();
+  1093→  if (colBlocks.length > 0) {
+  1094→    const sg = storageGeomOf(v);
+  1095→    const D = sg.depth;
+  1096→    const usableD = D - 2 * sg.wallT;
+  1097→    const matWallC = mat('trasteros_col_muro_mat');
+  1098→    matWallC.diffuseColor = Color3.FromHexString(tr.partitionColor);
+  1099→    const matDoorC = mat('trasteros_col_puerta_mat');
+  1100→    matDoorC.diffuseColor = Color3.FromHexString(sg.doorColor);
+  1101→    const matOwnDoorC = mat('trasteros_col_puerta_propia_mat');
+  1102→    matOwnDoorC.diffuseColor = Color3.FromHexString(tr.ownDoorColor);
+  1103→    const matCapC = mat('trasteros_col_tapa_mat');
+  1104→    matCapC.diffuseColor = Color3.FromHexString(tr.woodDark);
+  1105→    const matFacadeC = mat('trasteros_col_fachada_mat');
+  1106→    matFacadeC.diffuseColor = Color3.Lerp(Color3.FromHexString(tr.wood), Color3.FromHexString(tr.partitionColor), 0.5);
+  1107→    const homeTag = homeId.slice(homeId.lastIndexOf('_') + 1);
+  1108→    /** Cartel del compartimento (mismo patrón DynamicTexture verificado: update(true)). */
+  1109→    const colPlate = (name: string, label: string, own: boolean): Mesh => {
+  1110→      const plate = MeshBuilder.CreatePlane(name, { width: tr.plaqueW, height: tr.plaqueH, sideOrientation: B().Mesh.DOUBLESIDE }, scene);
+  1111→      const tex = new (B().DynamicTexture)(`${name}_tex`, { width: 160, height: 56 }, scene, true);
+  1112→      const ctx = tex.getContext() as unknown as CanvasRenderingContext2D;
+  1113→      ctx.fillStyle = own ? tr.ownBg : v.plaque.bg;
+  1114→      ctx.fillRect(0, 0, 160, 56);
+  1115→      ctx.font = 'bold 34px Arial, sans-serif';
+  1116→      ctx.fillStyle = own ? tr.ownText : v.plaque.text;
+  1117→      ctx.textAlign = 'center';
+  1118→      ctx.textBaseline = 'middle';
+  1119→      ctx.fillText(label, 80, 30);
+  1120→      tex.update(true);
+  1121→      const pm = new StandardMaterial(`${name}_mat`, scene);
+  1122→      pm.diffuseTexture = tex;
+  1123→      pm.emissiveColor = Color3.FromHexString(own ? tr.ownBg : v.plaque.bg).scale(0.55);
+  1124→      pm.specularColor = new Color3(0, 0, 0);
+  1125→      plate.material = pm;
+  1126→      return plate;
+  1127→    };
+  1128→    for (const blk of colBlocks) {
+  1129→      const tag = blk.id.slice(blk.id.lastIndexOf('_') + 1);
+  1130→      const colDwell = dwellingsOrdered.filter((d) => d.id.endsWith(`_${tag}`));
+  1131→      const plan = storageUnitPlan(v, colDwell.map((d) => d.cell.floor));
+  1132→      const x0 = blk.cell.col * v.cellW;
+  1133→      const bottom = blk.cell.floor * v.cellH;
+  1134→      const baseY = bottom + v.slab * 2; // ras del forjado de la nave
+  1135→      const W = blk.size.w * v.cellW - v.gapW;
+  1136→      const [corA, corB] = storageCorridorX(x0, sg);
+  1137→      const own = (d: BlockInstance | null) => !!d && d.id === homeId;
+  1138→      // Muros laterales exteriores (cierran los extremos de las dos filas de celdas).
+  1139→      attach(blk.id, box(`${blk.id}_lado_a`, sg.wallT, sg.unitH, D, x0 + sg.wallT / 2, baseY + sg.unitH / 2, frontZ + D / 2, matWallC));
+  1140→      attach(blk.id, box(`${blk.id}_lado_b`, sg.wallT, sg.unitH, D, x0 + W - sg.wallT / 2, baseY + sg.unitH / 2, frontZ + D / 2, matWallC));
+  1141→      for (const side of ['left', 'right'] as const) {
+  1142→        const units = plan.filter((u) => u.side === side).sort((a, z) => a.index - z.index);
+  1143→        const count = units.length;
+  1144→        if (count === 0) continue;
+  1145→        const bandA = side === 'left' ? x0 + sg.wallT : corB;
+  1146→        const bandB = side === 'left' ? corA : x0 + W - sg.wallT;
+  1147→        const bandW = bandB - bandA;
+  1148→        const unitD = usableD / count;
+  1149→        // Tabiques entre unidades consecutivas (corren según X, se cruzan andando en Z... jamás:
+  1150→        // son los laterales del trastero; el paso es SOLO por el pasillo central).
+  1151→        for (let k = 1; k < count; k++) {
+  1152→          const zEdge = frontZ + sg.wallT + k * unitD;
+  1153→          attach(blk.id, box(`${blk.id}_${side}_tab_${k}`, bandW, sg.unitH, sg.wallT, (bandA + bandB) / 2, baseY + sg.unitH / 2, zEdge, matWallC));
+  1154→        }
+  1155→        for (const u of units) {
+  1156→          const zC = storageUnitZ(frontZ, u.index, count, sg);
+  1157→          const z0u = zC - unitD / 2;
+  1158→          const z1u = zC + unitD / 2;
+  1159→          const dwelling = colDwell.find((d) => d.cell.floor === u.floor) ?? null;
+  1160→          const ownU = own(dwelling);
+  1161→          const label = dwelling ? blockLabel(dwelling.id) : tr.emptyLabel;
+  1162→          // Frente de la unidad (mira AL PASILLO): muro con hueco de puerta + dintel.
+  1163→          const wallX = side === 'left' ? corA - sg.wallT / 2 : corB + sg.wallT / 2;
+  1164→          const g0 = Math.max(z0u, zC - sg.doorW / 2);
+  1165→          const g1 = Math.min(z1u, zC + sg.doorW / 2);
+  1166→          if (g0 - z0u > 0.01) attach(blk.id, box(`${blk.id}_${side}_${u.floor}_frente_i`, sg.wallT, sg.unitH, g0 - z0u, wallX, baseY + sg.unitH / 2, (z0u + g0) / 2, matWallC));
+  1167→          if (z1u - g1 > 0.01) attach(blk.id, box(`${blk.id}_${side}_${u.floor}_frente_d`, sg.wallT, sg.unitH, z1u - g1, wallX, baseY + sg.unitH / 2, (g1 + z1u) / 2, matWallC));
+  1168→          if (sg.unitH - sg.doorH > 0.01) attach(blk.id, box(`${blk.id}_${side}_${u.floor}_dintel`, sg.wallT, sg.unitH - sg.doorH, g1 - g0, wallX, baseY + sg.doorH + (sg.unitH - sg.doorH) / 2, zC, matWallC));
+  1169→          // Puerta CERRADA del compartimento, DENTRO del plano del muro (v1.19: rellena el
+  1170→          // hueco — antes era una flagela flotante y el hueco quedaba abierto). La del
+  1171→          // JUGADOR es dorada: "como con cualquier puerta, entras solo si es la tuya".
+  1172→          attach(blk.id, box(`${blk.id}_${side}_${u.floor}_puerta`, sg.wallT * 0.6, sg.doorH, g1 - g0, wallX, baseY + sg.doorH / 2, zC, ownU ? matOwnDoorC : matDoorC));
+  1173→          // Tapa superior: la celda se lee cerrada también desde arriba.
+  1174→          attach(blk.id, box(`${blk.id}_${side}_${u.floor}_tapa`, bandW, tr.plankT, unitD, (bandA + bandB) / 2, baseY + sg.unitH - tr.plankT / 2, zC, matCapC));
+  1175→          // Cartel numerado sobre la puerta, mirando al pasillo. v1.21 FIX: la rotación
+  1176→          // estaba al revés y el pasillo veía la ESPALDA del cartel (números espejados).
+  1177→          // La cara frontal de un plano sin rotar mira a −Z: para mirar a +X (pasillo desde
+  1178→          // una celda IZQUIERDA) la rotación es −π/2, y +π/2 para mirar a −X (celdas derechas).
+  1179→          const plate = attach(blk.id, colPlate(`${blk.id}_${side}_${u.floor}_placa`, label, ownU));
+  1180→          plate.rotation.y = side === 'left' ? -Math.PI / 2 : Math.PI / 2;
+  1181→          plate.position.set(side === 'left' ? corA + 0.03 : corB - 0.03, baseY + sg.doorH + tr.plaqueH, zC);
+  1182→        }
+  1183→      }
+  1184→      // ── FACHADA del bloque (v1.19): desde fuera solo se ve el PASILLO — muro frontal con
+  1185→      // un único hueco: el acceso al pasillo central. Con esto la nave deja de estar abierta
+  1186→      // de par en par y el bloque se lee como un cuerpo cerrado con su puerta.
+  1187→      const gapH = sg.doorH + 0.2;
+  1188→      const facH = sg.unitH + 0.28;
+  1189→      const facT = sg.wallT * 1.8;
+  1190→      if (corA - x0 > 0.05) attach(blk.id, box(`${blk.id}_fachada_i`, corA - x0, facH, facT, (x0 + corA) / 2, baseY + facH / 2, frontZ + facT / 2, matFacadeC));
+  1191→      if (x0 + W - corB > 0.05) attach(blk.id, box(`${blk.id}_fachada_d`, x0 + W - corB, facH, facT, (corB + x0 + W) / 2, baseY + facH / 2, frontZ + facT / 2, matFacadeC));
+  1192→      if (facH - gapH > 0.05) attach(blk.id, box(`${blk.id}_fachada_dintel`, corB - corA, facH - gapH, facT, (corA + corB) / 2, baseY + gapH + (facH - gapH) / 2, frontZ + facT / 2, matFacadeC));
+  1193→      const facadeParts = [
+  1194→        scene.getMeshByName(`${blk.id}_fachada_i`),
+  1195→        scene.getMeshByName(`${blk.id}_fachada_d`),
+  1196→        scene.getMeshByName(`${blk.id}_fachada_dintel`),
+  1197→      ].filter((m): m is Mesh => !!m);
+  1198→      storageFacades.set(blk.id, facadeParts);
+  1199→      // ── Cartel guía EXTERIOR: sobre el hueco de acceso, mirando a la calle. Por frame
+  1200→      // muestra los trasteros que tienes a cada lado según la profundidad del pasillo.
+  1201→      const gd = tr.guide;
+  1202→      attach(blk.id, box(`${blk.id}_guia_marco`, gd.w + 0.1, gd.h + 0.1, 0.05, x0 + W / 2, baseY + sg.unitH + gd.aboveUnit + gd.h / 2, frontZ - 0.06, matCapC));
+  1203→      const guidePlate = attach(blk.id, MeshBuilder.CreatePlane(`${blk.id}_guia`, { width: gd.w, height: gd.h, sideOrientation: B().Mesh.DOUBLESIDE }, scene));
+  1204→      const guideTex = new (B().DynamicTexture)(`${blk.id}_guia_tex`, { width: 256, height: 60 }, scene, true);
+  1205→      const gm = new StandardMaterial(`${blk.id}_guia_mat`, scene);
+  1206→      gm.diffuseTexture = guideTex;
+  1207→      gm.emissiveColor = Color3.FromHexString(gd.bg).scale(0.6);
+  1208→      gm.specularColor = new Color3(0, 0, 0);
+  1209→      guidePlate.material = gm;
+  1210→      guidePlate.position.set(x0 + W / 2, baseY + sg.unitH + gd.aboveUnit + gd.h / 2, frontZ - 0.1);
+  1211→      // El cartel guía NO se desvanece con la fachada: su información (qué trasteros te
+  1212→      // flanquean según la profundidad) es para cuando el jugador está dentro.
+  1213→      guideSigns.set(blk.id, { tex: guideTex, x0, plan, ownTag: homeTag, last: '' });
+  1214→    }
+  1215→  }
+  1216→
+  1217→  // ── Macetas de pasillo (v1.16→v1.25): reparto aleatorio DETERMINISTA por hash del id del
+  1218→  // pasillo (jamás nextRandom del sim): cantidad entre perFloorMin..perFloorMax, lado (fachada
+  1219→  // o barandilla), tamaño y especie salen del catálogo (rules.view.pots). Nunca sobre la línea
+  1220→  // de paseo (corridorZ): se pegan a fachada o barandilla para no invadir el tránsito.
+  1221→  // v1.25: las plantas son RECORTEs billboard (quads con recorte alpha dibujados a canvas —
+  1222→  // maceta + hojas, colores del catálogo): estética idéntica a los dioramas/árboles, adiós
+  1223→  // cilindros. Sin arte declarado se mantienen los cilindros de siempre.
+  1224→  const pt = v.pots;
+  1225→  /** Textura de planta de pasillo dibujada a canvas (2 especies del catálogo).
+  1226→   *  v1.26: subida por TEXTURE(dataURL) — los DynamicTexture desde canvas pierden el alpha
+  1227→   *  en esta config (píxeles alpha=0 → NEGRO: las macetas se veían sin recortar). */
+  1228→  const plantTexCache = new Map<number, { dt: Texture; ar: number }>();
+  1229→  const plantTex = (species: number): { dt: Texture; ar: number } => {
+  1230→    const hit = plantTexCache.get(species);
+  1231→    if (hit) return hit;
+  1232→    const c = document.createElement('canvas');
+  1233→    c.width = 160;
+  1234→    c.height = 200;
+  1235→    const ctx = c.getContext('2d', { willReadFrequently: true });
+  1236→    if (ctx) {
+  1237→      ctx.clearRect(0, 0, 160, 200);
+  1238→      const leaf = species === 0 ? pt.plantColor : pt.plant2Color;
+  1239→      const leafDark = Color3.FromHexString(leaf).scale(0.78).toHexString();
+  1240→      // Maceta trapecio + borde.
+  1241→      ctx.fillStyle = pt.potColor;
+  1242→      ctx.strokeStyle = 'rgba(60,35,10,0.85)';
+  1243→      ctx.lineWidth = 4;
+  1244→      ctx.beginPath();
+  1245→      ctx.moveTo(46, 150);
+  1246→      ctx.lineTo(114, 150);
+  1247→      ctx.lineTo(104, 196);
+  1248→      ctx.lineTo(56, 196);
+  1249→      ctx.closePath();
+  1250→      ctx.fill();
+  1251→      ctx.stroke();
+  1252→      ctx.fillStyle = Color3.FromHexString(pt.potColor).scale(1.18).toHexString();
+  1253→      ctx.fillRect(40, 140, 80, 14);
+  1254→      ctx.strokeRect(40, 140, 80, 14);
+  1255→      // Tierra.
+  1256→      ctx.fillStyle = pt.soilColor;
+  1257→      ctx.beginPath();
+  1258→      ctx.ellipse(80, 148, 34, 6, 0, 0, Math.PI * 2);
+  1259→      ctx.fill();
+  1260→      // Hojas: abanico de elipses (especie 0 = espadas altas; especie 1 = mata redonda).
+  1261→      const strokes: [number, number, number, number, number][] =
+  1262→        species === 0
+  1263→          ? [
+  1264→              [80, 140, 0, -84, 13],
+  1265→              [80, 142, -0.5, -70, 12],
+  1266→              [80, 142, 0.5, -70, 12],
+  1267→              [80, 140, -1.0, -52, 11],
+  1268→              [80, 140, 1.0, -52, 11],
+  1269→              [80, 142, -0.25, -92, 11],
+  1270→            ]
+  1271→          : [
+  1272→              [80, 118, 0, -34, 26],
+  1273→              [62, 124, -0.7, -26, 20],
+  1274→              [98, 124, 0.7, -26, 20],
+  1275→              [80, 104, -0.35, -30, 18],
+  1276→              [80, 104, 0.35, -30, 18],
+  1277→            ];
+  1278→      for (const [si, [sx, sy, rot, len, w]] of strokes.entries()) {
+  1279→        ctx.save();
+  1280→        ctx.translate(sx, sy);
+  1281→        ctx.rotate(rot);
+  1282→        ctx.fillStyle = si % 2 === 0 ? leaf : leafDark;
+  1283→        ctx.beginPath();
+  1284→        ctx.ellipse(0, len / 2, w / 2, Math.abs(len) / 2, 0, 0, Math.PI * 2);
+  1285→        ctx.fill();
+  1286→        ctx.strokeStyle = 'rgba(30,50,25,0.5)';
+  1287→        ctx.lineWidth = 2;
+  1288→        ctx.stroke();
+  1289→        ctx.restore();
+  1290→      }
+  1291→      // Recorte a la caja del contenido + volcado (el quad queda limpio de fondo).
+  1292→      const b = alphaBoundsOf(c);
+  1293→      const out = document.createElement('canvas');
+  1294→      out.width = 160;
+  1295→      out.height = 200;
+  1296→      const octx = out.getContext('2d');
+  1297→      let ar = 160 / 200;
+  1298→      if (b && octx) {
+  1299→        const bw = Math.max(1, b.x1 - b.x0);
+  1300→        const bh = Math.max(1, b.y1 - b.y0);
+  1301→        ar = bw / bh;
+  1302→        octx.drawImage(c, b.x0, b.y0, bw, bh, 0, 0, bw, bh);
+  1303→      } else {
+  1304→        octx?.drawImage(c, 0, 0);
+  1305→      }
+  1306→      const entry = { dt: canvasTex(`maceta_tex_${species}`, out), ar };
+  1307→      plantTexCache.set(species, entry);
+  1308→      return entry;
+  1309→    }
+  1310→    const entry = { dt: canvasTex(`maceta_tex_${species}`, c), ar: 160 / 200 };
+  1311→    plantTexCache.set(species, entry);
+  1312→    return entry;
+  1313→  };
+  1314→  /** v1.26 — centros de puerta de la planta (viviendas + cubo de escalera): ninguna maceta
+  1315→   *  invade su radio libre (pots.doorClearance). Determinista: reintentos por hash, y si
+  1316→   *  todos caen cerca de una puerta, la maceta simplemente no nace. */
+  1317→  const doorXsAt = (floor: number): number[] =>
+  1318→    Object.values(world.blocks)
+  1319→      .filter((b) => b.cell.floor === floor && (b.kind === 'dwelling' || content.blocks[b.defId]!.features?.stairs === true))
+  1320→      .map((b) => (b.cell.col + b.size.w / 2) * v.cellW);
+  1321→  for (const b of Object.values(world.blocks)) {
+  1322→    if (b.layer !== 'corridor') continue;
+  1323→    const ySlab = b.cell.floor * v.cellH + v.slab * 2;
+  1324→    const doors = doorXsAt(b.cell.floor);
+  1325→    const clear = pt.doorClearance ?? 0.95;
+  1326→    const n = pt.perFloorMin + Math.floor(hash01(b.id, 101) * (pt.perFloorMax - pt.perFloorMin + 1));
+  1327→    for (let i = 0; i < n; i++) {
+  1328→      let x = NaN;
+  1329→      for (let tryN = 0; tryN < 8; tryN++) {
+  1330→        const cand = b.cell.col * v.cellW + 1.6 + hash01(b.id, 200 + i * 8 + tryN) * (b.size.w * v.cellW - 3.2);
+  1331→        if (doors.every((dx) => Math.abs(dx - cand) >= clear)) {
+  1332→          x = cand;
+  1333→          break;
+  1334→        }
+  1335→      }
+  1336→      if (!Number.isFinite(x)) continue; // sin sitio libre: sin maceta (mejor que tapar una puerta)
+  1337→      const z = hash01(b.id, 300 + i) < 0.5 ? frontZ - 0.18 : frontZ - v.corridorDepth + 0.2;
+  1338→      const s = 0.85 + hash01(b.id, 400 + i) * 0.3;
+  1339→      const species = hash01(b.id, 600 + i) < 0.5 ? 0 : 1;
+  1340→      {
+  1341→        // v1.26: recorte billboard con textura dataURL (sin fondo negro).
+  1342→        const h = (pt.artH ?? 0.62) * s;
+  1343→        const art = plantTex(species);
+  1344→        const wQ = h * art.ar;
+  1345→        const pm = mat(`${b.id}_maceta_bill_${i}_mat`);
+  1346→        pm.diffuseTexture = art.dt;
+  1347→        pm.emissiveColor = Color3.FromHexString(pt.plantColor).scale(0.05);
+  1348→        pm.specularColor = new Color3(0, 0, 0);
+  1349→        pm.transparencyMode = 2;
+  1350→        pm.alphaCutOff = 0.4;
+  1351→        // v1.26: sin esto el alpha de la textura no llega al shader (Babylon 8 lo cambió a
+  1352→        // false por defecto) y la maceta se veía con fondo negro.
+  1353→        pm.useAlphaFromDiffuseTexture = true;
+  1354→        const q = attach(b.id, MeshBuilder.CreatePlane(`${b.id}_maceta_${i}`, { width: wQ, height: h }, scene));
+  1355→        q.position.set(x, ySlab + h / 2, z);
+  1356→        q.material = pm;
+  1357→        q.isPickable = false;
+  1358→      }
+  1359→    }
+  1360→  }
+  1361→
+  1362→  // ── Mobiliario interior (v1.23): RETIRADO. Los muebles 3D greybox se sustituyen por los
+  1363→  // dioramas de billboards con paralaje (diorama.ts + content/interiors.json): paredes y
+  1364→  // suelos ilustrados y 2-3 capas de sprites entre los que se intercalan los personajes.
+  1365→  // El catálogo furniture.json y las ranuras del sim siguen intactos (data-driven); solo
+  1366→  // desaparece su representación por cajas.
+  1367→
+  1368→  // ── APILAMIENTO 3D DE BLOQUES (v1.19) ── bloques TRASEROS inactivos que se ACTIVAN al
+  1369→  // entrar: el bloque precedente se desvanece (fundido) y el nuevo aparece con transparencia
+  1370→  // hasta visualizarse, identificado por un contorno ROJO grueso en todo el perímetro frontal
+  1371→  // (el que da hacia el pasillo). Dos familias:
+  1372→  //   · Cuarto trasero de cada vivienda (layout con estancia más profunda que el bloque).
+  1373→  //   · Interior presentable del trastero PROPIO (bloques por columna: solo tu puerta abre).
+  1374→  const rb = v.rearBlock;
+  1375→  const rears = new Map<string, { node: TransformNode; outline: Mesh[]; doorLeaf: Mesh | null; mainRoot: TransformNode; phase: 'idle' | 'peek' | 'inside'; mainAlpha: number; rearAlpha: number; settled: boolean; frontParts: Mesh[] }>();
+  1376→  const matRearWall = mat('rear_muro_mat');
+  1377→  matRearWall.diffuseColor = Color3.FromHexString('#d8d2c4');
+  1378→  const matRearOutline = mat('rear_contorno_mat');
+  1379→  matRearOutline.emissiveColor = Color3.FromHexString(rb.outline);
+  1380→  matRearOutline.diffuseColor = Color3.FromHexString(rb.outline);
+  1381→  const matRearJunk = tr.junk.map((hex, i) => {
+  1382→    const jm = mat(`rear_trasto_${i}_mat`);
+  1383→    jm.diffuseColor = Color3.FromHexString(hex);
+  1384→    return jm;
+  1385→  });
+  1386→  const matRearLamp = mat('rear_lampara_mat');
+  1387→  matRearLamp.emissiveColor = Color3.FromHexString(rb.lampColor);
+  1388→  /** Contorno ROJO grueso del perímetro frontal (4 listones): la firma del bloque activo. */
+  1389→  const outlineFrame = (name: string, cxr: number, wR: number, hR: number, yBase: number, zF: number): Mesh[] => {
+  1390→    const t = 0.06;
+  1391→    return [
+  1392→      box(`${name}_co_sup`, wR, t, t, cxr, yBase + hR, zF, matRearOutline),
+  1393→      box(`${name}_co_inf`, wR, t, t, cxr, yBase, zF, matRearOutline),
+  1394→      box(`${name}_co_izq`, t, hR, t, cxr - wR / 2, yBase + hR / 2, zF, matRearOutline),
+  1395→      box(`${name}_co_der`, t, hR, t, cxr + wR / 2, yBase + hR / 2, zF, matRearOutline),
+  1396→    ];
+  1397→  };
+  1398→  const registerRear = (blockId: string, node: TransformNode, outline: Mesh[], doorLeaf: Mesh | null, frontParts: Mesh[] = []): void => {
+  1399→    node.setEnabled(false);
+  1400→    rears.set(blockId, { node, outline, doorLeaf, mainRoot: roots.get(blockId)!, phase: 'idle', mainAlpha: 1, rearAlpha: 0, settled: true, frontParts });
+  1401→  };
+  1402→  // ── Cuartos traseros de vivienda ──
+  1403→  for (const b of Object.values(world.blocks)) {
+  1404→    if (b.kind !== 'dwelling') continue;
+  1405→    const layoutId = content.blocks[b.defId]?.container?.layout;
+  1406→    const layout = layoutId ? content.layouts[layoutId] : undefined;
+  1407→    const rearRooms = (layout?.rooms ?? []).filter((r) => r.rect && r.rect.z + r.rect.d > v.depth + 0.01);
+  1408→    if (rearRooms.length === 0) continue;
+  1409→    const rect = rearRooms[0]!.rect!;
+  1410→    const rdef = content.rooms[rearRooms[0]!.defId];
+  1411→    const rearDoor = (layout?.doorways ?? []).find((dw) => dw.axis === 'x' && rearRooms.some((r) => r.key === dw.b));
+  1412→    const bottom = b.cell.floor * v.cellH;
+  1413→    const x0 = b.cell.col * v.cellW;
+  1414→    const rx = x0 + rect.x;
+  1415→    const rw = rect.w;
+  1416→    const rz0 = frontZ + rect.z;
+  1417→    const rd = rect.d;
+  1418→    const hR = v.cellH - v.gapH;
+  1419→    const yR = bottom + v.cellH / 2;
+  1420→    const baseR = bottom + v.slab * 2;
+  1421→    const node = new TransformNode(`${b.id}_rear_root`, scene);
+  1422→    const matFloor = mat(`${b.id}_rear_suelo_mat`);
+  1423→    matFloor.diffuseColor = Color3.FromHexString(rdef?.view?.color ?? '#b08968');
+  1424→    box(`${b.id}_rear_suelo`, rw, v.slab * 2, rd, rx + rw / 2, baseR - v.slab, rz0 + rd / 2, matFloor).parent = node;
+  1425→    // Pared del FONDO (v1.21): con VENTANA al paisaje urbano del fondo (fachadas parallax y
+  1426→    // cielo) — el cuarto trasero ya no es un cubo ciego. Muro partido en 4 segmentos + marco
+  1427→    // con cruceta + cristal translúcido. Sin sitio (estancias estrechas) sigue siendo muro ciego.
+  1428→    const wv = v.rearBlock.window;
+  1429→    const wallTop = bottom + (v.cellH + hR) / 2;
+  1430→    const winCx = rx + rw / 2;
+  1431→    const winZ = rz0 + rd - v.wall / 2;
+  1432→    const canWindow = rw >= wv.w + 0.5 && baseR + wv.sill + wv.h + 0.12 <= wallTop;
+  1433→    const matFrame = mat(`${b.id}_rear_ventana_marco_mat`);
+  1434→    matFrame.diffuseColor = Color3.FromHexString(wv.frame);
+  1435→    if (canWindow) {
+  1436→      const wx0 = winCx - wv.w / 2;
+  1437→      const wx1 = winCx + wv.w / 2;
+  1438→      const wy0 = baseR + wv.sill;
+  1439→      const wy1 = wy0 + wv.h;
+  1440→      // Segmentos del muro alrededor del hueco.
+  1441→      if (wx0 - rx > 0.02) box(`${b.id}_rear_fondo_i`, wx0 - rx, hR, v.wall, (rx + wx0) / 2, yR, winZ, matRearWall).parent = node;
+  1442→      if (rx + rw - wx1 > 0.02) box(`${b.id}_rear_fondo_d`, rx + rw - wx1, hR, v.wall, (wx1 + rx + rw) / 2, yR, winZ, matRearWall).parent = node;
+  1443→      if (wy0 - baseR > 0.02) box(`${b.id}_rear_fondo_vago`, wv.w, wy0 - baseR, v.wall, winCx, baseR + (wy0 - baseR) / 2, winZ, matRearWall).parent = node;
+  1444→      if (wallTop - wy1 > 0.02) box(`${b.id}_rear_fondo_dintel_v`, wv.w, wallTop - wy1, v.wall, winCx, wy1 + (wallTop - wy1) / 2, winZ, matRearWall).parent = node;
+  1445→      // Marco (4 listones) + cruceta: lectura de ventana incluso desde lejos.
+  1446→      const ft = 0.06;
+  1447→      box(`${b.id}_rear_vmarco_sup`, wv.w + ft * 2, ft, 0.1, winCx, wy1 + ft / 2, winZ, matFrame).parent = node;
+  1448→      box(`${b.id}_rear_vmarco_inf`, wv.w + ft * 2, ft, 0.1, winCx, wy0 - ft / 2, winZ, matFrame).parent = node;
+  1449→      box(`${b.id}_rear_vmarco_izq`, ft, wv.h, 0.1, wx0 - ft / 2, wy0 + wv.h / 2, winZ, matFrame).parent = node;
+  1450→      box(`${b.id}_rear_vmarco_der`, ft, wv.h, 0.1, wx1 + ft / 2, wy0 + wv.h / 2, winZ, matFrame).parent = node;
+  1451→      box(`${b.id}_rear_vmarco_mullion`, 0.045, wv.h, 0.08, winCx, wy0 + wv.h / 2, winZ, matFrame).parent = node;
+  1452→      box(`${b.id}_rear_vmarco_travesano`, wv.w, 0.045, 0.08, winCx, wy0 + wv.h / 2, winZ, matFrame).parent = node;
+  1453→      // Cristal translúcido: el paisaje (fachadas parallax + cielo) se ve a través.
+  1454→      const glassMat = mat(`${b.id}_rear_vidrio_mat`);
+  1455→      glassMat.diffuseColor = Color3.FromHexString(wv.glass);
+  1456→      glassMat.alpha = wv.glassAlpha;
+  1457→      glassMat.specularColor = new Color3(0.1, 0.1, 0.1);
+  1458→      const glass = MeshBuilder.CreatePlane(`${b.id}_rear_vidrio`, { width: wv.w, height: wv.h, sideOrientation: B().Mesh.DOUBLESIDE }, scene);
+  1459→      glass.material = glassMat;
+  1460→      glass.isPickable = false;
+  1461→      glass.position.set(winCx, wy0 + wv.h / 2, winZ);
+  1462→      glass.parent = node;
+  1463→    } else {
+  1464→      box(`${b.id}_rear_fondo`, rw, hR, v.wall, rx + rw / 2, yR, winZ, matRearWall).parent = node;
+  1465→    }
+  1466→    box(`${b.id}_rear_izq`, v.wall, hR, rd, rx + v.wall / 2, yR, rz0 + rd / 2, matRearWall).parent = node;
+  1467→    box(`${b.id}_rear_der`, v.wall, hR, rd, rx + rw - v.wall / 2, yR, rz0 + rd / 2, matRearWall).parent = node;
+  1468→    box(`${b.id}_rear_techo`, rw, v.wall, rd, rx + rw / 2, bottom + v.cellH - v.slab - v.wall / 2, rz0 + rd / 2, matRearWall).parent = node;
+  1469→    box(`${b.id}_rear_lampara`, Math.min(1.2, rw * 0.4), 0.06, 0.1, rx + rw / 2, bottom + v.cellH - v.slab - v.wall - 0.08, rz0 + rd / 2, matRearLamp).parent = node;
+  1470→    // Diorama del cuarto trasero (v1.23): pared ilustrada + suelo + billboards, colgando del
+  1471→    // nodo trasero (aparece/desaparece con el bloque en el apilamiento 3D).
+  1472→    const rearInterior = interiors.get(b.id);
+  1473→    if (diro && rearInterior) {
+  1474→      const dioRoom = diro.room(`${b.id}_rear`, rearRooms[0]!.defId, rect, { x0, frontZ, yBottom: baseR, yTop: bottom + v.cellH - v.slab - v.wall }, { parent: node });
+  1475→      if (dioRoom) {
+  1476→        rearInterior.dio.rooms.set(`rear_${b.id}`, dioRoom);
+  1477→        for (const s of dioRoom.wall) rearInterior.dioMats.push(s.mat);
+  1478→        if (dioRoom.floor) rearInterior.dioMats.push(dioRoom.floor.mat);
+  1479→        for (const s of dioRoom.sprites) rearInterior.dioMats.push(s.mat);
+  1480→      }
+  1481→    }
+  1482→    // Frente con el hueco de la puerta (mismas medidas que la pared partida del bloque).
+  1483→    // v1.20: esta PARED DIVISORIA se recoge: al ENTRAR en el cuarto trasero desaparece
+  1484→    // (mismo corte que la fachada del bloque exterior) para que la cámara vea el interior.
+  1485→    const gapA = rx + (rearDoor ? Math.max(0, rearDoor.at - rearDoor.width / 2) : rw / 2 - 0.5);
+  1486→    const gapB = rx + (rearDoor ? Math.min(rw, rearDoor.at + rearDoor.width / 2) : rw / 2 + 0.5);
+  1487→    const doorH = Math.min(hR - 0.15, 1.95);
+  1488→    const frontParts: Mesh[] = [];
+  1489→    if (gapA - rx > 0.02) {
+  1490→      const fi = box(`${b.id}_rear_frente_i`, gapA - rx, hR, v.wall, (rx + gapA) / 2, yR, rz0 + v.wall / 2 + 0.005, matRearWall);
+  1491→      fi.parent = node;
+  1492→      frontParts.push(fi);
+  1493→    }
+  1494→    if (rx + rw - gapB > 0.02) {
+  1495→      const fd = box(`${b.id}_rear_frente_d`, rx + rw - gapB, hR, v.wall, (gapB + rx + rw) / 2, yR, rz0 + v.wall / 2 + 0.005, matRearWall);
+  1496→      fd.parent = node;
+  1497→      frontParts.push(fd);
+  1498→    }
+  1499→    if (hR - doorH > 0.02) {
+  1500→      const din = box(`${b.id}_rear_frente_dintel`, gapB - gapA, hR - doorH, v.wall, (gapA + gapB) / 2, yR + hR / 2 - (hR - doorH) / 2, rz0 + v.wall / 2 + 0.005, matRearWall);
+  1501→      din.parent = node;
+  1502→      frontParts.push(din);
+  1503→    }
+  1504→    // Hoja de puerta cerrada: visible solo con el bloque inactivo (se abre al activarse).
+  1505→    const pv = v.privacy;
+  1506→    const doorLeaf = box(`${b.id}_rear_hoja`, gapB - gapA - 0.04, doorH - 0.04, 0.05, (gapA + gapB) / 2, baseR + (doorH - 0.04) / 2, rz0 + v.wall + 0.05, mat(`${b.id}_rear_hoja_mat`));
+  1507→    (doorLeaf.material as StandardMaterial).diffuseColor = Color3.FromHexString(pv.doorColor);
+  1508→    doorLeaf.parent = node;
+  1509→    // Bártulos deterministas (hash01 del bloque — jamás RNG del sim).
+  1510→    for (let j = 0; j < rb.junk; j++) {
+  1511→      const jw = 0.35 + hash01(b.id, 1100 + j) * 0.6;
+  1512→      const jh = 0.25 + hash01(b.id, 1200 + j) * 0.45;
+  1513→      const jm = matRearJunk[Math.floor(hash01(b.id, 1300 + j) * matRearJunk.length) % matRearJunk.length]!;
+  1514→      box(`${b.id}_rear_trasto_${j}`, jw, jh, 0.5, rx + 0.4 + hash01(b.id, 1400 + j) * Math.max(0.1, rw - 0.9), baseR + jh / 2, rz0 + 0.5 + hash01(b.id, 1500 + j) * Math.max(0.1, rd - 1.0), jm).parent = node;
+  1515→    }
+  1516→    const outline = outlineFrame(`${b.id}_rear`, rx + rw / 2, rw, hR, baseR, rz0 - 0.04);
+  1517→    for (const o of outline) o.parent = node;
+  1518→    registerRear(b.id, node, outline, doorLeaf, frontParts);
+  1519→  }
+  1520→  // ── Interior presentable del TRASTERO PROPIO (uno por bloque de columna; solo tu puerta abre).
+  1521→  // v1.21: los RECTS de sus estanterías y trastos se registran aquí (cellObstacles) — una sola
+  1522→  // verdad geométrica: player-logic los consume para esquivarlos al moverse dentro.
+  1523→  const cellObstacleRects: { x0: number; z0: number; w: number; d: number }[] = [];
+  1524→  if (colBlocks.length > 0) {
+  1525→    const sg2 = storageGeomOf(v);
+  1526→    const homeTag2 = homeId.slice(homeId.lastIndexOf('_') + 1);
+  1527→    for (const blk of colBlocks) {
+  1528→      const tag = blk.id.slice(blk.id.lastIndexOf('_') + 1);
+  1529→      if (tag !== homeTag2) continue; // solo la columna del jugador tiene interior presentable
+  1530→      const colDwell = dwellingsOrdered.filter((d) => d.id.endsWith(`_${tag}`));
+  1531→      const plan = storageUnitPlan(v, colDwell.map((d) => d.cell.floor));
+  1532→      const unit = plan.find((u) => u.floor === (world.blocks[homeId]?.cell.floor ?? -1));
+  1533→      if (!unit) continue;
+  1534→      const x0 = blk.cell.col * v.cellW;
+  1535→      const bottom = blk.cell.floor * v.cellH;
+  1536→      const W = blk.size.w * v.cellW - v.gapW;
+  1537→      const H = sg2.unitH + 0.5;
+  1538→      const D = tr.cellRoomDepth;
+  1539→      const cxr = x0 + W / 2;
+  1540→      const baseR = bottom + v.slab * 2;
+  1541→      const czr = frontZ + D / 2;
+  1542→      const node = new TransformNode(`${blk.id}_cell_root`, scene);
+  1543→      const matCell = mat(`${blk.id}_cell_muro_mat`);
+  1544→      matCell.diffuseColor = Color3.Lerp(Color3.FromHexString(tr.wood), Color3.FromHexString(tr.partitionColor), 0.35);
+  1545→      box(`${blk.id}_cell_suelo`, W, v.slab * 2, D, cxr, bottom + v.slab, czr, matCell).parent = node;
+  1546→      box(`${blk.id}_cell_fondo`, W, H, v.wall, cxr, baseR + H / 2, frontZ + D - v.wall / 2, matCell).parent = node;
+  1547→      box(`${blk.id}_cell_izq`, v.wall, H, D, x0 + v.wall / 2, baseR + H / 2, czr, matCell).parent = node;
+  1548→      box(`${blk.id}_cell_der`, v.wall, H, D, x0 + W - v.wall / 2, baseR + H / 2, czr, matCell).parent = node;
+  1549→      box(`${blk.id}_cell_techo`, W, v.wall, D, cxr, baseR + H + v.wall / 2, czr, matCell).parent = node;
+  1550→      box(`${blk.id}_cell_lampara`, Math.min(1.2, W * 0.35), 0.06, 0.1, cxr, baseR + H - 0.08, czr, matRearLamp).parent = node;
+  1551→      // Estanterías del fondo: 2 bahías × cellShelfTiers baldas (mismo dialecto visual que
+  1552→      // las naves v1.16) y trastos deterministas del propietario.
+  1553→      const tierH = 0.5;
+  1554→      const bayW = Math.min(1.6, (W - 0.8) / 2);
+  1555→      const matPost = mat('trasteros_poste_mat');
+  1556→      matPost.diffuseColor = Color3.FromHexString(tr.woodDark);
+  1557→      const matPlank = mat('trasteros_tabla_mat');
+  1558→      matPlank.diffuseColor = Color3.FromHexString(tr.wood);
+  1559→      for (let bay = 0; bay < 2; bay++) {
+  1560→        const bx = cxr + (bay === 0 ? -1 : 1) * (bayW / 2 + 0.25);
+  1561→        cellObstacleRects.push({ x0: bx - bayW / 2, z0: frontZ + D - 0.3 - tr.shelfD / 2, w: bayW, d: tr.shelfD });
+  1562→        for (const side of [-1, 1] as const) {
+  1563→          box(`${blk.id}_cell_poste_${bay}_${side}`, tr.postW, tr.cellShelfTiers * tierH, tr.shelfD, bx + side * (bayW / 2), baseR + (tr.cellShelfTiers * tierH) / 2, frontZ + D - 0.3, matPost).parent = node;
+  1564→        }
+  1565→        for (let t = 1; t <= tr.cellShelfTiers; t++) {
+  1566→          box(`${blk.id}_cell_balda_${bay}_${t}`, bayW, tr.plankT, tr.shelfD, bx, baseR + t * tierH - tr.plankT / 2, frontZ + D - 0.3, matPlank).parent = node;
+  1567→          if (hash01(homeId, 2100 + bay * 10 + t) < 0.6) {
+  1568→            const jw = 0.3 + hash01(homeId, 2200 + bay * 10 + t) * 0.5;
+  1569→            const jh = 0.18 + hash01(homeId, 2300 + bay * 10 + t) * 0.22;
+  1570→            const jm = matRearJunk[Math.floor(hash01(homeId, 2400 + bay * 10 + t) * matRearJunk.length) % matRearJunk.length]!;
+  1571→            box(`${blk.id}_cell_trasto_${bay}_${t}`, jw, jh, tr.shelfD * 0.7, bx + (hash01(homeId, 2500 + bay * 10 + t) - 0.5) * Math.max(0.05, bayW - jw - 0.1), baseR + (t - 1) * tierH + tr.plankT + jh / 2, frontZ + D - 0.3, jm).parent = node;
+  1572→          }
+  1573→        }
+  1574→      }
+  1575→      for (let j = 0; j < tr.cellJunk; j++) {
+  1576→        const jw = 0.35 + hash01(homeId, 2600 + j) * 0.6;
+  1577→        const jh = 0.22 + hash01(homeId, 2700 + j) * 0.4;
+  1578→        const jm = matRearJunk[Math.floor(hash01(homeId, 2800 + j) * matRearJunk.length) % matRearJunk.length]!;
+  1579→        const jx = x0 + 0.5 + hash01(homeId, 2900 + j) * Math.max(0.1, W - 1.1);
+  1580→        const jz = frontZ + 0.5 + hash01(homeId, 3000 + j) * Math.max(0.1, D - 1.2);
+  1581→        cellObstacleRects.push({ x0: jx - jw / 2, z0: jz - 0.25, w: jw, d: 0.5 });
+  1582→        box(`${blk.id}_cell_suelo_trasto_${j}`, jw, jh, 0.5, jx, baseR + jh / 2, jz, jm).parent = node;
+  1583→      }
+  1584→      // Diorama del TRASTERO propio (v1.23): hormigón + estanterías/cajas como billboards;
+  1585→      // cuelga del nodo del bloque trasero (visible solo en la fase 'inside').
+  1586→      const cellHost = interiors.get(blk.id) ?? null;
+  1587→      if (diro) {
+  1588→        const dioRoom = diro.room(`${blk.id}_cell`, 'trastero', { x: 0, z: 0, w: W, d: D }, { x0, frontZ, yBottom: baseR, yTop: baseR + H }, { parent: node });
+  1589→        if (dioRoom) {
+  1590→          const host = cellHost ?? { dio: newDioramaSet(), dioMats: [] as StandardMaterial[] };
+  1591→          host.dio.rooms.set(`cell_${blk.id}`, dioRoom);
+  1592→          for (const s of dioRoom.wall) host.dioMats.push(s.mat);
+  1593→          if (dioRoom.floor) host.dioMats.push(dioRoom.floor.mat);
+  1594→          for (const s of dioRoom.sprites) host.dioMats.push(s.mat);
+  1595→          if (!cellHost) interiors.set(blk.id, { floors: [], covers: [], lamps: [], dio: host.dio, dioMats: host.dioMats, dioRoot: null });
+  1596→        }
+  1597→      }
+  1598→      const outline = outlineFrame(`${blk.id}_cell`, cxr, W, H, baseR, frontZ - 0.04);
+  1599→      for (const o of outline) o.parent = node;
+  1600→      registerRear(blk.id, node, outline, null);
+  1601→    }
+  1602→  }
+  1603→
+  1604→  function color(b: BlockInstance): Color3 {
+  1605→    const base = Color3.FromHexString(content.blocks[b.defId]!.view?.color ?? '#cccccc');
+  1606→    if (b.kind === 'dwelling' && b.access === 'locked') return Color3.FromHexString(v.lockedColor);
+  1607→    if (b.kind === 'dwelling' && b.occupancy !== 'occupied') return Color3.Lerp(base, Color3.White(), v.vacantTint);
+  1608→    if (b.params.elevator_status !== undefined && b.params.elevator_status !== 'ok') return Color3.FromHexString(v.brokenColor);
+  1609→    return base;
+  1610→  }
+  1611→
+  1612→  /** Color de ESTADO (null = sin estado especial). El greybox lo pinta plano; los modelos lo mezclan. */
+  1613→  function stateTint(b: BlockInstance): Color3 | null {
+  1614→    if (b.kind === 'dwelling' && b.access === 'locked') return Color3.FromHexString(v.lockedColor);
+  1615→    if (b.kind === 'dwelling' && b.occupancy !== 'occupied') return Color3.Lerp(Color3.FromHexString(content.blocks[b.defId]!.view?.color ?? '#cccccc'), Color3.White(), v.vacantTint);
+  1616→    if (b.params.elevator_status !== undefined && b.params.elevator_status !== 'ok') return Color3.FromHexString(v.brokenColor);
+  1617→    return null;
+  1618→  }
+  1619→
+  1620→  /** Emissive del bloque: canales de influencia → emissive según color del canal en el catálogo. Se acumulan. */
+  1621→  function applyEmissive(view: BlockView, b: BlockInstance) {
+  1622→    let e = new Color3(0, 0, 0);
+  1623→    for (const [channel, value] of Object.entries(world.channels)) {
+  1624→      const level = value[b.id];
+  1625→      if (!level) continue;
+  1626→      const g = glow[channel];
+  1627→      if (!g) continue;
+  1628→      e = e.add(g.scale(Math.min(1, level)));
+  1629→    }
+  1630→    for (const m of view.mats) m.emissiveColor = e;
+  1631→  }
+  1632→
+  1633→  /** Color difuso/albedo por material: greybox plano (tintStrength 1) o mezcla sobre el arte.
+  1634→   *  v1.25: fixedDiffuse (pared gris de vivienda) se impone al tintado — el estado lo cuentan
+  1635→   *  la puerta, el candado y la placa; el emissive de canales sigue funcionando igual. */
+  1636→  function applyTint(view: BlockView, b: BlockInstance) {
+  1637→    const state = color(b);
+  1638→    const override = stateTint(b);
+  1639→    for (let i = 0; i < view.mats.length; i++) {
+  1640→      const m = view.mats[i]!;
+  1641→      const base = view.baseColor[i]!;
+  1642→      if (view.fixedDiffuse) {
+  1643→        if (m.diffuseColor) m.diffuseColor = view.fixedDiffuse;
+  1644→        else if (m.albedoColor) m.albedoColor = view.fixedDiffuse;
+  1645→        continue;
+  1646→      }
+  1647→      const c = view.tintStrength >= 1 ? state : override ? Color3.Lerp(base, override, view.tintStrength) : base;
+  1648→      if (m.diffuseColor) m.diffuseColor = c;
+  1649→      else if (m.albedoColor) m.albedoColor = c;
+  1650→    }
+  1651→  }
+  1652→
+  1653→  // ── Privacidad de viviendas (v1.17): conjunto de bloques con alguien dentro (el jugador
+  1654→  //  vía playerInside + cualquier residente presente cuyo location sea el bloque). Se
+  1655→  //  recalcula por frame en update(): la fachada reacciona al instante cuando un vecino
+  1656→  //  llega a casa o el jugador entra, sin esperar al siguiente tick.
+  1657→  let playerInside: string | null = null;
+  1658→  const privacyOn = v.privacy.enabled;
+  1659→  // Colores cacheados de las luces nocturnas de interiores (v1.21→v1.25): cero allocations
+  1660→  // por frame y NIVELES del catálogo (privacy.night) — las viviendas despiertas se VEN
+  1661→  // iluminadas de verdad (antes el brillo era tan bajo que no se distinguía de apagado).
+  1662→  const nightCfg = v.privacy.night ?? { dayCutoff: 0.4, dioGlow: 0.85, floorGlow: 0.7, lampGlow: 1.6 };
+  1663→  const nightWarm = Color3.FromHexString(v.privacy.handleColor);
+  1664→  const nightLampLit = nightWarm.scale(nightCfg.lampGlow);
+  1665→  const nightFloorGlow = nightWarm.scale(nightCfg.floorGlow);
+  1666→  const nightDioGlow = nightWarm.scale(nightCfg.dioGlow);
+  1667→  const nightDark = new Color3(0, 0, 0);
+  1668→  const computeOccupancy = (): Set<string> => {
+  1669→    const occ = new Set<string>();
+  1670→    if (playerInside) occ.add(playerInside);
+  1671→    for (const r of Object.values(world.residents)) {
+  1672→      if (r.present && r.location) occ.add(r.location);
+  1673→    }
+  1674→    return occ;
+  1675→  };
+  1676→
+  1677→  /** Visibilidad efectiva de fachada/puerta/candado: candado solo si access='locked';
+  1678→   *  fachada cerrada si está bloqueada O si la privacidad la cierra (nadie dentro).
+  1679→   *  paint() la fija por el acceso y el LOD puede ocultarlos encima. */
+  1680→  function applyPanels(view: BlockView, b: BlockInstance, occ?: Set<string>) {
+  1681→    const locked = b.kind === 'dwelling' && b.access === 'locked';
+  1682→    let privacyClosed = false;
+  1683→    if (privacyOn && b.kind === 'dwelling') {
+  1684→      const set = occ ?? computeOccupancy();
+  1685→      privacyClosed = !set.has(b.id);
+  1686→    }
+  1687→    const wall = (locked || privacyClosed) && !view.lodHiddenPanels;
+  1688→    view.front?.setEnabled(wall);
+  1689→    view.door?.setEnabled(wall);
+  1690→    view.handle?.setEnabled(wall);
+  1691→    for (const d of view.doorDecor) d.setEnabled(wall);
+  1692→    view.lock?.setEnabled(locked && !view.lodHiddenPanels);
+  1693→    // Diorama (v1.23): visibilidad ESPEJO de la fachada — fachada cerrada = interior oculto,
+  1694→    // fachada abierta = diorama a la vista (y cero draw calls de interiores tapados).
+  1695→    const interior = interiors.get(b.id);
+  1696→    if (interior?.dioRoot) interior.dioRoot.setEnabled(!wall);
+  1697→  }
+  1698→
+  1699→  /**
+  1700→   * LOD por distancia (rules.view.lod). Se ejecuta SIEMPRE al final de update(): con foco degrada
+  1701→   * cada bloque según su distancia, y sin foco (o con lod.enabled=false) restaura el estado completo.
+  1702→   * Idempotente y sin allocations por frame: solo aritmética, booleanos y asignaciones.
+  1703→   *
+  1704→   * Métrica (Vista · LOD por distancia): dx = |centroX del bloque − focus.x| en metros y
+  1705→   * dy = |planta del bloque − focus.floor| * view.cellH en metros; dist = Math.hypot(dx, dy).
+  1706→   * Nivel efectivo = todos los niveles de lod.levels cuyo `dist` ≤ distBloque (el `hide` es
+  1707→   * acumulado: un flag se oculta si cualquier nivel alcanzado lo lista; sin nivel → todo visible).
+  1708→   */
+  1709→  function applyLod(focus: { x: number; floor: number } | null) {
+  1710→    const lod = v.lod;
+  1711→    for (const id in world.blocks) {
+  1712→      const b = world.blocks[id]!;
+  1713→      const view = views.get(id)!;
+  1714→      let hideEdges = false;
+  1715→      let hideGlow = false;
+  1716→      let hidePanels = false;
+  1717→      if (lod.enabled && focus) {
+  1718→        const dx = Math.abs(view.centerX - focus.x);
+  1719→        const dy = Math.abs(view.floor - focus.floor) * v.cellH;
+  1720→        const dist = Math.hypot(dx, dy);
+  1721→        for (let i = 0; i < lod.levels.length; i++) {
+  1722→          const level = lod.levels[i];
+  1723→          if (level.dist > dist) continue;
+  1724→          for (let j = 0; j < level.hide.length; j++) {
+  1725→            const flag = level.hide[j];
+  1726→            if (flag === 'edges') hideEdges = true;
+  1727→            else if (flag === 'glow') hideGlow = true;
+  1728→            else if (flag === 'panels') hidePanels = true;
+  1729→          }
+  1730→        }
+  1731→      }
+  1732→      // 'edges': interruptor nativo barato — el renderingGroup consulta edgesRenderer.isEnabled cada
+  1733→      // frame, así que nunca se destruye ni recrea el EdgesRenderer (disable/enableEdgesRendering sí
+  1734→      // lo harían: el primero lo dispone y el segundo recomputaría las aristas). El grosor/color
+  1735→      // viven en la malla y sobreviven al apagado. Los modelos glTF no tienen edges (edgesMesh null).
+  1736→      if (view.edgesMesh?.edgesRenderer) view.edgesMesh.edgesRenderer.isEnabled = !hideEdges;
+  1737→      if (view.edgesMesh2?.edgesRenderer) view.edgesMesh2.edgesRenderer.isEnabled = !hideEdges;
+  1738→      // 'glow': pisa el emissive CADA frame (paint() pudo repintar los canales este tick); al soltarlo,
+  1739→      // una única llamada repinta el cálculo de paint para no esperar al próximo tick.
+  1740→      if (hideGlow) {
+  1741→        view.glowForced = true;
+  1742→        for (let i = 0; i < view.mats.length; i++) view.mats[i]!.emissiveColor = view.baseEmissive[i]!;
+  1743→      } else if (view.glowForced) {
+  1744→        view.glowForced = false;
+  1745→        applyEmissive(view, b);
+  1746→      }
+  1747→      // 'panels': solo gira la bandera (la visibilidad la calcula applyPanels); en la transición se
+  1748→      // aplica ya para no esperar al próximo paint(), que reproducirá el mismo resultado.
+  1749→      if (view.lodHiddenPanels !== hidePanels) {
+  1750→        view.lodHiddenPanels = hidePanels;
+  1751→        applyPanels(view, b);
+  1752→      }
+  1753→    }
+  1754→  }
+  1755→
+  1756→  return {
+  1757→    paint() {
+  1758→      for (const b of Object.values(world.blocks)) {
+  1759→        const view = views.get(b.id)!;
+  1760→        applyTint(view, b);
+  1761→        applyEmissive(view, b);
+  1762→        applyPanels(view, b);
+  1763→      }
+  1764→      // Interiores 2D (Fase C): suelo de cada estancia según su acceso + tapas de puertas cerradas.
+  1765→      for (const [blockId, interior] of interiors) {
+  1766→        const block = world.blocks[blockId];
+  1767→        if (!block) continue;
+  1768→        for (const f of interior.floors) {
+  1769→          const room = block.rooms.find((r) => r.key === f.roomKey);
+  1770→          const locked = room ? room.access !== 'unlocked' : true;
+  1771→          const hex = locked ? v.lockedColor : content.rooms[f.defId]?.view?.color ?? '#cccccc';
+  1772→          f.mat.diffuseColor = Color3.FromHexString(hex);
+  1773→        }
+  1774→        for (const c of interior.covers) {
+  1775→          const anyLocked = c.rooms.some((key) => block.rooms.find((r) => r.key === key)?.access !== 'unlocked');
+  1776→          c.mesh.setEnabled(anyLocked);
+  1777→        }
+  1778→      }
+  1779→    },
+  1780→    /** Sacude el candado de una puerta cerrada. */
+  1781→    shake(blockId: string) {
+  1782→      shakes.set(blockId, 0.4);
+  1783→    },
+  1784→    /**
+  1785→     * Apilamiento 3D (v1.19): fase del bloque trasero de `blockId`.
+  1786→     *  · 'idle'   — bloque inactivo (todo como siempre).
+  1787→     *  · 'peek'   — el jugador se acerca a la puerta del fondo: el bloque trasero asoma por
+  1788→     *               el hueco (transparencia → visible) y la hoja se abre.
+  1789→     *  · 'inside' — cruzaste: el bloque principal SE DESVANECE y el trasero queda en primer
+  1790→     *               plano con su contorno rojo.
+  1791→     */
+  1792→    setRearPhase(blockId: string, phase: 'idle' | 'peek' | 'inside'): void {
+  1793→      const r = rears.get(blockId);
+  1794→      if (r) r.phase = phase;
+  1795→    },
+  1796→    /** Rects de obstáculos del interior del trastero propio (v1.21): estanterías y trastos
+  1797→     *  registrados al levantar la geometría — player-logic los esquiva al moverse dentro. */
+  1798→    cellObstacles(): { x0: number; z0: number; w: number; d: number }[] {
+  1799→      return cellObstacleRects;
+  1800→    },
+  1801→    hasRear(blockId: string): boolean {
+  1802→      return rears.has(blockId);
+  1803→    },
+  1804→    /**
+  1805→     * dt en segundos; `focus` es el punto de interés (posición del jugador) para el
+  1806→     * LOD por distancia (rules.view.lod): applyLod() lo aplica SIEMPRE al final del frame
+  1807→     * (con focus undefined, p. ej. cámara 'edificio', restaura el estado completo).
+  1808→     * `inside` es el bloque donde está el jugador ahora (pos.insideBlock): alimenta la
+  1809→     * privacidad y re-evalúa las fachadas CADA frame — un vecino que llega a casa abre
+  1810→     * su interior al instante, sin esperar al siguiente tick.
+  1811→     * `pos` (v1.19) alimenta los carteles guía de trasteros y el apilamiento 3D.
+  1812→     */
+  1813→    update(dt: number, focus?: { x: number; floor: number }, inside?: string | null, pos?: { x: number; z: number; insideBlock: string | null }, env?: { daylight: number; movers?: { x: number; y: number; z: number }[] }) {
+  1814→      if (focus) lastFocus = focus;
+  1815→      if (inside !== undefined) playerInside = inside;
+  1816→      // PRIVACIDAD (v1.17) cada frame: la fachada de una vivienda sin nadie dentro se cierra
+  1817→      // con su puerta al pasillo y se abre en cuanto alguien entra (propietario, visita…
+  1818→      // o un ladrón). Vive en update() y no en paint() para reaccionar incluso con el
+  1819→      // mundo congelado (modal abierto) y sin esperar al siguiente tick.
+  1820→      const occSet = computeOccupancy();
+  1821→      if (privacyOn) {
+  1822→        for (const b of Object.values(world.blocks)) {
+  1823→          if (b.kind !== 'dwelling') continue;
+  1824→          applyPanels(views.get(b.id)!, b, occSet);
+  1825→        }
+  1826→      }
+  1827→      // LUCES INTERIORES NOCTURNAS (v1.21): al caer el sol, las estancias que se ven abiertas
+  1828→      // (alguien dentro) se ILUMINAN salvo que su inquilino duerma — entonces, a oscuras.
+  1829→      // Colores cacheados: cero allocations por frame. De día, lámparas apagadas.
+  1830→      {
+  1831→        const day = env?.daylight ?? 1;
+  1832→        const litWorld = day < nightCfg.dayCutoff;
+  1833→        // Apliques de las puertas (v1.24): foco cálido al anochecer, apagados de día.
+  1834→        const lampGlow = litWorld ? 1.0 : 0.06;
+  1835→        for (const { mat: lm, hex } of doorLampMats) lm.emissiveColor = Color3.FromHexString(hex).scale(lampGlow);
+  1836→        // PUERTAS DE ESCALERA (v1.24): se abren antes de que alguien entre o salga (cualquier
+  1837→        // mover cerca del umbral) y la ILUMINACIÓN COMPARTIDA de TODOS los cubos se enciende
+  1838→        // de noche si algún vecino se mueve por las escaleras (un solo nivel para todos).
+  1839→        const movers = env?.movers ?? [];
+  1840→        const al = v.stairs.activityLight;
+  1841→        for (const d of stairDoors) {
+  1842→          let near = false;
+  1843→          for (const mv of movers) {
+  1844→            if (
+  1845→              Math.abs(mv.x - d.doorX) < 0.85 &&
+  1846→              Math.abs(mv.z - d.doorZ) < stF.openAhead &&
+  1847→              Math.abs(mv.y - d.floorY) < v.cellH * 0.6
+  1848→            ) {
+  1849→              near = true;
+  1850→              break;
+  1851→            }
+  1852→          }
+  1853→          const next = d.openT + (near ? dt : -dt * 0.8) * stF.openSpeed;
+  1854→          d.openT = Math.min(1, Math.max(0, next));
+  1855→          if (d.openT !== (near ? 1 : 0) || d.hinge.rotation.y !== 0) {
+  1856→            // Bisagras a la izquierda (vista pasillo = x mayor): girar +Y mete la hoja
+  1857→            // hacia el interior del cubo; espejo para hinge 'right'.
+  1858→            const sign = stF.hinge === 'left' ? 1 : -1;
+  1859→            d.hinge.rotation.y = sign * stF.openAngle * d.openT;
+  1860→          }
+  1861→        }
+  1862→        if (al.enabled && stairLightMats.length > 0) {
+  1863→          let busy = false;
+  1864→          if (litWorld) {
+  1865→            for (const mv of movers) {
+  1866→              for (const fp of stairFootprints) {
+  1867→                if (
+  1868→                  mv.x >= fp.x0 &&
+  1869→                  mv.x <= fp.x1 &&
+  1870→                  mv.z > frontZ + 0.3 &&
+  1871→                  mv.z < frontZ + v.commonDepth - 0.1 &&
+  1872→                  Math.abs(mv.y - fp.floorY) < v.cellH * 0.6
+  1873→                ) {
+  1874→                  busy = true;
+  1875→                  break;
+  1876→                }
+  1877→              }
+  1878→              if (busy) break;
+  1879→            }
+  1880→          }
+  1881→          const next = stairLightLevel + (busy ? dt : -dt) / Math.max(0.4, al.fade);
+  1882→          stairLightLevel = Math.min(1, Math.max(0, next));
+  1883→          const lc = Color3.FromHexString(al.color);
+  1884→          // Bombillas del arte glTF + AUTOILUMINACIÓN del propio cubo (v1.25): con alguien
+  1885→          // en las escaleras de noche, muros/forjados/tramos brillan un poco — el efecto
+  1886→          // pedido: "zonas más claras con algo de autoiluminación, como los interiores".
+  1887→          for (const { mat: lm } of stairLightMats) lm.emissiveColor = lc.scale(al.glow * stairLightLevel);
+  1888→          const wg = al.wallGlow ?? 0;
+  1889→          if (wg > 0) {
+  1890→            stairWallGlow.copyFromFloats(lc.r * wg * stairLightLevel, lc.g * wg * stairLightLevel, lc.b * wg * stairLightLevel);
+  1891→            for (const { mat: wm } of stairWallMats) wm.emissiveColor = stairWallGlow;
+  1892→          }
+  1893→        }
+  1894→        for (const [blockId, interior] of interiors) {
+  1895→          let lit = false;
+  1896→          if (litWorld && occSet.has(blockId)) {
+  1897→            lit = true;
+  1898→            for (const r of Object.values(world.residents)) {
+  1899→              if (r.present && r.location === blockId && r.activity === 'sleep') {
+  1900→                lit = false;
+  1901→                break;
+  1902→              }
+  1903→            }
+  1904→          }
+  1905→          for (const lamp of interior.lamps) {
+  1906→            lamp.mesh.setEnabled(lit);
+  1907→            if (lit) lamp.mat.emissiveColor = nightLampLit;
+  1908→          }
+  1909→          for (const f of interior.floors) f.mat.emissiveColor = lit ? nightFloorGlow : nightDark;
+  1910→          // Diorama (v1.23): el arte ilustrado sigue la misma luz que suelos y lámparas.
+  1911→          for (const m of interior.dioMats) m.emissiveColor = lit ? nightDioGlow : nightDark;
+  1912→        }
+  1913→      }
+  1914→      // CARTELES GUÍA (v1.19): visibles solo con el jugador dentro del bloque de trasteros;
+  1915→      // texto = los trasteros que tienes a cada lado según la profundidad del pasillo.
+  1916→      const sgG = colBlocks.length > 0 ? storageGeomOf(v) : null;
+  1917→      for (const [blkId, sign] of guideSigns) {
+  1918→        const active = !!pos && pos.insideBlock === blkId && !!sgG;
+  1919→        const plate = scene.getMeshByName(`${blkId}_guia`);
+  1920→        const frame = scene.getMeshByName(`${blkId}_guia_marco`);
+  1921→        plate?.setEnabled(active);
+  1922→        frame?.setEnabled(active);
+  1923→        if (!active || !sgG) continue;
+  1924→        const localZ = pos!.z; // en modo 'inside' de trasteros, z es profundidad local
+  1925→        const usable = sgG.depth - 2 * sgG.wallT;
+  1926→        const perSide = new Map<string, number>();
+  1927→        for (const u of sign.plan) perSide.set(u.side, (perSide.get(u.side) ?? 0) + 1);
+  1928→        const labelOf = (side: 'left' | 'right'): string => {
+  1929→          const count = perSide.get(side) ?? 0;
+  1930→          if (count === 0) return tr.emptyLabel;
+  1931→          const idx = Math.max(0, Math.min(count - 1, Math.floor((localZ - sgG.wallT) / (usable / count))));
+  1932→          const unit = sign.plan.find((u) => u.side === side && u.index === idx);
+  1933→          return unit ? blockLabel(`blk_p${unit.floor}_${sign.ownTag}`) : tr.emptyLabel;
+  1934→        };
+  1935→        const left = labelOf('left');
+  1936→        const right = labelOf('right');
+  1937→        const key = `${left}|${right}`;
+  1938→        if (sign.last !== key) {
+  1939→          sign.last = key;
+  1940→          const ctx = sign.tex.getContext() as unknown as CanvasRenderingContext2D;
+  1941→          ctx.fillStyle = tr.guide.bg;
+  1942→          ctx.fillRect(0, 0, 256, 60);
+  1943→          ctx.font = 'bold 30px Arial, sans-serif';
+  1944→          ctx.textBaseline = 'middle';
+  1945→          ctx.fillStyle = tr.guide.text;
+  1946→          ctx.textAlign = 'left';
+  1947→          ctx.fillText('◀', 10, 32);
+  1948→          ctx.textAlign = 'center';
+  1949→          const ownLeft = left.includes(sign.ownTag.toUpperCase());
+  1950→          const ownRight = right.includes(sign.ownTag.toUpperCase());
+  1951→          ctx.fillStyle = ownLeft ? tr.ownBg : tr.guide.text;
+  1952→          ctx.fillText((ownLeft ? '★ ' : '') + left, 88, 32);
+  1953→          ctx.fillStyle = ownRight ? tr.ownBg : tr.guide.text;
+  1954→          ctx.fillText((ownRight ? '★ ' : '') + right, 176, 32);
+  1955→          ctx.fillStyle = tr.guide.text;
+  1956→          ctx.textAlign = 'right';
+  1957→          ctx.fillText('▶', 248, 32);
+  1958→          sign.tex.update(true);
+  1959→        }
+  1960→      }
+  1961→      // FACHADA DE TRASTERO (v1.21): mientras el jugador camina el pasillo central de un
+  1962→      // bloque, su fachada se desvanece (corte de muñecas) y la cámara frontal ve TODO el
+  1963→      // pasillo hasta el fondo. Al salir, la fachada vuelve. Fundido del catálogo.
+  1964→      for (const [blkId, parts] of storageFacades) {
+  1965→        const target = pos && pos.insideBlock === blkId ? 0 : 1;
+  1966→        let alpha = facadeAlphas.get(blkId) ?? 1;
+  1967→        if (alpha !== target) {
+  1968→          alpha += Math.sign(target - alpha) * Math.min(Math.abs(target - alpha), dt / Math.max(0.05, v.rearBlock.fadeSeconds));
+  1969→          if (Math.abs(target - alpha) < 0.01) alpha = target;
+  1970→          facadeAlphas.set(blkId, alpha);
+  1971→          for (const m of parts) {
+  1972→            m.visibility = alpha;
+  1973→            m.setEnabled(alpha > 0.02);
+  1974→          }
+  1975→        }
+  1976→      }
+  1977→      // APILAMIENTO 3D (v1.19): avanzar los fundidos de los bloques traseros.
+  1978→      for (const r of rears.values()) {
+  1979→        const mainT = r.phase === 'inside' ? 0 : 1;
+  1980→        const rearT = r.phase === 'idle' ? 0 : 1;
+  1981→        // v1.20: la PARED DIVISORIA del bloque trasero desaparece al entrar (fase 'inside').
+  1982→        // Se evalúa SIEMPRE (incluso con los fundidos ya asentados): es un cambio de fase,
+  1983→        // no de alpha — el early-continue de abajo no la vería.
+  1984→        const frontOpen = r.phase === 'inside';
+  1985→        for (const f of r.frontParts) f.setEnabled(!frontOpen);
+  1986→        if (r.settled && r.mainAlpha === mainT && r.rearAlpha === rearT) continue;
+  1987→        const mRate = dt / Math.max(0.05, rb.fadeSeconds);
+  1988→        const rRate = dt / Math.max(0.05, rb.peekSeconds);
+  1989→        r.mainAlpha += Math.sign(mainT - r.mainAlpha) * Math.min(Math.abs(mainT - r.mainAlpha), mRate);
+  1990→        r.rearAlpha += Math.sign(rearT - r.rearAlpha) * Math.min(Math.abs(rearT - r.rearAlpha), rRate);
+  1991→        r.settled = r.mainAlpha === mainT && r.rearAlpha === rearT;
+  1992→        const mainKids = r.mainRoot.getChildMeshes();
+  1993→        for (const k of mainKids) k.visibility = r.mainAlpha;
+  1994→        r.mainRoot.setEnabled(r.mainAlpha > 0.002);
+  1995→        const rearKids = r.node.getChildMeshes();
+  1996→        for (const k of rearKids) k.visibility = r.rearAlpha;
+  1997→        r.node.setEnabled(r.rearAlpha > 0.002);
+  1998→        for (const o of r.outline) o.setEnabled(r.mainAlpha < 0.55 && r.rearAlpha > 0.4);
+  1999→        if (r.doorLeaf) r.doorLeaf.setEnabled(r.rearAlpha < 0.2);
+  2000→      }
+
+[showing lines 1-2000 of 2018; use offset=2001 with limit to continue reading]

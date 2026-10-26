@@ -522,7 +522,7 @@
         "id": "avisar",
         "type": "reach",
         "target": {
-          "block": "blk_p4_c",
+          "block": "blk_p2_c",
           "slot": "door"
         },
         "hint": "Sube a avisar a Esperanza (4C)"
@@ -674,7 +674,7 @@
         "id": "verlo",
         "type": "reach",
         "target": {
-          "block": "blk_p3_d",
+          "block": "blk_p1_a",
           "slot": "door"
         },
         "hint": "Pasa por la puerta del 3D"
@@ -683,7 +683,7 @@
     "onComplete": [
       {
         "op": "unlock",
-        "target": "blk_p3_d",
+        "target": "blk_p1_a",
         "availability": {
           "mode": "for_sale",
           "price": 2400
@@ -699,7 +699,7 @@
         "effects": [
           {
             "op": "buy",
-            "target": "blk_p3_d",
+            "target": "blk_p1_a",
             "price": 2400
           },
           {
@@ -709,17 +709,17 @@
           },
           {
             "op": "setParam",
-            "target": "blk_p3_d.style",
+            "target": "blk_p1_a.style",
             "value": "duplex"
           },
           {
             "op": "setParam",
-            "target": "blk_p3_d.condition",
+            "target": "blk_p1_a.condition",
             "value": 90
           },
           {
             "op": "setParam",
-            "target": "blk_p3_d.soundproofing",
+            "target": "blk_p1_a.soundproofing",
             "value": 0.9
           },
           {
@@ -742,12 +742,12 @@
         "effects": [
           {
             "op": "buy",
-            "target": "blk_p3_d",
+            "target": "blk_p1_a",
             "price": 2400
           },
           {
             "op": "unlock",
-            "target": "blk_p3_d",
+            "target": "blk_p1_a",
             "occupancy": "occupied",
             "resident": "res_inquilino_01",
             "arrival": "mudanza"
@@ -807,7 +807,7 @@
     "onComplete": [
       {
         "op": "unlock",
-        "target": "blk_p4_b",
+        "target": "blk_p3_b",
         "occupancy": "occupied",
         "resident": "res_buitre_01",
         "arrival": "mudanza"
@@ -2521,7 +2521,7 @@
           },
           {
             "op": "unlock",
-            "target": "blk_p5_a",
+            "target": "blk_p1_a",
             "occupancy": "occupied",
             "resident": "res_repartidor_01",
             "arrival": "mudanza"
@@ -2914,9 +2914,9 @@
         "id": "saludar",
         "type": "reach",
         "target": {
-          "block": "blk_p4_c"
+          "block": "blk_p2_c"
         },
-        "hint": "Sube al pasillo de la 4ª planta: el pastel no espera"
+        "hint": "Sube al pasillo de la 2ª planta: el pastel no espera"
       }
     ],
     "choices": [
@@ -3091,9 +3091,9 @@
         "id": "saludar",
         "type": "reach",
         "target": {
-          "block": "blk_p4_d"
+          "block": "blk_p1_c"
         },
-        "hint": "La puerta del 4D, donde el hielo no puede esperar"
+        "hint": "La puerta del 1C, donde el hielo no puede esperar"
       }
     ],
     "choices": [
@@ -3430,7 +3430,7 @@
           },
           {
             "op": "setParam",
-            "target": "blk_p4_c.hype",
+            "target": "blk_p2_c.hype",
             "delta": 6
           },
           {
@@ -3515,8 +3515,8 @@
       {
         "id": "siguela",
         "type": "enter",
-        "target": "blk_p4_pasillo",
-        "hint": "Sigue los maullidos hasta el pasillo de la 4ª planta"
+        "target": "blk_p2_pasillo",
+        "hint": "Sigue los maullidos hasta el pasillo de la 2ª planta"
       }
     ],
     "choices": [

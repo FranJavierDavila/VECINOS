@@ -92,7 +92,7 @@ if (cr) {
 // ── 4. Regresión: mundo intacto ──
 const world = createWorld(content, content.rules.startScenario);
 const dwellings = Object.values(world.blocks).filter((b) => b.kind === 'dwelling');
-check('mundo intacto: viviendas del escenario', dwellings.length >= 20, `${dwellings.length}`);
+check('mundo intacto: viviendas del escenario (v1.27: 9 en el edificio de 3 plantas)', dwellings.length >= 9, `${dwellings.length}`);
 const rearWorld = dwellings.filter((b) => {
   const layoutId = content.blocks[b.defId]?.container?.layout;
   const layout = layoutId ? content.layouts[layoutId] : undefined;

@@ -1,3 +1,13 @@
+// ⚠️ v1.27: el edificio se SIMPLIFICÓ a petición del vecino (3 plantas × 3 viviendas,
+// sin trasteros_columna/bajocubierta y con la escalera en la col 8) — las aserciones
+// estructurales de esta suite describían el edificio de 10×11 y quedaron OBsoletas.
+// Los invariantes que siguen siendo ciertos (rutas, candado, plan abierto, determinismo)
+// están cubiertos por qa-v127, qa-routing, qa-interior y qa-v126. Esta suite se retira
+// con nota; si el edificio vuelve a crecer, se descomenta su cuerpo.
+if (process.env.NO_GUARD !== '1') {
+  console.log('↷ v1.27: suite estructural del edificio 10x11 retirada (edificio simplificado). Usa qa-v127 para los invariantes vivos.');
+  process.exit(0);
+}
 /**
  * QA v1.18 — "La presidencia: sobrevive 7 días" + trasteros por columna + forjado del cubo.
  * Verifica contra el contenido, la geometría de storage.ts y el sim REALES:

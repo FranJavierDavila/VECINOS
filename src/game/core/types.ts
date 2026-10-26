@@ -998,6 +998,20 @@ export interface Rules {
         openAngle: number;
         openAhead: number;
         openSpeed: number;
+        /** v1.27 — VENTANAL del cubo: banda de cristal en el muro frontal (se ve subir y
+         *  bajar a los vecinos y la luz), montantes finos delante del vidrio y muro trasero
+         *  opcional que cierra el fondo del cubo. */
+        window?: {
+          enabled: boolean;
+          sill: number;
+          head: number;
+          color: string;
+          alpha: number;
+          mullions: number;
+          mullionW: number;
+          frameColor: string;
+          rear: boolean;
+        };
         /** v1.25: nodos de la authoría glTF que sobran (p. ej. el hueco oscuro viejo). */
         hideNodes?: string[];
       };
@@ -1124,8 +1138,10 @@ export interface Rules {
       frameDepth?: number;
       hideNodes?: string[];
       /** v1.26 — relleno de las juntas entre bloques (mismo color de pared), corte del
-       *  zócalo en las puertas y tapa de estancia cerrada con ARTE DE PUERTA. */
-      gapFill?: { color: string; pad: number };
+       *  zócalo en las puertas y tapa de estancia cerrada con ARTE DE PUERTA.
+       *  v1.27 — protrude/stagger anti-coplanaridad + SOLERA en la base de los bloques. */
+      gapFill?: { color: string; pad: number; protrude?: number; stagger?: number };
+      solera?: { color: string; h: number; protrude?: number; stagger?: number };
       skirtingDoorGap?: boolean;
       coverArt?: string;
       /** v1.25 — acabado de la vivienda: pared gris clarito, zócalo gris y marcos del

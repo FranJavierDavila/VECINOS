@@ -51,8 +51,16 @@ check('temas nuevos de trasteros/ventana/lluvia presentes', ['trastero_orden', '
 const world = createWorld(content, 'slice');
 for (let i = 0; i < 4; i++) tick(world, content);
 const logic = new PlayerLogic(world, content);
-const STOR = Object.values(world.blocks).find((b) => b.defId === v.trasteros.blockDefId && b.id.endsWith('_c'))!;
+// v1.27: el edificio simplificado ya no trae columna de trasteros (trasteros_columna
+// fuera de la plantilla). La geometría sigue viva en storage.ts; si algún día vuelve un
+// bloque de columna, estas aserciones se reactivan solas.
+const STOR = Object.values(world.blocks).find((b) => b.defId === v.trasteros.blockDefId && b.id.endsWith('_c'));
 const sg = storageGeomOf(v);
+if (!STOR) {
+  console.log('↷ v1.27: sin trasteros_columna en la plantilla simplificada — sección de columna de trasteros omitida (la geometría sigue cubierta por qa-v18/storage)');
+  console.log('\nQA v1.21 VERDE (con omisión v1.27)');
+  process.exit(0);
+}
 const x0 = STOR.cell.col * v.cellW;
 const W = STOR.size.w * v.cellW - v.gapW;
 const [corA, corB] = storageCorridorX(x0, sg);

@@ -58,11 +58,11 @@ const blockAt = (floor: number, col: number): string => {
 
 const P = 3; // planta del jugador: su vivienda (3C) está desbloqueada y con estancias abiertas
 const A3 = blockAt(P, 0);
-const B3 = blockAt(P, 2);
-const NUC3 = blockAt(P, 4);
+const B3 = blockAt(P, 3);
+const NUC3 = blockAt(P, 2);
 const C3 = blockAt(P, 5); // vivienda del jugador (col 5): mismo lado "lejano" que el 2C del reporte
-const D3 = blockAt(P, 7);
-const STAIR3 = blockAt(P, 9);
+const NUC3_COL = 2;
+const STAIR3 = blockAt(P, 8); // v1.27: el cubo de escalera vive en la col 8 (spanW 2 → torre a la derecha)
 
 const spanB = spanOf(P, (l) => l === B3);
 const spanC = spanOf(P, (l) => l === C3);
@@ -135,7 +135,7 @@ function assertLaw(
 }
 
 // ── 0. Mapa real del mundo (el QA se apoya en spans REALES, no en supuestos)
-check('planta 3 trae 4 viviendas + núcleo + escalera', spansOf(P).length === 6, spansOf(P).map((s) => s.label).join(','));
+check('planta 3 trae 3 viviendas + núcleo + escalera (v1.27)', spansOf(P).length === 5, spansOf(P).map((s) => s.label).join(','));
 check('el pasillo está delante del plano frontal (ley geométrica)', CORR < FRONT, `corridorZ ${CORR} < frontZ ${FRONT}`);
 
 // ── 1. EL CASO DEL REPORTE: escalera (col 9) → interior de la vivienda C (lado opuesto)

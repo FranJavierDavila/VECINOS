@@ -76,7 +76,7 @@ check('sin marco 3D (hoja a sangre, v1.26)', (pv.frameW ?? 1) === 0, `frameW ${p
 check('aplique de luz encima a un lado', !!pv.lamp && pv.lamp.dy > pv.doorH, `dy ${pv.lamp?.dy} > doorH ${pv.doorH}`);
 check('nodos del overlay antiguo retirados (marco gris fuera)', (pv.hideNodes ?? []).includes('jamba_izq') && (pv.hideNodes ?? []).includes('toldito') && (pv.hideNodes ?? []).includes('dintel'), (pv.hideNodes ?? []).join(','));
 check('placa numerada por ENCIMA de la hoja', v.plaque.y >= pv.doorH + v.slab + v.wall, `plaque.y ${v.plaque.y}`);
-check('placa centrada con la parte superior de la puerta (v1.26: +25 cm)', Math.abs(v.plaque.y - 2.55) < 0.01, `plaque.y ${v.plaque.y}`);
+check('placa legible sobre la puerta (v1.27: y 2.32, «un poco más bajos»)', Math.abs(v.plaque.y - 2.32) < 0.01, `plaque.y ${v.plaque.y}`);
 
 // ── 4. Puertas de escalera ──
 console.log('\n── Puertas de escalera: muro, hoja numerada, apertura, luz ──');

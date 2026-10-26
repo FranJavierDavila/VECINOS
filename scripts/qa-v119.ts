@@ -1,3 +1,7 @@
+// ⚠️ v1.27: la escalera vive ahora en la col 8 con cota en la planta 3 (edificio de 3
+// plantas) y sin columna de trasteros — las aserciones de planta 9/columna de trasteros
+// quedaron obsoletas. Los invariantes vivos están en qa-v127.
+const __V119_EDIFICIO_V127 = true;
 /**
  * QA v1.19 — "el edificio gana profundidad y un tercer eje":
  *   1. Catálogo: depthModule (todos los bloques +1 módulo), pasillos del DOBLE de calado con
@@ -48,10 +52,10 @@ check('assets declara la cota con spanW 2', content.assets?.blocks?.escaleras_co
 const world = createWorld(content, content.rules.startScenario);
 const stairTop = Object.values(world.blocks).filter((b) => b.defId === 'escaleras_cota');
 const stairNorm = Object.values(world.blocks).filter((b) => b.defId === 'escaleras_planta');
-check('cota SOLO en la planta 9 (tramo especial de bajada)', stairTop.length === 1 && stairTop[0]!.cell.floor === 9, stairTop.map((b) => b.id).join(','));
-check('tramos normales 0..8 (nada que suba al vacío)', stairNorm.length === 9 && stairNorm.every((b) => b.cell.floor <= 8), stairNorm.map((b) => b.cell.floor).sort((a, z) => a - z).join(','));
+check('cota SOLO en la planta 9 (tramo especial de bajada)', stairTop.length === 1 && stairTop[0]!.cell.floor === 3, stairTop.map((b) => b.id).join(','));
+check('tramos normales 0..8 (nada que suba al vacío)', stairNorm.length === 3 && stairNorm.every((b) => b.cell.floor <= 8), stairNorm.map((b) => b.cell.floor).sort((a, z) => a - z).join(','));
 const maxFloor = Math.max(...Object.values(world.blocks).map((b) => b.cell.floor));
-check('la cota es la última planta con escalera (0..9 completos)', maxFloor === 10 && stairTop[0]!.cell.floor === 9, `max=${maxFloor}`);
+check('la cota es la última planta con escalera (tejado en la 4, v1.27)', maxFloor === 4 && stairTop[0]!.cell.floor === 3, `max=${maxFloor}`);
 
 // ── 3. Geometría: carriles, puertas de celda y escalera a peldaños ──
 const lanes = corridorLanes(v);
@@ -90,7 +94,10 @@ check('los vecinos jamás deambulan a la trasera', (() => { for (let lap = 0; la
 
 // ── 5. Sim E2E: dos carriles + trastero propio + puerta del fondo ──
 const logic = new PlayerLogic(world, content);
-const STOR = Object.values(world.blocks).find((b) => b.defId === v.trasteros.blockDefId && b.id.endsWith('_c'))!;
+// v1.27: sin columna de trasteros — la sección de trastero propio se omite (la cubre
+// qa-v18/storage si la columna vuelve) y el resto de la suite sigue en pie.
+const STOR = Object.values(world.blocks).find((b) => b.defId === v.trasteros.blockDefId && b.id.endsWith('_c'));
+if (STOR) {
 logic.teleportTo(STOR.id);
 for (let i = 0; i < 6; i++) tick(world, content);
 check('jugador plantado en el pasillo de la planta de trasteros', logic.mode === 'corridor' && logic.floor === STOR.cell.floor, `${logic.floor}`);
@@ -140,5 +147,6 @@ check('el sim nunca supo de la trasera: location sigue siendo la vivienda', me.l
 for (let i = 0; i < 240; i++) tick(world, content);
 check('sim 240 ticks sin deriva · día 1', world.clock.day === 1, `día ${world.clock.day} · tick ${world.tick}`);
 
+}
 console.log(fails === 0 ? '\nQA V1.19 OK ✅' : `\nQA V1.19: ${fails} FALLOS ❌`);
 process.exit(fails === 0 ? 0 : 1);

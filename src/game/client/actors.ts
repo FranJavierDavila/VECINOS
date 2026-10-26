@@ -12,15 +12,21 @@ import type { ElevatorsDirector } from './elevator';
 const frontZOf = (roomZ: number, commonDepth: number): number => roomZ - commonDepth / 2;
 
 /**
- * V1.26 — CORRECCIÓN DE ORIENTACIÓN DE LOS RIGS glTF: los modelos están authorados mirando
- * a −Z (frontal hacia la cámara) y la convención de rutas usa yaw 0 = +X (perfil). Sin la
- * corrección, los personajes caminaban de lado viéndose DE FRENTE (piernas cruzadas) y de
- * frente viéndose DE LADO — exactamente el intercambio de 90° que reportaba el vecino.
- * rotación.y = yaw + MODEL_YAW_OFFSET aplica el giro que alinea el morro del modelo con la
- * dirección real de marcha. El yaw INTERNO (rutas, faceToward, gestos) no cambia: la
- * corrección vive SOLO en el punto de escritura de la rotación del nodo.
+ * V1.27 — CORRECCIÓN DEFINITIVA DE ORIENTACIÓN (sustituye el −π/2 de v1.26, que dejaba el
+ * cuerpo de FRENTE al andar de lado y las piernas/brazos bombeando en un plano PERPENDICULAR
+ * a la marcha — el vaivén es rígido respecto al cuerpo, así que un solo giro mal lo torcía
+ * todo). Diagnóstico empírico en vivo (probes de la escena): el visor del rig (autoría glTF
+ * "mira a +X") apunta a mundo −X con rotación 0 (el loader voltea la autoría 180°) y
+ * rotation.y = α lo lleva a (−cos α, +sin α). Con la convención de rutas yaw = atan2(−dz, dx)
+ * la dirección de marcha es (cos yaw, −sin yaw)… y la igualdad solo se cumple con α = yaw + π:
+ * π es el ÚNICO offset que alinea el morro con la marcha en TODAS las direcciones. Bonus: los
+ * clips (zancadas de piernas/brazos sobre Z local, sentado con rodillas al frente, teléfono a
+ * la oreja…) fueron authorados para "el modelo mira a +X", y con este offset la X del contenido
+ * ES la dirección de marcha — todos los gestos quedan coherentes de una vez.
+ * rotación.y = yaw + MODEL_YAW_OFFSET. El yaw INTERNO (rutas, faceToward, gestos) no cambia:
+ * la corrección vive SOLO en el punto de escritura de la rotación del nodo.
  */
-export const MODEL_YAW_OFFSET = -Math.PI / 2;
+export const MODEL_YAW_OFFSET = Math.PI;
 
 interface Actor {
   /** Residente dueño del nodo (para las rutas de ascensor y depuración). */

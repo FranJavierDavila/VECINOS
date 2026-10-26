@@ -656,6 +656,34 @@ export const rulesSchema = z.object({
             openAngle: z.number().positive().default(1.75),
             openAhead: z.number().positive().default(1.05),
             openSpeed: z.number().positive().default(3.2),
+            /** v1.27 — VENTANAL del cubo de escalera: el muro frontal se abre en BANDA de
+             *  cristal (de diafra a cabezal) para ver subir y bajar a los vecinos y la luz
+             *  del poche. sill/head acotan la banda (altura desde el suelo del bloque);
+             *  el vidrio se parte alrededor de la hoja de la puerta. mullions = montantes
+             *  verticales finos DELANTE del vidrio (nada coplanar). rear cierra el fondo. */
+            window: z
+              .object({
+                enabled: z.boolean().default(true),
+                sill: z.number().min(0).default(0.5),
+                head: z.number().positive().default(2.3),
+                color: z.string().default('#cfe3ea'),
+                alpha: z.number().min(0.05).max(0.9).default(0.24),
+                mullions: z.number().min(0).default(5),
+                mullionW: z.number().positive().default(0.045),
+                frameColor: z.string().default('#7d7668'),
+                rear: z.boolean().default(true),
+              })
+              .default({
+                enabled: true,
+                sill: 0.5,
+                head: 2.3,
+                color: '#cfe3ea',
+                alpha: 0.24,
+                mullions: 5,
+                mullionW: 0.045,
+                frameColor: '#7d7668',
+                rear: true,
+              }),
             /** v1.25: nodos de la authoría glTF del cubo que sobran (el hueco oscuro viejo
              *  flotaba a la derecha de los tramos). Ocultos al cargar el modelo. */
             hideNodes: z.array(z.string()).default([]),
@@ -676,6 +704,7 @@ export const rulesSchema = z.object({
             openAngle: 1.75,
             openAhead: 1.05,
             openSpeed: 3.2,
+            window: { enabled: true, sill: 0.5, head: 2.3, color: '#cfe3ea', alpha: 0.24, mullions: 5, mullionW: 0.045, frameColor: '#7d7668', rear: true },
             hideNodes: [],
           }),
         activityLight: z
@@ -706,7 +735,9 @@ export const rulesSchema = z.object({
         floorSlab: { enabled: true, thickness: 0.14, color: '#b8c0a8', topAt: 0.14 },
         facade: {
           enabled: true, halfW: 1.2, fullWall: true, color: '#ddd1b8', doorW: 0.86, doorH: 1.84, doorBottom: 0.14, doorZ: 0.08, wallT: 0.3,
-          art: '/art/interiors/raw/door_comunal.png', numberColor: '#1c1c1c', hinge: 'left', openAngle: 1.75, openAhead: 1.05, openSpeed: 3.2, hideNodes: [],
+          art: '/art/interiors/raw/door_comunal.png', numberColor: '#1c1c1c', hinge: 'left', openAngle: 1.75, openAhead: 1.05, openSpeed: 3.2,
+          window: { enabled: true, sill: 0.5, head: 2.3, color: '#cfe3ea', alpha: 0.24, mullions: 5, mullionW: 0.045, frameColor: '#7d7668', rear: true },
+          hideNodes: [],
         },
         activityLight: { enabled: true, dayCutoff: 0.4, glow: 0.9, fade: 2.4, meshes: ['luz_interior', 'tira_luz'], color: '#ffedc2', wallGlow: 0.32 },
       }),
@@ -904,10 +935,28 @@ export const rulesSchema = z.object({
         hideNodes: z.array(z.string()).default([]),
         /** v1.26 — relleno de las JUNTAS entre bloques (veían la parte trasera del edificio)
          *  y corte del zócalo en las puertas + tapa de estancia cerrada CON ARTE DE PUERTA
-         *  (dejó de leerse como tabique). */
+         *  (dejó de leerse como tabique). v1.27 — el relleno SALE hacia la calle (protrude,
+         *  medido desde la cara de fachada) con un escalonado determinista por bloque
+         *  (stagger): jamás dos caras coplanares — foco de parpadeos. */
         gapFill: z
-          .object({ color: z.string().default('#dbd8d2'), pad: z.number().min(0).default(0.04) })
-          .default({ color: '#dbd8d2', pad: 0.04 }),
+          .object({
+            color: z.string().default('#dbd8d2'),
+            pad: z.number().min(0).default(0.04),
+            protrude: z.number().min(0).default(0.012),
+            stagger: z.number().min(0).default(0.008),
+          })
+          .default({ color: '#dbd8d2', pad: 0.04, protrude: 0.012, stagger: 0.008 }),
+        /** v1.27 — SOLERA de los bloques: banda en la base de cada bloque (viviendas y resto
+         *  de la banda principal) que sella la JUNTA VERTICAL entre un bloque y el siguiente
+         *  en altura. protrude/stagger con la misma regla anti-coplanaridad que gapFill. */
+        solera: z
+          .object({
+            color: z.string().default('#c9c6bf'),
+            h: z.number().positive().default(0.13),
+            protrude: z.number().min(0).default(0.016),
+            stagger: z.number().min(0).default(0.008),
+          })
+          .default({ color: '#c9c6bf', h: 0.13, protrude: 0.016, stagger: 0.008 }),
         skirtingDoorGap: z.boolean().default(true),
         coverArt: z.string().default(''),
         /** v1.25 — acabado de la vivienda: pared gris clarito, banda de zócalo gris desde
@@ -949,7 +998,8 @@ export const rulesSchema = z.object({
         frameW: 0.075,
         frameDepth: 0.1,
         hideNodes: [],
-        gapFill: { color: '#dbd8d2', pad: 0.04 },
+        gapFill: { color: '#dbd8d2', pad: 0.04, protrude: 0.012, stagger: 0.008 },
+        solera: { color: '#c9c6bf', h: 0.13, protrude: 0.016, stagger: 0.008 },
         skirtingDoorGap: true,
         coverArt: '',
         wallColor: '#dbd8d2',

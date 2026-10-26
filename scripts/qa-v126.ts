@@ -71,7 +71,7 @@ check('el runtime respeta frameW 0 (skip condicional)', buildingTs.includes('if 
 
 // ── 3. Placa numerada más arriba ──
 console.log('\n── Placa numerada centrada con la parte superior de la puerta ──');
-check('plaque.y subida a 2.55 (+25 cm sobre v1.24)', Math.abs(v.plaque.y - 2.55) < 0.01, `y ${v.plaque.y}`);
+check('plaque.y bajada a 2.32 (v1.27: «un poco más bajos para que se puedan leer»)', Math.abs(v.plaque.y - 2.32) < 0.01, `y ${v.plaque.y}`);
 check('la placa sigue dentro de la fachada con su z propio', v.plaque.z < -0.05, `z ${v.plaque.z}`);
 
 // ── 4. Zócalo cortado en la puerta ──
@@ -115,7 +115,7 @@ check('MODEL_YAW_OFFSET exportado en actors', actorsTs.includes('MODEL_YAW_OFFSE
 check('actors aplica el offset en la rotación del nodo', (actorsTs.match(/MODEL_YAW_OFFSET/g) ?? []).length >= 3);
 check('pedestrians aplica el offset', pedestriansTs.includes('MODEL_YAW_OFFSET'));
 check('ecosystem aplica el offset (vecinos y extras)', ecosystemTs.includes('MODEL_YAW_OFFSET'));
-check('la manifestación mira a la dirección de marcha', srcOf('src/game/client/streetlife.ts').includes('rig.root.rotation.y = dir > 0 ? -Math.PI / 2 : Math.PI / 2'));
+check('la manifestación mira a la dirección de marcha (v1.27: offset compartido π)', srcOf('src/game/client/streetlife.ts').includes('rig.root.rotation.y = dir > 0 ? MODEL_YAW_OFFSET : 0;'));
 
 // ── 11. Repartidor creíble ──
 console.log('\n── Repartidor: anda, sube y llama a puertas ──');

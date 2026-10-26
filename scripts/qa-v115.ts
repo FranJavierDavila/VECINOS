@@ -89,7 +89,7 @@ const homesOk = (home: string) => {
 for (const s of Object.values(content.scenarios)) {
   const el = s.residents.find((r) => r.id === 'res_electricista_01');
   const sa = s.residents.find((r) => r.id === 'res_sanitaria_01');
-  check(`${s.id}: Román (electricista) en p5_b y Puri (sanitaria) en p3_a, viviendas reales`, el?.home === 'blk_p5_b' && sa?.home === 'blk_p3_a' && homesOk(el?.home ?? '') && homesOk(sa?.home ?? ''), `${el?.home}·${sa?.home}`);
+  check(`${s.id}: Román (electricista) en p3_b y Puri (sanitaria) en p3_a, viviendas reales (v1.27)`, el?.home === 'blk_p3_b' && sa?.home === 'blk_p3_a' && homesOk(el?.home ?? '') && homesOk(sa?.home ?? ''), `${el?.home}·${sa?.home}`);
 }
 
 // ── 6. Cadena encadenada + teatro ──

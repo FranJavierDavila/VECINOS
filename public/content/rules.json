@@ -763,7 +763,18 @@
           "jamba_der",
           "dintel",
           "rotulo"
-        ]
+        ],
+        "window": {
+          "enabled": true,
+          "sill": 0.5,
+          "head": 2.3,
+          "color": "#cfe3ea",
+          "alpha": 0.24,
+          "mullions": 5,
+          "mullionW": 0.045,
+          "frameColor": "#7d7668",
+          "rear": true
+        }
       },
       "activityLight": {
         "enabled": true,
@@ -794,7 +805,7 @@
     "plaque": {
       "w": 0.85,
       "h": 0.3,
-      "y": 2.55,
+      "y": 2.32,
       "z": -0.13,
       "bg": "#3b3129",
       "text": "#ffd166",
@@ -890,7 +901,7 @@
         "/art/interiors/raw/maceta_a.png",
         "/art/interiors/raw/maceta_b.png"
       ],
-      "artH": 0.62
+      "artH": 0.85
     },
     "seatAnchors": [
       "bed",
@@ -918,7 +929,9 @@
       ],
       "gapFill": {
         "color": "#dbd8d2",
-        "pad": 0.04
+        "pad": 0.04,
+        "protrude": 0.012,
+        "stagger": 0.008
       },
       "skirtingDoorGap": true,
       "coverArt": "/art/interiors/raw/door_casa_a.png",
@@ -940,6 +953,12 @@
         "dioGlow": 0.85,
         "floorGlow": 0.7,
         "lampGlow": 1.6
+      },
+      "solera": {
+        "color": "#c9c6bf",
+        "h": 0.13,
+        "protrude": 0.016,
+        "stagger": 0.008
       }
     }
   },

@@ -75,7 +75,7 @@
     "kind": "common",
     "layer": "corridor",
     "size": {
-      "w": 10,
+      "w": 9,
       "h": 1
     },
     "traversable": true,
@@ -220,7 +220,7 @@
     "kind": "common",
     "layer": "main",
     "size": {
-      "w": 2,
+      "w": 1,
       "h": 1
     },
     "traversable": true,
@@ -292,7 +292,7 @@
     "kind": "common",
     "layer": "main",
     "size": {
-      "w": 11,
+      "w": 10,
       "h": 1
     },
     "traversable": false,

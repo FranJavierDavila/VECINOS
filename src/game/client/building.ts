@@ -165,32 +165,79 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     }
     ctx.putImageData(img, 0, 0);
   };
-  /** Texturas de puerta cacheadas por fichero (v1.24→v1.26): FULL-BLEED y OPACA. El arte
-   *  llega con pared/suelo cocinados alrededor de la hoja: flood-fill contra los colores de
-   *  las esquinas (stripCorners) + recorte a la caja del contenido (alphaBoundsOf) +
-   *  dilatación opaca (dilateOpaque) → la textura ES la hoja, sin rendijas negras. */
+  /**
+   * V1.27 — ENCAJE PERFECTO DE HOJAS DE PUERTA (arregla «dos puertas pegadas» y el estirado
+   * de las puertas de escalera). Pipeline único, UN solo vuelco:
+   *   1) stripCorners quita el fondo cocinado alrededor de la hoja (flood-fill de esquinas);
+   *   2) alphaBoundsOf recorta a la caja del contenido;
+   *   3) ENCAJE SIN ESTIRAR: la caja se re-encaja a la PROPORCIÓN EXACTA del plano con recorte
+   *      centrado del exceso (cover) — las proporciones de la hoja jamás se deforman;
+   *   4) se vuelca UNA vez al canvas final (el bug v1.24..v1.26 volcaba DOS veces: el recorte
+   *      escalado y LUEGO la imagen entera encima — la hoja estirada se colaba alrededor de la
+   *      hoja real y se leía como «dos puertas pegadas»);
+   *   5) dilateOpaque rellena rendijas alpha (perímetro negro fuera).
+   * `draw` permite rotular encima (el número de planta de las puertas de escalera).
+   */
+  const doorLeafCanvas = (
+    img: HTMLImageElement,
+    outW: number,
+    outH: number,
+    opts: { draw?: (ctx: CanvasRenderingContext2D) => void } = {},
+  ): HTMLCanvasElement => {
+    const out = document.createElement('canvas');
+    out.width = outW;
+    out.height = outH;
+    const ctx = out.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return out;
+    const big = document.createElement('canvas');
+    big.width = Math.max(1, img.naturalWidth || img.width);
+    big.height = Math.max(1, img.naturalHeight || img.height);
+    const bx = big.getContext('2d', { willReadFrequently: true });
+    if (!bx) return out;
+    bx.drawImage(img, 0, 0);
+    stripCorners(big, 0.14);
+    const b = alphaBoundsOf(big);
+    const sx = b ? b.x0 : 0;
+    const sy = b ? b.y0 : 0;
+    const sw = b ? b.x1 - b.x0 : big.width;
+    const sh = b ? b.y1 - b.y0 : big.height;
+    const targetAr = outW / outH;
+    const srcAr = sw / Math.max(1, sh);
+    let cw = sw;
+    let ch = sh;
+    let cx = sx;
+    let cy = sy;
+    if (srcAr > targetAr) {
+      cw = sh * targetAr;
+      cx = sx + (sw - cw) / 2;
+    } else {
+      ch = sw / targetAr;
+      cy = sy + (sh - ch) / 2;
+    }
+    ctx.drawImage(big, cx, cy, Math.max(1, cw), Math.max(1, ch), 0, 0, outW, outH);
+    if (opts.draw) opts.draw(ctx);
+    dilateOpaque(out);
+    return out;
+  };
+  /** Texturas de puerta cacheadas por fichero (v1.24→v1.27): full-bleed, OPACA y con la
+   *  proporción EXACTA del plano de la puerta (sin estirar, sin doble vuelco). */
   const doorArtCache = new Map<string, DynamicTexture>();
   const doorArtTex = (sc: Scene, file: string): DynamicTexture => {
     const hit = doorArtCache.get(file);
     if (hit) return hit;
-    const dt = new (B().DynamicTexture)(`puerta_tex_${doorArtCache.size}`, { width: 384, height: 768 }, sc, true);
+    // El plano mide privacy.doorW × doorH (catálogo): el canvas respeta SU proporción.
+    const pw = v.privacy.doorW;
+    const ph = v.privacy.doorH;
+    const H = 768;
+    const W = Math.round((H * pw) / ph);
+    const dt = new (B().DynamicTexture)(`puerta_tex_${doorArtCache.size}`, { width: W, height: H }, sc, true);
     doorArtCache.set(file, dt);
     const img = new Image();
     img.onload = () => {
-      const big = document.createElement('canvas');
-      big.width = img.naturalWidth;
-      big.height = img.naturalHeight;
-      const bx = big.getContext('2d', { willReadFrequently: true });
-      if (!bx) return;
-      bx.drawImage(img, 0, 0);
-      stripCorners(big, 0.14);
-      const b = alphaBoundsOf(big);
-      if (b) bx.drawImage(big, b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0, 0, 0, 384, 768);
-      else bx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, 384, 768);
-      dilateOpaque(big);
+      const c = doorLeafCanvas(img, W, H);
       const dctx = dt.getContext() as unknown as CanvasRenderingContext2D;
-      dctx.clearRect(0, 0, 384, 768);
-      dctx.drawImage(big, 0, 0, 384, 768);
+      dctx.clearRect(0, 0, W, H);
+      dctx.drawImage(c, 0, 0);
       dt.update(true);
     };
     img.src = file;
@@ -682,10 +729,15 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     views.set(b.id, view);
   }
 
-  // ── RELLENO DE JUNTAS ENTRE BLOQUES (v1.26): entre bloque y bloque queda una ranura de
-  //  gapW por la que se veía la parte trasera del edificio. Una tapa del color de la pared
+  // ── RELLENO DE JUNTAS ENTRE BLOQUES (v1.26→v1.27): entre bloque y bloque queda una ranura
+  //  de gapW por la que se veía la parte trasera del edificio. Una tapa del color de la pared
   //  (privacy.gapFill) cierra cada hueco de la banda principal — data-driven, sin tocar el
   //  catálogo de bloques: cualquier reordenación re-crea los rellenos sola.
+  //  v1.27 — NADA COPLANAR: la tapa SALE hacia la calle hasta delante de la cara de fachada
+  //  (protrude) y su cara frontal lleva un escalonado determinista por bloque (stagger de
+  //  hash01): dos rellenos (o relleno y solera) vecinos jamás comparten plano — los elementos
+  //  coplanares son foco de parpadeos/artefactos y el vecino los cazó en vivo. Sus caras
+  //  laterales quedan ESCONDIDAS dentro del volumen de los muros laterales vecinos (pad < wall/2).
   {
     const gf = v.privacy.gapFill;
     if (gf) {
@@ -710,8 +762,38 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           const z = curLeft + gf.pad;
           if (z - a <= 0.02) continue;
           const dep = Math.max(depthOf(prev), depthOf(cur));
-          attach(cur.id, box(`junta_p${floor}_${i}`, z - a, v.cellH - v.gapH, dep, (a + z) / 2, floor * v.cellH + (v.cellH - v.gapH) / 2, frontZ + dep / 2, fillMat));
+          const out = (gf.protrude ?? 0.012) + hash01(`junta_p${floor}_${i}`, 41) * (gf.stagger ?? 0.008);
+          const zFront = frontZ - v.wall / 2 - out;
+          attach(cur.id, box(`junta_p${floor}_${i}`, z - a, v.cellH - v.gapH, frontZ + dep - zFront, (a + z) / 2, floor * v.cellH + (v.cellH - v.gapH) / 2, zFront + (frontZ + dep - zFront) / 2, fillMat));
         }
+      }
+    }
+  }
+
+  // ── SOLERA DE LOS BLOQUES (v1.27): banda en la BASE de cada bloque de la banda principal
+  //  (viviendas y compañeros de fila) que sella la JUNTA VERTICAL entre un bloque y el
+  //  siguiente en altura — por la ranura de gapH se veía a través del edificio. La solera
+  //  cubre la ranura completa (baja hasta el canto superior del bloque inferior) y asoma un
+  //  listón por encima del arranque del bloque, leyéndose como plinto. Misma regla anti-
+  //  coplanaridad que las juntas: cara frontal SALIENDO al frente con escalonado por hash,
+  //  caras laterales cubriendo las ranuras horizontales (solapan dentro del vecino).
+  {
+    const so = v.privacy.solera;
+    if (so) {
+      const soMat = mat('solera_mat');
+      soMat.diffuseColor = Color3.FromHexString(so.color);
+      soMat.specularColor = new Color3(0.02, 0.02, 0.02);
+      for (const b of Object.values(world.blocks)) {
+        if (b.layer !== 'main') continue;
+        if (b.defId === 'tejado' || b.defId === 'bajocubierta') continue; // remates: sin solera
+        const x0 = b.cell.col * v.cellW - v.gapW / 2 - 0.004;
+        const x1 = (b.cell.col + b.size.w) * v.cellW + v.gapW / 2 + 0.004;
+        const yBot = b.cell.floor * v.cellH - v.gapH / 2;
+        const yTop = b.cell.floor * v.cellH + v.gapH / 2 + so.h;
+        const dep = depthOf(b);
+        const out = (so.protrude ?? 0.016) + hash01(b.id, 43) * (so.stagger ?? 0.008);
+        const zFront = frontZ - v.wall / 2 - out;
+        attach(b.id, box(`${b.id}_solera`, x1 - x0, yTop - yBot, frontZ + dep - zFront, (x0 + x1) / 2, (yBot + yTop) / 2, zFront + (frontZ + dep - zFront) / 2, soMat));
       }
     }
   }
@@ -758,43 +840,33 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     const wallMat = mat('escalera_fachada_mat');
     wallMat.diffuseColor = Color3.FromHexString(stF.color);
     wallMat.specularColor = new Color3(0.02, 0.02, 0.02);
+    stairWallMats.push({ mat: wallMat as unknown as BlockMat }); // v1.27: el muro también se autoilumina
     /** Textura de la hoja por PLANTA: arte de zonas comunes + gran número centrado.
-     *  v1.25: full-bleed REAL — flood-fill contra las esquinas (stripCorners) y recorte a la
-     *  caja de la hoja: nada de pared/suelo cocinados alrededor. */
+     *  v1.27: ENCAJE PERFECTO — doorLeafCanvas recorta el arte a la caja de la hoja y lo
+     *  re-encaja a la proporción EXACTA del plano (doorW/doorH del catálogo) sin estirarlo:
+     *  el arte llena el plano de lado a lado con sus proporciones intactas. */
     const stairDoorTexCache = new Map<number, DynamicTexture>();
     const stairDoorTex = (art: string, numberColor: string, floor: number): DynamicTexture => {
       const hit = stairDoorTexCache.get(floor);
       if (hit) return hit;
-      const dt = new (B().DynamicTexture)(`puerta_esc_${floor}_tex`, { width: 384, height: 768 }, scene, true);
+      const TW = 384;
+      const TH = Math.round((TW * stF.doorW) / stF.doorH);
+      const dt = new (B().DynamicTexture)(`puerta_esc_${floor}_tex`, { width: TW, height: TH }, scene, true);
       stairDoorTexCache.set(floor, dt);
       const img = new Image();
       img.onload = () => {
-        const big = document.createElement('canvas');
-        big.width = img.naturalWidth;
-        big.height = img.naturalHeight;
-        const bx = big.getContext('2d', { willReadFrequently: true });
-        if (!bx) return;
-        bx.drawImage(img, 0, 0);
-        stripCorners(big, 0.14);
-        const b = alphaBoundsOf(big);
-        const c = document.createElement('canvas');
-        c.width = 384;
-        c.height = 768;
-        const cctx = c.getContext('2d');
-        if (!cctx) return;
-        if (b) cctx.drawImage(big, b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0, 0, 0, 384, 768);
-        else cctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, 384, 768);
-        // Gran número de planta, centrado en la hoja (vinculado a la puerta: bascula con ella).
-        cctx.font = 'bold 230px Arial, sans-serif';
-        cctx.textAlign = 'center';
-        cctx.textBaseline = 'middle';
-        cctx.fillStyle = numberColor;
-        cctx.fillText(String(floor), 192, 384);
-        // v1.26: textura 100% OPACA — las rendijas transparentes que sobreviven al recorte
-        // (sombras cocinadas del arte) se rellenan con el color vecino: adiós perímetro negro.
-        dilateOpaque(c);
+        const c = doorLeafCanvas(img, TW, TH, {
+          draw: (cctx) => {
+            // Gran número de planta, centrado en la hoja (vinculado a la puerta: bascula con ella).
+            cctx.font = `bold ${Math.round(TH * 0.3)}px Arial, sans-serif`;
+            cctx.textAlign = 'center';
+            cctx.textBaseline = 'middle';
+            cctx.fillStyle = numberColor;
+            cctx.fillText(String(floor), TW / 2, TH / 2);
+          },
+        });
         const dctx = dt.getContext() as unknown as CanvasRenderingContext2D;
-        dctx.clearRect(0, 0, 384, 768);
+        dctx.clearRect(0, 0, TW, TH);
         dctx.drawImage(c, 0, 0);
         dt.update(true);
       };
@@ -815,18 +887,71 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       // plano de la pared (z del arte −1.38..−1.21 frente al muro fino −1.31..−1.21) y se
       // veían "a través de la pared" cuando la fachada vecina estaba abierta. Con wallT 0.3
       // el muro envuelve esas geometrías y la HOJA se monta DELANTE del canto (leafZ).
+      // v1.27 — el muro cubre la CÉLULA COMPLETA (y0..y0+cellH): entre cubos apilados ya no
+      // queda la ranura de gapH por la que se colaba el exterior; los cubos vecinos abutan
+      // (caras opuestas, una culled) y la solera de la vivienda de arriba cierra el resto.
       const leafZ = zF - stF.wallT / 2 - 0.015;
-      const hFull = v.cellH - v.gapH;
+      const hFull = v.cellH;
       const dL = doorX - stF.doorW / 2;
       const dR = doorX + stF.doorW / 2;
       const dTop = y0 + stF.doorBottom + stF.doorH;
+      const wv = stF.window;
       const wallSeg = (x0: number, x1: number, yA: number, yB: number): void => {
         if (x1 - x0 < 0.02 || yB - yA < 0.02) return;
         attach(b.id, box(`${b.id}_fachada_${x0.toFixed(2)}_${yA.toFixed(2)}`, x1 - x0, yB - yA, stF.wallT, (x0 + x1) / 2, yA + (yB - yA) / 2, zF, wallMat));
       };
-      wallSeg(Math.max(left, stF.fullWall === false ? dL - stF.halfW : left), dL, y0, y0 + hFull);
-      wallSeg(dR, Math.min(right, stF.fullWall === false ? dR + stF.halfW : right), y0, y0 + hFull);
-      wallSeg(dL, dR, dTop, y0 + hFull);
+      // Muro trasero del cubo (v1.27, catálogo): con el ventanal abierto, sin fondo se veía
+      // el horizontal a través del vidrio; el muro trasero devuelve la caja cerrada (la luz
+      // nocturna del cubo rebota y se LEE desde la calle).
+      if (wv?.rear) {
+        const dep = depthOf(b);
+        attach(b.id, box(`${b.id}_fondo_cubo`, right - left, hFull, stF.wallT, (left + right) / 2, y0 + hFull / 2, frontZ + dep - stF.wallT / 2, wallMat));
+      }
+      if (!wv?.enabled) {
+        // Comportamiento v1.26 intacto si el ventanal viene apagado del catálogo.
+        wallSeg(Math.max(left, stF.fullWall === false ? dL - stF.halfW : left), dL, y0, y0 + hFull);
+        wallSeg(dR, Math.min(right, stF.fullWall === false ? dR + stF.halfW : right), y0, y0 + hFull);
+        wallSeg(dL, dR, dTop, y0 + hFull);
+      } else {
+        // VENTANAL (v1.27): banda de vidrio sill..head partida alrededor de la columna de la
+        // puerta; peanas de muro debajo y encima; umbral bajo la puerta y vidrio sobre ella.
+        // El vidrio es un PLANO con alpha (cristal suave) a doble cara; los montantes van
+        // DELANTE del plano del vidrio (nunca coplanares: la regla de la casa).
+        const ySill = y0 + wv.sill;
+        const yHead = Math.min(y0 + wv.head, y0 + hFull - 0.06);
+        wallSeg(left, dL, y0, ySill);
+        wallSeg(dR, right, y0, ySill);
+        wallSeg(dL, dR, y0, y0 + stF.doorBottom); // umbral bajo la hoja
+        wallSeg(left, right, yHead, y0 + hFull);
+        const glassMat = mat(`${b.id}_ventanal_mat`);
+        glassMat.diffuseColor = Color3.FromHexString(wv.color);
+        glassMat.alpha = wv.alpha;
+        glassMat.specularColor = new Color3(0.32, 0.32, 0.32);
+        glassMat.backFaceCulling = false; // cristal visto desde dentro y desde fuera
+        stairWallMats.push({ mat: glassMat as unknown as BlockMat }); // el vidrio brilla con la luz del cubo
+        const glassPane = (x0: number, x1: number, yA: number, yB: number): void => {
+          if (x1 - x0 < 0.02 || yB - yA < 0.02) return;
+          const pane = attach(b.id, MeshBuilder.CreatePlane(`${b.id}_vidrio_${x0.toFixed(2)}_${yA.toFixed(2)}`, { width: x1 - x0, height: yB - yA, sideOrientation: B().Mesh.DOUBLESIDE }, scene));
+          pane.position.set((x0 + x1) / 2, yA + (yB - yA) / 2, zF);
+          pane.material = glassMat;
+          pane.isPickable = false;
+        };
+        glassPane(left, dL, ySill, yHead);
+        glassPane(dR, right, ySill, yHead);
+        glassPane(dL, dR, dTop, yHead); // sobre la hoja, hasta el cabezal
+        // Montantes verticales finos repartidos por la banda (marcos de ventana reales):
+        // profundidad 0.06 centrada en zF → sobresalen 15 mm del plano del vidrio.
+        if (wv.mullions > 0) {
+          const mullMat = mat(`${b.id}_ventanal_marcos_mat`);
+          mullMat.diffuseColor = Color3.FromHexString(wv.frameColor);
+          mullMat.specularColor = new Color3(0.05, 0.05, 0.05);
+          for (let i = 1; i <= wv.mullions; i++) {
+            const mx = left + ((right - left) * i) / (wv.mullions + 1);
+            if (mx > dL - wv.mullionW && mx < dR + wv.mullionW) continue; // la columna de puerta lleva su hoja
+            attach(b.id, box(`${b.id}_montante_${i}`, wv.mullionW, yHead - ySill, 0.06, mx, (ySill + yHead) / 2, zF, mullMat));
+          }
+        }
+      }
       // Hoja: bisagras en el lado izquierdo VISTO desde el pasillo (= x mayor mirando +z).
       const hingeAtRightX = stF.hinge === 'left';
       const hinge = new TransformNode(`${b.id}_puerta_hinge`, scene);
@@ -1214,21 +1339,18 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     }
   }
 
-  // ── Macetas de pasillo (v1.16→v1.25): reparto aleatorio DETERMINISTA por hash del id del
+  // ── Macetas de pasillo (v1.16→v1.27): reparto aleatorio DETERMINISTA por hash del id del
   // pasillo (jamás nextRandom del sim): cantidad entre perFloorMin..perFloorMax, lado (fachada
   // o barandilla), tamaño y especie salen del catálogo (rules.view.pots). Nunca sobre la línea
   // de paseo (corridorZ): se pegan a fachada o barandilla para no invadir el tránsito.
-  // v1.25: las plantas son RECORTEs billboard (quads con recorte alpha dibujados a canvas —
-  // maceta + hojas, colores del catálogo): estética idéntica a los dioramas/árboles, adiós
-  // cilindros. Sin arte declarado se mantienen los cilindros de siempre.
+  // v1.27 — ARTE IA DECLARADO (pots.art): recortes billboard DETALLADOS (el dibujo a canvas
+  // era «cutre», petición expresa del vecino) cargados como Texture(dataURL/PNG directo con
+  // alpha). El arte llega pre-recortado del generador (fondo transparente, maceta a sangre en
+  // el borde inferior) — el quad se REESCALA cuando el aspect real llega (onTrim). La base del
+  // quad se HUNDE 3 cm en la losa: la maceta TOCA el suelo del pasillo, jamás vuela.
   const pt = v.pots;
-  /** Textura de planta de pasillo dibujada a canvas (2 especies del catálogo).
-   *  v1.26: subida por TEXTURE(dataURL) — los DynamicTexture desde canvas pierden el alpha
-   *  en esta config (píxeles alpha=0 → NEGRO: las macetas se veían sin recortar). */
-  const plantTexCache = new Map<number, { dt: Texture; ar: number }>();
-  const plantTex = (species: number): { dt: Texture; ar: number } => {
-    const hit = plantTexCache.get(species);
-    if (hit) return hit;
+  /** Fallback dibujado a canvas (2 especies) si el catálogo no declara arte. */
+  const plantCanvasFallback = (species: number): HTMLCanvasElement => {
     const c = document.createElement('canvas');
     c.width = 160;
     c.height = 200;
@@ -1237,7 +1359,6 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       ctx.clearRect(0, 0, 160, 200);
       const leaf = species === 0 ? pt.plantColor : pt.plant2Color;
       const leafDark = Color3.FromHexString(leaf).scale(0.78).toHexString();
-      // Maceta trapecio + borde.
       ctx.fillStyle = pt.potColor;
       ctx.strokeStyle = 'rgba(60,35,10,0.85)';
       ctx.lineWidth = 4;
@@ -1252,12 +1373,10 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       ctx.fillStyle = Color3.FromHexString(pt.potColor).scale(1.18).toHexString();
       ctx.fillRect(40, 140, 80, 14);
       ctx.strokeRect(40, 140, 80, 14);
-      // Tierra.
       ctx.fillStyle = pt.soilColor;
       ctx.beginPath();
       ctx.ellipse(80, 148, 34, 6, 0, 0, Math.PI * 2);
       ctx.fill();
-      // Hojas: abanico de elipses (especie 0 = espadas altas; especie 1 = mata redonda).
       const strokes: [number, number, number, number, number][] =
         species === 0
           ? [
@@ -1288,27 +1407,88 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         ctx.stroke();
         ctx.restore();
       }
-      // Recorte a la caja del contenido + volcado (el quad queda limpio de fondo).
       const b = alphaBoundsOf(c);
       const out = document.createElement('canvas');
       out.width = 160;
       out.height = 200;
       const octx = out.getContext('2d');
-      let ar = 160 / 200;
-      if (b && octx) {
-        const bw = Math.max(1, b.x1 - b.x0);
-        const bh = Math.max(1, b.y1 - b.y0);
-        ar = bw / bh;
-        octx.drawImage(c, b.x0, b.y0, bw, bh, 0, 0, bw, bh);
-      } else {
-        octx?.drawImage(c, 0, 0);
-      }
-      const entry = { dt: canvasTex(`maceta_tex_${species}`, out), ar };
-      plantTexCache.set(species, entry);
-      return entry;
+      if (b && octx) octx.drawImage(c, b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0, 0, 0, b.x1 - b.x0, b.y1 - b.y0);
+      else octx?.drawImage(c, 0, 0);
+      return out;
     }
-    const entry = { dt: canvasTex(`maceta_tex_${species}`, c), ar: 160 / 200 };
+    return c;
+  };
+  interface PlantTexEntry {
+    dt: Texture;
+    ar: number;
+    onTrim: Array<(ar: number) => void>;
+    loaded: boolean;
+  }
+  const plantTexCache = new Map<number, PlantTexEntry>();
+  const plantTex = (species: number): PlantTexEntry => {
+    const hit = plantTexCache.get(species);
+    if (hit) return hit;
+    const files = pt.art ?? [];
+    const file = files.length > 0 ? files[species % files.length]! : null;
+    // Placeholder 1×1 válido: updateURL(refresco real) llega con el decode del arte.
+    const dt = new (B().Texture)(
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+      scene,
+      false,
+      true,
+    );
+    dt.name = `maceta_tex_${species}`;
+    dt.hasAlpha = true;
+    const entry: PlantTexEntry = { dt, ar: 0.8, onTrim: [], loaded: false };
     plantTexCache.set(species, entry);
+    if (file) {
+      // Arte IA (fondo blanco pegado de fábrica): Image → stripCorners (flood-fill de
+      // esquinas) → recorte a la caja del contenido → Texture(dataURL) — el camino verificado
+      // en v1.26 para conservar el alpha (los DynamicTexture desde canvas pierden el canal).
+      // El ar real llega con el decode y los quads ya nacidos se reescalan vía onTrim.
+      const entry0 = entry;
+      const img = new Image();
+      img.onload = () => {
+        const big = document.createElement('canvas');
+        big.width = Math.max(1, img.naturalWidth);
+        big.height = Math.max(1, img.naturalHeight);
+        const bx = big.getContext('2d', { willReadFrequently: true });
+        if (!bx) return;
+        bx.drawImage(img, 0, 0);
+        stripCorners(big, 0.14);
+        const b = alphaBoundsOf(big);
+        const out = document.createElement('canvas');
+        if (b) {
+          out.width = Math.max(1, b.x1 - b.x0);
+          out.height = Math.max(1, b.y1 - b.y0);
+        } else {
+          out.width = big.width;
+          out.height = big.height;
+        }
+        const octx = out.getContext('2d');
+        if (!octx) return;
+        if (b) octx.drawImage(big, b.x0, b.y0, out.width, out.height, 0, 0, out.width, out.height);
+        else octx.drawImage(big, 0, 0);
+        entry0.dt.updateURL(out.toDataURL('image/png'));
+        entry0.ar = Math.max(0.05, out.width / Math.max(1, out.height));
+        entry0.loaded = true;
+        for (const cb of entry0.onTrim) cb(entry0.ar);
+      };
+      img.onerror = () => {
+        // Sin arte disponible: fallback dibujado (jamás romper el juego por un asset).
+        const c = plantCanvasFallback(species);
+        entry0.dt.updateURL(c.toDataURL('image/png'));
+        entry0.ar = c.width / Math.max(1, c.height);
+        entry0.loaded = true;
+        for (const cb of entry0.onTrim) cb(entry0.ar);
+      };
+      img.src = file;
+    } else {
+      const c = plantCanvasFallback(species);
+      entry.dt = canvasTex(`maceta_tex_${species}`, c);
+      entry.ar = c.width / Math.max(1, c.height);
+      entry.loaded = true;
+    }
     return entry;
   };
   /** v1.26 — centros de puerta de la planta (viviendas + cubo de escalera): ninguna maceta
@@ -1338,8 +1518,8 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       const s = 0.85 + hash01(b.id, 400 + i) * 0.3;
       const species = hash01(b.id, 600 + i) < 0.5 ? 0 : 1;
       {
-        // v1.26: recorte billboard con textura dataURL (sin fondo negro).
-        const h = (pt.artH ?? 0.62) * s;
+        // v1.27: recorte billboard con arte IA (PNG alpha) + base HUNDIDA en la losa.
+        const h = (pt.artH ?? 0.85) * s;
         const art = plantTex(species);
         const wQ = h * art.ar;
         const pm = mat(`${b.id}_maceta_bill_${i}_mat`);
@@ -1352,7 +1532,14 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         // false por defecto) y la maceta se veía con fondo negro.
         pm.useAlphaFromDiffuseTexture = true;
         const q = attach(b.id, MeshBuilder.CreatePlane(`${b.id}_maceta_${i}`, { width: wQ, height: h }, scene));
-        q.position.set(x, ySlab + h / 2, z);
+        q.position.set(x, ySlab + h / 2 - 0.03, z);
+        if (!art.loaded) {
+          // El aspect real llega con el decode del PNG: el quad se reescala en X.
+          const ar0 = art.ar;
+          art.onTrim.push((nar) => {
+            q.scaling.x = nar / ar0;
+          });
+        }
         q.material = pm;
         q.isPickable = false;
       }

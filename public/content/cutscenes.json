@@ -171,7 +171,7 @@
         "type": "walk",
         "who": "$role.abuela",
         "from": {
-          "block": "blk_p4_c",
+          "block": "blk_p2_c",
           "at": "door"
         },
         "to": {
@@ -219,7 +219,7 @@
         "type": "walk",
         "who": "$role.vendedor",
         "from": {
-          "block": "blk_p4_b",
+          "block": "blk_p3_b",
           "at": "door"
         },
         "to": {
@@ -494,7 +494,7 @@
       {
         "type": "cam",
         "focus": {
-          "block": "blk_p4_c",
+          "block": "blk_p2_c",
           "at": "door"
         }
       },
@@ -502,7 +502,7 @@
         "type": "walk",
         "who": "$role.visitante",
         "to": {
-          "block": "blk_p4_c",
+          "block": "blk_p2_c",
           "at": "door"
         }
       },
@@ -524,7 +524,7 @@
         "type": "walk",
         "who": "$role.visitante",
         "to": {
-          "block": "blk_p4_c",
+          "block": "blk_p2_c",
           "at": "center"
         }
       },
@@ -549,7 +549,7 @@
       {
         "type": "cam",
         "focus": {
-          "block": "blk_p4_d",
+          "block": "blk_p1_c",
           "at": "door"
         }
       },
@@ -557,7 +557,7 @@
         "type": "walk",
         "who": "$role.visitante",
         "to": {
-          "block": "blk_p4_d",
+          "block": "blk_p1_c",
           "at": "door"
         }
       },
@@ -579,7 +579,7 @@
         "type": "walk",
         "who": "$role.visitante",
         "to": {
-          "block": "blk_p4_d",
+          "block": "blk_p1_c",
           "at": "center"
         }
       },
