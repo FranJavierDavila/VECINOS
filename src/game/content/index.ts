@@ -1,4 +1,4 @@
-import type { AchievementsCatalog, AssetsCatalog, Content, CrossingsCatalog, EcosystemContent, Effect, EmotesCatalog, StreetCatalog, SoundsCatalog } from '@/game/core/types';
+import type { AchievementsCatalog, AssetsCatalog, Content, CrossingsCatalog, EcosystemContent, Effect, EmotesCatalog, InteriorsCatalog, StreetCatalog, SoundsCatalog } from '@/game/core/types';
 import {
   achievementsCatalogSchema,
   blockListSchema,
@@ -18,6 +18,7 @@ import {
   scenarioListSchema,
   streetCatalogSchema,
   soundsCatalogSchema,
+  interiorsCatalogSchema,
   templateListSchema,
   assetsCatalogSchema,
 } from './schemas';
@@ -135,6 +136,15 @@ export async function loadContent(baseUrl: string = '/content/'): Promise<{ cont
       throw new Error(`sounds.json (sonido procedural) inválido: ${e instanceof Error ? e.message : String(e)}`);
     }
 
+    // Dioramas interiores (v1.23, OPCIONAL): sin el fichero, interiores greybox como siempre.
+    let interiors: InteriorsCatalog | undefined;
+    try {
+      const res = await fetch(`${baseUrl}interiors.json`);
+      if (res.ok) interiors = interiorsCatalogSchema.parse(await res.json()) as InteriorsCatalog;
+    } catch (e) {
+      throw new Error(`interiors.json (dioramas) inválido: ${e instanceof Error ? e.message : String(e)}`);
+    }
+
     const content: Content = {
       rules,
       blocks: indexById(blocks),
@@ -156,6 +166,7 @@ export async function loadContent(baseUrl: string = '/content/'): Promise<{ cont
       crossings,
       street,
       sounds,
+      interiors,
     };
 
     const issues = validateContent(content);

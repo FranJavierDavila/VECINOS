@@ -1,206 +1,754 @@
 {
   "masterGain": 0.4,
   "sounds": {
-    "ui_click": { "kind": "tone", "wave": "triangle", "freq": 660, "freqEnd": 520, "durMs": 55, "gain": 0.18 },
+    "ui_click": {
+      "kind": "tone",
+      "wave": "triangle",
+      "freq": 660,
+      "freqEnd": 520,
+      "durMs": 55,
+      "gain": 0.18
+    },
     "phone_ring": {
       "kind": "seq",
       "steps": [
-        { "wave": "square", "freq": 880, "durMs": 90, "gain": 0.2, "atMs": 0 },
-        { "wave": "square", "freq": 880, "durMs": 90, "gain": 0.2, "atMs": 170 },
-        { "wave": "square", "freq": 880, "durMs": 90, "gain": 0.2, "atMs": 340 }
+        {
+          "wave": "square",
+          "freq": 880,
+          "durMs": 90,
+          "gain": 0.2,
+          "atMs": 0
+        },
+        {
+          "wave": "square",
+          "freq": 880,
+          "durMs": 90,
+          "gain": 0.2,
+          "atMs": 170
+        },
+        {
+          "wave": "square",
+          "freq": 880,
+          "durMs": 90,
+          "gain": 0.2,
+          "atMs": 340
+        }
       ]
     },
-    "door_open": { "kind": "tone", "wave": "sine", "freq": 300, "freqEnd": 520, "durMs": 130, "gain": 0.2 },
+    "door_open": {
+      "kind": "tone",
+      "wave": "sine",
+      "freq": 300,
+      "freqEnd": 520,
+      "durMs": 130,
+      "gain": 0.2
+    },
     "door_locked": {
       "kind": "seq",
       "steps": [
-        { "wave": "square", "freq": 210, "durMs": 130, "gain": 0.22, "atMs": 0 },
-        { "wave": "square", "freq": 170, "durMs": 170, "gain": 0.22, "atMs": 170 }
+        {
+          "wave": "square",
+          "freq": 210,
+          "durMs": 130,
+          "gain": 0.22,
+          "atMs": 0
+        },
+        {
+          "wave": "square",
+          "freq": 170,
+          "durMs": 170,
+          "gain": 0.22,
+          "atMs": 170
+        }
       ]
     },
     "doorbell": {
       "kind": "seq",
       "steps": [
-        { "wave": "sine", "freq": 784, "durMs": 180, "gain": 0.24, "atMs": 0 },
-        { "wave": "sine", "freq": 588, "durMs": 260, "gain": 0.24, "atMs": 220 }
+        {
+          "wave": "sine",
+          "freq": 784,
+          "durMs": 180,
+          "gain": 0.24,
+          "atMs": 0
+        },
+        {
+          "wave": "sine",
+          "freq": 588,
+          "durMs": 260,
+          "gain": 0.24,
+          "atMs": 220
+        }
       ]
     },
     "coins": {
       "kind": "seq",
       "steps": [
-        { "wave": "triangle", "freq": 990, "durMs": 80, "gain": 0.22, "atMs": 0 },
-        { "wave": "triangle", "freq": 1320, "durMs": 110, "gain": 0.22, "atMs": 90 }
+        {
+          "wave": "triangle",
+          "freq": 990,
+          "durMs": 80,
+          "gain": 0.22,
+          "atMs": 0
+        },
+        {
+          "wave": "triangle",
+          "freq": 1320,
+          "durMs": 110,
+          "gain": 0.22,
+          "atMs": 90
+        }
       ]
     },
     "jingle_win": {
       "kind": "seq",
       "steps": [
-        { "wave": "triangle", "freq": 523, "durMs": 120, "gain": 0.22, "atMs": 0 },
-        { "wave": "triangle", "freq": 659, "durMs": 120, "gain": 0.22, "atMs": 110 },
-        { "wave": "triangle", "freq": 784, "durMs": 120, "gain": 0.22, "atMs": 220 },
-        { "wave": "triangle", "freq": 1047, "durMs": 220, "gain": 0.24, "atMs": 330 }
+        {
+          "wave": "triangle",
+          "freq": 523,
+          "durMs": 120,
+          "gain": 0.22,
+          "atMs": 0
+        },
+        {
+          "wave": "triangle",
+          "freq": 659,
+          "durMs": 120,
+          "gain": 0.22,
+          "atMs": 110
+        },
+        {
+          "wave": "triangle",
+          "freq": 784,
+          "durMs": 120,
+          "gain": 0.22,
+          "atMs": 220
+        },
+        {
+          "wave": "triangle",
+          "freq": 1047,
+          "durMs": 220,
+          "gain": 0.24,
+          "atMs": 330
+        }
       ]
     },
     "jingle_lose": {
       "kind": "seq",
       "steps": [
-        { "wave": "triangle", "freq": 392, "durMs": 160, "gain": 0.22, "atMs": 0 },
-        { "wave": "triangle", "freq": 330, "durMs": 160, "gain": 0.22, "atMs": 150 },
-        { "wave": "triangle", "freq": 262, "durMs": 260, "gain": 0.22, "atMs": 300 }
+        {
+          "wave": "triangle",
+          "freq": 392,
+          "durMs": 160,
+          "gain": 0.22,
+          "atMs": 0
+        },
+        {
+          "wave": "triangle",
+          "freq": 330,
+          "durMs": 160,
+          "gain": 0.22,
+          "atMs": 150
+        },
+        {
+          "wave": "triangle",
+          "freq": 262,
+          "durMs": 260,
+          "gain": 0.22,
+          "atMs": 300
+        }
       ]
     },
-    "gavel": { "kind": "noise", "durMs": 100, "gain": 0.38, "filterHz": 600 },
-    "minigame_start": { "kind": "tone", "wave": "square", "freq": 440, "freqEnd": 880, "durMs": 150, "gain": 0.18 },
-    "mg_hit": { "kind": "tone", "wave": "triangle", "freq": 880, "durMs": 70, "gain": 0.22 },
-    "mg_miss": { "kind": "tone", "wave": "sawtooth", "freq": 220, "freqEnd": 140, "durMs": 140, "gain": 0.18 },
-    "thud": { "kind": "noise", "durMs": 80, "gain": 0.3, "filterHz": 300 },
-    "drill": { "kind": "noise", "durMs": 320, "gain": 0.18, "filterHz": 2000 },
-    "wind": { "kind": "noise", "durMs": 380, "gain": 0.1, "filterHz": 500 },
-    "stamp": { "kind": "noise", "durMs": 60, "gain": 0.32, "filterHz": 900 },
+    "gavel": {
+      "kind": "noise",
+      "durMs": 100,
+      "gain": 0.38,
+      "filterHz": 600
+    },
+    "minigame_start": {
+      "kind": "tone",
+      "wave": "square",
+      "freq": 440,
+      "freqEnd": 880,
+      "durMs": 150,
+      "gain": 0.18
+    },
+    "mg_hit": {
+      "kind": "tone",
+      "wave": "triangle",
+      "freq": 880,
+      "durMs": 70,
+      "gain": 0.22
+    },
+    "mg_miss": {
+      "kind": "tone",
+      "wave": "sawtooth",
+      "freq": 220,
+      "freqEnd": 140,
+      "durMs": 140,
+      "gain": 0.18
+    },
+    "thud": {
+      "kind": "noise",
+      "durMs": 80,
+      "gain": 0.3,
+      "filterHz": 300
+    },
+    "drill": {
+      "kind": "noise",
+      "durMs": 320,
+      "gain": 0.18,
+      "filterHz": 2000
+    },
+    "wind": {
+      "kind": "noise",
+      "durMs": 380,
+      "gain": 0.1,
+      "filterHz": 500
+    },
+    "stamp": {
+      "kind": "noise",
+      "durMs": 60,
+      "gain": 0.32,
+      "filterHz": 900
+    },
     "calle_vehiculo": {
       "kind": "seq",
       "steps": [
-        { "kind": "noise", "durMs": 420, "gain": 0.1, "filterHz": 420, "atMs": 0 },
-        { "wave": "sine", "freq": 130, "freqEnd": 95, "durMs": 420, "gain": 0.07, "atMs": 0 }
+        {
+          "kind": "noise",
+          "durMs": 420,
+          "gain": 0.1,
+          "filterHz": 420,
+          "atMs": 0
+        },
+        {
+          "wave": "sine",
+          "freq": 130,
+          "freqEnd": 95,
+          "durMs": 420,
+          "gain": 0.07,
+          "atMs": 0
+        }
       ]
     },
     "voz_megafono": {
       "kind": "seq",
       "steps": [
-        { "wave": "square", "freq": 210, "freqEnd": 180, "durMs": 260, "gain": 0.12, "atMs": 0 },
-        { "wave": "square", "freq": 240, "freqEnd": 190, "durMs": 300, "gain": 0.12, "atMs": 300 },
-        { "wave": "square", "freq": 200, "freqEnd": 165, "durMs": 380, "gain": 0.13, "atMs": 640 }
+        {
+          "wave": "square",
+          "freq": 210,
+          "freqEnd": 180,
+          "durMs": 260,
+          "gain": 0.12,
+          "atMs": 0
+        },
+        {
+          "wave": "square",
+          "freq": 240,
+          "freqEnd": 190,
+          "durMs": 300,
+          "gain": 0.12,
+          "atMs": 300
+        },
+        {
+          "wave": "square",
+          "freq": 200,
+          "freqEnd": 165,
+          "durMs": 380,
+          "gain": 0.13,
+          "atMs": 640
+        }
       ]
     },
     "voz_murmullo": {
       "kind": "seq",
       "steps": [
-        { "wave": "sine", "freq": 165, "durMs": 130, "gain": 0.1, "atMs": 0 },
-        { "wave": "sine", "freq": 190, "durMs": 110, "gain": 0.08, "atMs": 150 },
-        { "wave": "sine", "freq": 155, "durMs": 150, "gain": 0.09, "atMs": 280 }
+        {
+          "wave": "sine",
+          "freq": 165,
+          "durMs": 130,
+          "gain": 0.1,
+          "atMs": 0
+        },
+        {
+          "wave": "sine",
+          "freq": 190,
+          "durMs": 110,
+          "gain": 0.08,
+          "atMs": 150
+        },
+        {
+          "wave": "sine",
+          "freq": 155,
+          "durMs": 150,
+          "gain": 0.09,
+          "atMs": 280
+        }
       ]
     },
     "voz_murmullo_b": {
       "kind": "seq",
       "steps": [
-        { "wave": "sine", "freq": 150, "durMs": 160, "gain": 0.09, "atMs": 0 },
-        { "wave": "sine", "freq": 210, "durMs": 120, "gain": 0.07, "atMs": 180 },
-        { "wave": "sine", "freq": 170, "durMs": 140, "gain": 0.08, "atMs": 320 }
+        {
+          "wave": "sine",
+          "freq": 150,
+          "durMs": 160,
+          "gain": 0.09,
+          "atMs": 0
+        },
+        {
+          "wave": "sine",
+          "freq": 210,
+          "durMs": 120,
+          "gain": 0.07,
+          "atMs": 180
+        },
+        {
+          "wave": "sine",
+          "freq": 170,
+          "durMs": 140,
+          "gain": 0.08,
+          "atMs": 320
+        }
       ]
     },
     "voz_suspiro": {
       "kind": "seq",
       "steps": [
-        { "kind": "noise", "durMs": 260, "gain": 0.05, "filterHz": 850, "atMs": 0 },
-        { "wave": "sine", "freq": 330, "freqEnd": 175, "durMs": 560, "gain": 0.08, "atMs": 120 }
+        {
+          "kind": "noise",
+          "durMs": 260,
+          "gain": 0.05,
+          "filterHz": 850,
+          "atMs": 0
+        },
+        {
+          "wave": "sine",
+          "freq": 330,
+          "freqEnd": 175,
+          "durMs": 560,
+          "gain": 0.08,
+          "atMs": 120
+        }
       ]
     },
     "voz_suspiro_b": {
       "kind": "seq",
       "steps": [
-        { "kind": "noise", "durMs": 300, "gain": 0.04, "filterHz": 700, "atMs": 0 },
-        { "wave": "sine", "freq": 290, "freqEnd": 150, "durMs": 640, "gain": 0.07, "atMs": 140 }
+        {
+          "kind": "noise",
+          "durMs": 300,
+          "gain": 0.04,
+          "filterHz": 700,
+          "atMs": 0
+        },
+        {
+          "wave": "sine",
+          "freq": 290,
+          "freqEnd": 150,
+          "durMs": 640,
+          "gain": 0.07,
+          "atMs": 140
+        }
       ]
     },
     "voz_risa": {
       "kind": "seq",
       "steps": [
-        { "wave": "triangle", "freq": 262, "durMs": 70, "gain": 0.11, "atMs": 0 },
-        { "wave": "triangle", "freq": 330, "durMs": 70, "gain": 0.11, "atMs": 95 },
-        { "wave": "triangle", "freq": 294, "durMs": 70, "gain": 0.1, "atMs": 190 },
-        { "wave": "triangle", "freq": 392, "durMs": 90, "gain": 0.1, "atMs": 285 }
+        {
+          "wave": "triangle",
+          "freq": 262,
+          "durMs": 70,
+          "gain": 0.11,
+          "atMs": 0
+        },
+        {
+          "wave": "triangle",
+          "freq": 330,
+          "durMs": 70,
+          "gain": 0.11,
+          "atMs": 95
+        },
+        {
+          "wave": "triangle",
+          "freq": 294,
+          "durMs": 70,
+          "gain": 0.1,
+          "atMs": 190
+        },
+        {
+          "wave": "triangle",
+          "freq": 392,
+          "durMs": 90,
+          "gain": 0.1,
+          "atMs": 285
+        }
       ]
     },
     "voz_risa_b": {
       "kind": "seq",
       "steps": [
-        { "wave": "triangle", "freq": 294, "durMs": 65, "gain": 0.1, "atMs": 0 },
-        { "wave": "triangle", "freq": 262, "durMs": 65, "gain": 0.1, "atMs": 90 },
-        { "wave": "triangle", "freq": 349, "durMs": 110, "gain": 0.09, "atMs": 180 }
+        {
+          "wave": "triangle",
+          "freq": 294,
+          "durMs": 65,
+          "gain": 0.1,
+          "atMs": 0
+        },
+        {
+          "wave": "triangle",
+          "freq": 262,
+          "durMs": 65,
+          "gain": 0.1,
+          "atMs": 90
+        },
+        {
+          "wave": "triangle",
+          "freq": 349,
+          "durMs": 110,
+          "gain": 0.09,
+          "atMs": 180
+        }
       ]
     },
     "voz_silbido": {
       "kind": "seq",
       "steps": [
-        { "wave": "sine", "freq": 880, "freqEnd": 1320, "durMs": 220, "gain": 0.09, "atMs": 0 },
-        { "wave": "sine", "freq": 1180, "freqEnd": 990, "durMs": 260, "gain": 0.08, "atMs": 240 },
-        { "wave": "sine", "freq": 990, "freqEnd": 1320, "durMs": 220, "gain": 0.07, "atMs": 520 }
+        {
+          "wave": "sine",
+          "freq": 880,
+          "freqEnd": 1320,
+          "durMs": 220,
+          "gain": 0.09,
+          "atMs": 0
+        },
+        {
+          "wave": "sine",
+          "freq": 1180,
+          "freqEnd": 990,
+          "durMs": 260,
+          "gain": 0.08,
+          "atMs": 240
+        },
+        {
+          "wave": "sine",
+          "freq": 990,
+          "freqEnd": 1320,
+          "durMs": 220,
+          "gain": 0.07,
+          "atMs": 520
+        }
       ]
     },
     "voz_cuchicheo": {
       "kind": "seq",
       "steps": [
-        { "kind": "noise", "durMs": 140, "gain": 0.045, "filterHz": 1100, "atMs": 0 },
-        { "wave": "sine", "freq": 210, "durMs": 90, "gain": 0.05, "atMs": 160 },
-        { "kind": "noise", "durMs": 120, "gain": 0.04, "filterHz": 950, "atMs": 280 },
-        { "wave": "sine", "freq": 230, "durMs": 80, "gain": 0.045, "atMs": 420 }
+        {
+          "kind": "noise",
+          "durMs": 140,
+          "gain": 0.045,
+          "filterHz": 1100,
+          "atMs": 0
+        },
+        {
+          "wave": "sine",
+          "freq": 210,
+          "durMs": 90,
+          "gain": 0.05,
+          "atMs": 160
+        },
+        {
+          "kind": "noise",
+          "durMs": 120,
+          "gain": 0.04,
+          "filterHz": 950,
+          "atMs": 280
+        },
+        {
+          "wave": "sine",
+          "freq": 230,
+          "durMs": 80,
+          "gain": 0.045,
+          "atMs": 420
+        }
       ]
     },
     "voz_confesion": {
       "kind": "seq",
       "steps": [
-        { "wave": "sine", "freq": 220, "durMs": 260, "gain": 0.08, "atMs": 0 },
-        { "wave": "sine", "freq": 196, "durMs": 320, "gain": 0.07, "atMs": 320 },
-        { "wave": "sine", "freq": 175, "durMs": 420, "gain": 0.06, "atMs": 680 }
+        {
+          "wave": "sine",
+          "freq": 220,
+          "durMs": 260,
+          "gain": 0.08,
+          "atMs": 0
+        },
+        {
+          "wave": "sine",
+          "freq": 196,
+          "durMs": 320,
+          "gain": 0.07,
+          "atMs": 320
+        },
+        {
+          "wave": "sine",
+          "freq": 175,
+          "durMs": 420,
+          "gain": 0.06,
+          "atMs": 680
+        }
       ]
     },
     "voz_queja": {
       "kind": "seq",
       "steps": [
-        { "wave": "sawtooth", "freq": 240, "freqEnd": 185, "durMs": 320, "gain": 0.09, "atMs": 0 },
-        { "kind": "noise", "durMs": 180, "gain": 0.04, "filterHz": 600, "atMs": 340 },
-        { "wave": "sawtooth", "freq": 200, "freqEnd": 155, "durMs": 420, "gain": 0.08, "atMs": 520 }
+        {
+          "wave": "sawtooth",
+          "freq": 240,
+          "freqEnd": 185,
+          "durMs": 320,
+          "gain": 0.09,
+          "atMs": 0
+        },
+        {
+          "kind": "noise",
+          "durMs": 180,
+          "gain": 0.04,
+          "filterHz": 600,
+          "atMs": 340
+        },
+        {
+          "wave": "sawtooth",
+          "freq": 200,
+          "freqEnd": 155,
+          "durMs": 420,
+          "gain": 0.08,
+          "atMs": 520
+        }
       ]
     },
     "voz_queja_b": {
       "kind": "seq",
       "steps": [
-        { "wave": "sawtooth", "freq": 210, "freqEnd": 165, "durMs": 380, "gain": 0.08, "atMs": 0 },
-        { "wave": "sine", "freq": 140, "freqEnd": 120, "durMs": 300, "gain": 0.06, "atMs": 400 }
+        {
+          "wave": "sawtooth",
+          "freq": 210,
+          "freqEnd": 165,
+          "durMs": 380,
+          "gain": 0.08,
+          "atMs": 0
+        },
+        {
+          "wave": "sine",
+          "freq": 140,
+          "freqEnd": 120,
+          "durMs": 300,
+          "gain": 0.06,
+          "atMs": 400
+        }
       ]
     },
     "voz_lamento": {
       "kind": "seq",
       "steps": [
-        { "wave": "sine", "freq": 262, "freqEnd": 208, "durMs": 420, "gain": 0.09, "atMs": 0 },
-        { "wave": "sine", "freq": 196, "freqEnd": 147, "durMs": 520, "gain": 0.08, "atMs": 440 }
+        {
+          "wave": "sine",
+          "freq": 262,
+          "freqEnd": 208,
+          "durMs": 420,
+          "gain": 0.09,
+          "atMs": 0
+        },
+        {
+          "wave": "sine",
+          "freq": 196,
+          "freqEnd": 147,
+          "durMs": 520,
+          "gain": 0.08,
+          "atMs": 440
+        }
       ]
     },
     "voz_protesta": {
       "kind": "seq",
       "steps": [
-        { "wave": "square", "freq": 196, "durMs": 150, "gain": 0.1, "atMs": 0 },
-        { "wave": "square", "freq": 175, "durMs": 150, "gain": 0.1, "atMs": 190 },
-        { "wave": "square", "freq": 147, "freqEnd": 120, "durMs": 260, "gain": 0.11, "atMs": 380 }
+        {
+          "wave": "square",
+          "freq": 196,
+          "durMs": 150,
+          "gain": 0.1,
+          "atMs": 0
+        },
+        {
+          "wave": "square",
+          "freq": 175,
+          "durMs": 150,
+          "gain": 0.1,
+          "atMs": 190
+        },
+        {
+          "wave": "square",
+          "freq": 147,
+          "freqEnd": 120,
+          "durMs": 260,
+          "gain": 0.11,
+          "atMs": 380
+        }
       ]
     },
-    "voz_soplido": { "kind": "noise", "durMs": 220, "gain": 0.05, "filterHz": 1250 },
+    "voz_soplido": {
+      "kind": "noise",
+      "durMs": 220,
+      "gain": 0.05,
+      "filterHz": 1250
+    },
     "voz_hum": {
       "kind": "seq",
       "steps": [
-        { "wave": "sine", "freq": 196, "durMs": 240, "gain": 0.08, "atMs": 0 },
-        { "wave": "sine", "freq": 247, "durMs": 240, "gain": 0.08, "atMs": 260 },
-        { "wave": "sine", "freq": 220, "durMs": 340, "gain": 0.07, "atMs": 520 }
+        {
+          "wave": "sine",
+          "freq": 196,
+          "durMs": 240,
+          "gain": 0.08,
+          "atMs": 0
+        },
+        {
+          "wave": "sine",
+          "freq": 247,
+          "durMs": 240,
+          "gain": 0.08,
+          "atMs": 260
+        },
+        {
+          "wave": "sine",
+          "freq": 220,
+          "durMs": 340,
+          "gain": 0.07,
+          "atMs": 520
+        }
+      ]
+    },
+    "hucha_in": {
+      "kind": "seq",
+      "steps": [
+        {
+          "wave": "square",
+          "freq": 1245,
+          "durMs": 60,
+          "gain": 0.2,
+          "attackMs": 2,
+          "atMs": 0
+        },
+        {
+          "wave": "square",
+          "freq": 1660,
+          "durMs": 80,
+          "gain": 0.18,
+          "attackMs": 2,
+          "atMs": 65
+        },
+        {
+          "kind": "noise",
+          "durMs": 140,
+          "gain": 0.1,
+          "filterHz": 3400,
+          "atMs": 90
+        },
+        {
+          "wave": "triangle",
+          "freq": 990,
+          "durMs": 150,
+          "gain": 0.16,
+          "atMs": 190
+        }
+      ]
+    },
+    "hucha_out": {
+      "kind": "seq",
+      "steps": [
+        {
+          "wave": "sawtooth",
+          "freq": 430,
+          "freqEnd": 190,
+          "durMs": 240,
+          "gain": 0.18,
+          "attackMs": 4,
+          "atMs": 0
+        },
+        {
+          "kind": "noise",
+          "durMs": 200,
+          "gain": 0.14,
+          "filterHz": 850,
+          "atMs": 55
+        },
+        {
+          "wave": "square",
+          "freq": 235,
+          "freqEnd": 130,
+          "durMs": 190,
+          "gain": 0.15,
+          "atMs": 230
+        }
       ]
     }
   },
   "events": {
-    "step_started:phone_call": ["phone_ring"],
-    "choice_required": ["ui_click"],
-    "door_locked": ["door_locked"],
-    "block_unlocked": ["door_open"],
-    "neighbor_arrived": ["doorbell"],
-    "mission_completed": ["jingle_win"],
-    "mission_failed": ["jingle_lose"],
-    "block_bought": ["coins"],
-    "rent_collected": ["coins"],
-    "work_done": ["coins"],
-    "junta_result": ["gavel"],
-    "minigame_requested": ["minigame_start"],
-    "weather_changed": ["wind"],
-    "furniture_placed": ["thud"],
-    "room_renovated": ["drill"],
-    "ui_toast": ["stamp"]
+    "step_started:phone_call": [
+      "phone_ring"
+    ],
+    "choice_required": [
+      "ui_click"
+    ],
+    "door_locked": [
+      "door_locked"
+    ],
+    "block_unlocked": [
+      "door_open"
+    ],
+    "neighbor_arrived": [
+      "doorbell"
+    ],
+    "mission_completed": [
+      "jingle_win"
+    ],
+    "mission_failed": [
+      "jingle_lose"
+    ],
+    "block_bought": [
+      "coins"
+    ],
+    "rent_collected": [
+      "coins"
+    ],
+    "work_done": [
+      "coins"
+    ],
+    "junta_result": [
+      "gavel"
+    ],
+    "minigame_requested": [
+      "minigame_start"
+    ],
+    "weather_changed": [
+      "wind"
+    ],
+    "furniture_placed": [
+      "thud"
+    ],
+    "room_renovated": [
+      "drill"
+    ],
+    "ui_toast": [
+      "stamp"
+    ],
+    "wallet_changed": [
+      "hucha_in"
+    ],
+    "funds_changed": [
+      "hucha_in"
+    ]
   },
   "voices": {
     "proximity": {
@@ -214,15 +762,43 @@
       "captionChance": 0.3
     },
     "banks": {
-      "complaint": ["voz_queja", "voz_queja_b", "voz_protesta"],
-      "protest": ["voz_protesta", "voz_megafono"],
-      "lament": ["voz_lamento", "voz_suspiro_b"],
-      "smile": ["voz_risa", "voz_risa_b", "voz_hum"],
-      "whistle": ["voz_silbido"],
-      "whisper": ["voz_cuchicheo", "voz_soplido"],
-      "confession": ["voz_confesion", "voz_murmullo_b"],
-      "murmur": ["voz_murmullo", "voz_murmullo_b"],
-      "sigh": ["voz_suspiro", "voz_soplido"]
+      "complaint": [
+        "voz_queja",
+        "voz_queja_b",
+        "voz_protesta"
+      ],
+      "protest": [
+        "voz_protesta",
+        "voz_megafono"
+      ],
+      "lament": [
+        "voz_lamento",
+        "voz_suspiro_b"
+      ],
+      "smile": [
+        "voz_risa",
+        "voz_risa_b",
+        "voz_hum"
+      ],
+      "whistle": [
+        "voz_silbido"
+      ],
+      "whisper": [
+        "voz_cuchicheo",
+        "voz_soplido"
+      ],
+      "confession": [
+        "voz_confesion",
+        "voz_murmullo_b"
+      ],
+      "murmur": [
+        "voz_murmullo",
+        "voz_murmullo_b"
+      ],
+      "sigh": [
+        "voz_suspiro",
+        "voz_soplido"
+      ]
     },
     "captions": {
       "voz_queja": "grr…",
@@ -242,9 +818,30 @@
       "voz_murmullo_b": "ya te digo…"
     },
     "moodMap": [
-      { "mood": "good", "banks": ["smile", "whistle"] },
-      { "mood": "ok", "banks": ["murmur", "sigh", "whisper", "confession"] },
-      { "mood": "bad", "banks": ["complaint", "lament", "protest"] }
+      {
+        "mood": "good",
+        "banks": [
+          "smile",
+          "whistle"
+        ]
+      },
+      {
+        "mood": "ok",
+        "banks": [
+          "murmur",
+          "sigh",
+          "whisper",
+          "confession"
+        ]
+      },
+      {
+        "mood": "bad",
+        "banks": [
+          "complaint",
+          "lament",
+          "protest"
+        ]
+      }
     ]
   }
 }

@@ -1,8 +1,8 @@
-import type { StreetCatalog, SoundsCatalog } from '@/game/content/schemas';
+import type { StreetCatalog, SoundsCatalog, InteriorsCatalog } from '@/game/content/schemas';
 
 // Re-exportados: los consumidores del contrato importan TODO desde aquí (types.ts es la
 // única fuente de verdad; los esquemas Zod son su espejo de validación).
-export type { StreetCatalog, SoundsCatalog };
+export type { StreetCatalog, SoundsCatalog, InteriorsCatalog };
 
 /**
  * VECINOS — Contrato central de tipos.
@@ -858,6 +858,9 @@ export interface Content {
   /** Catálogo procedural de sonido (v1.22, espejo del que carga audio.ts): el módulo de
    *  voces de proximidad lee su sección `voices`; también lo valida el QA. */
   sounds?: SoundsCatalog;
+  /** Dioramas interiores (v1.23, opcional): arte por tipo de estancia para los billboards
+   *  con paralaje; sin catálogo, los interiores siguen greybox. */
+  interiors?: InteriorsCatalog;
 }
 
 // ───────────────────────── Reglas y ajustes (catálogo rules.json) ─────────────────────────

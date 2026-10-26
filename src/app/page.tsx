@@ -1,7 +1,7 @@
 'use client';
 
 import GameStage from '@/components/game/GameStage';
-import { ControlsBar } from '@/components/game/ControlsBar';
+import { PostItControls } from '@/components/game/PostItControls';
 import { HudBar } from '@/components/game/HudBar';
 import { MissionTracker } from '@/components/game/MissionTracker';
 import { InfoDock } from '@/components/game/InfoDock';
@@ -10,10 +10,9 @@ import { PwaRegister } from '@/components/game/PwaRegister';
 import { getController } from '@/game/client/bridge';
 import { useT } from '@/game/client/i18n';
 
-/** VECINOS v1.17: dock de información por pestañas + logros tipo Steam (perfil persistente). */
+/** VECINOS v1.23: mandos como post-its dibujados a bolígrafo + economía siempre visible. */
 export default function Home() {
   const t = useT();
-  const g = () => getController();
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <PwaRegister />
@@ -26,15 +25,9 @@ export default function Home() {
       </header>
 
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-4">
-        <ControlsBar
-          onTogglePause={() => g()?.togglePause()}
-          onSetSpeed={(s) => g()?.setSpeed(s)}
-          onSetCam={(m) => g()?.setCamMode(m)}
-          onParty={() => g()?.partyDemo()}
-          onSkipTime={() => g()?.skipTime()}
-          onSave={() => void g()?.save()}
-          onLoad={() => void g()?.load()}
-        />
+        <div className="mb-2">
+          <PostItControls />
+        </div>
 
         <GameStage />
 

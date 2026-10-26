@@ -12,9 +12,38 @@ const CONTROL_KEYS: { keys: string[]; key: string }[] = [
   { keys: ['Espacio'], key: 'help.dialog' },
 ];
 
-/** Chuleta de controles. Requiere teclado (los controles táctiles llegan en la próxima iteración). */
-export function HelpCard() {
+/** Chuleta de controles. `flat` la dibuja sin tarjeta (para el post-it de ayuda). */
+export function HelpCard({ flat = false }: { flat?: boolean }) {
   const t = useT();
+  const content = (
+    <>
+      {CONTROL_KEYS.map((c) => (
+        <div key={c.key} className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-1">
+            {c.keys.map((k) => (
+              <kbd key={k} className="rounded border bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
+                {k}
+              </kbd>
+            ))}
+          </div>
+          <span className="text-right text-xs text-muted-foreground">{t(c.key)}</span>
+        </div>
+      ))}
+      <p className="pt-1 text-[11px] leading-relaxed text-muted-foreground">{t('help.note1')}</p>
+      <p className="text-[11px] leading-relaxed text-muted-foreground">{t('help.note2')}</p>
+    </>
+  );
+  if (flat) {
+    return (
+      <div className="space-y-2">
+        <p className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+          <Keyboard className="h-4 w-4 text-amber-500" aria-hidden="true" />
+          {t('help.title')}
+        </p>
+        {content}
+      </div>
+    );
+  }
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -23,22 +52,7 @@ export function HelpCard() {
           {t('help.title')}
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-2">
-        {CONTROL_KEYS.map((c) => (
-          <div key={c.key} className="flex items-center justify-between gap-3">
-            <div className="flex flex-wrap gap-1">
-              {c.keys.map((k) => (
-                <kbd key={k} className="rounded border bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
-                  {k}
-                </kbd>
-              ))}
-            </div>
-            <span className="text-right text-xs text-muted-foreground">{t(c.key)}</span>
-          </div>
-        ))}
-        <p className="pt-1 text-[11px] leading-relaxed text-muted-foreground">{t('help.note1')}</p>
-        <p className="text-[11px] leading-relaxed text-muted-foreground">{t('help.note2')}</p>
-      </CardContent>
+      <CardContent className="space-y-2">{content}</CardContent>
     </Card>
   );
 }

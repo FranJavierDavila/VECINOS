@@ -27,7 +27,22 @@ const DICT: Record<string, { es: string; en: string }> = {
     es: 'Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.',
     en: 'Move-ins, noise, smells, wifi, pests, smoke and levies: the neighborhood simulator.',
   },
-  'header.version': { es: 'v1.22 · la calle vive', en: 'v1.22 · the street comes alive' },
+  'header.version': { es: 'v1.23 · post-its y dioramas', en: 'v1.23 · post-its and dioramas' },
+  // ── Post-its (v1.23: mandos agrupados dibujados a bolígrafo) ──
+  'postit.time': { es: 'Tiempo', en: 'Time' },
+  'postit.options': { es: 'Opciones', en: 'Options' },
+  'postit.game': { es: 'Partida', en: 'Game' },
+  'postit.help': { es: 'Ayuda', en: 'Help' },
+  'postit.players': { es: 'Jugadores', en: 'Players' },
+  'postit.cameras': { es: 'Cámara', en: 'Camera' },
+  'postit.openPanel': { es: 'Abrir panel', en: 'Open panel' },
+  // ── Economía siempre visible (v1.23) ──
+  'money.funds': { es: 'Arcas {n} €', en: 'Funds {n} €' },
+  'money.wallet': { es: 'Hucha {n} €', en: 'Piggy {n} €' },
+  'money.fundsAria': { es: 'Arcas del edificio: {n} euros', en: 'Building funds: {n} euros' },
+  'money.walletAria': { es: 'Tu hucha: {n} euros', en: 'Your piggy bank: {n} euros' },
+  // ── Mi casa: mobiliario 3D retirado por dioramas (v1.23) ──
+  'casa.retired': { es: 'El mobiliario 3D está de reforma: los interiores se pintan ahora con dioramas de billboards (paredes, suelos y muebles ilustrados con paralaje). La colocación de muebles volverá cuando la nueva técnica esté afinada.', en: "3D furniture is under rework: interiors are now painted with billboard dioramas (illustrated walls, floors and furniture with parallax). Furniture placement will return once the new technique is polished." },
   'hud.campaign': { es: '{label} · Día {d}/{n}', en: '{label} · Day {d}/{n}' },
   'hud.campaignAria': { es: 'Días de mandato restantes', en: 'Days of your term remaining' },
   'hud.campaignOver': { es: '{label} · Día {d}/{n} · ¡juzgado pronto!', en: '{label} · Day {d}/{n} · judged soon!' },

@@ -4,6 +4,7 @@ import type { BlockInstance, Content, World } from '@/game/core/types';
 import { hash01 } from '@/game/interior';
 import { storageCorridorX, storageGeomOf, storageUnitPlan, storageUnitZ } from '@/game/storage';
 import { B } from './babylon';
+import { createDioramaDirector, newDioramaSet, type DioramaDirector, type DioramaSet } from './diorama';
 import { instantiateBlockAsset, type BlockMat } from './assets';
 
 interface BlockView {
@@ -49,6 +50,12 @@ interface InteriorView {
   covers: { mesh: Mesh; rooms: [string, string] }[];
   /** Lamparita de techo por estancia (v1.21): se enciende de noche si hay gente despierta. */
   lamps: { roomKey: string; mesh: Mesh; mat: StandardMaterial }[];
+  /** Diorama v1.23: billboards con paralaje (pared/suelo/mobiliario) por estancia. */
+  dio: DioramaSet;
+  /** Materiales del diorama del bloque (tinte nocturno idéntico a suelos/lámparas). */
+  dioMats: StandardMaterial[];
+  /** Raíz de los quads de diorama (visibilidad espejo de la fachada en applyPanels). */
+  dioRoot: TransformNode | null;
 }
 
 /**
@@ -93,6 +100,8 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     return v.commonDepth;
   };
   const mat = (name: string) => new StandardMaterial(name, scene);
+  /** Dioramas interiores (v1.23): null sin catálogo interiors.json — greybox como siempre. */
+  const diro: DioramaDirector | null = createDioramaDirector(scene, content);
   const box = (name: string, w: number, h: number, d: number, x: number, y: number, z: number, m: StandardMaterial) => {
     const mesh = MeshBuilder.CreateBox(name, { width: w, height: h, depth: d }, scene);
     mesh.position.set(x, y, z);
@@ -243,7 +252,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       // en su propio bloque trasero (más abajo, se activan al entrar).
       const geoRooms = (layout?.rooms ?? []).filter((r) => r.rect !== undefined && r.rect!.z + r.rect!.d <= v.depth + 0.01);
       if (geoRooms.length > 0 && layout) {
-        const interior: InteriorView = { floors: [], covers: [], lamps: [] };
+        const interior: InteriorView = { floors: [], covers: [], lamps: [], dio: newDioramaSet(), dioMats: [], dioRoot: null };
         const x0 = b.cell.col * v.cellW;
         const wallH = v.cellH - 2 * v.slab - 2 * v.wall;
         const partMat = mat(`${b.id}_tabique_mat`);
@@ -332,6 +341,33 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           });
         });
         interiors.set(b.id, interior);
+        // ── DIORAMA (v1.23): pared ilustrada + suelo + capas de mobiliario billboard. Los
+        // quads cuelgan de dioRoot (visibilidad espejo de la fachada en applyPanels) y del
+        // root del bloque (se desvanecen con él en el apilamiento 3D).
+        if (diro) {
+          const dioRoot = new TransformNode(`${b.id}_dio_root`, scene);
+          dioRoot.parent = roots.get(b.id)!;
+          interior.dioRoot = dioRoot;
+          const x0w = x0 + v.gapW / 2; // margen de la caja del bloque (cx − w/2)
+          const x1w = x0 + b.size.w * v.cellW - v.gapW / 2;
+          for (const lr of geoRooms) {
+            const r = lr.rect!;
+            // ¿La puerta a la sala trasera cae DENTRO de esta estancia? → pared con hueco + puerta pintada.
+            const gapCenter = rearDoor ? x0w + rearDoor.at : NaN;
+            const hostsDoor = !!rearDoor && gapCenter >= x0 + r.x && gapCenter <= x0 + r.x + r.w;
+            const wallGap = hostsDoor && rearDoor
+              ? { a: Math.max(x0w, x0w + rearDoor.at - rearDoor.width / 2), b: Math.min(x1w, x0w + rearDoor.at + rearDoor.width / 2) }
+              : null;
+            const room = diro.room(`${b.id}_${lr.key}`, lr.defId, r, { x0, frontZ, yBottom: bottom + v.slab + v.wall, yTop: bottom + v.cellH - v.slab - v.wall }, { withRearDoor: hostsDoor, wallGap, parent: dioRoot });
+            if (room) {
+              interior.dio.rooms.set(lr.key, room);
+              for (const s of room.wall) interior.dioMats.push(s.mat);
+              if (room.floor) interior.dioMats.push(room.floor.mat);
+              if (room.door) interior.dioMats.push(room.door.mat);
+              for (const s of room.sprites) interior.dioMats.push(s.mat);
+            }
+          }
+        }
       }
     } else if (b.defId === 'trasteros_planta' || b.defId === 'bajocubierta' || b.defId === v.trasteros.blockDefId) {
       // Nave de trasteros / sala de instalaciones (v1.16): forjado + trasera. El arte glTF
@@ -744,42 +780,11 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     }
   }
 
-  // ── Mobiliario placeholder (greybox del editor de interiores): una caja por ranura de las viviendas. ──
-  // Con layout 2D (Fase C), cada ranura se coloca en su rect de estancia: pos = [x, z] local;
-  // sin rects, cae al cálculo por bandas de siempre. La geometría llega al pintar.
-  const furnViews = new Map<string, { mesh: Mesh; mat: StandardMaterial; x: number; z: number; bottom: number; y: number | null }>();
-  for (const b of Object.values(world.blocks)) {
-    if (b.kind !== 'dwelling') continue;
-    const bottom = b.cell.floor * v.cellH;
-    const layoutId = content.blocks[b.defId]?.container?.layout;
-    const layout = layoutId ? content.layouts[layoutId] : undefined;
-    const geoRooms = (layout?.rooms ?? []).filter((r) => r.rect !== undefined);
-    const x0 = b.cell.col * v.cellW;
-    (layout?.rooms ?? []).forEach((layoutRoom, roomIdx) => {
-      const rdef = content.rooms[layoutRoom.defId];
-      (rdef?.furnitureSlots ?? []).forEach((slot, slotIdx) => {
-        let x: number;
-        let z: number;
-        const rect = geoRooms[roomIdx]?.rect;
-        if (rect) {
-          // Fase C: metros locales al rect de la estancia (0,0 = esquina frontal-izquierda).
-          x = x0 + rect.x + slot.pos[0];
-          z = frontZ + rect.z + slot.pos[1];
-        } else {
-          // Fallback 1D (layout sin rects): bandas como siempre.
-          const w = b.size.w * v.cellW - v.gapW;
-          const bandW = w / Math.max(1, layout?.rooms.length ?? 1);
-          const roomW = rdef?.size.w ?? 1;
-          x = x0 + roomIdx * bandW + (slot.pos[0] / Math.max(0.001, roomW)) * bandW;
-          z = frontZ + 0.35 + slotIdx * 0.32;
-        }
-        const fm = mat(`${b.id}_${layoutRoom.key}_${slot.id}_furn`);
-        const mesh = attach(b.id, box(`${b.id}_${layoutRoom.key}_${slot.id}_furn`, 1, 1, 1, x, bottom + v.slab, z, fm));
-        mesh.setEnabled(false);
-        furnViews.set(`${b.id}:${layoutRoom.key}:${slot.id}`, { mesh, mat: fm, x, z, bottom, y: slot.y ?? null });
-      });
-    });
-  }
+  // ── Mobiliario interior (v1.23): RETIRADO. Los muebles 3D greybox se sustituyen por los
+  // dioramas de billboards con paralaje (diorama.ts + content/interiors.json): paredes y
+  // suelos ilustrados y 2-3 capas de sprites entre los que se intercalan los personajes.
+  // El catálogo furniture.json y las ranuras del sim siguen intactos (data-driven); solo
+  // desaparece su representación por cajas.
 
   // ── APILAMIENTO 3D DE BLOQUES (v1.19) ── bloques TRASEROS inactivos que se ACTIVAN al
   // entrar: el bloque precedente se desvanece (fundido) y el nuevo aparece con transparencia
@@ -883,6 +888,18 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     box(`${b.id}_rear_der`, v.wall, hR, rd, rx + rw - v.wall / 2, yR, rz0 + rd / 2, matRearWall).parent = node;
     box(`${b.id}_rear_techo`, rw, v.wall, rd, rx + rw / 2, bottom + v.cellH - v.slab - v.wall / 2, rz0 + rd / 2, matRearWall).parent = node;
     box(`${b.id}_rear_lampara`, Math.min(1.2, rw * 0.4), 0.06, 0.1, rx + rw / 2, bottom + v.cellH - v.slab - v.wall - 0.08, rz0 + rd / 2, matRearLamp).parent = node;
+    // Diorama del cuarto trasero (v1.23): pared ilustrada + suelo + billboards, colgando del
+    // nodo trasero (aparece/desaparece con el bloque en el apilamiento 3D).
+    const rearInterior = interiors.get(b.id);
+    if (diro && rearInterior) {
+      const dioRoom = diro.room(`${b.id}_rear`, rearRooms[0]!.defId, rect, { x0, frontZ, yBottom: baseR, yTop: bottom + v.cellH - v.slab - v.wall }, { parent: node });
+      if (dioRoom) {
+        rearInterior.dio.rooms.set(`rear_${b.id}`, dioRoom);
+        for (const s of dioRoom.wall) rearInterior.dioMats.push(s.mat);
+        if (dioRoom.floor) rearInterior.dioMats.push(dioRoom.floor.mat);
+        for (const s of dioRoom.sprites) rearInterior.dioMats.push(s.mat);
+      }
+    }
     // Frente con el hueco de la puerta (mismas medidas que la pared partida del bloque).
     // v1.20: esta PARED DIVISORIA se recoge: al ENTRAR en el cuarto trasero desaparece
     // (mismo corte que la fachada del bloque exterior) para que la cámara vea el interior.
@@ -985,6 +1002,20 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         cellObstacleRects.push({ x0: jx - jw / 2, z0: jz - 0.25, w: jw, d: 0.5 });
         box(`${blk.id}_cell_suelo_trasto_${j}`, jw, jh, 0.5, jx, baseR + jh / 2, jz, jm).parent = node;
       }
+      // Diorama del TRASTERO propio (v1.23): hormigón + estanterías/cajas como billboards;
+      // cuelga del nodo del bloque trasero (visible solo en la fase 'inside').
+      const cellHost = interiors.get(blk.id) ?? null;
+      if (diro) {
+        const dioRoom = diro.room(`${blk.id}_cell`, 'trastero', { x: 0, z: 0, w: W, d: D }, { x0, frontZ, yBottom: baseR, yTop: baseR + H }, { parent: node });
+        if (dioRoom) {
+          const host = cellHost ?? { dio: newDioramaSet(), dioMats: [] as StandardMaterial[] };
+          host.dio.rooms.set(`cell_${blk.id}`, dioRoom);
+          for (const s of dioRoom.wall) host.dioMats.push(s.mat);
+          if (dioRoom.floor) host.dioMats.push(dioRoom.floor.mat);
+          for (const s of dioRoom.sprites) host.dioMats.push(s.mat);
+          if (!cellHost) interiors.set(blk.id, { floors: [], covers: [], lamps: [], dio: host.dio, dioMats: host.dioMats, dioRoot: null });
+        }
+      }
       const outline = outlineFrame(`${blk.id}_cell`, cxr, W, H, baseR, frontZ - 0.04);
       for (const o of outline) o.parent = node;
       registerRear(blk.id, node, outline, null);
@@ -1043,6 +1074,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
   const nightWarm = Color3.FromHexString(v.privacy.handleColor);
   const nightLampLit = nightWarm.scale(1.2);
   const nightFloorGlow = nightWarm.scale(0.5);
+  const nightDioGlow = nightWarm.scale(0.42);
   const nightDark = new Color3(0, 0, 0);
   const computeOccupancy = (): Set<string> => {
     const occ = new Set<string>();
@@ -1068,6 +1100,10 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     view.door?.setEnabled(wall);
     view.handle?.setEnabled(wall);
     view.lock?.setEnabled(locked && !view.lodHiddenPanels);
+    // Diorama (v1.23): visibilidad ESPEJO de la fachada — fachada cerrada = interior oculto,
+    // fachada abierta = diorama a la vista (y cero draw calls de interiores tapados).
+    const interior = interiors.get(b.id);
+    if (interior?.dioRoot) interior.dioRoot.setEnabled(!wall);
   }
 
   /**
@@ -1150,24 +1186,6 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           c.mesh.setEnabled(anyLocked);
         }
       }
-      // Muebles del editor de interiores: visibles/escala/color según furniture.view (catálogo).
-      for (const [key, fv] of furnViews) {
-        const [blockId, roomKey, slotId] = key.split(':');
-        const room = world.blocks[blockId ?? '']?.rooms.find((r) => r.key === roomKey);
-        const itemId = room?.furniture[slotId ?? ''] ?? '';
-        const fdef = itemId ? content.furniture[itemId] : undefined;
-        if (!fdef) {
-          fv.mesh.setEnabled(false);
-          continue;
-        }
-        const [iw, ih, idz] = fdef.view.size;
-        fv.mesh.setEnabled(true);
-        fv.mesh.scaling.set(iw, ih, idz);
-        // Con y de anclaje (muebles de pared) cuelga a esa altura; si no, apoyado en el suelo.
-        const yBase = fv.y !== null ? fv.bottom + v.slab + v.wall + fv.y : fv.bottom + v.slab + v.wall;
-        fv.mesh.position.set(fv.x, yBase + ih / 2, fv.z);
-        fv.mat.diffuseColor = Color3.FromHexString(fdef.view.color);
-      }
     },
     /** Sacude el candado de una puerta cerrada. */
     shake(blockId: string) {
@@ -1238,6 +1256,8 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
             if (lit) lamp.mat.emissiveColor = nightLampLit;
           }
           for (const f of interior.floors) f.mat.emissiveColor = lit ? nightFloorGlow : nightDark;
+          // Diorama (v1.23): el arte ilustrado sigue la misma luz que suelos y lámparas.
+          for (const m of interior.dioMats) m.emissiveColor = lit ? nightDioGlow : nightDark;
         }
       }
       // CARTELES GUÍA (v1.19): visibles solo con el jugador dentro del bloque de trasteros;

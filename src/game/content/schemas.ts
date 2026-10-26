@@ -1603,3 +1603,39 @@ export const crossingsCatalogSchema = z.object({
 });
 
 export type CrossingsCatalogParsed = z.infer<typeof crossingsCatalogSchema>;
+
+
+// ───────────────────────── Dioramas interiores (v1.23) ─────────────────────────
+
+/** Capa de billboard de mobiliario: un sprite con paralaje dentro de la estancia.
+ *  u/v son fracciones del rect de la estancia (0..1); w/h en METROS reales. */
+export const interiorSpriteSchema = z.object({
+  art: z.string().min(1),
+  w: z.number().positive(),
+  h: z.number().positive(),
+  u: z.number().min(0).max(1),
+  v: z.number().min(0).max(1),
+  layer: z.enum(['back', 'mid', 'front', 'rug']).default('mid'),
+  /** Elevación del pie del sprite sobre el suelo (m): cosas de pared o colgadas. */
+  y: z.number().min(0).default(0),
+});
+
+/** Diorama de un tipo de estancia: pared del fondo + suelo + capas de mobiliario. */
+export const interiorDioramaSchema = z.object({
+  wall: z.string().min(1),
+  floor: z.string().min(1),
+  sprites: z.array(interiorSpriteSchema).default([]),
+});
+
+/** Catálogo de interiores (OPCIONAL): sin el fichero, los interiores siguen greybox. */
+export const interiorsCatalogSchema = z.object({
+  artBase: z.string().default('/art/interiors/raw/'),
+  keyColor: z.string().default('#ffffff'),
+  keyTolerance: z.number().min(0).max(1).default(0.09),
+  processSize: z.number().int().min(64).max(2048).default(512),
+  alphaCutoff: z.number().min(0).max(1).default(0.45),
+  doorDecal: z.object({ art: z.string().min(1), w: z.number().positive(), h: z.number().positive() }),
+  rooms: z.record(z.string(), interiorDioramaSchema),
+});
+
+export type InteriorsCatalog = z.infer<typeof interiorsCatalogSchema>;

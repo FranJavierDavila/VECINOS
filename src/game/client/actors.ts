@@ -268,9 +268,31 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
         // OPERATIVO (v1.5) registra una LLAMADA: el actor camina a la puerta y espera a la
         // cabina (capacidad, puertas y semáforo los lleva el director del ascensor).
         const feat = content.blocks[here.defId]!.features!;
-        const stairPts = feat.stairs === true ? stairPathPoints(v, sx, node.y, dest.y) : [];
-        if (stairPts.length > 1) {
-          for (const pt of stairPts) a.path.push({ x: pt.x, y: pt.y, z: pt.z });
+        if (feat.stairs === true) {
+          // v1.23 — ESCALERA REAL POR PLANTAS: la escalera física conecta plantas ADYACENTES.
+          // Llamar a stairPathPoints con una subida de varias plantas estiraba cada peldaño a
+          // media planta (el vecino flotaba y atravesaba forjados). Ahora se ENCADENA un vuelo
+          // por planta: sube a la planta vecina, desembarca (el path termina en la línea del
+          // pasillo, exactamente donde arranca el siguiente vuelo) y repite hasta el destino.
+          const frac = node.y - Math.round(node.y / v.cellH) * v.cellH; // offset intra-planta (forjado + pivote)
+          const startFloor = Math.round(node.y / v.cellH);
+          const targetFloor = Math.round(dest.y / v.cellH);
+          const dir = targetFloor >= startFloor ? 1 : -1;
+          let curY = node.y;
+          let curFloor = startFloor;
+          while (curFloor !== targetFloor) {
+            curFloor += dir;
+            const nextY = curFloor * v.cellH + frac;
+            const flight = stairPathPoints(v, sx, curY, nextY);
+            if (flight.length > 1) {
+              // Enganche sin duplicar el punto donde ya está el actor (el desembarco del
+              // vuelo anterior ES el arranque del siguiente).
+              if (a.path.length > 0 || curY !== node.y) flight.shift();
+              for (const pt of flight) a.path.push({ x: pt.x, y: pt.y, z: pt.z });
+              curY = nextY;
+            }
+          }
+          if (a.path.length === 0) a.path.push({ x: sx, y: dest.y, z: v.corridorZ });
         } else if (elevators && feat.elevator === true) {
           const from = Math.round(node.y / v.cellH);
           const to = Math.round(dest.y / v.cellH);
@@ -503,8 +525,11 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
             const w = a.path[0]!;
             const wdh = Math.hypot(w.x - node.x, w.z - node.z);
             const wdy = w.y - node.y;
-            if (Math.abs(wdy) > 0.02 && wdh < 0.3) {
-              // Tramo VERTICAL en el pozo: ritmo del catálogo (ascensor operativo → cabina).
+            if (Math.abs(wdy) > 0.02 && wdh < 0.05) {
+              // Tramo VERTICAL PURO (v1.23, umbral 0.05): solo el arranque/parada vertical del
+              // fallback sin escalera. El umbral anterior (0.3) atrapaba los PELDAÑOS de la
+              // escalera real (run ≈ 0.27 m): el vecino subía en vertical como un ascensor y
+              // LUEGO patinaba en horizontal hasta el siguiente peldaño — el "sube mal".
               const shaftHere = shafts
                 .filter((s) => s.cell.floor === b.cell.floor && Math.abs(shaftXOf(s) - node.x) < 0.3)
                 .sort((s1, s2) => Math.abs(shaftXOf(s1) - node.x) - Math.abs(shaftXOf(s2) - node.x))[0];

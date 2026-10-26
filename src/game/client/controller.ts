@@ -905,9 +905,10 @@ class GameController {
     this.backdrop?.update(dt);
     this.exterior?.update(dt);
     // v1.21/v1.22: el MOBILIARIO de la calle, los vehículos, los viandantes y las
-    // manifestaciones solo viven en la vista "edificio" — en planta/estancia se apagan
-    // (menos carga, y no estorban la vista del bloque). Los updates también se saltan.
-    const streetView = store.camMode === 'edificio';
+    // manifestaciones viven en las vistas "edificio" y "planta" (v1.23: la planta baja
+    // ve pasar la acera en el encuadre — no perderse la vidilla de la calle); en
+    // estancia se apagan (menos carga, y no estorban la vista de la estancia).
+    const streetView = store.camMode === 'edificio' || store.camMode === 'planta';
     this.exterior?.setPropsVisible(streetView);
     this.traffic?.setVisible(streetView);
     this.pedestrians?.setVisible(streetView);

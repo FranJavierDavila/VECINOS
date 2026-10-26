@@ -1,0 +1,236 @@
+{
+  "artBase": "/art/interiors/raw/",
+  "keyColor": "#ffffff",
+  "keyTolerance": 0.09,
+  "processSize": 512,
+  "alphaCutoff": 0.45,
+  "doorDecal": {
+    "art": "door_rear.png",
+    "w": 1.0,
+    "h": 2.05
+  },
+  "rooms": {
+    "estancia_salon_cocina": {
+      "wall": "wall_salon.png",
+      "floor": "floor_madera.png",
+      "sprites": [
+        {
+          "art": "f_fogones.png",
+          "w": 1.35,
+          "h": 1.15,
+          "u": 0.13,
+          "v": 0.88,
+          "layer": "back"
+        },
+        {
+          "art": "f_nevera.png",
+          "w": 0.85,
+          "h": 1.7,
+          "u": 0.93,
+          "v": 0.86,
+          "layer": "back"
+        },
+        {
+          "art": "f_tv.png",
+          "w": 1.5,
+          "h": 0.95,
+          "u": 0.52,
+          "v": 0.72,
+          "layer": "back"
+        },
+        {
+          "art": "f_sofa.png",
+          "w": 1.7,
+          "h": 0.95,
+          "u": 0.3,
+          "v": 0.42,
+          "layer": "mid"
+        },
+        {
+          "art": "f_mesa.png",
+          "w": 1.45,
+          "h": 1.15,
+          "u": 0.78,
+          "v": 0.5,
+          "layer": "mid"
+        },
+        {
+          "art": "f_alfombra.png",
+          "w": 1.8,
+          "h": 1.15,
+          "u": 0.38,
+          "v": 0.32,
+          "layer": "rug"
+        },
+        {
+          "art": "f_planta.png",
+          "w": 0.75,
+          "h": 1.35,
+          "u": 0.94,
+          "v": 0.18,
+          "layer": "front"
+        },
+        {
+          "art": "f_lampara.png",
+          "w": 0.6,
+          "h": 1.5,
+          "u": 0.06,
+          "v": 0.22,
+          "layer": "front"
+        }
+      ]
+    },
+    "estancia_dormitorio": {
+      "wall": "wall_dormitorio.png",
+      "floor": "floor_madera.png",
+      "sprites": [
+        {
+          "art": "f_cama.png",
+          "w": 1.75,
+          "h": 1.0,
+          "u": 0.42,
+          "v": 0.72,
+          "layer": "back"
+        },
+        {
+          "art": "f_armario.png",
+          "w": 1.15,
+          "h": 1.85,
+          "u": 0.93,
+          "v": 0.82,
+          "layer": "back"
+        },
+        {
+          "art": "f_mesita.png",
+          "w": 0.65,
+          "h": 0.7,
+          "u": 0.07,
+          "v": 0.6,
+          "layer": "mid"
+        },
+        {
+          "art": "f_alfombra.png",
+          "w": 1.5,
+          "h": 1.0,
+          "u": 0.45,
+          "v": 0.3,
+          "layer": "rug"
+        },
+        {
+          "art": "f_planta.png",
+          "w": 0.7,
+          "h": 1.25,
+          "u": 0.95,
+          "v": 0.16,
+          "layer": "front"
+        }
+      ]
+    },
+    "estancia_bano": {
+      "wall": "wall_bano.png",
+      "floor": "floor_baldosa.png",
+      "sprites": [
+        {
+          "art": "f_lavabo.png",
+          "w": 0.95,
+          "h": 1.75,
+          "u": 0.88,
+          "v": 0.84,
+          "layer": "back"
+        },
+        {
+          "art": "f_lavadora.png",
+          "w": 0.85,
+          "h": 1.05,
+          "u": 0.2,
+          "v": 0.78,
+          "layer": "back"
+        },
+        {
+          "art": "f_alfombra.png",
+          "w": 0.95,
+          "h": 0.6,
+          "u": 0.5,
+          "v": 0.35,
+          "layer": "rug"
+        }
+      ]
+    },
+    "estancia_trasera": {
+      "wall": "wall_trasera.png",
+      "floor": "floor_baldosa.png",
+      "sprites": [
+        {
+          "art": "f_lavadora.png",
+          "w": 0.9,
+          "h": 1.1,
+          "u": 0.14,
+          "v": 0.8,
+          "layer": "back"
+        },
+        {
+          "art": "f_estanteria.png",
+          "w": 1.1,
+          "h": 1.75,
+          "u": 0.5,
+          "v": 0.82,
+          "layer": "back"
+        },
+        {
+          "art": "f_cajas.png",
+          "w": 1.05,
+          "h": 0.95,
+          "u": 0.78,
+          "v": 0.74,
+          "layer": "mid"
+        },
+        {
+          "art": "f_bici.png",
+          "w": 1.5,
+          "h": 0.95,
+          "u": 0.93,
+          "v": 0.34,
+          "layer": "front"
+        }
+      ]
+    },
+    "trastero": {
+      "wall": "wall_trastero.png",
+      "floor": "floor_hormigon.png",
+      "sprites": [
+        {
+          "art": "f_estanteria.png",
+          "w": 1.15,
+          "h": 1.8,
+          "u": 0.18,
+          "v": 0.82,
+          "layer": "back"
+        },
+        {
+          "art": "f_cajas.png",
+          "w": 1.1,
+          "h": 1.0,
+          "u": 0.5,
+          "v": 0.76,
+          "layer": "mid"
+        },
+        {
+          "art": "f_trastos.png",
+          "w": 1.05,
+          "h": 0.95,
+          "u": 0.8,
+          "v": 0.78,
+          "layer": "back"
+        },
+        {
+          "art": "f_bici.png",
+          "w": 1.45,
+          "h": 0.9,
+          "u": 0.88,
+          "v": 0.3,
+          "layer": "front"
+        }
+      ]
+    }
+  }
+}

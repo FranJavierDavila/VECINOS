@@ -11,7 +11,7 @@ import { MinigameModal } from './MinigameModal';
 import { FinaleModal } from './FinaleModal';
 import { CutsceneOverlay } from './CutsceneOverlay';
 import { ElevatorPanelModal } from './ElevatorPanelModal';
-import { OptionsModal } from './OptionsModal';
+import { MoneyOverlay } from './MoneyOverlay';
 import { ToastStack } from './ToastStack';
 import { TouchControls } from './TouchControls';
 
@@ -101,6 +101,9 @@ export default function GameStage() {
         </div>
       )}
 
+      {/* Economía siempre visible: arcas del edificio + hucha del jugador (v1.23). */}
+      {ready && <MoneyOverlay />}
+
       {ready && prompt && !modalOpen && (
         <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-xs font-medium text-amber-200 shadow" role="status">
           {prompt}
@@ -110,7 +113,6 @@ export default function GameStage() {
       <PhoneModal onNext={() => getController()?.phoneNext()} />
       <CutsceneOverlay />
       <ElevatorPanelModal />
-      <OptionsModal />
       <ChoicesModal onChoose={(choiceId) => getController()?.choose(choiceId)} />
       <JuntaModal onVote={(vote) => getController()?.juntaVote(vote)} />
       <MinigameModal />
