@@ -641,12 +641,15 @@ export const rulesSchema = z.object({
           .object({
             enabled: z.boolean().default(true),
             halfW: z.number().positive().default(1.2),
+            /** v1.26: muro frontal del CUBO COMPLETO (sin laterales abiertos por donde se
+             *  veían barandillas y peldaños "a través de la pared"). */
+            fullWall: z.boolean().default(true),
             color: z.string().default('#ddd1b8'),
             doorW: z.number().positive().default(0.86),
             doorH: z.number().positive().default(1.84),
             doorBottom: z.number().min(0).default(0.14),
-            doorZ: z.number().default(0.14),
-            wallT: z.number().positive().default(0.1),
+            doorZ: z.number().default(0.08),
+            wallT: z.number().positive().default(0.3),
             art: z.string().default('/art/interiors/raw/door_comunal.png'),
             numberColor: z.string().default('#1c1c1c'),
             hinge: z.enum(['left', 'right']).default('left'),
@@ -660,12 +663,13 @@ export const rulesSchema = z.object({
           .default({
             enabled: true,
             halfW: 1.2,
+            fullWall: true,
             color: '#ddd1b8',
             doorW: 0.86,
             doorH: 1.84,
             doorBottom: 0.14,
-            doorZ: 0.14,
-            wallT: 0.1,
+            doorZ: 0.08,
+            wallT: 0.3,
             art: '/art/interiors/raw/door_comunal.png',
             numberColor: '#1c1c1c',
             hinge: 'left',
@@ -701,7 +705,7 @@ export const rulesSchema = z.object({
         spanW: 2, doorLocalX: -1.14, entryHalf: 0.45, laneFront: 0.35, laneBack: 1.05, flightRun: 2.19, landingX: 0.5, stepCount: 8, climbSpeed: 1.8,
         floorSlab: { enabled: true, thickness: 0.14, color: '#b8c0a8', topAt: 0.14 },
         facade: {
-          enabled: true, halfW: 1.2, color: '#ddd1b8', doorW: 0.86, doorH: 1.84, doorBottom: 0.14, doorZ: 0.14, wallT: 0.1,
+          enabled: true, halfW: 1.2, fullWall: true, color: '#ddd1b8', doorW: 0.86, doorH: 1.84, doorBottom: 0.14, doorZ: 0.08, wallT: 0.3,
           art: '/art/interiors/raw/door_comunal.png', numberColor: '#1c1c1c', hinge: 'left', openAngle: 1.75, openAhead: 1.05, openSpeed: 3.2, hideNodes: [],
         },
         activityLight: { enabled: true, dayCutoff: 0.4, glow: 0.9, fade: 2.4, meshes: ['luz_interior', 'tira_luz'], color: '#ffedc2', wallGlow: 0.32 },
@@ -874,8 +878,10 @@ export const rulesSchema = z.object({
         /** v1.25: arte de maceta como RECORTE billboard (con fondo se usan cilindros). */
         art: z.array(z.string()).default([]),
         artH: z.number().positive().default(0.62),
+        /** v1.26: radio libre delante de cada puerta — jamás una maceta tapando un acceso. */
+        doorClearance: z.number().min(0).default(0.95),
       })
-      .default({ perFloorMin: 2, perFloorMax: 4, potColor: '#b5651d', soilColor: '#5d4037', plantColor: '#5a9367', plant2Color: '#84a59d', potR: 0.17, potH: 0.26, art: [], artH: 0.62 }),
+      .default({ perFloorMin: 2, perFloorMax: 4, potColor: '#b5651d', soilColor: '#5d4037', plantColor: '#5a9367', plant2Color: '#84a59d', potR: 0.17, potH: 0.26, art: [], artH: 0.62, doorClearance: 0.95 }),
     /** Privacidad de viviendas (v1.17): si una vivienda NO tiene a nadie dentro, el corte
      *  se cierra con su fachada y una puerta al pasillo; el interior solo se ve cuando su
      *  propietario (o cualquier vecino… o un ladrón) está dentro. Colores y medidas de la
@@ -893,9 +899,17 @@ export const rulesSchema = z.object({
          *  overlay glTF que se retiran y aplique de luz a un lado.
          *  v1.25: una sola variante → todas las puertas iguales (marrón). */
         doorArts: z.array(z.string()).default([]),
-        frameW: z.number().positive().default(0.075),
+        frameW: z.number().min(0).default(0.075),
         frameDepth: z.number().positive().default(0.1),
         hideNodes: z.array(z.string()).default([]),
+        /** v1.26 — relleno de las JUNTAS entre bloques (veían la parte trasera del edificio)
+         *  y corte del zócalo en las puertas + tapa de estancia cerrada CON ARTE DE PUERTA
+         *  (dejó de leerse como tabique). */
+        gapFill: z
+          .object({ color: z.string().default('#dbd8d2'), pad: z.number().min(0).default(0.04) })
+          .default({ color: '#dbd8d2', pad: 0.04 }),
+        skirtingDoorGap: z.boolean().default(true),
+        coverArt: z.string().default(''),
         /** v1.25 — acabado de la vivienda: pared gris clarito, banda de zócalo gris desde
          *  el suelo y MARCOS de puerta del mismo color que el zócalo (continuidad). */
         wallColor: z.string().default('#dbd8d2'),
@@ -935,6 +949,9 @@ export const rulesSchema = z.object({
         frameW: 0.075,
         frameDepth: 0.1,
         hideNodes: [],
+        gapFill: { color: '#dbd8d2', pad: 0.04 },
+        skirtingDoorGap: true,
+        coverArt: '',
         wallColor: '#dbd8d2',
         skirtingColor: '#a3a19b',
         skirtingH: 0.25,

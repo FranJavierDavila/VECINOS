@@ -11,6 +11,17 @@ import type { ElevatorsDirector } from './elevator';
 /** Plano frontal de las viviendas: z local 0 de los interiores (la cara de la puerta). */
 const frontZOf = (roomZ: number, commonDepth: number): number => roomZ - commonDepth / 2;
 
+/**
+ * V1.26 — CORRECCIÓN DE ORIENTACIÓN DE LOS RIGS glTF: los modelos están authorados mirando
+ * a −Z (frontal hacia la cámara) y la convención de rutas usa yaw 0 = +X (perfil). Sin la
+ * corrección, los personajes caminaban de lado viéndose DE FRENTE (piernas cruzadas) y de
+ * frente viéndose DE LADO — exactamente el intercambio de 90° que reportaba el vecino.
+ * rotación.y = yaw + MODEL_YAW_OFFSET aplica el giro que alinea el morro del modelo con la
+ * dirección real de marcha. El yaw INTERNO (rutas, faceToward, gestos) no cambia: la
+ * corrección vive SOLO en el punto de escritura de la rotación del nodo.
+ */
+export const MODEL_YAW_OFFSET = -Math.PI / 2;
+
 interface Actor {
   /** Residente dueño del nodo (para las rutas de ascensor y depuración). */
   id: string;
@@ -148,8 +159,8 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
         // vecina con la maleta cambiando de planta de golpe). Pies y rumbo se conservan 1:1.
         const feetY = cur.node.position.y - cur.pivotY;
         rig.root.position.set(cur.node.position.x, feetY + 0.02, cur.node.position.z);
-        if (rig.root.rotationQuaternion) Quaternion.RotationYawPitchRollToRef(cur.yaw, 0, 0, rig.root.rotationQuaternion);
-        else rig.root.rotation.y = cur.yaw;
+        if (rig.root.rotationQuaternion) Quaternion.RotationYawPitchRollToRef(cur.yaw + MODEL_YAW_OFFSET, 0, 0, rig.root.rotationQuaternion);
+        else rig.root.rotation.y = cur.yaw + MODEL_YAW_OFFSET;
         // El modelo se authora a nominalHeight: escala uniforme a la altura del arquetipo.
         rig.root.scaling.setAll(height / def.nominalHeight);
         cur.node.dispose(false, true); // cápsula fuera (libera también su material propio)
@@ -574,8 +585,8 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
           }
         }
         const q = a.node.rotationQuaternion;
-        if (q) Quaternion.RotationYawPitchRollToRef(a.yaw, 0, 0, q);
-        else a.node.rotation.y = a.yaw;
+        if (q) Quaternion.RotationYawPitchRollToRef(a.yaw + MODEL_YAW_OFFSET, 0, 0, q);
+        else a.node.rotation.y = a.yaw + MODEL_YAW_OFFSET;
 
         // ── Animación (solo rigs) por prioridad de estados (v1.2) + SINCRONÍA DE ZANCADA (v1.3):
         //   gesto explícito → run (speed > runSpeed) → walk (mientras se avanza) → clip de

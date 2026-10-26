@@ -983,6 +983,9 @@ export interface Rules {
       facade: {
         enabled: boolean;
         halfW: number;
+        /** v1.26: muro frontal del CUBO COMPLETO — barandillas/peldaños ya no se ven
+         *  "a través de la pared" por los laterales abiertos. */
+        fullWall?: boolean;
         color: string;
         doorW: number;
         doorH: number;
@@ -1102,6 +1105,8 @@ export interface Rules {
       potH: number;
       art?: string[];
       artH?: number;
+      /** v1.26: radio libre delante de cada puerta — nunca una maceta tapando un acceso. */
+      doorClearance?: number;
     };
     /** Privacidad de viviendas (v1.17): el interior solo se ve con alguien dentro; vacía,
      *  la fachada se cierra con su puerta al pasillo (propietario, visita… o un ladrón).
@@ -1118,6 +1123,11 @@ export interface Rules {
       frameW?: number;
       frameDepth?: number;
       hideNodes?: string[];
+      /** v1.26 — relleno de las juntas entre bloques (mismo color de pared), corte del
+       *  zócalo en las puertas y tapa de estancia cerrada con ARTE DE PUERTA. */
+      gapFill?: { color: string; pad: number };
+      skirtingDoorGap?: boolean;
+      coverArt?: string;
       /** v1.25 — acabado de la vivienda: pared gris clarito, zócalo gris y marcos del
        *  color del zócalo (continuidad visual); candado DIBUJADO (nada de cajas) y
        *  luces nocturnas de interiores parametrizadas. */

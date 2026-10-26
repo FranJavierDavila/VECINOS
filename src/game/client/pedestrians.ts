@@ -3,6 +3,7 @@ import type { Content, World } from '@/game/core/types';
 import { hash01 } from '@/game/interior';
 import { B } from './babylon';
 import { instantiateActorAsset, type ActorRig } from './assets';
+import { MODEL_YAW_OFFSET } from './actors';
 
 /**
  * VIANDANTES (v1.22→v1.25) — paseantes anónimos por las aceras: caminan, algunos ENTRAN al
@@ -248,7 +249,9 @@ export function createPedestrians(scene: Scene, world: World, content: Content):
     const node = w.gltf ? w.gltf.root : w.prim!.root;
     node.setEnabled(visible);
     node.scaling.setAll(w.scale);
-    node.rotation.y = w.yaw;
+    // v1.26: el rig mira hacia donde anda CON EL OFFSET DEL MODELO (los rigs miran a −Z;
+    // sin el offset se veía la frontal caminando de lado — piernas cruzadas).
+    node.rotation.y = w.yaw + MODEL_YAW_OFFSET;
     if (w.gltf) w.gltf.play('walk', walkRate(speed));
     walkers.add(w);
   };
@@ -311,11 +314,12 @@ export function createPedestrians(scene: Scene, world: World, content: Content):
         }
         // v1.25 — ORIENTACIÓN: el rig mira hacia donde anda (convención de actors.ts:
         // yaw 0 = mirando a +X; π = a −X). Solo escrituras en cambio de sentido.
+        // v1.26: + offset del modelo (los rigs authorados a −Z).
         if (movedX !== 0) {
           const wantYaw = movedX > 0 ? 0 : Math.PI;
           if (w.yaw !== wantYaw) {
             w.yaw = wantYaw;
-            (w.gltf ? w.gltf.root : w.prim!.root).rotation.y = wantYaw;
+            (w.gltf ? w.gltf.root : w.prim!.root).rotation.y = wantYaw + MODEL_YAW_OFFSET;
           }
         }
         if (w.prim) {

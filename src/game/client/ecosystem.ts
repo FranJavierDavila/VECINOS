@@ -4,6 +4,7 @@ import { B } from './babylon';
 import { instantiateActorAsset, type ActorRig } from './assets';
 import { hash01 } from '@/game/interior';
 import { frontPlaneZ, stairPathPoints } from '@/game/stairs';
+import { MODEL_YAW_OFFSET } from './actors';
 import { inMinuteWindow } from '@/game/sim';
 import {
   createEcosystemState,
@@ -70,6 +71,9 @@ export interface EcosystemDirector {
   readonly report: EcosystemReport | null;
   /** Estado interno del cerebro (serializable; vive AQUÍ, no en World). */
   readonly state: EcosystemState;
+  /** Posiciones de los extras en escena (v1.26): abren puertas de escalera y encienden
+   *  su luz compartida igual que los vecinos — el repartidor ya no llega a puertas cerradas. */
+  extraPositions(): { x: number; y: number; z: number }[];
 }
 
 export function createEcosystem(
@@ -81,7 +85,7 @@ export function createEcosystem(
   const eco: EcosystemContent | undefined = content.ecosystem;
   if (!eco) {
     // Sin catálogo: director nulo funcional (la partida no depende del ecosistema).
-    return { update() {}, dispose() {}, report: null, state: createEcosystemState() };
+    return { update() {}, dispose() {}, report: null, state: createEcosystemState(), extraPositions: () => [] };
   }
 
   const { Color3, Mesh, MeshBuilder, Quaternion, StandardMaterial, TransformNode } = B();
@@ -157,8 +161,8 @@ export function createEcosystem(
         // PRESERVAR POSE (v1.10): el modelo puede terminar de cargar EN PLENO paseo.
         const feetYNow = cur.node.position.y - cur.pivotY;
         rig.root.position.set(cur.node.position.x, feetYNow + 0.02, cur.node.position.z);
-        if (rig.root.rotationQuaternion) Quaternion.RotationYawPitchRollToRef(cur.yaw, 0, 0, rig.root.rotationQuaternion);
-        else rig.root.rotation.y = cur.yaw;
+        if (rig.root.rotationQuaternion) Quaternion.RotationYawPitchRollToRef(cur.yaw + MODEL_YAW_OFFSET, 0, 0, rig.root.rotationQuaternion);
+        else rig.root.rotation.y = cur.yaw + MODEL_YAW_OFFSET;
         rig.root.scaling.setAll(height / def.nominalHeight);
         cur.capsule?.dispose(false, true);
         cur.node = rig.root;
@@ -320,7 +324,10 @@ export function createEcosystem(
     // false = hay que despawnear
     if (e.pauseT > 0) {
       e.pauseT -= dt;
-      if (e.sway) e.node.rotation.y = e.yaw + Math.sin(swayClock * 3.2) * 0.35; // balanceo al llamar
+      if (e.sway) e.node.rotation.y = e.yaw + MODEL_YAW_OFFSET + Math.sin(swayClock * 3.2) * 0.35; // balanceo al llamar
+      // v1.26: el vendedor QUE LLAMA gestiona (habla a la puerta): clip de charla si existe.
+      if (e.rig && e.sway) e.rig.play('talk', 1);
+      else if (e.rig) e.rig.play('idle', 1);
       return true;
     }
     const leg = e.path[0];
@@ -330,7 +337,10 @@ export function createEcosystem(
     const dH = Math.hypot(leg.x - pos.x, leg.z - pos.z);
     const dY = leg.y - feetY;
     const speed = e.kind === 'vendor' ? eco.extras.walkSpeed : eco.extras.pet.walkSpeed;
-    if (Math.abs(dY) > 0.02 && dH < 0.3) {
+    // v1.26 — umbral vertical 0.05 (el mismo arreglo de actors.ts v1.23): con 0.3 los
+    // PELDAÑOS de la escalera real (run ≈ 0.27 m) caían en la rama vertical — el extra
+    // subía como un ascensor y LUEGO patinaba en horizontal hasta el siguiente peldaño.
+    if (Math.abs(dY) > 0.02 && dH < 0.05) {
       // Tramo VERTICAL en el pozo: ritmo de la escalera del catálogo.
       const rate = v.cellH / v.stairsSeconds;
       pos.y = feetY + Math.sign(dY) * Math.min(Math.abs(dY), rate * dt) + e.pivotY;
@@ -341,6 +351,13 @@ export function createEcosystem(
       pos.x += (leg.x - pos.x) * t;
       pos.z += (leg.z - pos.z) * t;
       pos.y = feetY + dY * t + e.pivotY;
+    }
+    // v1.26 — el vendedor ANDA de verdad: clip de zancada sincronizado a la velocidad real
+    // (antes el rig se quedaba en 'idle' mientras se deslizaba: "no se mueve y patina").
+    if (e.rig) {
+      const sync = v.animSync;
+      const rate = Math.min(sync.maxRate, Math.max(sync.minRate, speed / Math.max(0.1, sync.walkRefSpeed)));
+      e.rig.play('walk', rate);
     }
     // Rumbo: el extra MIRA hacia donde camina (arco corto, ritmo del catálogo).
     const mdx = pos.x - e.px;
@@ -358,8 +375,8 @@ export function createEcosystem(
         e.yaw += dYaw * Math.min(1, dt * v.actorTurnSpeed);
       }
     }
-    if (e.node.rotationQuaternion) Quaternion.RotationYawPitchRollToRef(e.yaw, 0, 0, e.node.rotationQuaternion);
-    else e.node.rotation.y = e.yaw;
+    if (e.node.rotationQuaternion) Quaternion.RotationYawPitchRollToRef(e.yaw + MODEL_YAW_OFFSET, 0, 0, e.node.rotationQuaternion);
+    else e.node.rotation.y = e.yaw + MODEL_YAW_OFFSET;
     // Pata terminada → siguiente (o pausa teatral / despawn marcado).
     if (Math.hypot(leg.x - pos.x, leg.z - pos.z) < 0.06 && Math.abs(leg.y - (pos.y - e.pivotY)) < 0.03) {
       e.path.shift();
@@ -618,5 +635,14 @@ export function createEcosystem(
       return lastReport;
     },
     state: brain,
+    extraPositions() {
+      const out: { x: number; y: number; z: number }[] = [];
+      for (const e of extras.values()) {
+        if (!e.node.isEnabled()) continue;
+        const p = e.node.position;
+        out.push({ x: p.x, y: p.y - e.pivotY, z: p.z }); // nivel de PIES, como los movers
+      }
+      return out;
+    },
   };
 }

@@ -27,7 +27,7 @@ const DICT: Record<string, { es: string; en: string }> = {
     es: 'Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.',
     en: 'Move-ins, noise, smells, wifi, pests, smoke and levies: the neighborhood simulator.',
   },
-  'header.version': { es: 'v1.25 · la casa de todos', en: 'v1.25 · everyone\'s home' },
+  'header.version': { es: 'v1.26 · sin tabiques', en: 'v1.26 · no more partitions' },
   // ── Post-its (v1.23: mandos agrupados dibujados a bolígrafo) ──
   'postit.time': { es: 'Tiempo', en: 'Time' },
   'postit.options': { es: 'Opciones', en: 'Options' },
@@ -105,6 +105,8 @@ const DICT: Record<string, { es: string; en: string }> = {
   'elev.here': { es: 'estás aquí', en: 'you are here' },
   'elev.cancel': { es: 'Cancelar', en: 'Cancel' },
   'elev.unreachable': { es: 'El ascensor no llega hasta esa planta.', en: 'The elevator does not reach that floor.' },
+  'door.vacant': { es: 'Nadie vive ahí: no puedes entrar en una vivienda vacía.', en: 'Nobody lives there: you cannot enter an empty home.' },
+  'door.lockedGeneric': { es: 'Puerta con candado: no puedes pasar.', en: 'Locked door: you cannot enter.' },
   'hud.homeAria': { es: 'Tu piso', en: 'Your flat' },
   'weather.sunny': { es: 'Soleado', en: 'Sunny' },
   'weather.cloudy': { es: 'Nublado', en: 'Cloudy' },

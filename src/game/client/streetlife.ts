@@ -133,6 +133,8 @@ export function createStreetlife(
       const hex = man.colors[Math.floor(hash01('marcha_color', roll + i) * man.colors.length) % man.colors.length]!;
       const rig = factory.make(hex, i === 0 ? man.megaphoneColor : hash01('marcha_gorro', roll + i) < 0.3 ? '#3b3129' : null);
       rig.root.parent = root;
+      // v1.26: la figurita MIRA hacia donde marcha (piernas en el eje del paso, no cruzadas).
+      rig.root.rotation.y = dir > 0 ? -Math.PI / 2 : Math.PI / 2;
       let placard: TransformNode | null = null;
       if (i > 0 && i % man.placard.carryEvery === 0) {
         // Cartel: palo + panel con lema (rotado para que la cámara lo lea de frente).
@@ -140,6 +142,9 @@ export function createStreetlife(
         // ESTIRADOS hacia arriba agarrando el palo — el lema se lee desde la cámara.
         placard = new TransformNode('cartel', scene);
         placard.parent = rig.root;
+        // v1.26: el cuerpo gira a la dirección de marcha — el cartel CONTRARROTA para que
+        // la cámara siga leyendo el lema de frente.
+        placard.rotation.y = -rig.root.rotation.y;
         const stick = MeshBuilder.CreateBox('cartel_palo', { width: 0.05, height: man.placard.stickH, depth: 0.05 }, scene);
         stick.position.y = man.placard.liftY - man.placard.stickH / 2;
         stick.material = stickMat;

@@ -290,6 +290,12 @@ class GameController {
       }
     }
     const r = this.logic.interact();
+    // v1.26: el bloqueo en seco (norma de vivienda vacía / candado) AVISA con un bocadillo —
+    // antes la E moría en silencio y parecía un botón roto.
+    if (r.type === 'locked') {
+      const s = useGameStore.getState();
+      s.pushToast(translate(s.lang, r.reason === 'vacant' ? 'door.vacant' : 'door.lockedGeneric'), 'info');
+    }
     if (r.type === 'rearEnter') {
       // Apilamiento 3D (v1.19): el swap lo ejecuta building.update por fases; aquí solo
       // encuadra la cámara dentro del bloque trasero.
@@ -947,6 +953,9 @@ class GameController {
         if (p) movers.push(p);
       }
     }
+    // v1.26: los EXTRAS del ecosistema (repartidor a puerta…) también abren las puertas de
+    // escalera y encienden la luz compartida del cubo — nadie más llega a puertas cerradas.
+    if (this.ecosystem) movers.push(...this.ecosystem.extraPositions());
     this.building.update(
       dt,
       useGameStore.getState().camMode === 'edificio' ? undefined : { x: pos.x, floor: pos.floor },

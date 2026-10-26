@@ -713,6 +713,12 @@ export class PlayerLogic {
     }
     const door = this.doorInFront();
     if (!door) return { type: 'none' };
+    // v1.26 — NORMA DEL BARRIO: no se entra en una vivienda VACÍA (nadie vive ahí, nadie
+    // abre). Se aplica en presentación (el sim no cambia: dispatch es intocable) y el
+    // controlador avisa con bocadillo. Las misiones solo piden $home y portales: sin ruido.
+    if (door.kind === 'dwelling' && door.occupancy !== 'occupied') {
+      return { type: 'locked', block: door.id, reason: 'vacant', price: null };
+    }
     const res = this.exec({ type: 'move', resident: this.actorId, to: door.id });
     // Rechazo = candado. En clásico lo dice el sim (res.ok false); en remoto el resultado llega
     // después (res null), así que el candado visible de la puerta manda: NADIE entra aquí.

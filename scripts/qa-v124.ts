@@ -69,13 +69,14 @@ check('los árboles siguen SOLO en la vista edificio (props)', true, 'quads bajo
 console.log('\n── Puertas de vivienda: textura + marco + aplique + placa ──');
 const pv = v.privacy;
 // v1.25: el usuario pidió TODAS las puertas IGUALES con la textura marrón → una sola variante.
+// v1.26: frameW 0 — la hoja queda a sangre (el marco gris que se veía era el overlay glTF,
+// hoy oculto de verdad por hideNodes recursivo) y la placa sube a 2.55 (petición del vecino).
 check('arte de puertas full-bleed en disco (variante única marrón, v1.25)', (pv.doorArts ?? []).length === 1 && (pv.doorArts ?? []).every(exists), (pv.doorArts ?? []).map((a) => a.split('/').pop()).join(', '));
-check('marco fino del color de la puerta', (pv.frameW ?? 0) > 0.04 && (pv.frameW ?? 1) < 0.12, `frameW ${pv.frameW}`);
+check('sin marco 3D (hoja a sangre, v1.26)', (pv.frameW ?? 1) === 0, `frameW ${pv.frameW}`);
 check('aplique de luz encima a un lado', !!pv.lamp && pv.lamp.dy > pv.doorH, `dy ${pv.lamp?.dy} > doorH ${pv.doorH}`);
 check('nodos del overlay antiguo retirados (marco gris fuera)', (pv.hideNodes ?? []).includes('jamba_izq') && (pv.hideNodes ?? []).includes('toldito') && (pv.hideNodes ?? []).includes('dintel'), (pv.hideNodes ?? []).join(','));
-check('placa numerada por ENCIMA del marco', v.plaque.y >= pv.doorH + (pv.frameW ?? 0.075) * 2 + v.slab + v.wall, `plaque.y ${v.plaque.y}`);
-const frontTop = v.slab + v.wall + pv.doorH + (pv.frameW ?? 0.075);
-check('sin solapes: marco bajo la placa, placa bajo el canto', v.plaque.y - v.plaque.h / 2 >= frontTop - 0.02 && v.plaque.y + v.plaque.h / 2 <= v.cellH - 0.1, `placa ${v.plaque.y - v.plaque.h / 2}..${v.plaque.y + v.plaque.h / 2} · marco hasta ${frontTop}`);
+check('placa numerada por ENCIMA de la hoja', v.plaque.y >= pv.doorH + v.slab + v.wall, `plaque.y ${v.plaque.y}`);
+check('placa centrada con la parte superior de la puerta (v1.26: +25 cm)', Math.abs(v.plaque.y - 2.55) < 0.01, `plaque.y ${v.plaque.y}`);
 
 // ── 4. Puertas de escalera ──
 console.log('\n── Puertas de escalera: muro, hoja numerada, apertura, luz ──');

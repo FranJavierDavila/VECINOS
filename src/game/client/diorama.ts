@@ -17,7 +17,7 @@
  * (greybox de siempre) — el juego funciona exactamente igual.
  */
 
-import type { Mesh, Scene, StandardMaterial, DynamicTexture, TransformNode } from '@babylonjs/core';
+import type { Mesh, Scene, StandardMaterial, Texture, TransformNode } from '@babylonjs/core';
 import type { Content } from '@/game/core/types';
 import { hash01 } from '@/game/interior';
 import { B } from './babylon';
@@ -179,13 +179,18 @@ export function stripWhite(c: HTMLCanvasElement, hex: string, tolerance: number,
 export function createDioramaDirector(scene: Scene, content: Content): DioramaDirector | null {
   const cat = content.interiors;
   if (!cat) return null;
-  const { StandardMaterial, Color3, DynamicTexture, MeshBuilder } = B();
+  const { StandardMaterial, Color3, MeshBuilder } = B();
 
   const mats: StandardMaterial[] = [];
   const meshes: Mesh[] = [];
   /** Caché de texturas por (fichero|keyed|uScale|vScale): los pisos repiten layout —
-   *  la misma DynamicTexture sirve a decenas de estancias (memoria y subidas). */
-  const texCache = new Map<string, { dt: DynamicTexture; ar: number | null; onTrim: Array<(ar: number) => void>; loaded: boolean }>();
+   *  la misma textura sirve a decenas de estancias (memoria y subidas).
+   *  v1.26 — la subida sale por TEXTURE(dataURL): los DynamicTexture alimentados desde
+   *  canvas pierden el canal alpha en esta config (WebGPU/CDN — diagnóstico v1.25: los
+   *  píxeles alpha=0 se renderizan a NEGRO) y los recortes con rendijas (plantas, patas
+   *  de muebles) se veían con fondo negro. El PNG dataURL decodificado por Image y
+   *  subido como Texture conserva el alpha íntegro — verificado en v1.25. */
+  const texCache = new Map<string, { dt: Texture; ar: number | null; onTrim: Array<(ar: number) => void>; loaded: boolean }>();
 
   const S = cat.processSize;
 
@@ -196,7 +201,7 @@ export function createDioramaDirector(scene: Scene, content: Content): DioramaDi
     uScale = 1,
     vScale = 1,
     onTrim?: (ar: number) => void,
-  ): DynamicTexture => {
+  ): Texture => {
     const key = `${file}|${keyed ? 1 : 0}|${uScale}|${vScale}`;
     const hit = texCache.get(key);
     if (hit) {
@@ -206,14 +211,20 @@ export function createDioramaDirector(scene: Scene, content: Content): DioramaDi
       }
       return hit.dt;
     }
-    const dt = new DynamicTexture(name, { width: S, height: S }, scene, true);
-    const dctx = dt.getContext() as unknown as CanvasRenderingContext2D;
-    dctx.clearRect(0, 0, S, S);
-    dt.update(true);
-    if (keyed) dt.hasAlpha = true;
+    // invertY=true: igual que el DynamicTexture de siempre — el canvas se dibuja
+    // top-down y los quads lo esperan así (las puertas/muebles jamás salieron cabeza abajo).
+    // Placeholder PNG 1×1 válido: updateURL(refresco real) llega con el decode del arte.
+    const dt = new (B().Texture)(
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+      scene,
+      false,
+      true,
+    );
+    dt.name = name;
     dt.uScale = uScale;
     dt.vScale = vScale;
-    const entry: { dt: DynamicTexture; ar: number | null; onTrim: Array<(ar: number) => void>; loaded: boolean } = {
+    if (keyed) dt.hasAlpha = true;
+    const entry: { dt: Texture; ar: number | null; onTrim: Array<(ar: number) => void>; loaded: boolean } = {
       dt,
       ar: null,
       onTrim: onTrim ? [onTrim] : [],
@@ -235,15 +246,17 @@ export function createDioramaDirector(scene: Scene, content: Content): DioramaDi
           const bw = Math.max(1, b.x1 - b.x0);
           const bh = Math.max(1, b.y1 - b.y0);
           entry.ar = bw / bh;
-          dctx.clearRect(0, 0, S, S);
-          dctx.drawImage(c, b.x0, b.y0, bw, bh, 0, 0, S, S);
+          const c2 = document.createElement('canvas');
+          c2.width = S;
+          c2.height = S;
+          c2.getContext('2d')?.drawImage(c, b.x0, b.y0, bw, bh, 0, 0, S, S);
+          dt.updateURL(c2.toDataURL('image/png'));
         } else {
-          dctx.drawImage(c, 0, 0);
+          dt.updateURL(c.toDataURL('image/png'));
         }
       } else {
-        dctx.drawImage(c, 0, 0);
+        dt.updateURL(c.toDataURL('image/png'));
       }
-      dt.update(true);
       entry.loaded = true;
       for (const cb of entry.onTrim) cb(entry.ar ?? 1);
       entry.onTrim.length = 0;
@@ -261,6 +274,11 @@ export function createDioramaDirector(scene: Scene, content: Content): DioramaDi
     if (keyed) {
       m.transparencyMode = 2; // ALPHATEST: recorte duro, sin líos de orden con los actores
       m.alphaCutOff = cat.alphaCutoff;
+      // v1.26 — CRÍTICO: Babylon 8 dejó el default de useAlphaFromDiffuseTexture en FALSE.
+      // Sin esto, el alpha de la textura JAMÁS entra en el alpha del shader (el compilado
+      // hace alpha=vDiffuseColor.a y el ALPHATEST ve 1.0 siempre) → los recortes se veían
+      // con FONDO NEGRO (la lámpara leía como un tabique; plantas con halo negro).
+      m.useAlphaFromDiffuseTexture = true;
     }
     mats.push(m);
     return m;

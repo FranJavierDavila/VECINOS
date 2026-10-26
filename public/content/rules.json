@@ -744,12 +744,13 @@
       "facade": {
         "enabled": true,
         "halfW": 1.2,
+        "fullWall": true,
         "color": "#ddd1b8",
         "doorW": 0.86,
         "doorH": 1.84,
         "doorBottom": 0.14,
-        "doorZ": 0.14,
-        "wallT": 0.1,
+        "doorZ": 0.08,
+        "wallT": 0.3,
         "art": "/art/interiors/raw/door_comunal.png",
         "numberColor": "#1c1c1c",
         "hinge": "left",
@@ -757,7 +758,11 @@
         "openAhead": 1.05,
         "openSpeed": 3.2,
         "hideNodes": [
-          "hueco"
+          "hueco",
+          "jamba_izq",
+          "jamba_der",
+          "dintel",
+          "rotulo"
         ]
       },
       "activityLight": {
@@ -789,7 +794,7 @@
     "plaque": {
       "w": 0.85,
       "h": 0.3,
-      "y": 2.3,
+      "y": 2.55,
       "z": -0.13,
       "bg": "#3b3129",
       "text": "#ffd166",
@@ -874,6 +879,7 @@
     "pots": {
       "perFloorMin": 2,
       "perFloorMax": 4,
+      "doorClearance": 0.95,
       "potColor": "#b5651d",
       "soilColor": "#5d4037",
       "plantColor": "#5a9367",
@@ -900,15 +906,22 @@
       "doorArts": [
         "/art/interiors/raw/door_casa_a.png"
       ],
-      "frameW": 0.075,
+      "frameW": 0,
       "frameDepth": 0.1,
       "hideNodes": [
         "jamba_izq",
         "jamba_der",
         "dintel",
         "placa",
-        "toldito"
+        "toldito",
+        "rodapie"
       ],
+      "gapFill": {
+        "color": "#dbd8d2",
+        "pad": 0.04
+      },
+      "skirtingDoorGap": true,
+      "coverArt": "/art/interiors/raw/door_casa_a.png",
       "lamp": {
         "side": 1,
         "dx": 0.68,
