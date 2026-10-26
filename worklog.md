@@ -1232,3 +1232,32 @@ Stage Summary:
 - El edificio se lee como el de la referencia: interiores ilustrados sin costuras, puertas con arte real y numeración clara, escalera con accesos de verdad (muro + hoja numerada que se abre sola + luz de vecindario nocturna), cielo con nubecillas vivas y calle rellena de árboles recortados.
 - La gente mejor: viandantes que caminan de verdad (pies al suelo, brazos), manifestaciones con carteles legibles en alto y multitud creíble, vecinos que cruzan sus viviendas de lado a lado sin tabique central.
 - Arquitectura respetada: sim intacto (240 ticks deterministas), todo el contenido nuevo en JSON (rules/street/layouts/blocks) + arte en /art; la técnica vive en la capa de presentación.
+---
+Task ID: 41
+Agent: main (Z.ai Code)
+Task: v1.25 «la casa de todos» — las 13 correcciones del reporte del vecino (puertas/ascensor/candados/zócalo/recortes/variedad/viandantes/tabiques/macetas/hueco flotante/luz nocturna)
+
+Work Log:
+- SINCRONIZACIÓN CANÓNICA primero (lección 0-v1.17): el sandbox estaba en v1.17 mientras origin/main traía v1.18→v1.24. git reset --hard a v1.24 (d0e6ee5) y dev server relanzado con nanny.
+- DIAGNÓSTICO EN VIVO con agent-browser (capturas + zooms + probes de escena por __vecinosQA): identificadas las causas raíz de cada queja: (a) puertas con pared/suelo cocinados alrededor de la hoja (recorte fijo 7%/5%); (b) hueco oscuro = nodo 'hueco' del glTF del cubo nunca oculto; (c) ascensor con cajas de color plano; (d) candados = boxes 3D; (e) paredes marrón bloque; (f) tapas de estancias cerradas del ANCHO DEL TABIQUE (leían como tabiques); (g) macetas cilíndricas; (h) viandantes primitivos y SIN rotación (patinaban de lado); (i) noche con brillos 0.42/0.5 imperceptibles y bombilla de escalera insignificante.
+- ARTE NUEVO (gen-v125.ts, 9 piezas): door_ascensor.png full-bleed, candado + macetas (regenerados 2× y descartados — el modelo de imagen no respeta márgenes), wall_salon_b/wall_dormitorio_b (variantes de pared), y regenerados f_lavabo/f_alfombra/f_fogones con recorte limpio.
+- FULL-BLEED REAL (F2): stripCorners (flood-fill contra los colores de las 4 esquinas) + alphaBoundsOf en diorama.ts; aplicado a puertas de vivienda, puertas de escalera y hojas del ascensor (mitades L/R recortadas de la misma pieza). Adiós elementos antiguos alrededor de la hoja.
+- PUERTAS IGUALES MARRÓN (F3): privacy.doorArts con UNA sola variante (door_casa_a.png).
+- CANDADO DIBUJADO (F4): boxes fuera; quad con silueta de candado (grillete de acero + cuerpo de latón lockColor + ojo) dibujado a canvas, sacudida intacta.
+- PARED GRIS + ZÓCALO (F5): privacy.wallColor/skirtingColor/skirtingH (0.25 m); fixedDiffuse en BlockView impone el gris (el tintado de estado no repinta la vivienda; el glow de canales sigue); bandas de zócalo en fachada y laterales; marcos de puerta DEL COLOR del zócalo.
+- VARIEDAD ALEATORIA (F7): interiors.json con wallTints (5), mirrorChance 0.4, jitter 0.06 y walls[] alternativas; DioramaVariant elegida por hash01 del bloque (jamás RNG del sim): 5 tintes vivos verificados en escena.
+- VIANDANTES (F8): pool de 6 rigs glTF del catálogo de vecinos (instantiateActorAsset + clip 'walk' sincronizado por animSync, fallback primitivo) y orientación yaw = dirección de marcha (convención actors.ts: 0 = +X, π = −X).
+- PLAN ABIERTO (F9): hueco dormitorio↔baño de borde completo en layouts.json; building.ts ya no levanta tabique entre pares con hueco; tapas de estancias cerradas reducidas a UNA HOJA (privacy.doorW×1.15).
+- MACETAS BILLBOARD (F10): quads con recorte dibujado a canvas (maceta + hojas, colores del catálogo, 2 especies, artH).
+- HUECO FLOTANTE FUERA (F11): stairs.facade.hideNodes=['hueco'] aplicado por sufijo al cargar el modelo del cubo.
+- NOCHE (F12): privacy.night {dioGlow 0.85, floorGlow 0.7, lampGlow 1.6} — las viviendas despiertas se VEN iluminadas (verificado en vivo a las 22:10).
+- NOCHE ESCALERA (F13): activityLight.wallGlow 0.32 — con alguien en los tramos, TODOS los materiales del cubo se autoiluminan (verificado subiendo de noche: el pozo brilla entero).
+- BUG DE MOTOR CAZADO Y DOCUMENTADO: los DynamicTexture subidos desde canvas renderizan a NEGRO los píxeles con alpha=0 en esta config (WebGPU/CDN), aunque hasAlpha+ALPHATEST estén bien — la pipeline del diorama sobrevive porque CROPA el quad a la caja del contenido (alphaBounds). plantTex y padlockTex replican el patrón (recorte a contenido). Diagnóstico por descarte en vivo (mode 1/2, cutoff 0.05, round-trip putImageData, POT, async: todo negro; PNG por Image→crop: limpio).
+- INCIDENTE DE PROCESO: un `git reset --hard` tras `git add -A` descartó el trabajo sin commitear; RECUPERADO AL 100% desde blobs colgantes (git fsck) por marcadores de contenido + magia PNG, types.ts rehecho sobre HEAD. Lección: NUNCA encadenar add+reset; commit inmediato tras cada bloque verificado.
+- VERIFICACIÓN: QA v1.25 (scripts/qa-v125.ts) 33/33 ✓, regresión v1.15→v1.24 verde (qa-v124 actualizado a las 2 aserciones que el usuario pidió cambiar: 1 variante de puerta marrón y ruta directa dormitorio→baño), tsc 0 errores, ESLint limpio, E2E navegador: día/edificio, interior en vivo (sin tabiques, luz nocturna), noche (viviendas despiertas brillando, escalera autoiluminada), consola limpia.
+
+Stage Summary:
+- v1.25 «la casa de todos» en 9855218, push a origin/main. Insignia + SW bump a vecinos-v1.25.
+- Ficheros: building.ts/diorama.ts/elevator.ts/pedestrians.ts, schemas.ts/types.ts (campos v1.25), rules.json/interiors.json/layouts.json, 6 PNG nuevos en art/interiors/raw, gen-v125.ts, qa-v125.ts, qa-v124.ts (2 aserciones actualizadas), sw.js/PwaRegister/i18n (insignia), 6 capturas en docs/shots/v125-*.
+- El sim SIGUE intacto (240 ticks deterministas en QA); toda la corrección es presentación + contenido.
+- Pendientes naturales: candado/maceta como PNG generados si se quieren siluetas más ricas; valorar PointLight real en cubos de escalera de noche; variedad de FACHADAS (altura de barandilla, toldos) como siguiente capa de aleatoriedad.
