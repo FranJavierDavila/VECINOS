@@ -653,6 +653,9 @@ export const rulesSchema = z.object({
             openAngle: z.number().positive().default(1.75),
             openAhead: z.number().positive().default(1.05),
             openSpeed: z.number().positive().default(3.2),
+            /** v1.25: nodos de la authoría glTF del cubo que sobran (el hueco oscuro viejo
+             *  flotaba a la derecha de los tramos). Ocultos al cargar el modelo. */
+            hideNodes: z.array(z.string()).default([]),
           })
           .default({
             enabled: true,
@@ -669,6 +672,7 @@ export const rulesSchema = z.object({
             openAngle: 1.75,
             openAhead: 1.05,
             openSpeed: 3.2,
+            hideNodes: [],
           }),
         activityLight: z
           .object({
@@ -678,6 +682,10 @@ export const rulesSchema = z.object({
             fade: z.number().positive().default(2.4),
             meshes: z.array(z.string()).default(['luz_interior', 'tira_luz']),
             color: z.string().default('#ffedc2'),
+            /** v1.25: AUTOILUMINACIÓN del cubo — con alguien en las escaleras de noche, los
+             *  materiales del PROPIO bloque (muros, forjados, tramos) se iluminan también,
+             *  como los interiores de las viviendas (antes solo brillaba la bombilla). */
+            wallGlow: z.number().min(0).default(0.32),
           })
           .default({
             enabled: true,
@@ -686,6 +694,7 @@ export const rulesSchema = z.object({
             fade: 2.4,
             meshes: ['luz_interior', 'tira_luz'],
             color: '#ffedc2',
+            wallGlow: 0.32,
           })
       })
       .default({
@@ -693,9 +702,9 @@ export const rulesSchema = z.object({
         floorSlab: { enabled: true, thickness: 0.14, color: '#b8c0a8', topAt: 0.14 },
         facade: {
           enabled: true, halfW: 1.2, color: '#ddd1b8', doorW: 0.86, doorH: 1.84, doorBottom: 0.14, doorZ: 0.14, wallT: 0.1,
-          art: '/art/interiors/raw/door_comunal.png', numberColor: '#1c1c1c', hinge: 'left', openAngle: 1.75, openAhead: 1.05, openSpeed: 3.2,
+          art: '/art/interiors/raw/door_comunal.png', numberColor: '#1c1c1c', hinge: 'left', openAngle: 1.75, openAhead: 1.05, openSpeed: 3.2, hideNodes: [],
         },
-        activityLight: { enabled: true, dayCutoff: 0.4, glow: 0.9, fade: 2.4, meshes: ['luz_interior', 'tira_luz'], color: '#ffedc2' },
+        activityLight: { enabled: true, dayCutoff: 0.4, glow: 0.9, fade: 2.4, meshes: ['luz_interior', 'tira_luz'], color: '#ffedc2', wallGlow: 0.32 },
       }),
     /** Ascensor creíble (v1.5, presentación): semáforo de permisos con llamadas, puertas que
      *  abren/cierran, espera al embarco y capacidad limitada. TODO en el catálogo, nada a pelo. */
@@ -711,11 +720,14 @@ export const rulesSchema = z.object({
         accelFloorsPerSecond2: z.number().positive().default(1.2),
         cabinColor: z.string().default('#aeb8c2'),
         doorColor: z.string().default('#cbd5e1'),
+        /** v1.25: arte full-bleed de las hojas del ascensor (izquierda/derecha se recortan
+         *  de la MISMA pieza: la partida central del arte cae entre ambas). */
+        doorArt: z.string().default(''),
         callColor: z.string().default('#ffd166'),
         brokenColor: z.string().default('#c1666b'),
         rideZ: z.number().default(0.35),
       })
-      .default({ capacity: 4, doorWaitMs: 5000, doorMoveMs: 700, floorsPerSecond: 1.4, accelFloorsPerSecond2: 1.2, cabinColor: '#aeb8c2', doorColor: '#cbd5e1', callColor: '#ffd166', brokenColor: '#c1666b', rideZ: 0.35 }),
+      .default({ capacity: 4, doorWaitMs: 5000, doorMoveMs: 700, floorsPerSecond: 1.4, accelFloorsPerSecond2: 1.2, cabinColor: '#aeb8c2', doorColor: '#cbd5e1', doorArt: '', callColor: '#ffd166', brokenColor: '#c1666b', rideZ: 0.35 }),
     /** Cartel numerado sobre cada puerta de vivienda (v1.6): el label sale del id del bloque
      *  (blk_p3_c → "3C") con DynamicTexture; tamaño, posición y colores del catálogo. */
     plaque: z
@@ -859,12 +871,17 @@ export const rulesSchema = z.object({
         plant2Color: z.string().default('#84a59d'),
         potR: z.number().positive().default(0.17),
         potH: z.number().positive().default(0.26),
+        /** v1.25: arte de maceta como RECORTE billboard (con fondo se usan cilindros). */
+        art: z.array(z.string()).default([]),
+        artH: z.number().positive().default(0.62),
       })
-      .default({ perFloorMin: 2, perFloorMax: 4, potColor: '#b5651d', soilColor: '#5d4037', plantColor: '#5a9367', plant2Color: '#84a59d', potR: 0.17, potH: 0.26 }),
+      .default({ perFloorMin: 2, perFloorMax: 4, potColor: '#b5651d', soilColor: '#5d4037', plantColor: '#5a9367', plant2Color: '#84a59d', potR: 0.17, potH: 0.26, art: [], artH: 0.62 }),
     /** Privacidad de viviendas (v1.17): si una vivienda NO tiene a nadie dentro, el corte
      *  se cierra con su fachada y una puerta al pasillo; el interior solo se ve cuando su
      *  propietario (o cualquier vecino… o un ladrón) está dentro. Colores y medidas de la
-     *  puerta del catálogo; enabled=false vuelve al corte siempre abierto. */
+     *  puerta del catálogo; enabled=false vuelve al corte siempre abierto.
+     *  v1.25: pared gris clarito + zócalo de 25 cm + marcos DEL COLOR del zócalo, candado
+     *  dibujado (nada de cajas) y luces nocturnas de interiores parametrizadas. */
     privacy: z
       .object({
         enabled: z.boolean().default(true),
@@ -873,11 +890,31 @@ export const rulesSchema = z.object({
         doorW: z.number().positive().default(0.95),
         doorH: z.number().positive().default(1.85),
         /** v1.24: arte full-bleed de la hoja (variantes por hash), marco fino, nodos del
-         *  overlay glTF que se retiran y aplique de luz a un lado. */
+         *  overlay glTF que se retiran y aplique de luz a un lado.
+         *  v1.25: una sola variante → todas las puertas iguales (marrón). */
         doorArts: z.array(z.string()).default([]),
         frameW: z.number().positive().default(0.075),
         frameDepth: z.number().positive().default(0.1),
         hideNodes: z.array(z.string()).default([]),
+        /** v1.25 — acabado de la vivienda: pared gris clarito, banda de zócalo gris desde
+         *  el suelo y MARCOS de puerta del mismo color que el zócalo (continuidad). */
+        wallColor: z.string().default('#dbd8d2'),
+        skirtingColor: z.string().default('#a3a19b'),
+        skirtingH: z.number().positive().default(0.25),
+        /** v1.25 — candado dibujado (silueta real de candado, nada de cajas). */
+        lockArt: z.string().default(''),
+        lockW: z.number().positive().default(0.24),
+        lockH: z.number().positive().default(0.3),
+        /** v1.25 — luces nocturnas de interiores: cuánto brilla una estancia habitada
+         *  de noche (emissive del diorama, suelos y lámparas). dayCutoff corta el día. */
+        night: z
+          .object({
+            dayCutoff: z.number().min(0).max(1).default(0.4),
+            dioGlow: z.number().min(0).default(0.85),
+            floorGlow: z.number().min(0).default(0.7),
+            lampGlow: z.number().min(0).default(1.6),
+          })
+          .default({ dayCutoff: 0.4, dioGlow: 0.85, floorGlow: 0.7, lampGlow: 1.6 }),
         lamp: z
           .object({
             side: z.union([z.literal(-1), z.literal(1)]).default(1),
@@ -898,6 +935,13 @@ export const rulesSchema = z.object({
         frameW: 0.075,
         frameDepth: 0.1,
         hideNodes: [],
+        wallColor: '#dbd8d2',
+        skirtingColor: '#a3a19b',
+        skirtingH: 0.25,
+        lockArt: '',
+        lockW: 0.24,
+        lockH: 0.3,
+        night: { dayCutoff: 0.4, dioGlow: 0.85, floorGlow: 0.7, lampGlow: 1.6 },
         lamp: { side: 1, dx: 0.68, dy: 2.1, color: '#3b3129', glowColor: '#ffd166' },
       }),
     /** Velocidad (m/s) a partir de la cual un actor en marcha usa el clip "run". */
@@ -1070,8 +1114,11 @@ export const rulesSchema = z.object({
         colors: z.array(z.string()).min(1),
         hatChance: z.number().min(0).max(1).default(0.3),
         hatColors: z.array(z.string()).default(['#3b3129']),
+        /** v1.25: arquetipos del catálogo de vecinos que prestan su cuerpo a los viandantes
+         *  (misma estética). Vacío → todos los del manifiesto con clip de andar. */
+        actorArchetypes: z.array(z.string()).default([]),
       })
-      .default({ enabled: false, maxAlive: 6, spawnEveryMin: 5, spawnEveryMax: 16, speedMin: 0.9, speedMax: 1.5, enterChance: 0.25, exitChance: 0.3, enterX: 13.1, paths: [], colors: ['#5d6b7a'], hatChance: 0.3, hatColors: ['#3b3129'] }),
+      .default({ enabled: false, maxAlive: 6, spawnEveryMin: 5, spawnEveryMax: 16, speedMin: 0.9, speedMax: 1.5, enterChance: 0.25, exitChance: 0.3, enterX: 13.1, paths: [], colors: ['#5d6b7a'], hatChance: 0.3, hatColors: ['#3b3129'], actorArchetypes: [] }),
     /** ── Fondo urbano (v1.20) ── cielo dinámico (sol/luna/estrellas/nubes según la hora)
      *  + capas de fachadas 2D a distintas distancias (parallax natural: planos 3D reales
      *  tras el edificio). Luz global (ambiente + sol) evoluciona con los keyframes. */
@@ -1720,14 +1767,20 @@ export const interiorSpriteSchema = z.object({
   y: z.number().min(0).default(0),
 });
 
-/** Diorama de un tipo de estancia: pared del fondo + suelo + capas de mobiliario. */
+/** Diorama de un tipo de estancia: pared del fondo + suelo + capas de mobiliario.
+ *  v1.25: `walls` son PAREDES ALTERNATIVAS (misma estancia, otro arte) — el runtime elige
+ *  una por hash del bloque: variedad aleatoria entre viviendas sin tocar el sim. */
 export const interiorDioramaSchema = z.object({
   wall: z.string().min(1),
+  walls: z.array(z.string()).default([]),
   floor: z.string().min(1),
   sprites: z.array(interiorSpriteSchema).default([]),
 });
 
-/** Catálogo de interiores (OPCIONAL): sin el fichero, los interiores siguen greybox. */
+/** Catálogo de interiores (OPCIONAL): sin el fichero, los interiores siguen greybox.
+ *  v1.25 — variedad aleatoria entre viviendas: cada estancia puede teñir su pared con un
+ *  tinte de `wallTints` (hash del bloque), espejar su reparto de muebles (`mirrorChance`)
+ *  y moverlos un poco (`jitter`, fracciones del rect). Todo determinista por hash01. */
 export const interiorsCatalogSchema = z.object({
   artBase: z.string().default('/art/interiors/raw/'),
   keyColor: z.string().default('#ffffff'),
@@ -1735,6 +1788,9 @@ export const interiorsCatalogSchema = z.object({
   processSize: z.number().int().min(64).max(2048).default(512),
   alphaCutoff: z.number().min(0).max(1).default(0.45),
   doorDecal: z.object({ art: z.string().min(1), w: z.number().positive(), h: z.number().positive() }),
+  wallTints: z.array(z.string()).default(['#ffffff']),
+  mirrorChance: z.number().min(0).max(1).default(0),
+  jitter: z.number().min(0).max(0.25).default(0),
   rooms: z.record(z.string(), interiorDioramaSchema),
 });
 

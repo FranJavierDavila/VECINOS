@@ -1,5 +1,6 @@
-import type { Mesh, Scene, StandardMaterial, TransformNode } from '@babylonjs/core';
+import type { DynamicTexture, Mesh, Scene, StandardMaterial, TransformNode } from '@babylonjs/core';
 import type { Content, World } from '@/game/core/types';
+import { alphaBoundsOf, stripCorners } from './diorama';
 import { B } from './babylon';
 
 /**
@@ -134,6 +135,44 @@ export function createElevators(scene: Scene, world: World, content: Content): E
     broken: mat('asc_roto', cfg.brokenColor, { emissive: 0.5 }),
     off: mat('asc_apagado', '#3a4149'),
   };
+  /** v1.25 — PUERTAS DE ASCENSOR con textura correcta: el arte (dos hojas metálicas con la
+   *  partida central) se reparte en DOS texturas (mitad izquierda / mitad derecha), una por
+   *  hoja. Recorte full-bleed del fondo cocinado con stripCorners. Sin arte → color plano. */
+  const halfTex = (side: 'l' | 'r'): DynamicTexture | null => {
+    if (!cfg.doorArt) return null;
+    const dt = new (B().DynamicTexture)(`asc_puerta_tex_${side}`, { width: 192, height: 768 }, scene, true) as DynamicTexture;
+    const img = new Image();
+    img.onload = () => {
+      const big = document.createElement('canvas');
+      big.width = img.naturalWidth;
+      big.height = img.naturalHeight;
+      const bx = big.getContext('2d', { willReadFrequently: true });
+      if (!bx) return;
+      bx.drawImage(img, 0, 0);
+      stripCorners(big, 0.14);
+      const b = alphaBoundsOf(big);
+      const sx = b ? b.x0 : 0;
+      const sy = b ? b.y0 : 0;
+      const sw = b ? b.x1 - b.x0 : img.naturalWidth;
+      const sh = b ? b.y1 - b.y0 : img.naturalHeight;
+      const dctx = dt.getContext() as unknown as CanvasRenderingContext2D;
+      dctx.clearRect(0, 0, 192, 768);
+      dctx.drawImage(big, side === 'l' ? sx : sx + sw / 2, sy, sw / 2, sh, 0, 0, 192, 768);
+      dt.update(true);
+    };
+    img.src = cfg.doorArt;
+    return dt;
+  };
+  const doorTexL = halfTex('l');
+  const doorTexR = halfTex('r');
+  const doorMatL = mats.door;
+  let doorMatR = mats.door;
+  if (doorTexL && doorTexR) {
+    // Dos MATERIALES (uno por hoja): el mismo material llevaría solo una de las mitades.
+    doorMatL.diffuseTexture = doorTexL;
+    doorMatR = doorMatL.clone('asc_puerta_der');
+    doorMatR.diffuseTexture = doorTexR;
+  }
   const box = (name: string, w: number, h: number, d: number, x: number, y: number, z: number, m: StandardMaterial): Mesh => {
     const mesh = MeshBuilder.CreateBox(name, { width: w, height: h, depth: d }, scene);
     mesh.position.set(x, y, z);
@@ -167,8 +206,8 @@ export function createElevators(scene: Scene, world: World, content: Content): E
     const callButtons = new Map<number, Mesh>();
     for (const f of info.floors) {
       const y = f * v.cellH;
-      const left = box(`asc_puerta_${col}_${f}_i`, 0.56, 1.94, 0.06, info.x - 0.28, y + 0.97, doorZ, mats.door);
-      const right = box(`asc_puerta_${col}_${f}_d`, 0.56, 1.94, 0.06, info.x + 0.28, y + 0.97, doorZ, mats.door);
+      const left = box(`asc_puerta_${col}_${f}_i`, 0.56, 1.94, 0.06, info.x - 0.28, y + 0.97, doorZ, doorMatL);
+      const right = box(`asc_puerta_${col}_${f}_d`, 0.56, 1.94, 0.06, info.x + 0.28, y + 0.97, doorZ, doorMatR);
       doorPanels.set(f, { left, right });
       const btn = box(`asc_llamada_${col}_${f}`, 0.12, 0.16, 0.05, info.x + 0.76, y + 1.12, frontZ - 0.08, mats.off);
       callButtons.set(f, btn);

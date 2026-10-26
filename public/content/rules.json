@@ -755,7 +755,10 @@
         "hinge": "left",
         "openAngle": 1.75,
         "openAhead": 1.05,
-        "openSpeed": 3.2
+        "openSpeed": 3.2,
+        "hideNodes": [
+          "hueco"
+        ]
       },
       "activityLight": {
         "enabled": true,
@@ -766,7 +769,8 @@
           "luz_interior",
           "tira_luz"
         ],
-        "color": "#ffedc2"
+        "color": "#ffedc2",
+        "wallGlow": 0.32
       }
     },
     "elevator": {
@@ -779,7 +783,8 @@
       "doorColor": "#cbd5e1",
       "callColor": "#ffd166",
       "brokenColor": "#c1666b",
-      "rideZ": 0.35
+      "rideZ": 0.35,
+      "doorArt": "/art/interiors/raw/door_ascensor.png"
     },
     "plaque": {
       "w": 0.85,
@@ -874,7 +879,12 @@
       "plantColor": "#5a9367",
       "plant2Color": "#84a59d",
       "potR": 0.17,
-      "potH": 0.26
+      "potH": 0.26,
+      "art": [
+        "/art/interiors/raw/maceta_a.png",
+        "/art/interiors/raw/maceta_b.png"
+      ],
+      "artH": 0.62
     },
     "seatAnchors": [
       "bed",
@@ -888,9 +898,7 @@
       "doorW": 0.95,
       "doorH": 1.85,
       "doorArts": [
-        "/art/interiors/raw/door_casa_a.png",
-        "/art/interiors/raw/door_casa_b.png",
-        "/art/interiors/raw/door_casa_c.png"
+        "/art/interiors/raw/door_casa_a.png"
       ],
       "frameW": 0.075,
       "frameDepth": 0.1,
@@ -907,6 +915,18 @@
         "dy": 2.1,
         "color": "#3b3129",
         "glowColor": "#ffd166"
+      },
+      "wallColor": "#dbd8d2",
+      "skirtingColor": "#a3a19b",
+      "skirtingH": 0.25,
+      "lockArt": "",
+      "lockW": 0.22,
+      "lockH": 0.28,
+      "night": {
+        "dayCutoff": 0.4,
+        "dioGlow": 0.85,
+        "floorGlow": 0.7,
+        "lampGlow": 1.6
       }
     }
   },

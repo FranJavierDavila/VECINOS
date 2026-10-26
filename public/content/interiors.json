@@ -78,6 +78,10 @@
           "v": 0.22,
           "layer": "front"
         }
+      ],
+      "walls": [
+        "wall_salon.png",
+        "wall_salon_b.png"
       ]
     },
     "estancia_dormitorio": {
@@ -124,6 +128,10 @@
           "v": 0.16,
           "layer": "front"
         }
+      ],
+      "walls": [
+        "wall_dormitorio.png",
+        "wall_dormitorio_b.png"
       ]
     },
     "estancia_bano": {
@@ -232,5 +240,14 @@
         }
       ]
     }
-  }
+  },
+  "wallTints": [
+    "#ffffff",
+    "#ffe9d8",
+    "#e2efe6",
+    "#fdf3d9",
+    "#f3e6ef"
+  ],
+  "mirrorChance": 0.4,
+  "jitter": 0.06
 }

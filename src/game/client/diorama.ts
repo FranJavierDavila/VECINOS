@@ -19,6 +19,7 @@
 
 import type { Mesh, Scene, StandardMaterial, DynamicTexture, TransformNode } from '@babylonjs/core';
 import type { Content } from '@/game/core/types';
+import { hash01 } from '@/game/interior';
 import { B } from './babylon';
 
 export interface DioramaSurface {
@@ -33,6 +34,19 @@ export interface DioramaRoom {
   door: DioramaSurface | null;
 }
 
+export interface DioramaVariant {
+  /** Tinte multiplicativo de la pared del fondo (variedad aleatoria entre viviendas). */
+  tintHex: string;
+  /** Espejar el reparto de muebles (u → 1−u). */
+  mirror: boolean;
+  /** Desplazamiento uniforme de los sprites, en fracciones del rect (±jitter). */
+  jitter: number;
+  /** Índice de la pared alternativa (dio.walls) para esta estancia. */
+  wallIndex: number;
+  /** Sal para jitter determinista por estancia (mismo bloque, distinta sal por habitación). */
+  salt: number;
+}
+
 export interface DioramaDirector {
   /** Crea el diorama de una estancia (rect local en metros desde la esquina frontal-izq). */
   room(
@@ -40,7 +54,12 @@ export interface DioramaDirector {
     defId: string,
     rect: { x: number; z: number; w: number; d: number },
     origin: { x0: number; frontZ: number; yBottom: number; yTop: number },
-    opts?: { withRearDoor?: boolean; wallGap?: { a: number; b: number } | null; parent?: TransformNode },
+    opts?: {
+      withRearDoor?: boolean;
+      wallGap?: { a: number; b: number } | null;
+      parent?: TransformNode;
+      variant?: DioramaVariant;
+    },
   ): DioramaRoom | null;
   dispose(): void;
 }
@@ -69,23 +88,33 @@ export function alphaBoundsOf(c: HTMLCanvasElement): { x0: number; y0: number; x
   return x1 < 0 ? null : { x0, y0, x1, y1 };
 }
 
-/** Vuelca el blanco de fondo a alpha (flood-fill 4-conexo desde los bordes). Exportado:
- *  v1.24 lo reutiliza para los RECORTEs de árboles del exterior. */
-export function stripWhite(c: HTMLCanvasElement, hex: string, tolerance: number, alphaCutoff: number): void {
+/** Vuelca el fondo de un PNG a alpha (flood-fill 4-conexo desde los bordes) contra una lista
+ *  de colores llave. Exportado: los recortes de árboles (v1.24) y las PUERTAS full-bleed
+ *  (v1.25) reutilizan la misma maquinaria que los dioramas. */
+export function stripBackground(c: HTMLCanvasElement, hexes: string[], tolerance: number, alphaCutoff: number): void {
   const ctx = c.getContext('2d', { willReadFrequently: true });
-  if (!ctx) return;
+  if (!ctx || hexes.length === 0) return;
   const W = c.width;
   const H = c.height;
   const img = ctx.getImageData(0, 0, W, H);
   const data = img.data;
-  const kr = parseInt(hex.slice(1, 3), 16) || 255;
-  const kg = parseInt(hex.slice(3, 5), 16) || 255;
-  const kb = parseInt(hex.slice(5, 7), 16) || 255;
+  const keys = hexes.map((hex) => ({
+    r: parseInt(hex.slice(1, 3), 16) || 255,
+    g: parseInt(hex.slice(3, 5), 16) || 255,
+    b: parseInt(hex.slice(5, 7), 16) || 255,
+  }));
   const tol = tolerance * 255;
   const visited = new Uint8Array(W * H);
   const stack: number[] = [];
-  const near = (p: number): boolean =>
-    Math.abs(data[p * 4]! - kr) < tol && Math.abs(data[p * 4 + 1]! - kg) < tol && Math.abs(data[p * 4 + 2]! - kb) < tol;
+  const near = (p: number): boolean => {
+    const r = data[p * 4]!;
+    const g = data[p * 4 + 1]!;
+    const b = data[p * 4 + 2]!;
+    for (const k of keys) {
+      if (Math.abs(r - k.r) < tol && Math.abs(g - k.g) < tol && Math.abs(b - k.b) < tol) return true;
+    }
+    return false;
+  };
   const push = (x: number, y: number): void => {
     const p = y * W + x;
     if (!visited[p] && near(p)) {
@@ -124,6 +153,27 @@ export function stripWhite(c: HTMLCanvasElement, hex: string, tolerance: number,
     }
   }
   ctx.putImageData(img, 0, 0);
+}
+
+/** Recorta el FONDO de una ilustración (pared/suelo cocinados alrededor de una puerta o
+ *  mueble) usando los colores de las 4 esquinas como llaves. Exportado para puertas de
+ *  vivienda/escalera/ascensor (v1.25): la hoja queda a sangre completa. */
+export function stripCorners(c: HTMLCanvasElement, tolerance: number): void {
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return;
+  const W = c.width;
+  const H = c.height;
+  const px = (x: number, y: number): string => {
+    const d = ctx.getImageData(x, y, 1, 1).data;
+    return `#${[d[0]!, d[1]!, d[2]!].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+  };
+  stripBackground(c, [px(1, 1), px(W - 2, 1), px(1, H - 2), px(W - 2, H - 2)], tolerance, 0.45);
+}
+
+/** Vuelca el blanco de fondo a alpha (flood-fill 4-conexo desde los bordes). Exportado:
+ *  v1.24 lo reutiliza para los RECORTEs de árboles del exterior. */
+export function stripWhite(c: HTMLCanvasElement, hex: string, tolerance: number, alphaCutoff: number): void {
+  stripBackground(c, [hex], tolerance, alphaCutoff);
 }
 
 export function createDioramaDirector(scene: Scene, content: Content): DioramaDirector | null {
@@ -254,11 +304,15 @@ export function createDioramaDirector(scene: Scene, content: Content): DioramaDi
 
       // ── Pared del fondo: quad(s) con el arte (respeta el hueco de la puerta trasera).
       // v1.24: cada tramo se SOLAPA 1 cm por lado — sin costuras blancas entre quads
-      // contiguos (estancias vecinas comparten borde y el anti-aliasing abría una raja). ──
+      // contiguos (estancias vecinas comparten borde y el anti-aliasing abría una raja).
+      // v1.25: arte alternativo por `walls` + tinte de la variante (variedad aleatoria). ──
+      const variant = opts?.variant ?? null;
       const wall: DioramaSurface[] = [];
       const wallMat = surfMat(`${id}_dio_pared`, false);
+      if (variant) wallMat.diffuseColor = Color3.FromHexString(variant.tintHex);
+      const wallArt = variant && dio.walls.length > 0 ? dio.walls[variant.wallIndex % dio.walls.length]! : dio.wall;
       const wallTiles = Math.max(1, Math.round(rect.w / Math.max(0.6, wallH)));
-      wallMat.diffuseTexture = artTex(`${id}_dio_pared_tex`, dio.wall, false, wallTiles, 1);
+      wallMat.diffuseTexture = artTex(`${id}_dio_pared_tex`, wallArt, false, wallTiles, 1);
       const gap = opts?.wallGap ?? null;
       const SEAM = 0.01;
       const segs: Array<[number, number]> = gap
@@ -305,12 +359,19 @@ export function createDioramaDirector(scene: Scene, content: Content): DioramaDi
       const floor: DioramaSurface = { mesh: fq, mat: floorMat };
 
       // ── Capas de mobiliario (billboards con paralaje): quad 1×1 reescalado al recorte.
-      // La capa 'rug' es distinta: alfombra TUMBADA en el suelo (quad plano), h = calado. ──
+      // La capa 'rug' es distinta: alfombra TUMBADA en el suelo (quad plano), h = calado.
+      // v1.25: la variante espeja (u → 1−u) y menea (jitter determinista) el reparto. ──
       const sprites: DioramaSurface[] = [];
+      const jit = variant?.jitter ?? 0;
+      const uOf = (sp: { u: number }): number => {
+        let u = variant?.mirror ? 1 - sp.u : sp.u;
+        u += jit * (hash01(id, 9000 + (variant?.salt ?? 0)) - 0.5) * 2;
+        return Math.min(0.94, Math.max(0.06, u));
+      };
       for (const [i, sp] of dio.sprites.entries()) {
         const m = surfMat(`${id}_dio_sp${i}`, true);
         const z = origin.frontZ + rect.z + sp.v * rect.d;
-        const x = origin.x0 + rect.x + sp.u * rect.w;
+        const x = origin.x0 + rect.x + uOf(sp) * rect.w;
         if (sp.layer === 'rug') {
           const rq = quad(`${id}_dio_sp${i}`, sp.w, sp.h, x, floorY + 0.012, z, m, true);
           m.diffuseTexture = artTex(`${id}_dio_sp${i}_tex`, sp.art, true, 1, 1, (ar) => {

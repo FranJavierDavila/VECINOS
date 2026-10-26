@@ -68,6 +68,13 @@
         "axis": "x",
         "at": 1.15,
         "width": 0.95
+      },
+      {
+        "a": "dormitorio",
+        "b": "bano",
+        "axis": "x",
+        "at": 2.5,
+        "width": 2.5
       }
     ]
   }

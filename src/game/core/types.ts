@@ -995,9 +995,13 @@ export interface Rules {
         openAngle: number;
         openAhead: number;
         openSpeed: number;
+        /** v1.25: nodos de la authoría glTF que sobran (p. ej. el hueco oscuro viejo). */
+        hideNodes?: string[];
       };
       /** v1.24 — iluminación COMPARTIDA de todos los cubos de escalera: de noche se enciende
-       *  si algún vecino se mueve por las escaleras (materiales de los sellos de luz del arte). */
+       *  si algún vecino se mueve por las escaleras (materiales de los sellos de luz del arte).
+       *  v1.25: `wallGlow` ilumina TAMBIÉN los materiales del propio cubo (autoiluminación
+       *  como en los interiores de vivienda — antes solo brillaba la bombilla). */
       activityLight: {
         enabled: boolean;
         dayCutoff: number;
@@ -1005,6 +1009,7 @@ export interface Rules {
         fade: number;
         meshes: string[];
         color: string;
+        wallGlow?: number;
       };
     };
     /** Ascensor creíble (v1.5, presentación): llamadas, puertas, espera y capacidad (src/game/client/elevator.ts). */
@@ -1017,6 +1022,9 @@ export interface Rules {
       accelFloorsPerSecond2: number;
       cabinColor: string;
       doorColor: string;
+      /** v1.25: arte full-bleed de las hojas del ascensor (la partida central del arte cae
+       *  entre las dos hojas: cada una recibe su mitad). Vacío = color plano. */
+      doorArt?: string;
       callColor: string;
       brokenColor: string;
       rideZ: number;
@@ -1081,7 +1089,8 @@ export interface Rules {
     };
     /** Tejadillo a dos aguas que cierra el edificio (v1.16) sobre la bajocubierta. */
     roof: { pitchH: number; overhang: number; color: string; ridge: string; fascia: string };
-    /** Macetas en los pasillos (v1.16): cantidad por planta determinista y colores. */
+    /** Macetas en los pasillos (v1.16): cantidad por planta determinista y colores.
+     *  v1.25: recortes billboard (`artH` del recorte dibujado a canvas). */
     pots: {
       perFloorMin: number;
       perFloorMax: number;
@@ -1091,6 +1100,8 @@ export interface Rules {
       plant2Color: string;
       potR: number;
       potH: number;
+      art?: string[];
+      artH?: number;
     };
     /** Privacidad de viviendas (v1.17): el interior solo se ve con alguien dentro; vacía,
      *  la fachada se cierra con su puerta al pasillo (propietario, visita… o un ladrón).
@@ -1107,6 +1118,16 @@ export interface Rules {
       frameW?: number;
       frameDepth?: number;
       hideNodes?: string[];
+      /** v1.25 — acabado de la vivienda: pared gris clarito, zócalo gris y marcos del
+       *  color del zócalo (continuidad visual); candado DIBUJADO (nada de cajas) y
+       *  luces nocturnas de interiores parametrizadas. */
+      wallColor?: string;
+      skirtingColor?: string;
+      skirtingH?: number;
+      lockArt?: string;
+      lockW?: number;
+      lockH?: number;
+      night?: { dayCutoff: number; dioGlow: number; floorGlow: number; lampGlow: number };
       lamp?: { side: -1 | 1; dx: number; dy: number; color: string; glowColor: string };
     };
     roomZ: number;
@@ -1208,6 +1229,8 @@ export interface Rules {
       colors: string[];
       hatChance: number;
       hatColors: string[];
+      /** v1.25: arquetipos del catálogo de vecinos que prestan su cuerpo a los viandantes. */
+      actorArchetypes?: string[];
     };
     /** ── Fondo urbano (v1.20) ── cielo dinámico por hora + capas de fachadas 2D con
      *  parallax natural (planos 3D a distintas z tras el edificio). */

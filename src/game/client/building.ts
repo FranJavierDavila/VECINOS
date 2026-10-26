@@ -4,7 +4,15 @@ import type { BlockInstance, Content, World } from '@/game/core/types';
 import { hash01 } from '@/game/interior';
 import { storageCorridorX, storageGeomOf, storageUnitPlan, storageUnitZ } from '@/game/storage';
 import { B } from './babylon';
-import { createDioramaDirector, newDioramaSet, type DioramaDirector, type DioramaSet } from './diorama';
+import {
+  alphaBoundsOf,
+  createDioramaDirector,
+  newDioramaSet,
+  stripCorners,
+  type DioramaDirector,
+  type DioramaSet,
+  type DioramaVariant,
+} from './diorama';
 import { instantiateBlockAsset, type BlockMat } from './assets';
 
 interface BlockView {
@@ -42,6 +50,9 @@ interface BlockView {
   edgesMesh2: Mesh | null;
   /** v1.24: decoración de la puerta de privacidad (marco + aplique) — se activa junto a view.door. */
   doorDecor: Mesh[];
+  /** v1.25: color FIJO de la vivienda (pared gris clarito) — el tintado de estado no la repinta;
+   *  el emissive de canales (ruido/agua) sigue funcionando. null = tintado clásico. */
+  fixedDiffuse: Color3 | null;
 }
 
 /** Interior 2D de una vivienda (Fase C): suelo por estancia + tapa de puerta hacia estancia cerrada. */
@@ -102,9 +113,10 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     return v.commonDepth;
   };
   const mat = (name: string) => new StandardMaterial(name, scene);
-  /** Texturas de puerta cacheadas por fichero (v1.24): 3 arte de vivienda compartidos por
-   *  decenas de pisos — una sola subida por PNG. Full-bleed: la textura ES la hoja (el arte
-   *  llega con un borde pintado de pared/suelo que se RECUERTA al volcarlo a la textura). */
+  /** Texturas de puerta cacheadas por fichero (v1.24→v1.25): FULL-BLEED de verdad. El arte
+   *  llega con pared/suelo cocinados alrededor de la hoja: flood-fill contra los colores de
+   *  las esquinas (stripCorners) + recorte a la caja del contenido (alphaBoundsOf) → la
+   *  textura ES la hoja y desaparecen los elementos antiguos que se veían alrededor. */
   const doorArtCache = new Map<string, DynamicTexture>();
   const doorArtTex = (sc: Scene, file: string): DynamicTexture => {
     const hit = doorArtCache.get(file);
@@ -113,17 +125,81 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     doorArtCache.set(file, dt);
     const img = new Image();
     img.onload = () => {
+      const big = document.createElement('canvas');
+      big.width = img.naturalWidth;
+      big.height = img.naturalHeight;
+      const bx = big.getContext('2d', { willReadFrequently: true });
+      if (!bx) return;
+      bx.drawImage(img, 0, 0);
+      stripCorners(big, 0.14);
+      const b = alphaBoundsOf(big);
       const dctx = dt.getContext() as unknown as CanvasRenderingContext2D;
       dctx.clearRect(0, 0, 384, 768);
-      // Recorte del borde pintado (pared de fondo y suelo del sello): la hoja llena el plano.
-      const sx = img.naturalWidth * 0.07;
-      const sy = img.naturalHeight * 0.05;
-      const sw = img.naturalWidth * 0.86;
-      const sh = img.naturalHeight * 0.9;
-      dctx.drawImage(img, sx, sy, sw, sh, 0, 0, 384, 768);
+      if (b) dctx.drawImage(big, b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0, 0, 0, 384, 768);
+      else dctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, 384, 768);
       dt.update(true);
     };
     img.src = file;
+    return dt;
+  };
+  /** Candado DIBUJADO (v1.25): silueta real de candado en un DynamicTexture — nada de cajas
+   *  3D. Colores del catálogo (lockColor); grillete de acero fijo. MISMO PATRÓN que los
+   *  sprites del diorama: se recorta el quad a la caja del contenido (alphaBounds) — el
+   *  canvas subido no puede confiar en el alpha fuera del contenido (fondo a negro). */
+  let lockTex: DynamicTexture | null = null;
+  let lockTexAr = 0.8;
+  const padlockTex = (): DynamicTexture => {
+    if (lockTex) return lockTex;
+    const dt = new (B().DynamicTexture)('candado_tex', { width: 128, height: 128 }, scene, true);
+    dt.hasAlpha = true;
+    const c = document.createElement('canvas');
+    c.width = 128;
+    c.height = 128;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return dt;
+    ctx.clearRect(0, 0, 128, 128);
+    const body = Color3.FromHexString(v.lockColor).toHexString();
+    // Grillete: arco de acero.
+    ctx.strokeStyle = '#8d939c';
+    ctx.lineWidth = 11;
+    ctx.beginPath();
+    ctx.arc(64, 52, 26, Math.PI, 0);
+    ctx.stroke();
+    // Cuerpo de latón con borde.
+    ctx.fillStyle = body;
+    ctx.strokeStyle = 'rgba(60,40,10,0.9)';
+    ctx.lineWidth = 4;
+    const r = 12;
+    ctx.beginPath();
+    ctx.moveTo(24, 124);
+    ctx.lineTo(24, 66 + r);
+    ctx.arcTo(24, 66, 24 + r, 66, r);
+    ctx.lineTo(104 - r, 66);
+    ctx.arcTo(104, 66, 104, 66 + r, r);
+    ctx.lineTo(104, 124);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Ojo de la cerradura.
+    ctx.fillStyle = 'rgba(50,32,8,0.95)';
+    ctx.beginPath();
+    ctx.arc(64, 90, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillRect(60, 90, 8, 20);
+    // Recorte a la caja del contenido (patrón diorama) + volcado a la textura cuadrada.
+    const b = alphaBoundsOf(c);
+    const dctx = dt.getContext() as unknown as CanvasRenderingContext2D;
+    dctx.clearRect(0, 0, 128, 128);
+    if (b) {
+      const bw = Math.max(1, b.x1 - b.x0);
+      const bh = Math.max(1, b.y1 - b.y0);
+      lockTexAr = bw / bh;
+      dctx.drawImage(c, b.x0, b.y0, bw, bh, 0, 0, 128, 128);
+    } else {
+      dctx.drawImage(c, 0, 0);
+    }
+    dt.update(true);
+    lockTex = dt;
     return dt;
   };
   /** Apliques de las puertas de vivienda: el foco cálido amaanece con la noche (update). */
@@ -164,6 +240,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       glowForced: false,
       lodHiddenPanels: false,
       doorDecor: [],
+      fixedDiffuse: null,
     };
     const root = new TransformNode(`${b.id}_root`, scene);
     roots.set(b.id, root);
@@ -180,6 +257,11 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       }
     } else if (b.kind === 'dwelling') {
       const y = bottom + v.cellH / 2;
+      const pv = v.privacy;
+      // v1.25 — acabado de la vivienda: pared GRIS CLARITO fija (el tintado de estado no la
+      // repinta; el glow de canales sigue) + ZÓCALO gris de 25 cm desde el suelo + marcos de
+      // puerta DEL COLOR del zócalo. Todo del catálogo (rules.view.privacy).
+      view.fixedDiffuse = Color3.FromHexString(pv.wallColor ?? '#dbd8d2');
       // ── Puerta a sala TRASERA (v1.19, apilamiento 3D): la pared del fondo se parte con el
       // hueco del layout (doorway hacia una estancia más profunda que el bloque principal).
       const layoutId0 = content.blocks[b.defId]?.container?.layout;
@@ -215,15 +297,39 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         );
       }
       view.front = box(`${b.id}_puerta`, w, h, v.wall, cx, y, frontZ, m);
-      view.lock = box(`${b.id}_candado`, 0.3, 0.38, 0.12, cx, view.lockBase.y, frontZ - 0.1, mat(`${b.id}_candado_mat`));
-      (view.lock.material as StandardMaterial).diffuseColor = Color3.FromHexString(v.lockColor);
+      // ── ZÓCALO (v1.25): banda gris de ~25 cm desde el suelo. Continúa en el MARCO de la
+      //  puerta (mismo material): la pieza que perimetra la puerta es del color del zócalo.
+      const skH = pv.skirtingH ?? 0.25;
+      const skMat = mat(`${b.id}_zocalo_mat`);
+      skMat.diffuseColor = Color3.FromHexString(pv.skirtingColor ?? '#a3a19b');
+      skMat.specularColor = new Color3(0.02, 0.02, 0.02);
+      const ySk = bottom + v.slab + v.wall + skH / 2;
+      view.greybox.push(
+        attach(b.id, box(`${b.id}_zocalo_frente`, w, skH, v.wall + 0.02, cx, ySk, frontZ, skMat)),
+        attach(b.id, box(`${b.id}_zocalo_izq`, v.wall + 0.02, skH, d - 2 * v.wall, cx - w / 2 + v.wall / 2, ySk, cz, skMat)),
+        attach(b.id, box(`${b.id}_zocalo_der`, v.wall + 0.02, skH, d - 2 * v.wall, cx + w / 2 - v.wall / 2, ySk, cz, skMat)),
+      );
+      // Candado DIBUJADO (v1.25): quad con silueta real de candado — los candados en forma
+      // de caja desaparecen. Cuelga de la puerta de privacidad y sigue sacudiéndose.
+      const lh = pv.lockH ?? 0.28;
+      const lw = lh * Math.max(0.5, Math.min(1.2, lockTexAr));
+      const lockMat = mat(`${b.id}_candado_mat`);
+      lockMat.diffuseTexture = padlockTex();
+      lockMat.emissiveColor = Color3.FromHexString(v.lockColor).scale(0.22);
+      lockMat.specularColor = new Color3(0, 0, 0);
+      lockMat.transparencyMode = 2;
+      lockMat.alphaCutOff = 0.35;
+      view.lock = MeshBuilder.CreatePlane(`${b.id}_candado`, { width: lw, height: lh }, scene);
+      view.lock.material = lockMat;
+      view.lock.isPickable = false;
+      view.lock.position.set(cx - pv.doorW / 2 - 0.32, view.lockBase.y, frontZ - v.wall / 2 - 0.07);
+      view.lock.setEnabled(false);
 
       // ── Privacidad (v1.24): la puerta es un PLANO con arte real (full-bleed), marco 3D
       // pequeño del color de la puerta que SÍ contornea la hoja, y un aplique de luz a un
       // lado (brilla de noche). La placa numerada sube POR ENCIMA del marco (sin taparse).
       // Se activan/desactivan cada frame según haya alguien dentro (propietario, visita…
       // o un ladrón); medidas y colores del catálogo (rules.view.privacy).
-      const pv = v.privacy;
       const doorZ = frontZ - v.wall / 2 - 0.035;
       view.door = MeshBuilder.CreatePlane(`${b.id}_puerta_priv`, { width: pv.doorW, height: pv.doorH }, scene);
       view.door.position.set(cx, bottom + v.slab + v.wall + pv.doorH / 2, doorZ);
@@ -236,11 +342,12 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       view.door.material = doorMat;
       view.door.isPickable = false;
       view.door.setEnabled(false);
-      // Marco pequeño del color de la puerta: dos jambas + dintel ABRAZANDO la hoja.
+      // Marco pequeño DEL COLOR DEL ZÓCALO (v1.25: continuidad del zócalo — antes, del color
+      // de la puerta): dos jambas + dintel ABRAZANDO la hoja.
       const fw = pv.frameW ?? 0.075;
       const fd = pv.frameDepth ?? 0.1;
       const frameMat = mat(`${b.id}_marco_puerta_mat`);
-      frameMat.diffuseColor = Color3.FromHexString(pv.doorColor);
+      frameMat.diffuseColor = Color3.FromHexString(pv.skirtingColor ?? '#a3a19b');
       frameMat.specularColor = new Color3(0.03, 0.03, 0.03);
       const fz = frontZ - v.wall / 2 - 0.045;
       const jambL = box(`${b.id}_marco_izq`, fw, pv.doorH + fw * 2, fd, cx - pv.doorW / 2 - fw / 2, bottom + v.slab + v.wall + pv.doorH / 2, fz, frameMat);
@@ -346,6 +453,10 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
             const door = (layout.doorways ?? []).find(
               (dw) => (dw.a === lr.key && dw.b === other.key) || (dw.a === other.key && dw.b === lr.key),
             );
+            // v1.25 — SIN TABIQUES en el interior: si el par comparte puerta (los layouts
+            // abiertos declaran huecos de borde completo) no se levanta NINGÚN muro: libertad
+            // de movimientos total. Sin hueco declarado sigue habiendo pared (el walkable()
+            // del catálogo lo prohíbe: una sola verdad).
             // Borde vertical compartido → tabique que corre según Z (se cruza andando en X).
             const touchX = Math.abs(ra.x + ra.w - rb.x) < eps || Math.abs(rb.x + rb.w - ra.x) < eps;
             const overlapZ = Math.min(ra.z + ra.d, rb.z + rb.d) - Math.max(ra.z, rb.z);
@@ -355,15 +466,15 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
               const z1 = frontZ + Math.min(ra.z + ra.d, rb.z + rb.d);
               const yC = bottom + v.slab + v.wall + wallH / 2;
               if (door && door.axis === 'z') {
-                const g0 = Math.max(z0, frontZ + door.at - door.width / 2);
-                const g1 = Math.min(z1, frontZ + door.at + door.width / 2);
-                seg(z0, g0, 'z', wx, wallH, yC, `${b.id}_tab_${i}_${j}_i`);
-                seg(g1, z1, 'z', wx, wallH, yC, `${b.id}_tab_${i}_${j}_d`);
-                const cover = attach(b.id, box(`${b.id}_tapa_${i}_${j}`, v.wall * 0.8, wallH, g1 - g0, wx, yC, frontZ + door.at, mat(`${b.id}_tapa_${i}_${j}_mat`)));
+                // Tapa de puerta ESTRECHA (v1.25): un panel del ancho de una HOJA (no toda
+                // la pared — antes leía como tabique). Solo visible con la estancia cerrada.
+                const coverW = Math.min(overlapZ, pv.doorW * 1.15);
+                const cAt = Math.min(z1 - coverW / 2, Math.max(z0 + coverW / 2, frontZ + door.at));
+                const cover = attach(b.id, box(`${b.id}_tapa_${i}_${j}`, v.wall * 0.8, wallH, coverW, wx, yC, cAt, mat(`${b.id}_tapa_${i}_${j}_mat`)));
                 (cover.material as StandardMaterial).diffuseColor = Color3.FromHexString(v.lockedColor);
                 cover.setEnabled(false);
                 interior.covers.push({ mesh: cover, rooms: [lr.key, other.key] });
-              } else {
+              } else if (!door) {
                 seg(z0, z1, 'z', wx, wallH, yC, `${b.id}_tab_${i}_${j}`);
               }
             }
@@ -377,15 +488,13 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
               const halfH = wallH * 0.45;
               const yHalf = bottom + v.slab + v.wall + halfH / 2;
               if (door && door.axis === 'x') {
-                const g0 = Math.max(xa, x0 + door.at - door.width / 2);
-                const g1 = Math.min(xb, x0 + door.at + door.width / 2);
-                seg(xa, g0, 'x', wz, halfH, yHalf, `${b.id}_tab_${i}_${j}_i`);
-                seg(g1, xb, 'x', wz, halfH, yHalf, `${b.id}_tab_${i}_${j}_d`);
-                const cover = attach(b.id, box(`${b.id}_tapa_${i}_${j}`, g1 - g0, halfH, v.wall * 0.8, x0 + door.at, yHalf, wz, mat(`${b.id}_tapa_${i}_${j}_mat`)));
+                const coverW = Math.min(overlapX, pv.doorW * 1.15);
+                const cAt = Math.min(xb - coverW / 2, Math.max(xa + coverW / 2, x0 + door.at));
+                const cover = attach(b.id, box(`${b.id}_tapa_${i}_${j}`, coverW, halfH, v.wall * 0.8, cAt, yHalf, wz, mat(`${b.id}_tapa_${i}_${j}_mat`)));
                 (cover.material as StandardMaterial).diffuseColor = Color3.FromHexString(v.lockedColor);
                 cover.setEnabled(false);
                 interior.covers.push({ mesh: cover, rooms: [lr.key, other.key] });
-              } else {
+              } else if (!door) {
                 seg(xa, xb, 'x', wz, halfH, yHalf, `${b.id}_tab_${i}_${j}`);
               }
             }
@@ -401,7 +510,22 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           interior.dioRoot = dioRoot;
           const x0w = x0 + v.gapW / 2; // margen de la caja del bloque (cx − w/2)
           const x1w = x0 + b.size.w * v.cellW - v.gapW / 2;
-          for (const lr of geoRooms) {
+          // v1.25 — VARIEDAD ALEATORIA entre viviendas (determinista por hash01 del bloque,
+          // jamás RNG del sim): tinte de pared del catálogo, espejo del reparto, jitter y
+          // pared alternativa (dio.walls). Cada vivienda se ve distinta; el sim no se entera.
+          const catI = content.interiors;
+          const mkVariant = (salt: number): DioramaVariant | undefined => {
+            if (!catI) return undefined;
+            const tints = catI.wallTints.length > 0 ? catI.wallTints : ['#ffffff'];
+            return {
+              tintHex: tints[Math.floor(hash01(b.id, 7700 + salt) * tints.length) % tints.length]!,
+              mirror: hash01(b.id, 7800 + salt) < (catI.mirrorChance ?? 0),
+              jitter: (catI.jitter ?? 0) * (hash01(b.id, 7900 + salt) - 0.5) * 2,
+              wallIndex: Math.floor(hash01(b.id, 8000 + salt) * 1000),
+              salt,
+            };
+          };
+          geoRooms.forEach((lr, ri) => {
             const r = lr.rect!;
             // ¿La puerta a la sala trasera cae DENTRO de esta estancia? → pared con hueco + puerta pintada.
             const gapCenter = rearDoor ? x0w + rearDoor.at : NaN;
@@ -409,7 +533,13 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
             const wallGap = hostsDoor && rearDoor
               ? { a: Math.max(x0w, x0w + rearDoor.at - rearDoor.width / 2), b: Math.min(x1w, x0w + rearDoor.at + rearDoor.width / 2) }
               : null;
-            const room = diro.room(`${b.id}_${lr.key}`, lr.defId, r, { x0, frontZ, yBottom: bottom + v.slab + v.wall, yTop: bottom + v.cellH - v.slab - v.wall }, { withRearDoor: hostsDoor, wallGap, parent: dioRoot });
+            const room = diro.room(
+              `${b.id}_${lr.key}`,
+              lr.defId,
+              r,
+              { x0, frontZ, yBottom: bottom + v.slab + v.wall, yTop: bottom + v.cellH - v.slab - v.wall },
+              { withRearDoor: hostsDoor, wallGap, parent: dioRoot, variant: mkVariant(ri * 13) },
+            );
             if (room) {
               interior.dio.rooms.set(lr.key, room);
               for (const s of room.wall) interior.dioMats.push(s.mat);
@@ -417,7 +547,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
               if (room.door) interior.dioMats.push(room.door.mat);
               for (const s of room.sprites) interior.dioMats.push(s.mat);
             }
-          }
+          });
         }
       }
     } else if (b.defId === 'trasteros_planta' || b.defId === 'bajocubierta' || b.defId === v.trasteros.blockDefId) {
@@ -452,9 +582,14 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
   //  puerta y los tramos. Malla propia que SOBREVIVE a la carga del modelo (no está en el
   //  greybox, que se oculta) — 5 mm por debajo del forjado del arte: cero z-fighting.
   const stCfg = v.stairs.floorSlab;
+  /** v1.25: materiales estructurales de los cubos de escalera (autoiluminación nocturna). */
+  const stairWallMats: { mat: BlockMat }[] = [];
+  /** Color compartido del glow de muros (cero allocations por frame). */
+  const stairWallGlow = new Color3(0, 0, 0);
   if (stCfg.enabled) {
     const stMat = mat('escalera_forjado_mat');
     stMat.diffuseColor = Color3.FromHexString(stCfg.color);
+    stairWallMats.push({ mat: stMat as unknown as BlockMat });
     for (const b of Object.values(world.blocks)) {
       const f = content.blocks[b.defId]!.features;
       if (!f || f.stairs !== true) continue;
@@ -483,7 +618,9 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     const wallMat = mat('escalera_fachada_mat');
     wallMat.diffuseColor = Color3.FromHexString(stF.color);
     wallMat.specularColor = new Color3(0.02, 0.02, 0.02);
-    /** Textura de la hoja por PLANTA: arte de zonas comunes + gran número centrado. */
+    /** Textura de la hoja por PLANTA: arte de zonas comunes + gran número centrado.
+     *  v1.25: full-bleed REAL — flood-fill contra las esquinas (stripCorners) y recorte a la
+     *  caja de la hoja: nada de pared/suelo cocinados alrededor. */
     const stairDoorTexCache = new Map<number, DynamicTexture>();
     const stairDoorTex = (art: string, numberColor: string, floor: number): DynamicTexture => {
       const hit = stairDoorTexCache.get(floor);
@@ -492,17 +629,21 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       stairDoorTexCache.set(floor, dt);
       const img = new Image();
       img.onload = () => {
+        const big = document.createElement('canvas');
+        big.width = img.naturalWidth;
+        big.height = img.naturalHeight;
+        const bx = big.getContext('2d', { willReadFrequently: true });
+        if (!bx) return;
+        bx.drawImage(img, 0, 0);
+        stripCorners(big, 0.14);
+        const b = alphaBoundsOf(big);
         const c = document.createElement('canvas');
         c.width = 384;
         c.height = 768;
         const cctx = c.getContext('2d');
         if (!cctx) return;
-        // Recorte del borde pintado del sello (pared/suelo) antes de estampar el número.
-        const sx = img.naturalWidth * 0.07;
-        const sy = img.naturalHeight * 0.05;
-        const sw = img.naturalWidth * 0.86;
-        const sh = img.naturalHeight * 0.9;
-        cctx.drawImage(img, sx, sy, sw, sh, 0, 0, 384, 768);
+        if (b) cctx.drawImage(big, b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0, 0, 0, 384, 768);
+        else cctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, 0, 0, 384, 768);
         // Gran número de planta, centrado en la hoja (vinculado a la puerta: bascula con ella).
         cctx.font = 'bold 230px Arial, sans-serif';
         cctx.textAlign = 'center';
@@ -596,10 +737,21 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         // v1.24: retirar la decoración de puerta antigua del overlay (marco gris que tapaba
         // la placa y no contorneaba la hoja) — lista hideNodes del catálogo. Los clones del
         // loader llevan prefijo "Clone of ": se compara por sufijo.
-        for (const nodeName of v.privacy.hideNodes ?? []) {
+        // v1.25: los cubos de escalera ocultan TAMBIÉN sus nodos sobrantes (el hueco oscuro
+        // viejo flotaba a la derecha de los tramos — stairs.facade.hideNodes).
+        const hideList = [
+          ...(v.privacy.hideNodes ?? []),
+          ...(content.blocks[b.defId]!.features?.stairs === true ? (v.stairs.facade.hideNodes ?? []) : []),
+        ];
+        for (const nodeName of hideList) {
           for (const child of model.root.getChildren()) {
             if (child.name === nodeName || child.name.endsWith(nodeName)) child.setEnabled(false);
           }
+        }
+        // v1.25: materiales del PROPIO cubo de escalera — la autoiluminación nocturna
+        // (activityLight.wallGlow) ilumina los muros/tramos, no solo la bombilla.
+        if (content.blocks[b.defId]!.features?.stairs === true) {
+          stairWallMats.push(...model.mats.map((m) => ({ mat: m })));
         }
         // v1.24: materiales de la ILUMINACIÓN COMPARTIDA de los cubos de escalera.
         if (content.blocks[b.defId]!.features?.stairs === true && v.stairs.activityLight.enabled) {
@@ -902,40 +1054,129 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     }
   }
 
-  // ── Macetas de pasillo (v1.16): reparto aleatorio DETERMINISTA por hash del id del pasillo
-  // (jamás nextRandom del sim): cantidad entre perFloorMin..perFloorMax, lado (fachada o
-  // barandilla), tamaño y especie salen del catálogo (rules.view.pots). Nunca sobre la línea
+  // ── Macetas de pasillo (v1.16→v1.25): reparto aleatorio DETERMINISTA por hash del id del
+  // pasillo (jamás nextRandom del sim): cantidad entre perFloorMin..perFloorMax, lado (fachada
+  // o barandilla), tamaño y especie salen del catálogo (rules.view.pots). Nunca sobre la línea
   // de paseo (corridorZ): se pegan a fachada o barandilla para no invadir el tránsito.
+  // v1.25: las plantas son RECORTEs billboard (quads con recorte alpha dibujados a canvas —
+  // maceta + hojas, colores del catálogo): estética idéntica a los dioramas/árboles, adiós
+  // cilindros. Sin arte declarado se mantienen los cilindros de siempre.
   const pt = v.pots;
+  /** Textura de planta de pasillo dibujada a canvas (2 especies del catálogo).
+   *  PATRÓN DIORAMA: se recorta al contenido (alphaBounds) — el quad solo contiene
+   *  arte, jamás fondo transparente (el canvas subido pinta el alpha sobrante a negro). */
+  const plantTexCache = new Map<number, { dt: DynamicTexture; ar: number }>();
+  const plantTex = (species: number): { dt: DynamicTexture; ar: number } => {
+    const hit = plantTexCache.get(species);
+    if (hit) return hit;
+    const c = document.createElement('canvas');
+    c.width = 160;
+    c.height = 200;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    const dt = new (B().DynamicTexture)(`maceta_tex_${species}`, { width: 160, height: 200 }, scene, true);
+    dt.hasAlpha = true;
+    if (ctx) {
+      ctx.clearRect(0, 0, 160, 200);
+      const leaf = species === 0 ? pt.plantColor : pt.plant2Color;
+      const leafDark = Color3.FromHexString(leaf).scale(0.78).toHexString();
+      // Maceta trapecio + borde.
+      ctx.fillStyle = pt.potColor;
+      ctx.strokeStyle = 'rgba(60,35,10,0.85)';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(46, 150);
+      ctx.lineTo(114, 150);
+      ctx.lineTo(104, 196);
+      ctx.lineTo(56, 196);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = Color3.FromHexString(pt.potColor).scale(1.18).toHexString();
+      ctx.fillRect(40, 140, 80, 14);
+      ctx.strokeRect(40, 140, 80, 14);
+      // Tierra.
+      ctx.fillStyle = pt.soilColor;
+      ctx.beginPath();
+      ctx.ellipse(80, 148, 34, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Hojas: abanico de elipses (especie 0 = espadas altas; especie 1 = mata redonda).
+      const strokes: [number, number, number, number, number][] =
+        species === 0
+          ? [
+              [80, 140, 0, -84, 13],
+              [80, 142, -0.5, -70, 12],
+              [80, 142, 0.5, -70, 12],
+              [80, 140, -1.0, -52, 11],
+              [80, 140, 1.0, -52, 11],
+              [80, 142, -0.25, -92, 11],
+            ]
+          : [
+              [80, 118, 0, -34, 26],
+              [62, 124, -0.7, -26, 20],
+              [98, 124, 0.7, -26, 20],
+              [80, 104, -0.35, -30, 18],
+              [80, 104, 0.35, -30, 18],
+            ];
+      for (const [si, [sx, sy, rot, len, w]] of strokes.entries()) {
+        ctx.save();
+        ctx.translate(sx, sy);
+        ctx.rotate(rot);
+        ctx.fillStyle = si % 2 === 0 ? leaf : leafDark;
+        ctx.beginPath();
+        ctx.ellipse(0, len / 2, w / 2, Math.abs(len) / 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(30,50,25,0.5)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.restore();
+      }
+      // Recorte a la caja del contenido + volcado (el quad queda limpio de fondo).
+      const b = alphaBoundsOf(c);
+      const dctx = dt.getContext() as unknown as CanvasRenderingContext2D;
+      dctx.clearRect(0, 0, 160, 200);
+      let ar = 160 / 200;
+      if (b) {
+        const bw = Math.max(1, b.x1 - b.x0);
+        const bh = Math.max(1, b.y1 - b.y0);
+        ar = bw / bh;
+        dctx.drawImage(c, b.x0, b.y0, bw, bh, 0, 0, 160, 200);
+      } else {
+        dctx.drawImage(c, 0, 0);
+      }
+      dt.update(true);
+      const entry = { dt, ar };
+      plantTexCache.set(species, entry);
+      return entry;
+    }
+    const entry = { dt, ar: 160 / 200 };
+    plantTexCache.set(species, entry);
+    return entry;
+  };
   for (const b of Object.values(world.blocks)) {
     if (b.layer !== 'corridor') continue;
     const ySlab = b.cell.floor * v.cellH + v.slab * 2;
     const n = pt.perFloorMin + Math.floor(hash01(b.id, 101) * (pt.perFloorMax - pt.perFloorMin + 1));
-    const mPot = mat(`${b.id}_maceta_mat`);
-    mPot.diffuseColor = Color3.FromHexString(pt.potColor);
-    const mSoil = mat(`${b.id}_tierra_mat`);
-    mSoil.diffuseColor = Color3.FromHexString(pt.soilColor);
-    const mPlantA = mat(`${b.id}_planta_a_mat`);
-    mPlantA.diffuseColor = Color3.FromHexString(pt.plantColor);
-    const mPlantB = mat(`${b.id}_planta_b_mat`);
-    mPlantB.diffuseColor = Color3.FromHexString(pt.plant2Color);
     for (let i = 0; i < n; i++) {
       const x = b.cell.col * v.cellW + 1.6 + hash01(b.id, 200 + i) * (b.size.w * v.cellW - 3.2);
       const z = hash01(b.id, 300 + i) < 0.5 ? frontZ - 0.18 : frontZ - v.corridorDepth + 0.2;
       const s = 0.85 + hash01(b.id, 400 + i) * 0.3;
-      const pot = attach(b.id, MeshBuilder.CreateCylinder(`${b.id}_maceta_${i}`, { diameter: pt.potR * 2, height: pt.potH }, scene));
-      pot.position.set(x, ySlab + (pt.potH * s) / 2, z);
-      pot.scaling.set(s, s, s);
-      pot.material = mPot;
-      const soil = attach(b.id, MeshBuilder.CreateCylinder(`${b.id}_tierra_${i}`, { diameter: pt.potR * 1.7, height: 0.04 }, scene));
-      soil.position.set(x, ySlab + pt.potH * s + 0.01, z);
-      soil.scaling.set(s, s, s);
-      soil.material = mSoil;
-      const bushH = 0.3 + hash01(b.id, 500 + i) * 0.16;
-      const bush = attach(b.id, MeshBuilder.CreateCylinder(`${b.id}_planta_${i}`, { diameterTop: 0.02, diameterBottom: pt.potR * 1.5, height: bushH }, scene));
-      bush.position.set(x, ySlab + pt.potH * s + bushH / 2 - 0.01, z);
-      bush.scaling.set(s, s, s);
-      bush.material = hash01(b.id, 600 + i) < 0.5 ? mPlantA : mPlantB;
+      const species = hash01(b.id, 600 + i) < 0.5 ? 0 : 1;
+      {
+        // v1.25: recorte billboard (dibujado a canvas con los colores del catálogo).
+        const h = (pt.artH ?? 0.62) * s;
+        const art = plantTex(species);
+        const wQ = h * art.ar;
+        const pm = mat(`${b.id}_maceta_bill_${i}_mat`);
+        pm.diffuseTexture = art.dt;
+        pm.emissiveColor = Color3.FromHexString(pt.plantColor).scale(0.05);
+        pm.specularColor = new Color3(0, 0, 0);
+        pm.transparencyMode = 2;
+        pm.alphaCutOff = 0.4;
+        const q = attach(b.id, MeshBuilder.CreatePlane(`${b.id}_maceta_${i}`, { width: wQ, height: h }, scene));
+        q.position.set(x, ySlab + h / 2, z);
+        q.material = pm;
+        q.isPickable = false;
+      }
     }
   }
 
@@ -1210,13 +1451,20 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     for (const m of view.mats) m.emissiveColor = e;
   }
 
-  /** Color difuso/albedo por material: greybox plano (tintStrength 1) o mezcla sobre el arte. */
+  /** Color difuso/albedo por material: greybox plano (tintStrength 1) o mezcla sobre el arte.
+   *  v1.25: fixedDiffuse (pared gris de vivienda) se impone al tintado — el estado lo cuentan
+   *  la puerta, el candado y la placa; el emissive de canales sigue funcionando igual. */
   function applyTint(view: BlockView, b: BlockInstance) {
     const state = color(b);
     const override = stateTint(b);
     for (let i = 0; i < view.mats.length; i++) {
       const m = view.mats[i]!;
       const base = view.baseColor[i]!;
+      if (view.fixedDiffuse) {
+        if (m.diffuseColor) m.diffuseColor = view.fixedDiffuse;
+        else if (m.albedoColor) m.albedoColor = view.fixedDiffuse;
+        continue;
+      }
       const c = view.tintStrength >= 1 ? state : override ? Color3.Lerp(base, override, view.tintStrength) : base;
       if (m.diffuseColor) m.diffuseColor = c;
       else if (m.albedoColor) m.albedoColor = c;
@@ -1229,11 +1477,14 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
   //  llega a casa o el jugador entra, sin esperar al siguiente tick.
   let playerInside: string | null = null;
   const privacyOn = v.privacy.enabled;
-  // Colores cacheados de las luces nocturnas de interiores (v1.21): cero allocations por frame.
+  // Colores cacheados de las luces nocturnas de interiores (v1.21→v1.25): cero allocations
+  // por frame y NIVELES del catálogo (privacy.night) — las viviendas despiertas se VEN
+  // iluminadas de verdad (antes el brillo era tan bajo que no se distinguía de apagado).
+  const nightCfg = v.privacy.night ?? { dayCutoff: 0.4, dioGlow: 0.85, floorGlow: 0.7, lampGlow: 1.6 };
   const nightWarm = Color3.FromHexString(v.privacy.handleColor);
-  const nightLampLit = nightWarm.scale(1.2);
-  const nightFloorGlow = nightWarm.scale(0.5);
-  const nightDioGlow = nightWarm.scale(0.42);
+  const nightLampLit = nightWarm.scale(nightCfg.lampGlow);
+  const nightFloorGlow = nightWarm.scale(nightCfg.floorGlow);
+  const nightDioGlow = nightWarm.scale(nightCfg.dioGlow);
   const nightDark = new Color3(0, 0, 0);
   const computeOccupancy = (): Set<string> => {
     const occ = new Set<string>();
@@ -1399,7 +1650,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       // Colores cacheados: cero allocations por frame. De día, lámparas apagadas.
       {
         const day = env?.daylight ?? 1;
-        const litWorld = day < 0.4;
+        const litWorld = day < nightCfg.dayCutoff;
         // Apliques de las puertas (v1.24): foco cálido al anochecer, apagados de día.
         const lampGlow = litWorld ? 1.0 : 0.06;
         for (const { mat: lm, hex } of doorLampMats) lm.emissiveColor = Color3.FromHexString(hex).scale(lampGlow);
@@ -1451,7 +1702,15 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           const next = stairLightLevel + (busy ? dt : -dt) / Math.max(0.4, al.fade);
           stairLightLevel = Math.min(1, Math.max(0, next));
           const lc = Color3.FromHexString(al.color);
+          // Bombillas del arte glTF + AUTOILUMINACIÓN del propio cubo (v1.25): con alguien
+          // en las escaleras de noche, muros/forjados/tramos brillan un poco — el efecto
+          // pedido: "zonas más claras con algo de autoiluminación, como los interiores".
           for (const { mat: lm } of stairLightMats) lm.emissiveColor = lc.scale(al.glow * stairLightLevel);
+          const wg = al.wallGlow ?? 0;
+          if (wg > 0) {
+            stairWallGlow.copyFromFloats(lc.r * wg * stairLightLevel, lc.g * wg * stairLightLevel, lc.b * wg * stairLightLevel);
+            for (const { mat: wm } of stairWallMats) wm.emissiveColor = stairWallGlow;
+          }
         }
         for (const [blockId, interior] of interiors) {
           let lit = false;

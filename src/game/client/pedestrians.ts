@@ -1,26 +1,29 @@
-import type { Color3, Mesh, Scene, StandardMaterial, TransformNode } from '@babylonjs/core';
+import type { Mesh, Scene, TransformNode } from '@babylonjs/core';
 import type { Content, World } from '@/game/core/types';
 import { hash01 } from '@/game/interior';
 import { B } from './babylon';
+import { instantiateActorAsset, type ActorRig } from './assets';
 
 /**
- * VIANDANTES (v1.22→v1.24) — paseantes anónimos por las aceras: caminan, algunos ENTRAN al
+ * VIANDANTES (v1.22→v1.25) — paseantes anónimos por las aceras: caminan, algunos ENTRAN al
  * edificio (se desvanecen en el portal) y otros SALEN de él. Solo presentación (el sim
  * no sabe de ellos) y solo visibles en la vista "edificio" — en planta/estancia se apagan
  * para no estorbar ni cargar recursos.
  *
- * v1.24 — RIG MÁS DEFINIDO Y QUE ANDA DE VERDAD: las piernas llegan AL SUELO (antes flotaban
- * 0.28 m y la figura "patinaba"), con brazos que oscilan en contrafase del paso, cabeza
- * mayor y silueta cartoon. La fábrica (makePedRig) se comparte con streetlife.ts: las
- * manifestaciones están hechas de la misma gente, con pose de CARTEL en alto (brazos
- * estirados hacia arriba agarrando el palo).
+ * v1.25 — MISMA ESTÉTICA QUE LOS VECINOS + ORIENTACIÓN CORRECTA:
+ *  · Los viandantes SON ahora vecinos de verdad: rigs glTF del mismo catálogo de arquetipos
+ *    (jubilada, estudiante, repartidor, musico…) con el clip de andar sincronizado a la
+ *    velocidad real (animSync del catálogo). El rig primitivo de cilindros queda como
+ *    fallback si un modelo falla (el juego nunca se rompe por un asset).
+ *  · ORIENTACIÓN: el rig mira hacia donde anda (la misma convención yaw=atan2(−dz,dx)
+ *    verificada de actors.ts — antes patinaban de lado: piernas al aire y cuerpo cruzado).
  */
 
 export interface PedRig {
   root: TransformNode;
   legs: Mesh[];
   arms: Mesh[];
-  bodyMat: StandardMaterial;
+  bodyMat: import('@babylonjs/core').StandardMaterial;
   height: number;
   /** true mientras porta algo en alto (cartel): brazos estirados hacia arriba. */
   carrying: boolean;
@@ -30,8 +33,8 @@ export interface PedRig {
 /** Fábrica de figuritas cartoon (cuerpo cilíndrico, cabeza esférica, gorro opcional). */
 export function createPedFactory(scene: Scene) {
   const { Color3, MeshBuilder, StandardMaterial, TransformNode, Vector3 } = B();
-  const mats = new Map<string, StandardMaterial>();
-  const matOf = (hex: string, shade = 1): StandardMaterial => {
+  const mats = new Map<string, import('@babylonjs/core').StandardMaterial>();
+  const matOf = (hex: string, shade = 1): import('@babylonjs/core').StandardMaterial => {
     const key = `${hex}:${shade}`;
     let m = mats.get(key);
     if (!m) {
@@ -126,8 +129,10 @@ export function createPedFactory(scene: Scene) {
   };
 }
 
+/** Un viandante: rig glTF del catálogo de vecinos (o primitivo de fallback) + su paseo. */
 interface Walker {
-  rig: PedRig;
+  gltf: ActorRig | null;
+  prim: PedRig | null;
   pathIndex: number;
   x: number;
   z: number;
@@ -137,6 +142,8 @@ interface Walker {
   mode: 'walk' | 'enter' | 'exit';
   /** Escala para entrar/salir por el portal (desvanecido cartoon). */
   scale: number;
+  /** Última orientación aplicada (rad) — solo se escribe si cambia (cero escrituras ociosas). */
+  yaw: number;
 }
 
 export interface PedestriansDirector {
@@ -164,15 +171,64 @@ export function createPedestrians(scene: Scene, world: World, content: Content):
   let nextSpawn = 2;
   let roll = 0;
 
+  // ── POOL de rigs glTF (misma estética que los vecinos): instancias del catálogo de
+  // arquetipos con clip de andar. Asíncrono: hasta que llega el primero, la acera queda
+  // vacía unos segundos (y si el modelo falla, rig null → rig primitivo de fallback).
+  const vCfg = content.rules.view;
+  const archIds = cfg.actorArchetypes?.length ? cfg.actorArchetypes : Object.keys(content.assets?.actors ?? {});
+  const archDefs = archIds
+    .map((id) => content.assets?.actors?.[id])
+    .filter((d): d is NonNullable<typeof d> => !!d && !!d.animations?.walk);
+  const primColors = cfg.colors;
+  const free: { gltf: ActorRig | null; prim: PedRig | null }[] = [];
+  let poolReady = false;
+  const buildPool = async (): Promise<void> => {
+    const base = content.assets?.base ?? '/assets/';
+    const jobs: Promise<void>[] = [];
+    const total = Math.max(cfg.maxAlive, 1);
+    for (let i = 0; i < total; i++) {
+      const def = archDefs.length > 0 ? archDefs[i % archDefs.length]! : null;
+      jobs.push(
+        (async () => {
+          try {
+            if (def) {
+              const rig = await instantiateActorAsset(scene, def, base, `viandante_${i}`);
+              if (rig) {
+                rig.root.parent = root;
+                rig.root.setEnabled(false);
+                free.push({ gltf: rig, prim: null });
+                return;
+              }
+            }
+            // Fallback primitivo (mismo pool de colores del catálogo).
+            const prim = factory.make(primColors[i % primColors.length]!, null);
+            prim.root.parent = root;
+            prim.root.setEnabled(false);
+            free.push({ gltf: null, prim });
+          } catch {
+            // Sin rig → el pool simplemente queda más corto; la acera se vacía con elegancia.
+          }
+        })(),
+      );
+    }
+    await Promise.all(jobs);
+    poolReady = true;
+  };
+  void buildPool();
+
+  const walkRate = (speed: number): number => {
+    const sync = vCfg.animSync;
+    const ref = speed / Math.max(0.1, sync.walkRefSpeed);
+    return Math.min(sync.maxRate, Math.max(sync.minRate, ref));
+  };
+
   const spawn = (): void => {
+    const slot = free.pop();
+    if (!slot) return;
     const pathIndex = Math.floor(hash01('viandante_ruta', roll) * cfg.paths.length) % cfg.paths.length;
     const path = cfg.paths[pathIndex]!;
     const dir = path.dir >= 0 ? 1 : -1;
     const speed = cfg.speedMin + hash01('viandante_velo', roll) * Math.max(0.1, cfg.speedMax - cfg.speedMin);
-    const bodyHex = cfg.colors[Math.floor(hash01('viandante_color', roll) * cfg.colors.length) % cfg.colors.length]!;
-    const hatRoll = hash01('viandante_gorro', roll);
-    const rig = factory.make(bodyHex, hatRoll < cfg.hatChance ? cfg.hatColors[Math.floor(hatRoll * 97) % cfg.hatColors.length]! : null);
-    rig.root.parent = root;
     const enterRoll = hash01('viandante_portal', roll);
     let mode: Walker['mode'] = 'walk';
     let x: number;
@@ -188,31 +244,45 @@ export function createPedestrians(scene: Scene, world: World, content: Content):
       x = dir > 0 ? bounds.min : bounds.max;
     }
     const z = mode === 'enter' || mode === 'exit' ? cfg.paths[0]!.z : path.z;
-    walkers.add({ rig, pathIndex, x, z, speed, phase: hash01('viandante_fase', roll) * 6, mode, scale: mode === 'exit' ? 0.05 : 1 });
-    rig.root.setEnabled(visible);
+    const w: Walker = { gltf: slot.gltf, prim: slot.prim, pathIndex, x, z, speed, phase: hash01('viandante_fase', roll) * 6, mode, scale: mode === 'exit' ? 0.05 : 1, yaw: dir > 0 ? 0 : Math.PI };
+    const node = w.gltf ? w.gltf.root : w.prim!.root;
+    node.setEnabled(visible);
+    node.scaling.setAll(w.scale);
+    node.rotation.y = w.yaw;
+    if (w.gltf) w.gltf.play('walk', walkRate(speed));
+    walkers.add(w);
+  };
+
+  /** Devuelve el rig al pool (el mismo muñeco reaparece: cero creaciones por paseo). */
+  const recycle = (w: Walker): void => {
+    const node = w.gltf ? w.gltf.root : w.prim!.root;
+    node.setEnabled(false);
+    free.push({ gltf: w.gltf, prim: w.prim });
   };
 
   return {
     update(dt: number) {
       nextSpawn -= dt;
-      if (nextSpawn <= 0) {
+      if (nextSpawn <= 0 && poolReady) {
         nextSpawn = cfg.spawnEveryMin + hash01('viandante_t', world.tick + roll) * (cfg.spawnEveryMax - cfg.spawnEveryMin);
         if (walkers.size < cfg.maxAlive) spawn();
       }
       for (const w of [...walkers]) {
         const path = cfg.paths[w.pathIndex]!;
         const dir = path.dir >= 0 ? 1 : -1;
+        let movedX = 0;
         if (w.mode === 'enter') {
           // Hacia el portal (por la acera frontal); al llegar, se desvanece creciendo el fade.
           const target = cfg.enterX;
           const d = target - w.x;
           const step = Math.min(Math.abs(d), w.speed * dt) * Math.sign(d || 1);
           w.x += step;
+          movedX = step;
           w.phase += dt * w.speed * 4.2;
           if (Math.abs(target - w.x) < 0.35) {
             w.scale -= dt * 2.4;
             if (w.scale <= 0.05) {
-              w.rig.root.dispose(false, true);
+              recycle(w);
               walkers.delete(w);
               continue;
             }
@@ -224,22 +294,38 @@ export function createPedestrians(scene: Scene, world: World, content: Content):
             w.mode = 'walk';
             // Ruta desde el portal hacia un extremo (elige un carril de acera).
             w.pathIndex = 0;
-            w.x = cfg.enterX + (hash01('viandante_salida', roll) < 0.5 ? -0.6 : 0.6);
+            const outDir = hash01('viandante_salida', roll) < 0.5 ? -0.6 : 0.6;
+            w.x = cfg.enterX + outDir;
+            w.yaw = outDir < 0 ? Math.PI : 0;
           }
         } else {
-          w.x += dir * w.speed * dt;
+          const step = dir * w.speed * dt;
+          w.x += step;
+          movedX = step;
           w.phase += dt * w.speed * 4.2;
           if ((dir > 0 && w.x > path.x1) || (dir < 0 && w.x < path.x0)) {
-            w.rig.root.dispose(false, true);
+            recycle(w);
             walkers.delete(w);
             continue;
           }
         }
-        w.rig.phase = w.phase;
-        factory.pose(w.rig, 1);
-        w.rig.root.position.x = w.x;
-        w.rig.root.position.z = w.z;
-        w.rig.root.scaling.setAll(w.scale);
+        // v1.25 — ORIENTACIÓN: el rig mira hacia donde anda (convención de actors.ts:
+        // yaw 0 = mirando a +X; π = a −X). Solo escrituras en cambio de sentido.
+        if (movedX !== 0) {
+          const wantYaw = movedX > 0 ? 0 : Math.PI;
+          if (w.yaw !== wantYaw) {
+            w.yaw = wantYaw;
+            (w.gltf ? w.gltf.root : w.prim!.root).rotation.y = wantYaw;
+          }
+        }
+        if (w.prim) {
+          w.prim.phase = w.phase;
+          factory.pose(w.prim, 1);
+        }
+        const node = w.gltf ? w.gltf.root : w.prim!.root;
+        node.position.x = w.x;
+        node.position.z = w.z;
+        node.scaling.setAll(w.scale);
       }
     },
     setVisible(v: boolean) {
@@ -249,8 +335,16 @@ export function createPedestrians(scene: Scene, world: World, content: Content):
     },
     aliveCount: () => walkers.size,
     dispose() {
-      for (const w of walkers) w.rig.root.dispose(false, true);
+      for (const w of walkers) {
+        if (w.gltf) w.gltf.dispose();
+        else w.prim!.root.dispose(false, true);
+      }
       walkers.clear();
+      for (const f of free) {
+        if (f.gltf) f.gltf.dispose();
+        else f.prim!.root.dispose(false, true);
+      }
+      free.length = 0;
       root.dispose(false, false);
       factory.dispose();
     },

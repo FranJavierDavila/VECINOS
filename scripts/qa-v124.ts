@@ -68,7 +68,8 @@ check('los árboles siguen SOLO en la vista edificio (props)', true, 'quads bajo
 // ── 3. Puertas de vivienda ──
 console.log('\n── Puertas de vivienda: textura + marco + aplique + placa ──');
 const pv = v.privacy;
-check('arte de puertas full-bleed en disco (3 variantes)', (pv.doorArts ?? []).length >= 3 && (pv.doorArts ?? []).every(exists), (pv.doorArts ?? []).map((a) => a.split('/').pop()).join(', '));
+// v1.25: el usuario pidió TODAS las puertas IGUALES con la textura marrón → una sola variante.
+check('arte de puertas full-bleed en disco (variante única marrón, v1.25)', (pv.doorArts ?? []).length === 1 && (pv.doorArts ?? []).every(exists), (pv.doorArts ?? []).map((a) => a.split('/').pop()).join(', '));
 check('marco fino del color de la puerta', (pv.frameW ?? 0) > 0.04 && (pv.frameW ?? 1) < 0.12, `frameW ${pv.frameW}`);
 check('aplique de luz encima a un lado', !!pv.lamp && pv.lamp.dy > pv.doorH, `dy ${pv.lamp?.dy} > doorH ${pv.doorH}`);
 check('nodos del overlay antiguo retirados (marco gris fuera)', (pv.hideNodes ?? []).includes('jamba_izq') && (pv.hideNodes ?? []).includes('toldito') && (pv.hideNodes ?? []).includes('dintel'), (pv.hideNodes ?? []).join(','));
@@ -141,7 +142,9 @@ for (const z of [0.2, 0.9, 1.7, 2.3]) {
 }
 check('walkable(): el salón cruza al dormitorio a CUALQUIER altura del borde', anyZ, 'z 0.2..2.3');
 const route = roomRoute(geo, 'dormitorio', 'bano');
-check('roomRoute(): dormitorio → baño circula por el salón sin tabique', route !== null && route.includes('salon'), (route ?? []).join('→'));
+// v1.25: con el tabique divisorio central retirado del todo, dormitorio↔baño tienen hueco
+// DIRECTO (antes la única ruta pasaba por el salón).
+check('roomRoute(): dormitorio → baño DIRECTO (v1.25, sin tabiques)', route !== null && !route.includes('salon'), (route ?? []).join('→'));
 
 // ── 7. Sim intacto y determinista ──
 console.log('\n── Sim: intacto y determinista ──');
