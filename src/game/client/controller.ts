@@ -1144,6 +1144,11 @@ class GameController {
 
   private paintBuilding(): void {
     this.building?.paint();
+    // v1.35 — el nivel de grafiti de la cabina (param del núcleo) pinta el mural del
+    // artista y salpica los muros del cubo/vestíbulo (el building lo hace en su paint()).
+    const nuc = this.world ? Object.values(this.world.blocks).find((b) => this.content.blocks[b.defId]?.features?.elevator) : null;
+    const level = typeof nuc?.params.cabin_graffiti === 'number' ? nuc.params.cabin_graffiti : 0;
+    this.elevators?.setGraffiti(level);
   }
 
   // ───────────────────────── Eventos del sim → interfaz ─────────────────────────

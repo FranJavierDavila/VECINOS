@@ -246,9 +246,77 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
   const hallLaundryMat = mat('local_lavanderia_mat');
   hallLaundryMat.diffuseColor = Color3.FromHexString('#ece9e2');
   hallLaundryMat.specularColor = new Color3(0.02, 0.02, 0.02);
+  // v1.35 — AUTOILUMINACIÓN SUTIL de los interiores de locales (mismo oficio que las
+  // viviendas v1.29): en sombra el interior se lee como un agujero oscuro — con el
+  // emissive bajo se ve DENTRO aunque el sol no dé en la cara.
+  hallLaundryMat.emissiveColor = Color3.FromHexString('#ece9e2').scale(0.18);
   const hallGarajeMat = mat('local_garaje_mat');
   hallGarajeMat.diffuseColor = Color3.FromHexString(loc.garaje.furniture?.wallColor ?? '#9aa2ad');
   hallGarajeMat.specularColor = new Color3(0.02, 0.02, 0.02);
+  hallGarajeMat.emissiveColor = Color3.FromHexString(loc.garaje.furniture?.wallColor ?? '#9aa2ad').scale(0.18);
+  /** v1.35 — VESTÍBULO DEL PORTAL: el cuerpo cerrado del arte glTF se retira (hideNodes)
+   *  y el interior lo levanta el runtime — paredes cálidas del catálogo, buzones, banco y
+   *  tablón. A través del cristal del portal SE VE el vestíbulo (adiós a la «pared oscura»). */
+  const hallPortalMat = mat('local_portal_mat');
+  hallPortalMat.diffuseColor = Color3.FromHexString(loc.portal?.lobby?.wallColor ?? '#d8d3c8');
+  hallPortalMat.specularColor = new Color3(0.02, 0.02, 0.02);
+  hallPortalMat.emissiveColor = Color3.FromHexString(loc.portal?.lobby?.wallColor ?? '#d8d3c8').scale(0.2);
+  /** v1.35 — bombos de la lavandería que GIRAN (lavadoras/secadoras «en marcha»): el update
+   *  avanza su rotation.z; la tirada es determinista por bloque+máquina (hash01 del catálogo). */
+  const laundryDrums: { mesh: Mesh; speed: number }[] = [];
+  /** v1.35 — estado de apertura de la basculante del garaje (0..1): revela el interior
+   *  ANTES de entrar (el vecino: «al abrirse se ve cerrado por una pared oscura»). */
+  let garajeLiftT = 0;
+  /** v1.35 — textura de LOSETAS compartida (pasillos + locales + vestíbulo): 2×2 baldosas
+   *  con alternancia ajedrezada, VARIACIÓN por baldosa (terrazo) y veteado/suciedad leve —
+   *  el vecino: «se debe notar las losetas del suelo». Todo del catálogo (corridorFloor):
+   *  contrast, groutW (grosor de junta) y speckle (moteado). uScale/vScale en metros reales. */
+  const tileTexCache = new Map<string, DynamicTexture>();
+  const makeTileTex = (id: string, wMeters: number, dMeters: number): { tex: DynamicTexture; ready: boolean } => {
+    const key = `${id}|${wMeters.toFixed(2)}|${dMeters.toFixed(2)}`;
+    const hit = tileTexCache.get(key);
+    if (hit) return { tex: hit, ready: true };
+    const cf = v.corridorFloor!;
+    const tex = new (B().DynamicTexture)(`${id}_tex`, { width: 256, height: 256 }, scene, true);
+    tileTexCache.set(key, tex);
+    const tctx = tex.getContext() as unknown as CanvasRenderingContext2D;
+    const half = 128;
+    const base = Color3.FromHexString(cf.color);
+    for (let ty = 0; ty < 2; ty++) {
+      for (let tx = 0; tx < 2; tx++) {
+        const idx = ty * 2 + tx;
+        // Alternancia ajedrezada + variación determinista por baldosa (cada una su tinte).
+        const checker = (tx + ty) % 2 === 0 ? 1 : 1 - (cf.contrast ?? 0.1);
+        const jitter = 1 - (cf.speckle ?? 0.12) * 0.5 * hash01(id, 910 + idx);
+        const shade = checker * jitter;
+        tctx.fillStyle = `rgb(${Math.round(base.r * 255 * shade)},${Math.round(base.g * 255 * shade)},${Math.round(base.b * 255 * shade)})`;
+        tctx.fillRect(tx * half, ty * half, half, half);
+        // Moteado tipo terrazo (puntitos oscuros/claros deterministas).
+        const speckles = 26;
+        for (let s = 0; s < speckles; s++) {
+          const sx = tx * half + hash01(id, 920 + idx * 40 + s) * half;
+          const sy = ty * half + hash01(id, 930 + idx * 40 + s) * half;
+          const dark = hash01(id, 940 + idx * 40 + s) < 0.5;
+          tctx.fillStyle = dark ? 'rgba(60,58,54,0.24)' : 'rgba(255,255,255,0.28)';
+          tctx.beginPath();
+          tctx.arc(sx, sy, 0.8 + hash01(id, 950 + idx * 40 + s) * 1.8, 0, Math.PI * 2);
+          tctx.fill();
+        }
+      }
+    }
+    const gw = cf.groutW ?? 5;
+    tctx.strokeStyle = cf.grout;
+    tctx.lineWidth = gw;
+    tctx.strokeRect(0.5, 0.5, 255, 255); // junta exterior (cada baldosa cierra contra su vecina)
+    tctx.beginPath();
+    tctx.moveTo(half, 0); tctx.lineTo(half, 256);
+    tctx.moveTo(0, half); tctx.lineTo(256, half);
+    tctx.stroke();
+    tex.update(true);
+    tex.uScale = Math.max(1, Math.round(wMeters / (cf.tile * 2)));
+    tex.vScale = Math.max(1, Math.round(dMeters / (cf.tile * 2)));
+    return { tex, ready: true };
+  };
   /** Recorte billboard genérico (máquinas de la lavandería): PNG → stripWhite → Texture
    *  (dataURL, conserva alpha — mismo camino verificado de las macetas). */
   const keyedTexCache = new Map<string, { dt: Texture; ar: number; onTrim: Array<(ar: number) => void>; loaded: boolean }>();
@@ -561,32 +629,11 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       //  bloque en el swap (cuelga de su raíz).
       const cf = v.corridorFloor;
       if (cf) {
-        const tex = new (B().DynamicTexture)(`${b.id}_losas_tex`, { width: 256, height: 256 }, scene, true);
-        const tctx = tex.getContext() as unknown as CanvasRenderingContext2D;
-        const half = 128;
-        for (let ty = 0; ty < 2; ty++) {
-          for (let tx = 0; tx < 2; tx++) {
-            // v1.30 — CONTRASTE del catálogo: antes la alternancia 0.955 era invisible y el
-            // suelo seguía pareciendo «un color uniforme». Ahora la baldosa oscura baja lo
-            // que diga corridorFloor.contrast (0.1 = claramente ajedrezada pero sobria).
-            const shade = (tx + ty) % 2 === 0 ? 1 : 1 - (cf.contrast ?? 0.1); // alternancia legible tipo terrazo
-            const base = Color3.FromHexString(cf.color);
-            tctx.fillStyle = `rgb(${Math.round(base.r * 255 * shade)},${Math.round(base.g * 255 * shade)},${Math.round(base.b * 255 * shade)})`;
-            tctx.fillRect(tx * half, ty * half, half, half);
-          }
-        }
-        tctx.strokeStyle = cf.grout;
-        tctx.lineWidth = 5;
-        tctx.strokeRect(0.5, 0.5, 255, 255); // junta exterior (cada baldosa cierra contra su vecina)
-        tctx.beginPath();
-        tctx.moveTo(half, 0); tctx.lineTo(half, 256);
-        tctx.moveTo(0, half); tctx.lineTo(256, half);
-        tctx.stroke();
-        tex.update(true);
-        tex.uScale = Math.max(1, Math.round((b.size.w * v.cellW) / (cf.tile * 2)));
-        tex.vScale = Math.max(1, Math.round(d / (cf.tile * 2)));
+        // v1.35 — helper compartido (locales/vestíbulo usan la MISMA textura): ajedrez +
+        // variación por baldosa + moteado terrazo + junta más gruesa (se DEBE notar).
+        const tile = makeTileTex(`${b.id}_losas`, b.size.w * v.cellW, d);
         const fmat = mat(`${b.id}_losas_mat`);
-        fmat.diffuseTexture = tex;
+        fmat.diffuseTexture = tile.tex;
         fmat.specularColor = new Color3(0.03, 0.03, 0.03);
         const floor = MeshBuilder.CreateGround(`${b.id}_losas`, { width: b.size.w * v.cellW, height: d }, scene);
         floor.position.set(cx, bottom + v.slab * 2 + 0.004, frontZ - d / 2);
@@ -923,8 +970,9 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       // Tejadillo (v1.16): fallback = canto de cerramiento (el glTF trae faldones, cumbrera,
       // chimenea y antena).
       view.greybox.push(box(`${b.id}_canto`, w, v.slab * 2, d, cx, bottom + v.slab, frontZ + d / 2, m));
-    } else if (b.defId === 'trasteros' || b.defId === 'local_comercial' || b.defId === 'lavanderia_comunal' || b.defId === 'garaje') {
-      // ── v1.30 — LOCALES DE LA PLANTA 0 con interior de verdad (v1.34: también el GARAJE) ──
+    } else if (b.defId === 'trasteros' || b.defId === 'local_comercial' || b.defId === 'lavanderia_comunal' || b.defId === 'garaje' || b.defId === 'portal') {
+      // ── v1.30 — LOCALES DE LA PLANTA 0 con interior de verdad (v1.34: también el GARAJE;
+      //  v1.35: también el PORTAL) ──
       //  · TRASTERO COMUNITARIO: dos puertas mapeadas que funcionan como las de las
       //    viviendas (abren al entrar alguien) y dentro, estanterías para todos los vecinos.
       //  · SALA DE JUNTAS: mapeada como local de reuniones (no vivienda) con mesa y sillas;
@@ -935,18 +983,23 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       //    el arte glTF (puerta basculante que se LEVANTA al acercarse, rótulo y faroles);
       //    al entrar, la fachada se desvanece entera y queda el interior con mesa de
       //    trabajo, estantería, pila de ruedas y caja de herramientas (todo del catálogo).
+      //  · PORTAL (v1.35 — «al abrirse se ven cerradas por una especie de pared oscura»):
+      //    el cuerpo cerrado del arte glTF se RETIRA (hideNodes del catálogo) y el runtime
+      //    levanta el VESTÍBULO — paredes del catálogo, buzones, banco, tablón, lámpara y
+      //    diorama: a través del cristal (y con las puertas abiertas) SE VE DENTRO.
       //  El arte glTF conserva zócalo/rótulo/faroles (hideNodes del catálogo retira el
       //  cuerpo cerrado); la fachada y el interior los levanta SIEMPRE el runtime con el
       //  gris de pasillo (locals.corridorWall) — mismo dialecto que las viviendas.
       const isLaundry = b.defId === 'lavanderia_comunal';
       const isGaraje = b.defId === 'garaje';
+      const isPortal = b.defId === 'portal';
       const tc = loc.trasteroComunal;
       const jh = loc.juntaHall;
       const x0 = cx - w / 2; // borde izquierdo del bloque (los rects del layout son locales)
       const baseY = bottom + v.slab * 2;
       const H = v.cellH - v.slab * 2;
       const frontMat = hallFrontMat;
-      const intMat = isLaundry || isGaraje ? (isGaraje ? hallGarajeMat : hallLaundryMat) : hallInnerMat;
+      const intMat = isLaundry || isGaraje ? (isGaraje ? hallGarajeMat : hallLaundryMat) : isPortal ? hallPortalMat : hallInnerMat;
       // Carcasa: forjado + fondo + laterales + techo (la lavandería SIN pared frontal).
       view.greybox.push(
         box(`${b.id}_forjado`, w, v.slab * 2, d, cx, bottom + v.slab, cz, m),
@@ -966,8 +1019,8 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       // runtime no duplica nada). Nada coplanar: la hoja vive delante del canto.
       const doorZHall = frontZ - v.wall / 2 - 0.035;
       const gapWs: number[] = [];
-      if (isLaundry || isGaraje) {
-        // abierta (lavandería) o fachada del arte (garaje): sin tramos ni hoja del runtime
+      if (isLaundry || isGaraje || isPortal) {
+        // abierta (lavandería) o fachada del arte (garaje/portal): sin tramos ni hoja del runtime
       } else if (b.defId === 'trasteros') {
         gapWs.push(cx - tc.doorDx, cx + tc.doorDx);
       } else {
@@ -988,20 +1041,27 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         fp(`${b.id}_dintel_${gx.toFixed(2)}`, gR - gL, H - doorH, gx, baseY + doorH + (H - doorH) / 2);
         prevEdge = gR;
       }
-      if (!isLaundry) fp(`${b.id}_frente_d`, cx + w / 2 - prevEdge, H, (prevEdge + cx + w / 2) / 2, baseY + H / 2);
-      // Hoja/S de puerta con arte (solo trastero y sala — la lavandería no cierra).
+      if (!isLaundry && !isPortal) fp(`${b.id}_frente_d`, cx + w / 2 - prevEdge, H, (prevEdge + cx + w / 2) / 2, baseY + H / 2);
+      // Hoja/S de puerta con arte (solo trastero y sala — la lavandería no cierra y el
+      // portal trae sus hojas de cristal en el arte glTF).
       // v1.32: las hojas cuelgan de BISAGRAS y se abren al acercarse (mismos movers que
       // las puertas de escalera y el portal) — ya no son planos fijos pegados al hueco.
-      if (!isLaundry) {
+      // v1.35 — hojas SOLO donde hay HUECO real (trastero y sala): el garaje (basculante del
+      // arte) y el portal (cristal del arte) no llevan hoja del runtime — v1.34 generaba aquí
+      // una hoja fantasma con gapWs vacío (hinge en NaN).
+      if (b.defId === 'trasteros' || b.defId === 'local_comercial') {
         const leafWs = b.defId === 'trasteros' ? [tc.doorW, tc.doorW] : [jh.doorW];
         const leafHs = b.defId === 'trasteros' ? [tc.doorH, tc.doorH] : [v.privacy.doorH];
         const arts = b.defId === 'trasteros' ? [tc.doorArt, tc.doorArt] : ['/art/interiors/raw/door_casa_a.png'];
         leafWs.forEach((lw, li) => {
           const gx = gapWs[li]!;
           const lh = leafHs[li]!;
-          // Bisagra alternada: primer hueco por la izquierda, segundo por la derecha
-          // (las puertas dobles del trastero se abren hacia dentro como una de verdad).
-          const side: 1 | -1 = li % 2 === 0 ? 1 : -1;
+          // v1.35 — BISAGRAS IGUALES (petición del vecino: «la de la derecha debería abrir
+          // exactamente igual que la de la izquierda si atendemos a su dibujo y donde está
+          // el pomo»): AMBAS hojas del trastero cuelgan por su lado IZQUIQUIERDO con el MISMO
+          // arte — el pomo del dibujo cae lejos de la bisagra en las dos, y el vaivén es
+          // idéntico (antes la segunda alternaba y su pomo quedaba pegado al eje).
+          const side: 1 | -1 = 1;
           const hinge = new TransformNode(`${b.id}_hoja_hinge_${li}`, scene);
           hinge.position.set(side > 0 ? gx - lw / 2 : gx + lw / 2, baseY, doorZHall);
           const leaf = MeshBuilder.CreatePlane(`${b.id}_hoja_${li}`, { width: lw, height: lh }, scene);
@@ -1030,6 +1090,22 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         fmatH.alpha = 0.32;
         const fh = attach(b.id, box(`${b.id}_suelo_int`, rect.w, 0.02, rect.d, x0 + rect.x + rect.w / 2, baseY + 0.02, frontZ + rect.z + rect.d / 2, fmatH));
         interior.floors.push({ roomKey: roomDef.key, defId: roomDef.defId, mesh: fh, mat: fmatH });
+        // v1.35 — LOSETAS VISIBLES también dentro de los locales y el vestíbulo: plano de
+        // baldosas (misma textura que los pasillos) 6 mm SOBRE el suelo tintado — el tinte
+        // de estado (cerrada = lockedColor) sigue leyéndose a través del alpha de las losas.
+        const cfLoc = v.corridorFloor;
+        if (cfLoc) {
+          const locTex = makeTileTex(`${b.id}_losas_int`, rect.w, rect.d);
+          const lmat = mat(`${b.id}_losas_int_mat`);
+          lmat.diffuseTexture = locTex.tex;
+          lmat.specularColor = new Color3(0.03, 0.03, 0.03);
+          lmat.alpha = 0.62;
+          const losasInt = attach(b.id, MeshBuilder.CreateGround(`${b.id}_losas_int`, { width: rect.w, height: rect.d }, scene));
+          losasInt.position.set(x0 + rect.x + rect.w / 2, baseY + 0.042, frontZ + rect.z + rect.d / 2);
+          losasInt.material = lmat;
+          losasInt.isPickable = false;
+          void locTex.ready;
+        }
         interiors.set(b.id, interior);
         if (diro) {
           const dioRootH = new TransformNode(`${b.id}_dio_root`, scene);
@@ -1133,6 +1209,61 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
             standsW.push({ x: wx, z: wz, yaw: Math.atan2(-fz / len, fx / len) });
           }
           hallSeats.set(b.id, { seats: seatsW, stands: standsW });
+        } else if (b.defId === 'portal') {
+          // v1.35 — VESTÍBULO HABITADO (todo del catálogo, locals.portal.lobby): fila de
+          // BUZONES en el muro del fondo (con puertas numeradas), BANCO de madera en el
+          // lateral y TABLÓN de anuncios — lo que la community espera ver al asomarse
+          // al cristal del portal. Las fijaciones siguen siendo interactuables por
+          // proximidad (features mailboxes/noticeboard/bench del bloque).
+          const lb = loc.portal?.lobby;
+          if (lb) {
+            const mbM = mat(`${b.id}_buzon_mat`);
+            mbM.diffuseColor = Color3.FromHexString(lb.mailboxColor);
+            mbM.emissiveColor = Color3.FromHexString(lb.mailboxColor).scale(0.13);
+            const mbDoorM = mat(`${b.id}_buzon_puerta_mat`);
+            mbDoorM.diffuseColor = Color3.FromHexString(lb.mailboxDoor);
+            const benchM = mat(`${b.id}_banco_mat`);
+            benchM.diffuseColor = Color3.FromHexString(lb.benchColor);
+            const legM = mat(`${b.id}_banco_pata_mat`);
+            legM.diffuseColor = Color3.FromHexString(lb.benchLegColor);
+            const boardM = mat(`${b.id}_tablon_mat`);
+            boardM.diffuseColor = Color3.FromHexString(lb.boardColor);
+            const faceM = mat(`${b.id}_tablon_cara_mat`);
+            faceM.diffuseColor = Color3.FromHexString(lb.boardFace);
+            faceM.emissiveColor = Color3.FromHexString(lb.boardFace).scale(0.14);
+            // Buzones: columna de casillas contra el fondo, lado IZQUIERDO (visibles
+            // desde la calle a través del cristal). Nada coplanar: el cuerpo sale 3 cm
+            // del muro y cada puerta 6 mm del cuerpo.
+            const mbBackZ = frontZ + d - v.wall - 0.03;
+            const mbX = x0 + 0.62;
+            for (let i = 0; i < lb.mailboxes; i++) {
+              const colI = i % 2;
+              const rowI = Math.floor(i / 2);
+              const mx = mbX + colI * (lb.mailboxW + 0.04);
+              const my = baseY + 1.28 - rowI * (lb.mailboxH + 0.045);
+              view.greybox.push(
+                box(`${b.id}_buzon_${i}`, lb.mailboxW, lb.mailboxH, 0.16, mx, my, mbBackZ, mbM),
+                box(`${b.id}_buzon_puerta_${i}`, lb.mailboxW - 0.05, lb.mailboxH - 0.05, 0.012, mx, my, mbBackZ - 0.086, mbDoorM),
+              );
+            }
+            // Banco de madera contra la pared DERECHA (asiento + respaldo + 4 patas).
+            const benchX = x0 + w - v.wall - 0.3;
+            const benchZ = frontZ + 1.55;
+            view.greybox.push(
+              box(`${b.id}_banco_asiento`, 0.42, 0.05, 1.15, benchX, baseY + 0.44, benchZ, benchM),
+              box(`${b.id}_banco_resp`, 0.05, 0.42, 1.15, benchX + 0.17, baseY + 0.66, benchZ, benchM),
+            );
+            for (const dz of [-0.5, 0.5]) {
+              view.greybox.push(
+                box(`${b.id}_banco_pata_a_${dz}`, 0.36, 0.42, 0.05, benchX, baseY + 0.21, benchZ + dz, legM),
+              );
+            }
+            // Tablón de anuncios en el fondo, lado derecho (marco + cara de corcho).
+            view.greybox.push(
+              box(`${b.id}_tablon`, 1.15, 0.78, 0.05, x0 + w - 0.95, baseY + 1.42, frontZ + d - v.wall - 0.05, boardM),
+              box(`${b.id}_tablon_cara`, 1.03, 0.66, 0.012, x0 + w - 0.95, baseY + 1.42, frontZ + d - v.wall - 0.085, faceM),
+            );
+          }
         } else if (b.defId === 'garaje') {
           // v1.34 — GARAJE COMUNITARIO HABITABLE: mesa de trabajo con tablero de herramientas,
           // estantería con botes, pila de ruedas y caja de herramientas — TODO del catálogo
@@ -1141,16 +1272,20 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           if (gf) {
             const benchM = mat(`${b.id}_g_banco_mat`);
             benchM.diffuseColor = Color3.FromHexString(gf.benchColor);
+            benchM.emissiveColor = Color3.FromHexString(gf.benchColor).scale(0.14);
             const topM = mat(`${b.id}_g_tablero_mat`);
             topM.diffuseColor = Color3.FromHexString(gf.benchTopColor);
+            topM.emissiveColor = Color3.FromHexString(gf.benchTopColor).scale(0.14);
             const tireM = mat(`${b.id}_g_rueda_mat`);
             tireM.diffuseColor = Color3.FromHexString(gf.tireColor);
             const shelfM = mat(`${b.id}_g_estante_mat`);
             shelfM.diffuseColor = Color3.FromHexString(gf.shelfColor);
+            shelfM.emissiveColor = Color3.FromHexString(gf.shelfColor).scale(0.14);
             const boxM = mat(`${b.id}_g_caja_mat`);
             boxM.diffuseColor = Color3.FromHexString(gf.boxColor);
             const pegM = mat(`${b.id}_g_panel_mat`);
             pegM.diffuseColor = Color3.FromHexString(gf.pegColor);
+            pegM.emissiveColor = Color3.FromHexString(gf.pegColor).scale(0.12);
             // Mesa de trabajo contra el fondo, a la izquierda; tablero perforado encima.
             const benchZ = frontZ + d - v.wall - gf.benchD / 2 - 0.05;
             const benchX = x0 + 0.25 + gf.benchW / 2;
@@ -1189,34 +1324,123 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
             }
           }
         } else {
-          // LAVANDERÍA: las máquinas comunes contra el muro del fondo (recortes billboard
-          // del catálogo, tocando el suelo) + una cuerda con prendas ya no hace falta:
-          // el arte viejo iba pegado a la fachada; estas viven DENTRO del local.
+          // LAVANDERÍA v1.35 — MÁQUINAS DE VERDAD (petición: «mapear volúmenes con el
+          // frontal de la lavadora, 3 abajo y 3 arriba que sean secadoras, y que algunas
+          // veas girar el bombo»): columnas apiladas de VOLUMEN — cuerpo + frontal mapeado
+          // (canvas con tambor transparente) + BOMBO (disco) que GIRA en las «en marcha».
+          // Nada coplanar: el frontal sale 12 mm del cuerpo y el bombo vive 3 cm detrás.
           const lv = loc.lavanderia;
-          const n = Math.max(1, lv.machines);
-          const usableW = w - 0.7;
-          const stepW = usableW / Math.max(1, n - 1 || 1);
-          const art = keyedSpriteTex(`lavadora_tex`, lv.art);
-          for (let i = 0; i < n; i++) {
-            const mx = n === 1 ? cx : x0 + 0.35 + stepW * i;
-            const mh = lv.artH;
-            const mw = mh * art.ar;
-            const pm = mat(`${b.id}_maquina_${i}_mat`);
-            pm.diffuseTexture = art.dt;
-            pm.specularColor = new Color3(0, 0, 0);
-            pm.transparencyMode = 2;
-            pm.alphaCutOff = 0.4;
-            pm.useAlphaFromDiffuseTexture = true;
-            const q = attach(b.id, MeshBuilder.CreatePlane(`${b.id}_maquina_${i}`, { width: mw, height: mh }, scene));
-            q.position.set(mx, baseY + mh / 2, frontZ + d - v.wall - 0.25);
-            if (!art.loaded) {
-              const ar0 = art.ar;
-              art.onTrim.push((nar) => {
-                q.scaling.x = nar / ar0;
-              });
+          const stacks = Math.max(1, lv.stacks ?? 3);
+          const mW = lv.machineW ?? 0.64;
+          const wH = lv.washerH ?? 0.86;
+          const dH = lv.dryerH ?? 0.78;
+          const mD = lv.machineD ?? 0.6;
+          const gapY = lv.stackGap ?? 0.05;
+          const usableW = w - 0.72;
+          const colStep = usableW / stacks;
+          const zBack = frontZ + d - v.wall - mD / 2 - 0.08;
+          const bodyM = mat(`${b.id}_lav_cuerpo_mat`);
+          bodyM.diffuseColor = Color3.FromHexString(lv.bodyColor ?? '#e8e6e0');
+          const topM = mat(`${b.id}_lav_tapa_mat`);
+          topM.diffuseColor = Color3.FromHexString(lv.topColor ?? '#f2f0ea');
+          const drumMat = mat(`${b.id}_lav_bombo_mat`);
+          drumMat.diffuseColor = Color3.FromHexString(lv.drumGlass ?? '#8fa3ad');
+          drumMat.emissiveColor = Color3.FromHexString(lv.drumGlass ?? '#8fa3ad').scale(0.35);
+          drumMat.specularColor = new Color3(0.3, 0.3, 0.3);
+          drumMat.backFaceCulling = false;
+          /** Frontal de máquina (canvas): panel de mandos, perillas y PUERTA con el centro
+           *  TRANSPARENTE (por el agujero se ve el bombo girando detrás). */
+          const machineFrontTex = (kind: 'washer' | 'dryer', seed: number): DynamicTexture => {
+            const dt = new (B().DynamicTexture)(`lav_frontal_${kind}_${seed}_tex`, { width: 256, height: 320 }, scene, true);
+            const c = dt.getContext() as unknown as CanvasRenderingContext2D;
+            const W = 256;
+            const H = 320;
+            c.fillStyle = lv.frontColor ?? '#d8d6cf';
+            c.fillRect(0, 0, W, H);
+            // Bisel superior (tapa) + panel de mandos.
+            c.fillStyle = lv.topColor ?? '#f2f0ea';
+            c.fillRect(0, 0, W, 26);
+            c.fillStyle = lv.panelColor ?? '#5d6b7a';
+            c.fillRect(10, 36, W - 20, 44);
+            c.fillStyle = '#f4e9d8';
+            c.fillRect(18, 46, 74, 24); // display
+            c.fillStyle = kind === 'washer' ? (lv.accentColor ?? '#84a59d') : '#c97b5a';
+            for (const kx of [176, 218]) {
+              c.beginPath();
+              c.arc(kx, 58, 13, 0, Math.PI * 2);
+              c.fill();
             }
-            q.material = pm;
-            q.isPickable = false;
+            // Puerta circular: aro metálico + cristal; el CENTRO se borra (alpha 0).
+            const cx0 = W / 2;
+            const cy0 = 206;
+            const rOut = 88;
+            c.fillStyle = '#b8b6ae';
+            c.beginPath();
+            c.arc(cx0, cy0, rOut, 0, Math.PI * 2);
+            c.fill();
+            c.fillStyle = lv.drumColor ?? '#4a5560';
+            c.beginPath();
+            c.arc(cx0, cy0, rOut - 12, 0, Math.PI * 2);
+            c.fill();
+            c.save();
+            c.beginPath();
+            c.arc(cx0, cy0, rOut - 20, 0, Math.PI * 2);
+            c.clip();
+            c.fillStyle = 'rgba(90,110,125,0.92)';
+            c.fillRect(cx0 - rOut, cy0 - rOut, rOut * 2, rOut * 2);
+            c.restore();
+            // Agujero transparente: por aquí se ve el bombo (disco 3D girando).
+            c.clearRect(cx0 - (rOut - 24), cy0 - (rOut - 24), (rOut - 24) * 2, (rOut - 24) * 2);
+            // Bisagra y tirador de la escotilla.
+            c.fillStyle = '#7d7668';
+            c.fillRect(W - 16, cy0 - 10, 10, 20);
+            c.beginPath();
+            c.arc(14, cy0, 9, 0, Math.PI * 2);
+            c.fill();
+            if (kind === 'dryer') {
+              // Rejilla de pelusa bajo el panel (diferencia visual de la secadora).
+              c.fillStyle = '#a3a199';
+              for (let i = 0; i < 5; i++) c.fillRect(24, 96 + i * 7, W - 48, 3);
+            }
+            dt.update(true);
+            dt.hasAlpha = true;
+            return dt;
+          };
+          for (let s = 0; s < stacks; s++) {
+            const mx = x0 + 0.36 + colStep * (s + 0.5);
+            // LAVADORA (abajo) + SECADORA (arriba): cuerpos, tapas y frontales mapeados.
+            const bodies: { kind: 'washer' | 'dryer'; h: number; y0: number }[] = [
+              { kind: 'washer', h: wH, y0: baseY },
+              { kind: 'dryer', h: dH, y0: baseY + wH + gapY },
+            ];
+            for (const bd of bodies) {
+              const mid = bd.y0 + bd.h / 2;
+              view.greybox.push(
+                box(`${b.id}_lav_${bd.kind}_${s}_cuerpo`, mW, bd.h, mD, mx, mid, zBack, bodyM),
+                box(`${b.id}_lav_${bd.kind}_${s}_tapa`, mW * 0.98, 0.03, mD * 0.96, mx, bd.y0 + bd.h - 0.015, zBack, topM),
+              );
+              const fm = mat(`${b.id}_lav_${bd.kind}_${s}_frontal_mat`);
+              fm.diffuseTexture = machineFrontTex(bd.kind, s);
+              fm.specularColor = new Color3(0.08, 0.08, 0.08);
+              fm.transparencyMode = 2;
+              fm.alphaCutOff = 0.3;
+              fm.useAlphaFromDiffuseTexture = true;
+              fm.backFaceCulling = false;
+              const front = attach(b.id, MeshBuilder.CreatePlane(`${b.id}_lav_${bd.kind}_${s}_frontal`, { width: mW * 0.94, height: bd.h * 0.96 }, scene));
+              front.position.set(mx, mid, zBack - mD / 2 - 0.012);
+              front.material = fm;
+              front.isPickable = false;
+              // BOMBO: disco con crucetas que gira (determinista: hash01 < drumOnChance).
+              const on = hash01(`${b.id}:lav:${s}:${bd.kind}`, 3300) < (lv.drumOnChance ?? 0.5);
+              if (on) {
+                const drum = attach(b.id, MeshBuilder.CreateDisc(`${b.id}_lav_${bd.kind}_${s}_bombo`, { radius: (mW * 0.94) * 0.185, tessellation: 24 }, scene));
+                drum.position.set(mx, mid - bd.h * 0.06, zBack - mD / 2 - 0.03);
+                drum.material = drumMat;
+                drum.isPickable = false;
+                const speed = (lv.drumSpeedMin ?? 2.2) + hash01(`${b.id}:lavspd:${s}:${bd.kind}`, 3400) * ((lv.drumSpeedMax ?? 4.4) - (lv.drumSpeedMin ?? 2.2));
+                laundryDrums.push({ mesh: drum, speed: (s % 2 === 0 ? 1 : -1) * speed });
+              }
+            }
           }
         }
       }
@@ -1302,14 +1526,378 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       for (const b of Object.values(world.blocks)) {
         if (b.layer !== 'main') continue;
         if (b.defId === 'tejado' || b.defId === 'bajocubierta') continue; // remates: sin solera
+        // v1.35 — los bloques que VISUALMENTE abarcan spanW celdas (los cubos de escalera)
+        // llevan la solera a lo ancho REAL: antes cubría solo size.w y la mitad derecha
+        // del cubo quedaba sin plinto (junta abierta visible junto a la vivienda C).
+        const isStairsBlk = content.blocks[b.defId]!.features?.stairs === true;
+        const spanCells = isStairsBlk ? v.stairs.spanW ?? b.size.w : b.size.w;
         const x0 = b.cell.col * v.cellW - v.gapW / 2 - 0.004;
-        const x1 = (b.cell.col + b.size.w) * v.cellW + v.gapW / 2 + 0.004;
+        const x1 = (b.cell.col + spanCells) * v.cellW + v.gapW / 2 + 0.004;
         const yBot = b.cell.floor * v.cellH - v.gapH / 2;
         const yTop = b.cell.floor * v.cellH + v.gapH / 2 + so.h;
         const dep = depthOf(b);
         const out = (so.protrude ?? 0.016) + hash01(b.id, 43) * (so.stagger ?? 0.008);
         const zFront = frontZ - v.wall / 2 - out;
         attach(b.id, box(`${b.id}_solera`, x1 - x0, yTop - yBot, frontZ + dep - zFront, (x0 + x1) / 2, (yBot + yTop) / 2, zFront + (frontZ + dep - zFront) / 2, soMat));
+      }
+    }
+  }
+
+  // ── DECALS DE DRAMA (v1.35): GRAFITIS + HUMEDADES/GRIETAS/HOLLÍN/SUCIEDAD ──
+  //  · GRAFITIS (petición: «cuando se hacen pintadas en ascensor o paredes que aparezca
+  //    un grafiti con texto o dibujo gracioso»): el nivel de `cabin_graffiti` del núcleo
+  //    (lo sube Pinturillas al pintar la cabina) salpica también los MUROS del cubo de
+    //  escalera y el vestíbulo del portal cuando pasa el umbral del catálogo
+  //  (graffiti.spillToWalls). La junta los limpia (param a 0) y desaparecen solos.
+  //  · DECAY (petición: «humo, humedades, grietas etc. que se vean claramente, aportan
+  //    dramatismo»): cada vivienda pinta manchas de humedad/hollín/grietas según sus
+  //    parámetros del sim (humidity/soot/condition) y el pasillo, mugre en el suelo según
+  //    cleanliness. Opacidad proporcional al valor: cuanto peor, más se ve.
+  //  Nada coplanar: los decals viven 12 mm delante de la cara que los soporta.
+  const graffitiCfg = v.graffiti;
+  const decayCfg = v.decay;
+  /** Manchas de decay por bloque: paint() calcula su alpha con el parámetro del sim.
+   *  invert=true → la mancha crece cuando el parámetro BAJA (condición/limpieza). */
+  const decayDecals: { mesh: Mesh; blockId: string; param: string; from: number; to: number; invert: boolean }[] = [];
+  /** Grafitis de muro (cubos de escalera + vestíbulo): el alpha lo fija paint() con el
+   *  nivel de cabin_graffiti del núcleo (spillToWalls del catálogo). */
+  const graffitiWalls: Array<(alpha: number) => void> = [];
+  if (graffitiCfg || decayCfg) {
+    const decalMat = (name: string, tex: DynamicTexture, alpha: number): StandardMaterial => {
+      const m = mat(name);
+      m.diffuseTexture = tex;
+      m.specularColor = new Color3(0, 0, 0);
+      m.emissiveColor = new Color3(0.22, 0.22, 0.22);
+      m.alpha = alpha;
+      m.backFaceCulling = false;
+      return m;
+    };
+    /** Manchas de HUMEDAD: placas marrones superpuestas con chorretones hacia abajo. */
+    const humidityTex = (): DynamicTexture => {
+      const dt = new (B().DynamicTexture)('decal_humedad_tex', { width: 256, height: 256 }, scene, true);
+      const c = dt.getContext() as unknown as CanvasRenderingContext2D;
+      for (let i = 0; i < 5; i++) {
+        const bx = 60 + hash01('hum', i) * 130;
+        const by = 40 + hash01('hum', 20 + i) * 60;
+        const r = 34 + hash01('hum', 40 + i) * 40;
+        const g = c.createRadialGradient(bx, by, 4, bx, by, r);
+        g.addColorStop(0, 'rgba(96,72,48,0.75)');
+        g.addColorStop(0.6, 'rgba(110,86,58,0.4)');
+        g.addColorStop(1, 'rgba(110,86,58,0)');
+        c.fillStyle = g;
+        c.beginPath();
+        c.arc(bx, by, r, 0, Math.PI * 2);
+        c.fill();
+        for (let d = 0; d < 3; d++) {
+          const dx = bx + (hash01('chor', i * 7 + d) - 0.5) * r;
+          c.fillStyle = 'rgba(96,72,48,0.5)';
+          c.fillRect(dx, by + r * 0.4, 3 + hash01('chor', i * 9 + d) * 3, 40 + hash01('chor', i * 11 + d) * 70);
+        }
+      }
+      dt.update(true);
+      dt.hasAlpha = true;
+      return dt;
+    };
+    /** GRIETAS: trazos oscuros ramificados con tramos en zigzag. */
+    const crackTex = (): DynamicTexture => {
+      const dt = new (B().DynamicTexture)('decal_grieta_tex', { width: 256, height: 256 }, scene, true);
+      const c = dt.getContext() as unknown as CanvasRenderingContext2D;
+      c.lineCap = 'round';
+      const branch = (x: number, y: number, dir: number, len: number, w: number, depth: number): void => {
+        c.strokeStyle = `rgba(30,26,22,${0.55 + depth * 0.1})`;
+        c.lineWidth = w;
+        c.beginPath();
+        c.moveTo(x, y);
+        let px = x;
+        let py = y;
+        const steps = 7;
+        for (let s = 0; s < steps; s++) {
+          px += Math.cos(dir) * (len / steps) + (hash01('gri', depth * 100 + s) - 0.5) * 7;
+          py += Math.sin(dir) * (len / steps) + (hash01('gri', depth * 200 + s) - 0.5) * 7;
+          c.lineTo(px, py);
+        }
+        c.stroke();
+        if (depth < 2) {
+          branch(px, py, dir + 0.7 + hash01('gri', depth) * 0.5, len * 0.55, w * 0.6, depth + 1);
+          branch(px, py, dir - 0.8 - hash01('gri', 30 + depth) * 0.5, len * 0.5, w * 0.55, depth + 1);
+        }
+      };
+      branch(128, 24, Math.PI / 2 + 0.15, 200, 5, 0);
+      branch(70, 120, Math.PI / 2 - 0.5, 110, 3.4, 1);
+      dt.update(true);
+      dt.hasAlpha = true;
+      return dt;
+    };
+    /** HOLLÍN: penacho gris oscuro que sube (humo viejo sobre fogones/chimenea). */
+    const sootTex = (): DynamicTexture => {
+      const dt = new (B().DynamicTexture)('decal_hollin_tex', { width: 256, height: 256 }, scene, true);
+      const c = dt.getContext() as unknown as CanvasRenderingContext2D;
+      for (let i = 0; i < 7; i++) {
+        const bx = 128 + (hash01('hol', i) - 0.5) * 70;
+        const by = 210 - i * 26;
+        const r = 66 - i * 6;
+        const g = c.createRadialGradient(bx, by, 3, bx, by, Math.max(8, r));
+        g.addColorStop(0, 'rgba(28,26,24,0.72)');
+        g.addColorStop(1, 'rgba(28,26,24,0)');
+        c.fillStyle = g;
+        c.beginPath();
+        c.arc(bx, by, Math.max(8, r), 0, Math.PI * 2);
+        c.fill();
+      }
+      dt.update(true);
+      dt.hasAlpha = true;
+      return dt;
+    };
+    /** Mugre del pasillo: charcos grises/verdosos en el suelo. */
+    const grimeTex = (): DynamicTexture => {
+      const dt = new (B().DynamicTexture)('decal_mugre_tex', { width: 256, height: 256 }, scene, true);
+      const c = dt.getContext() as unknown as CanvasRenderingContext2D;
+      for (let i = 0; i < 4; i++) {
+        const bx = 50 + hash01('mug', i) * 156;
+        const by = 50 + hash01('mug', 30 + i) * 156;
+        const r = 30 + hash01('mug', 60 + i) * 44;
+        const g = c.createRadialGradient(bx, by, 2, bx, by, r);
+        g.addColorStop(0, 'rgba(64,60,40,0.66)');
+        g.addColorStop(1, 'rgba(64,60,40,0)');
+        c.fillStyle = g;
+        c.beginPath();
+        c.arc(bx, by, r, 0, Math.PI * 2);
+        c.fill();
+      }
+      dt.update(true);
+      dt.hasAlpha = true;
+      return dt;
+    };
+    /** GRAFITI: texto en spray con contorno, goteos y un dibujo (corona, estrella, gato,
+     *  flecha, carita, rayo) — todo gracioso y del catálogo. */
+    const graffitiTex = (text: string, colorHex: string, doodle: string, gCfg: NonNullable<typeof v.graffiti>): DynamicTexture => {
+      const dt = new (B().DynamicTexture)(`decal_grafiti_tex`, { width: 512, height: 256 }, scene, true);
+      const c = dt.getContext() as unknown as CanvasRenderingContext2D;
+      c.lineCap = 'round';
+      c.lineJoin = 'round';
+      // Nube de spray de fondo (halo del color).
+      const col = Color3.FromHexString(colorHex);
+      const rgb = `${Math.round(col.r * 255)},${Math.round(col.g * 255)},${Math.round(col.b * 255)}`;
+      const g = c.createRadialGradient(256, 128, 30, 256, 128, 240);
+      g.addColorStop(0, `rgba(${rgb},0.34)`);
+      g.addColorStop(1, `rgba(${rgb},0)`);
+      c.fillStyle = g;
+      c.fillRect(0, 0, 512, 256);
+      // Texto en spray: dos pasadas (contorno oscuro + relleno) con fuente trazo grueso.
+      const words = text.split(' ');
+      const lines: string[] = [];
+      let cur = '';
+      for (const w of words) {
+        if ((cur + ' ' + w).trim().length > 14) { lines.push(cur.trim()); cur = w; }
+        else cur = (cur + ' ' + w).trim();
+      }
+      if (cur) lines.push(cur.trim());
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.font = 'italic bold 52px "Comic Sans MS", Arial, sans-serif';
+      lines.forEach((ln, li) => {
+        const ty = 70 + li * 62;
+        c.lineWidth = 14;
+        c.strokeStyle = gCfg.outline;
+        c.strokeText(ln, 256, ty);
+        c.lineWidth = 7;
+        c.strokeStyle = `rgba(${rgb},1)`;
+        c.strokeText(ln, 256, ty);
+        c.fillStyle = 'rgba(255,255,255,0.85)';
+        c.font = 'italic bold 46px "Comic Sans MS", Arial, sans-serif';
+        c.fillText(ln, 256, ty);
+        c.font = 'italic bold 52px "Comic Sans MS", Arial, sans-serif';
+      });
+      // Goteos de pintura desde las letras.
+      c.fillStyle = `rgba(${rgb},0.8)`;
+      for (let i = 0; i < 6; i++) {
+        const dx = 60 + hash01('gota', i) * 390;
+        c.fillRect(dx, 110 + hash01('gota', 20 + i) * 90, 5, 22 + hash01('gota', 40 + i) * 40);
+        c.beginPath();
+        c.arc(dx + 2.5, 132 + hash01('gota', 40 + i) * 40 + 22, 4, 0, Math.PI * 2);
+        c.fill();
+      }
+      // Dibujo gracioso en una esquina.
+      c.strokeStyle = gCfg.outline;
+      c.fillStyle = `rgba(${rgb},0.9)`;
+      c.lineWidth = 6;
+      const dx0 = 60 + hash01('dib', 5) * 390;
+      const dy0 = 200;
+      if (doodle === 'corona') {
+        c.beginPath();
+        c.moveTo(dx0 - 26, dy0 + 14);
+        c.lineTo(dx0 - 26, dy0 - 12);
+        c.lineTo(dx0 - 13, dy0 + 2);
+        c.lineTo(dx0, dy0 - 18);
+        c.lineTo(dx0 + 13, dy0 + 2);
+        c.lineTo(dx0 + 26, dy0 - 12);
+        c.lineTo(dx0 + 26, dy0 + 14);
+        c.closePath();
+        c.fill();
+        c.stroke();
+      } else if (doodle === 'estrella') {
+        c.beginPath();
+        for (let i = 0; i < 10; i++) {
+          const r = i % 2 === 0 ? 24 : 11;
+          const a = -Math.PI / 2 + (i * Math.PI) / 5;
+          const px = dx0 + Math.cos(a) * r;
+          const py = dy0 + Math.sin(a) * r;
+          if (i === 0) c.moveTo(px, py);
+          else c.lineTo(px, py);
+        }
+        c.closePath();
+        c.fill();
+        c.stroke();
+      } else if (doodle === 'gato') {
+        c.beginPath();
+        c.arc(dx0, dy0, 20, 0, Math.PI * 2);
+        c.fill();
+        c.stroke();
+        c.beginPath();
+        c.moveTo(dx0 - 16, dy0 - 14); c.lineTo(dx0 - 22, dy0 - 30); c.lineTo(dx0 - 6, dy0 - 20);
+        c.moveTo(dx0 + 16, dy0 - 14); c.lineTo(dx0 + 22, dy0 - 30); c.lineTo(dx0 + 6, dy0 - 20);
+        c.stroke();
+        c.fillStyle = '#1c1c1c';
+        c.beginPath(); c.arc(dx0 - 7, dy0 - 2, 2.6, 0, Math.PI * 2); c.fill();
+        c.beginPath(); c.arc(dx0 + 7, dy0 - 2, 2.6, 0, Math.PI * 2); c.fill();
+      } else if (doodle === 'flecha') {
+        c.beginPath();
+        c.moveTo(dx0 - 26, dy0);
+        c.lineTo(dx0 + 14, dy0);
+        c.moveTo(dx0 + 4, dy0 - 12);
+        c.lineTo(dx0 + 20, dy0);
+        c.lineTo(dx0 + 4, dy0 + 12);
+        c.stroke();
+      } else if (doodle === 'rayo') {
+        c.beginPath();
+        c.moveTo(dx0 + 4, dy0 - 26);
+        c.lineTo(dx0 - 10, dy0 + 2);
+        c.lineTo(dx0 + 2, dy0 + 2);
+        c.lineTo(dx0 - 6, dy0 + 26);
+        c.lineTo(dx0 + 14, dy0 - 6);
+        c.lineTo(dx0 + 2, dy0 - 6);
+        c.closePath();
+        c.fill();
+        c.stroke();
+      } else {
+        // carita sonriente con dientes torcidos
+        c.beginPath();
+        c.arc(dx0, dy0, 20, 0, Math.PI * 2);
+        c.stroke();
+        c.fillStyle = '#1c1c1c';
+        c.beginPath(); c.arc(dx0 - 7, dy0 - 5, 2.6, 0, Math.PI * 2); c.fill();
+        c.beginPath(); c.arc(dx0 + 7, dy0 - 5, 2.6, 0, Math.PI * 2); c.fill();
+        c.strokeStyle = '#1c1c1c';
+        c.lineWidth = 3;
+        c.beginPath();
+        c.arc(dx0, dy0 + 2, 10, 0.15 * Math.PI, 0.85 * Math.PI);
+        c.stroke();
+        c.beginPath();
+        c.moveTo(dx0 - 6, dy0 + 8); c.lineTo(dx0 - 2, dy0 + 12); c.moveTo(dx0, dy0 + 9); c.lineTo(dx0 + 4, dy0 + 13);
+        c.stroke();
+      }
+      dt.update(true);
+      dt.hasAlpha = true;
+      return dt;
+    };
+    const humTex = decayCfg?.humidity ? humidityTex() : null;
+    const grTex = decayCfg?.cracks ? crackTex() : null;
+    const soTex = decayCfg?.soot ? sootTex() : null;
+    const muTex = decayCfg?.grime ? grimeTex() : null;
+    // ── GRAFITIS en los MUROS: uno por planta de cubo de escalera (muro del fondo del
+    //  cubo, visible a través del ventanal) + uno en el vestíbulo del portal.
+    if (graffitiCfg) {
+      const wallSpots: { blockId: string; x: number; y: number; z: number; w: number; h: number }[] = [];
+      for (const b of Object.values(world.blocks)) {
+        const f = content.blocks[b.defId]!.features;
+        if (!f || f.stairs !== true) continue;
+        const dep = depthOf(b);
+        const y0 = b.cell.floor * v.cellH;
+        const spanCells = v.stairs.spanW ?? b.size.w;
+        const sw = spanCells * v.cellW - v.gapW;
+        const left = b.cell.col * v.cellW + v.gapW / 2;
+        wallSpots.push({
+          blockId: b.id,
+          x: left + sw * (0.3 + hash01(b.id, 61) * 0.4),
+          y: y0 + 1.35 + (hash01(b.id, 62) - 0.5) * 0.3,
+          z: frontZ + dep - v.stairs.facade.wallT - 0.012,
+          w: 1.5,
+          h: 0.75,
+        });
+      }
+      const portalBlk = Object.values(world.blocks).find((b) => b.defId === 'portal');
+      if (portalBlk) {
+        const dep = depthOf(portalBlk);
+        wallSpots.push({
+          blockId: portalBlk.id,
+          x: portalBlk.cell.col * v.cellW + portalBlk.size.w * v.cellW * 0.62,
+          y: portalBlk.cell.floor * v.cellH + 1.5,
+          z: frontZ + dep - v.wall - 0.012,
+          w: 1.8,
+          h: 0.9,
+        });
+      }
+      wallSpots.forEach((sp, i) => {
+        const text = graffitiCfg.texts[i % graffitiCfg.texts.length]!;
+        const color = graffitiCfg.colors[i % graffitiCfg.colors.length]!;
+        const doodle = graffitiCfg.doodles[i % graffitiCfg.doodles.length]!;
+        const dmesh = attach(sp.blockId, MeshBuilder.CreatePlane(`decal_grafiti_${i}`, { width: sp.w, height: sp.h }, scene));
+        dmesh.position.set(sp.x, sp.y, sp.z);
+        dmesh.material = decalMat(`decal_grafiti_${i}_mat`, graffitiTex(text, color, doodle, graffitiCfg), 0);
+        dmesh.isPickable = false;
+        dmesh.setEnabled(false);
+        graffitiWalls.push((alpha) => {
+          (dmesh.material as StandardMaterial).alpha = graffitiCfg.alpha * alpha;
+          dmesh.setEnabled(alpha > 0.01);
+        });
+      });
+    }
+    // ── DECAY por VIVIENDA: manchas en la pared del fondo del interior (corte abierto).
+    if (decayCfg) {
+      for (const b of Object.values(world.blocks)) {
+        if (b.kind !== 'dwelling') continue;
+        const dep = depthOf(b);
+        const backZ = frontZ + dep - v.wall - 0.012;
+        const y0 = b.cell.floor * v.cellH + v.slab * 2;
+        const kinds: { key: string; tex: DynamicTexture | null; from: number; to: number; invert?: boolean; w: number; h: number }[] = [];
+        if (decayCfg.humidity && humTex) kinds.push({ key: 'humedad', tex: humTex, from: decayCfg.humidity.min, to: decayCfg.humidity.max, w: decayCfg.humidity.w, h: decayCfg.humidity.h });
+        if (decayCfg.soot && soTex) kinds.push({ key: 'hollin', tex: soTex, from: decayCfg.soot.min, to: decayCfg.soot.max, w: decayCfg.soot.w, h: decayCfg.soot.h });
+        if (decayCfg.cracks && grTex) kinds.push({ key: 'grietas', tex: grTex, from: 0, to: decayCfg.cracks.conditionMax, invert: true, w: decayCfg.cracks.w, h: decayCfg.cracks.h });
+        for (const k of kinds) {
+          if (!k.tex) continue;
+          const sx = 0.5 + (hash01(b.id, 71 + k.key.length) - 0.5) * Math.max(0.1, b.size.w * v.cellW - k.w - 0.5);
+          const sy = y0 + 1.05 + (hash01(b.id, 81 + k.key.length) - 0.5) * 0.5;
+          const dm = attach(b.id, MeshBuilder.CreatePlane(`decal_${k.key}_${b.id}`, { width: k.w, height: k.h }, scene));
+          dm.position.set(b.cell.col * v.cellW + sx, sy, backZ);
+          dm.material = decalMat(`decal_${k.key}_${b.id}_mat`, k.tex, 0);
+          dm.isPickable = false;
+          dm.setEnabled(false);
+          decayDecals.push({
+            mesh: dm,
+            blockId: b.id,
+            param: k.invert ? 'condition' : k.key === 'hollin' ? 'soot' : 'humidity',
+            from: k.from,
+            to: k.to,
+            invert: k.invert === true,
+          });
+        }
+      }
+      // Mugre del PASILLO en el suelo (limpieza baja).
+      if (muTex && decayCfg.grime) {
+        for (const b of Object.values(world.blocks)) {
+          if (b.layer !== 'corridor') continue;
+          const d = v.corridorDepth;
+          for (let i = 0; i < 3; i++) {
+            const sx = b.cell.col * v.cellW + 1.2 + hash01(b.id, 91 + i) * Math.max(0.1, b.size.w * v.cellW - 2.4);
+            const sz = frontZ - 0.5 - hash01(b.id, 95 + i) * (d - 1);
+            const dm = attach(b.id, MeshBuilder.CreateGround(`decal_mugre_${b.id}_${i}`, { width: decayCfg.grime.w, height: decayCfg.grime.h }, scene));
+            dm.position.set(sx, b.cell.floor * v.cellH + v.slab * 2 + 0.011, sz);
+            dm.material = decalMat(`decal_mugre_${b.id}_${i}_mat`, muTex, 0);
+            dm.isPickable = false;
+            dm.setEnabled(false);
+            decayDecals.push({ mesh: dm, blockId: b.id, param: 'cleanliness', from: 0, to: decayCfg.grime.cleanlinessMax, invert: true });
+          }
+        }
       }
     }
   }
@@ -2491,14 +3079,24 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     view.handle?.setEnabled(wall);
     for (const d of view.doorDecor) d.setEnabled(wall);
     view.lock?.setEnabled(locked && !view.lodHiddenPanels);
-    // v1.34 — GARAJE: la fachada es el ARTE glTF (basculante + rótulo). Al entrar, el modelo
-    // entero se desvanece y queda el interior del catálogo — la misma regla que las viviendas,
-    // con la fachada de verdad del arte. Al salir, la basculante vuelve a cerrar la vista.
-    if (b.defId === 'garaje') view.model?.setEnabled(wall);
+    // v1.34 — GARAJE y v1.35 PORTAL: la fachada es el ARTE glTF (basculante + rótulo o
+    // cristal + marcos). Al entrar, el modelo entero se desvanece y queda el interior del
+    // catálogo — la misma regla que las viviendas, con la fachada de verdad del arte.
+    if (b.defId === 'garaje' || b.defId === 'portal') view.model?.setEnabled(wall);
     // Diorama (v1.23): visibilidad ESPEJO de la fachada — fachada cerrada = interior oculto,
     // fachada abierta = diorama a la vista (y cero draw calls de interiores tapados).
+    // v1.35 — el GARAJE y el PORTAL revelan el interior TAMBIÉN con la puerta ABIERTA:
+    // «al abrirse se ven cerradas por una pared oscura» ya no puede pasar (la basculante
+    // levantada o el cristal correído enseñan el vestíbulo/interior sin entrar).
     const interior = interiors.get(b.id);
-    if (interior?.dioRoot) interior.dioRoot.setEnabled(!wall);
+    if (interior?.dioRoot) {
+      let show = !wall;
+      if (!show && (b.defId === 'garaje' || b.defId === 'portal')) {
+        const openT = b.defId === 'portal' ? portalOpen : garajeLiftT;
+        if (openT > 0.12) show = true;
+      }
+      interior.dioRoot.setEnabled(show);
+    }
   }
 
   /**
@@ -2580,6 +3178,27 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           const hex = locked ? v.lockedColor : content.rooms[f.defId]?.view?.color ?? '#cccccc';
           f.mat.diffuseColor = Color3.FromHexString(hex);
         }
+      }
+      // ── v1.35 — DECALS DE DRAMA: opacidad desde los parámetros del sim ──
+      //  Decay (humedad/hollín/grietas/mugre): cada mancha crece con su parámetro (o con
+      //  la CAÍDA de condición/limpieza). Grafitis de muro: suben con cabin_graffiti del
+      //  núcleo a partir de graffiti.spillToWalls; la junta los limpia al ponerlo a 0.
+      for (const dd of decayDecals) {
+        const blk = world.blocks[dd.blockId];
+        if (!blk) continue;
+        const raw = blk.params[dd.param];
+        const val = typeof raw === 'number' ? raw : 0;
+        const span = Math.max(1, dd.to - dd.from);
+        const t = dd.invert ? (dd.to - val) / span : (val - dd.from) / span;
+        const a = Math.min(1, Math.max(0, t));
+        (dd.mesh.material as StandardMaterial).alpha = (dd.invert ? 0.8 : 0.88) * a;
+        dd.mesh.setEnabled(a > 0.02);
+      }
+      if (graffitiWalls.length > 0 && v.graffiti) {
+        const nuc = Object.values(world.blocks).find((b) => content.blocks[b.defId]!.features?.elevator === true);
+        const level = typeof nuc?.params.cabin_graffiti === 'number' ? nuc.params.cabin_graffiti : 0;
+        const t = Math.min(1, Math.max(0, (level - v.graffiti.spillToWalls) / 45));
+        for (const painter of graffitiWalls) painter(t);
       }
     },
     /** v1.29 — Mallas EXCLUIDAS del GlowLayer: el interior de las viviendas se simula con
@@ -2742,11 +3361,16 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
             d.openT = Math.min(1, Math.max(0, nextT));
             // v1.34 — la basculante del garaje SE LEVANTA (rotación X hacia el techo); las
             // hojas batientes giran sobre su bisagra lateral como siempre.
-            if (d.lift) d.hinge.rotation.x = hd.liftAngle * d.openT;
+            if (d.lift) {
+              d.hinge.rotation.x = hd.liftAngle * d.openT;
+              garajeLiftT = d.openT; // v1.35: alimenta el reveal del interior del garaje
+            }
             // La bisagra izquierda suelta la hoja hacia dentro (+z) con −θ; la derecha, espejo.
             else d.hinge.rotation.y = -d.side * hd.openAngle * d.openT;
           }
         }
+        // v1.35 — BOMBOS de la lavandería: las máquinas «en marcha» giran (deterministas).
+        for (const dr of laundryDrums) dr.mesh.rotation.z += dr.speed * dt;
         if (al.enabled && stairLightMats.length > 0) {
           let busy = false;
           if (litWorld) {

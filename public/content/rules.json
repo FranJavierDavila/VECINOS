@@ -1066,8 +1066,8 @@
    "gapFill": {
     "color": "#dbd8d2",
     "pad": 0.04,
-    "protrude": 0.03,
-    "stagger": 0.01
+    "protrude": -0.03,
+    "stagger": 0.008
    },
    "skirtingDoorGap": true,
    "coverArt": "/art/interiors/raw/door_casa_a.png",
@@ -1107,7 +1107,9 @@
    "color": "#d8d7d2",
    "grout": "#a3a199",
    "tile": 0.4,
-   "contrast": 0.1
+   "contrast": 0.22,
+   "groutW": 9,
+   "speckle": 0.16
   },
   "glow": {
    "enabled": true,
@@ -1153,6 +1155,14 @@
      "toalla_a",
      "toalla_b",
      "tubo_descarga"
+    ],
+    "portal": [
+     "cuerpo",
+     "hueco"
+    ],
+    "garaje": [
+     "cuerpo",
+     "hueco"
     ]
    },
    "portalDoors": {
@@ -1287,13 +1297,45 @@
     "machineColor": "#e8e6e0",
     "sign": "LAVANDERÍA",
     "signBg": "#3b3129",
-    "signText": "#ffd166"
+    "signText": "#ffd166",
+    "stacks": 3,
+    "machineW": 0.64,
+    "washerH": 0.86,
+    "dryerH": 0.78,
+    "machineD": 0.6,
+    "stackGap": 0.05,
+    "drumOnChance": 0.55,
+    "drumSpeedMin": 2.2,
+    "drumSpeedMax": 4.4,
+    "bodyColor": "#e8e6e0",
+    "bodyShade": "#c9c7c0",
+    "frontColor": "#d8d6cf",
+    "drumColor": "#4a5560",
+    "drumGlass": "#8fa3ad",
+    "panelColor": "#5d6b7a",
+    "accentColor": "#84a59d",
+    "topColor": "#f2f0ea"
    },
    "hallDoors": {
     "enabled": true,
     "openAhead": 1.15,
     "openSeconds": 0.45,
     "openAngle": 1.0
+   },
+   "portal": {
+    "lobby": {
+     "wallColor": "#d8d3c8",
+     "floorColor": "#b9b3a4",
+     "mailboxes": 6,
+     "mailboxColor": "#7d7668",
+     "mailboxDoor": "#9aa2ad",
+     "mailboxW": 0.34,
+     "mailboxH": 0.3,
+     "benchColor": "#8a5a33",
+     "benchLegColor": "#3b3129",
+     "boardColor": "#6f4926",
+     "boardFace": "#f2e6cf"
+    }
    }
   },
   "shadows": {
@@ -1339,8 +1381,82 @@
     "_rotulo",
     "borde_",
     "indicador",
-    "_tex"
+    "_tex",
+    "decal_",
+    "_bombo",
+    "losas"
    ]
+  },
+  "graffiti": {
+   "cabinMin": 1,
+   "spillToWalls": 25,
+   "alpha": 0.94,
+   "colors": [
+    "#ff5900",
+    "#c77dff",
+    "#2ec4b6",
+    "#ff8fa3",
+    "#ffd166"
+   ],
+   "outline": "#1c1c1c",
+   "texts": [
+    "AQUÍ PINTÓ PINTURILLAS",
+    "EL ASCENSOR VUELA",
+    "VECINOS: Sí A LA TIZA",
+    "ESTE MURO PAGA ALQUILER",
+    "Bajo SIN SUBIR",
+    "LA JUNTA MANDA (a veces)"
+   ],
+   "doodles": [
+    "corona",
+    "estrella",
+    "gato",
+    "flecha",
+    "carita",
+    "rayo"
+   ],
+   "wallLines": [
+    "ARTE URBANO AUTORIZADO POR NADIE",
+    "PROHIBIDO PROHIBIR (salvo ruido)",
+    "EL 3B DEBE UN CAFÉ"
+   ]
+  },
+  "decay": {
+   "humidity": {
+    "min": 30,
+    "max": 80,
+    "w": 1.1,
+    "h": 0.9
+   },
+   "soot": {
+    "min": 15,
+    "max": 70,
+    "w": 0.8,
+    "h": 0.55
+   },
+   "cracks": {
+    "conditionMax": 55,
+    "w": 1.0,
+    "h": 1.3
+   },
+   "grime": {
+    "cleanlinessMax": 45,
+    "w": 1.0,
+    "h": 0.7
+   }
+  },
+  "carry": {
+   "activities": [
+    "descarga_en_pasillo",
+    "obra_en_casa",
+    "pintar_mural"
+   ],
+   "boxColor": "#c9a66b",
+   "boxTape": "#a47148",
+   "parcelColor": "#e8e2d2",
+   "boxW": 0.52,
+   "boxH": 0.34,
+   "boxD": 0.4
   }
  },
  "demo": {

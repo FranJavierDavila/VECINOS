@@ -385,7 +385,8 @@
     "h": 2.46,
     "d": 2.8
    },
-   "tintStrength": 0.5
+   "tintStrength": 0.5,
+   "overlay": true
   },
   "escaleras_planta": {
    "model": "blocks/escaleras_planta.gltf",

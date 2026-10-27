@@ -281,5 +281,27 @@
   "view": {
    "color": "#a8dadc"
   }
+ },
+ {
+  "id": "estancia_portal",
+  "kind": "room",
+  "label": "Vestíbulo del portal",
+  "size": {
+   "w": 2,
+   "h": 1
+  },
+  "params": {
+   "condition": {
+    "type": "number",
+    "min": 0,
+    "max": 100,
+    "default": 78,
+    "tier": 1,
+    "label": "Estado"
+   }
+  },
+  "view": {
+   "color": "#cfc8b8"
+  }
  }
 ]

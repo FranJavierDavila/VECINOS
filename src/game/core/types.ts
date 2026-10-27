@@ -420,7 +420,7 @@ export type CutsceneBeat =
   | { type: 'cam'; focus: 'wide' | 'player' | CutsceneSpot; viewH?: number; hold?: number }
   /** Actor: se coloca en `from` (si hay) y anda hasta `to` por pozo/interior (nunca teletransporta).
    *  Mientras camina, la cámara le SIGUE (travelling); viewH ajusta lo cerrado del plano. */
-  | { type: 'walk'; who: string; from?: CutsceneSpot; to: CutsceneSpot; max?: number; viewH?: number }
+  | { type: 'walk'; who: string; from?: CutsceneSpot; to: CutsceneSpot; max?: number; viewH?: number; /** v1.35 — el actor sube con carga (caja de mudanza / paquete). */ carry?: 'box' | 'parcel' }
   /** Subtítulo cinematográfico con marcadores {resident} y {block}. */
   | { type: 'line'; speaker?: string; text: string; seconds?: number; who?: string; gesture?: string }
   /** Pausa teatral. */
@@ -829,7 +829,9 @@ export interface CrossingsCatalog {
   mood: { goodMin: number; okMin: number; needs: Record<string, number> };
   /** Temas por cubo de ánimo; al cruzarse se elige el grupo del ánimo medio. */
   groups: { id: string; mood: 'good' | 'ok' | 'bad'; topics: CrossingTopic[] }[];
-  /** v1.32 — escalación social: charla → discusión → pelea (herido + ambulancia). */
+  /** v1.32 — escalación social: charla → discusión → pelea (herido + ambulancia).
+   *  v1.35 — comedia del vecindario: baile improvisado (clip dance) y quedarse FRITO
+   *  en el suelo en mitad de la charla (pose sleep + Zzz), con testigo que comenta. */
   escalation?: {
     argueChance: number;
     fightChance: number;
@@ -840,6 +842,14 @@ export interface CrossingsCatalog {
     fightFight: string[];
     injuryLines: string[];
     witnessLines: string[];
+    /** v1.35 — probabilidad de que el cruce acabe en BAILE (y sus líneas). */
+    danceChance?: number;
+    danceLines?: string[];
+    /** v1.35 — probabilidad de que uno se quede DORMIDO en el suelo del pasillo. */
+    sleepChance?: number;
+    sleepLines?: string[];
+    sleepWitnessLines?: string[];
+    sleepSeconds?: number;
   };
 }
 
@@ -1198,8 +1208,9 @@ export interface Rules {
     };
     roomZ: number;
     /** Suelo de los pasillos (v1.28): losetas cuadradas (~40 cm) gris clarito con junta
-     *  del catálogo; `tile` es el lado de la baldosa en metros. v1.30: contrast = alternancia. */
-    corridorFloor?: { color: string; grout: string; tile: number; contrast?: number };
+     *  del catálogo; `tile` es el lado de la baldosa en metros. v1.30: contrast = alternancia.
+     *  v1.35: groutW = grosor de junta y speckle = variación por baldosa (terrazo legible). */
+    corridorFloor?: { color: string; grout: string; tile: number; contrast?: number; groutW?: number; speckle?: number };
     /** ── Locales de la planta baja (v1.30) ── portal acristalado con correderas, garaje
      *  definido, trastero comunitario, sala de juntas y lavandería abierta. */
     locals: {
@@ -1294,7 +1305,74 @@ export interface Rules {
         sign: string;
         signBg: string;
         signText: string;
+        /** v1.35 — VOLÚMENES apilados: 3 lavadoras abajo + 3 secadoras arriba, frontal
+         *  mapeado y bombo que GIRA en las «en marcha» (tirada determinista). */
+        stacks?: number;
+        machineW?: number;
+        washerH?: number;
+        dryerH?: number;
+        machineD?: number;
+        stackGap?: number;
+        drumOnChance?: number;
+        drumSpeedMin?: number;
+        drumSpeedMax?: number;
+        bodyColor?: string;
+        bodyShade?: string;
+        frontColor?: string;
+        drumColor?: string;
+        drumGlass?: string;
+        panelColor?: string;
+        accentColor?: string;
+        topColor?: string;
       };
+      /** v1.35 — vestíbulo del portal: paredes cálidas, buzones, banco y tablón. */
+      portal?: {
+        lobby?: {
+          wallColor: string;
+          floorColor: string;
+          mailboxes: number;
+          mailboxColor: string;
+          mailboxDoor: string;
+          mailboxW: number;
+          mailboxH: number;
+          benchColor: string;
+          benchLegColor: string;
+          boardColor: string;
+          boardFace: string;
+        };
+      };
+    };
+    /** v1.35 — GRAFITIS (cabina del ascensor + paredes del cubo/portal): textos y dibujos
+     *  graciosos del catálogo; cabinMin = nivel en que aparece el mural de cabina,
+     *  spillToWalls = nivel en que también salpican los muros. */
+    graffiti?: {
+      cabinMin: number;
+      spillToWalls: number;
+      alpha: number;
+      colors: string[];
+      outline: string;
+      texts: string[];
+      doodles: string[];
+      wallLines: string[];
+    };
+    /** v1.35 — DECAY visible (humedades/grietas/hollín/suciedad): umbrales del catálogo;
+     *  cada mancha aparece y sube de opacidad según el parámetro del sim. */
+    decay?: {
+      humidity?: { min: number; max: number; w: number; h: number };
+      soot?: { min: number; max: number; w: number; h: number };
+      cracks?: { conditionMax: number; w: number; h: number };
+      grime?: { cleanlinessMax: number; w: number; h: number };
+    };
+    /** v1.35 — llevar objetos encima (paquetes/mudanzas): actividades del catálogo que
+     *  cargan una caja sobre la cabeza, colores y tamaño de la caja. */
+    carry?: {
+      activities: string[];
+      boxColor: string;
+      boxTape: string;
+      parcelColor: string;
+      boxW: number;
+      boxH: number;
+      boxD: number;
     };
     /** Bloom/glow de las luces (v1.28): halo realista de los materiales emisivos. */
     glow?: { enabled: boolean; intensity: number; blurKernelSize?: number };

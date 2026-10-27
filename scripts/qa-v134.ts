@@ -78,10 +78,10 @@ check('lavandería con layout comunitario en el catálogo', blocksJson.includes(
 check('rooms de garaje y lavandería definidos', srcOf('public/content/rooms.json').includes('estancia_garaje') && srcOf('public/content/rooms.json').includes('estancia_lavanderia'));
 check('layouts con sus rects (2.28 × 2.8)', srcOf('public/content/layouts.json').includes('layout_garaje_comunal') && srcOf('public/content/layouts.json').includes('layout_lavanderia_comunal'));
 check('el arte del garaje es OVERLAY (el interior sobrevive al modelo)', assetsJson.includes('"overlay": true') && /"garaje"[\s\S]{0,240}"overlay": true/.test(assetsJson));
-check('el garaje entra al branch de LOCALES del runtime', buildingTs.includes("b.defId === 'trasteros' || b.defId === 'local_comercial' || b.defId === 'lavanderia_comunal' || b.defId === 'garaje'"));
-check('el runtime NO duplica la fachada del garaje (el arte manda)', buildingTs.includes('if (isLaundry || isGaraje)'));
-check('al entrar, la FACHADA glTF del garaje se desvanece (como viviendas)', buildingTs.includes("if (b.defId === 'garaje') view.model?.setEnabled(wall);"));
-check('la basculante SE LEVANTA con bisagra en el canto superior', buildingTs.includes('basculante_hinge') && buildingTs.includes('if (d.lift) d.hinge.rotation.x = hd.liftAngle * d.openT;'));
+check('el garaje entra al branch de LOCALES del runtime', buildingTs.includes("b.defId === 'trasteros' || b.defId === 'local_comercial' || b.defId === 'lavanderia_comunal' || b.defId === 'garaje' || b.defId === 'portal'"));
+check('el runtime NO duplica la fachada del garaje (el arte manda)', buildingTs.includes('if (isLaundry || isGaraje || isPortal)'));
+check('al entrar, la FACHADA glTF del garaje se desvanece (como viviendas)', buildingTs.includes("if (b.defId === 'garaje' || b.defId === 'portal') view.model?.setEnabled(wall);"));
+check('la basculante SE LEVANTA con bisagra en el canto superior', buildingTs.includes('basculante_hinge') && buildingTs.includes('d.hinge.rotation.x = hd.liftAngle * d.openT;'));
 check('mobiliario del garaje del catálogo (banco, tablero, estantería, ruedas, caja)', buildingTs.includes("b.defId === 'garaje'") && buildingTs.includes('_g_neumatico_') && buildingTs.includes('_g_banco_tapa'));
 check('liftAngle en schema y types (espejo)', srcOf('src/game/content/schemas.ts').includes('liftAngle') && srcOf('src/game/core/types.ts').includes('liftAngle'));
 
@@ -127,8 +127,8 @@ check('arbusto = racimo de esferas (3 piezas por lado)', !!nodeOf('arbusto_izq_a
 check('el resto del portal INTACTO (misma fachada verificada)', !!nodeOf('cristal_izq') && !!nodeOf('toldo') && !!nodeOf('rotulo') && !!nodeOf('farol_izq'));
 
 console.log('── 8. Versiones ──');
-check('insignia v1.34 en i18n (es/en)', i18nTs.includes('v1.34 · entra por donde sea') && i18nTs.includes('v1.34 · enter anywhere'));
-check('sw.js bump a vecinos-v1.34', srcOf('public/sw.js').includes('vecinos-v1.34'));
+check('insignia v1.34 en i18n (es/en)', i18nTs.includes('v1.35 · se ve dentro y hay vida') && i18nTs.includes('v1.35 · see inside, feel alive'));
+check('sw.js bump a vecinos-v1.35', srcOf('public/sw.js').includes('vecinos-v1.35'));
 check('PwaRegister espera vecinos-v1.34', srcOf('src/components/game/PwaRegister.tsx').includes('vecinos-v1.34'));
 
 console.log('── 9. Contenido, resolver y sim intactos ──');

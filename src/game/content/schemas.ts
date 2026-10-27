@@ -1022,7 +1022,9 @@ export const rulesSchema = z.object({
           .object({
             color: z.string().default('#dbd8d2'),
             pad: z.number().min(0).default(0.04),
-            protrude: z.number().min(0).default(0.012),
+            /** v1.35 — puede ser NEGATIVO: el relleno se RETRANQUEA tras la cara frontal de
+             *  la fachada (nunca casi-coplano con las soleras, que sobresalen por delante). */
+            protrude: z.number().min(-0.25).default(0.012),
             stagger: z.number().min(0).default(0.008),
           })
           .default({ color: '#dbd8d2', pad: 0.04, protrude: 0.012, stagger: 0.008 }),
@@ -1121,8 +1123,11 @@ export const rulesSchema = z.object({
         grout: z.string().default('#b6b4ac'),
         tile: z.number().positive().default(0.4),
         contrast: z.number().min(0).max(0.35).default(0.1),
+        /** v1.35 — junta más gruesa y moteado terrazo por baldosa (se DEBE notar). */
+        groutW: z.number().int().min(2).max(24).default(5),
+        speckle: z.number().min(0).max(0.6).default(0.12),
       })
-      .default({ color: '#d8d7d2', grout: '#b6b4ac', tile: 0.4, contrast: 0.1 }),
+      .default({ color: '#d8d7d2', grout: '#b6b4ac', tile: 0.4, contrast: 0.1, groutW: 5, speckle: 0.12 }),
     /** ── LOCALES de la planta baja (v1.30) ── portal acristalado con puertas correderas,
      *  garaje definido, trastero comunitario, sala de juntas de la comunidad y lavandería
      *  abierta. TODO del catálogo: colores, medidas, rótulos y asientos — la sustitución
@@ -1258,8 +1263,48 @@ export const rulesSchema = z.object({
             sign: z.string().default('LAVANDERÍA'),
             signBg: z.string().default('#3b3129'),
             signText: z.string().default('#ffd166'),
+            /** v1.35 — VOLÚMENES apilados (3 lavadoras abajo + 3 secadoras arriba) con
+             *  frontal mapeado y bombo que GIRA en las «en marcha» (tirada determinista). */
+            stacks: z.number().int().min(1).max(6).optional(),
+            machineW: z.number().positive().optional(),
+            washerH: z.number().positive().optional(),
+            dryerH: z.number().positive().optional(),
+            machineD: z.number().positive().optional(),
+            stackGap: z.number().min(0).max(0.3).optional(),
+            drumOnChance: z.number().min(0).max(1).optional(),
+            drumSpeedMin: z.number().positive().optional(),
+            drumSpeedMax: z.number().positive().optional(),
+            bodyColor: z.string().optional(),
+            bodyShade: z.string().optional(),
+            frontColor: z.string().optional(),
+            drumColor: z.string().optional(),
+            drumGlass: z.string().optional(),
+            panelColor: z.string().optional(),
+            accentColor: z.string().optional(),
+            topColor: z.string().optional(),
           })
           .default({ machines: 4, art: '/art/interiors/raw/f_lavadora.png', artH: 1.02, machineColor: '#e8e6e0', sign: 'LAVANDERÍA', signBg: '#3b3129', signText: '#ffd166' }),
+        /** v1.35 — VESTÍBULO del portal: paredes cálidas, buzones, banco y tablón (el
+         *  runtime levanta el interior que antes tapaba el cuerpo cerrado del arte). */
+        portal: z
+          .object({
+            lobby: z
+              .object({
+                wallColor: z.string().default('#d8d3c8'),
+                floorColor: z.string().default('#b9b3a4'),
+                mailboxes: z.number().int().min(2).max(12).default(6),
+                mailboxColor: z.string().default('#7d7668'),
+                mailboxDoor: z.string().default('#9aa2ad'),
+                mailboxW: z.number().positive().default(0.34),
+                mailboxH: z.number().positive().default(0.3),
+                benchColor: z.string().default('#8a5a33'),
+                benchLegColor: z.string().default('#3b3129'),
+                boardColor: z.string().default('#6f4926'),
+                boardFace: z.string().default('#f2e6cf'),
+              })
+              .default({ wallColor: '#d8d3c8', floorColor: '#b9b3a4', mailboxes: 6, mailboxColor: '#7d7668', mailboxDoor: '#9aa2ad', mailboxW: 0.34, mailboxH: 0.3, benchColor: '#8a5a33', benchLegColor: '#3b3129', boardColor: '#6f4926', boardFace: '#f2e6cf' }),
+          })
+          .optional(),
       })
       .default({
         corridorWall: '#dbd8d2',
@@ -1277,6 +1322,44 @@ export const rulesSchema = z.object({
         },
         lavanderia: { machines: 4, art: '/art/interiors/raw/f_lavadora.png', artH: 1.02, machineColor: '#e8e6e0', sign: 'LAVANDERÍA', signBg: '#3b3129', signText: '#ffd166' },
       }),
+    /** v1.35 — GRAFITIS: textos y dibujos graciosos del catálogo (spray en cabina y muros).
+     *  cabinMin = nivel de cabin_graffiti en que aparece el mural; spillToWalls = nivel en
+     *  que también salpican cubo de escalera y vestíbulo. La junta limpia (param a 0). */
+    graffiti: z
+      .object({
+        cabinMin: z.number().min(0).max(100).default(1),
+        spillToWalls: z.number().min(0).max(100).default(25),
+        alpha: z.number().min(0).max(1).default(0.94),
+        colors: z.array(z.string()).min(1).default(['#ff5900']),
+        outline: z.string().default('#1c1c1c'),
+        texts: z.array(z.string()).min(1).default(['AQUÍ PINTÓ PINTURILLAS']),
+        doodles: z.array(z.string()).default(['corona', 'estrella', 'gato', 'flecha', 'carita', 'rayo']),
+        wallLines: z.array(z.string()).default([]),
+      })
+      .optional(),
+    /** v1.35 — DECAY visible (humedades/grietas/hollín/mugre): umbrales por parámetro del
+     *  sim; la opacidad de cada mancha crece con el valor (o con la CAÍDA del parámetro). */
+    decay: z
+      .object({
+        humidity: z.object({ min: z.number().min(0).default(30), max: z.number().min(1).default(80), w: z.number().positive().default(1.1), h: z.number().positive().default(0.9) }).optional(),
+        soot: z.object({ min: z.number().min(0).default(15), max: z.number().min(1).default(70), w: z.number().positive().default(0.8), h: z.number().positive().default(0.55) }).optional(),
+        cracks: z.object({ conditionMax: z.number().min(1).default(55), w: z.number().positive().default(1.0), h: z.number().positive().default(1.3) }).optional(),
+        grime: z.object({ cleanlinessMax: z.number().min(1).default(45), w: z.number().positive().default(1.0), h: z.number().positive().default(0.7) }).optional(),
+      })
+      .optional(),
+    /** v1.35 — LLEVAR OBJETOS ENCIMA: actividades del catálogo que cargan caja/paquete
+     *  sobre la cabeza (reparto, obra, mural…) + colores y tamaño de la carga. */
+    carry: z
+      .object({
+        activities: z.array(z.string()).default([]),
+        boxColor: z.string().default('#c9a66b'),
+        boxTape: z.string().default('#a47148'),
+        parcelColor: z.string().default('#e8e2d2'),
+        boxW: z.number().positive().default(0.52),
+        boxH: z.number().positive().default(0.34),
+        boxD: z.number().positive().default(0.4),
+      })
+      .optional(),
     /** v1.28 — bloom/glow de las luces: halo realista de los materiales emisivos. */
     glow: z
       .object({

@@ -53,6 +53,9 @@ interface Shaft {
   callButtons: Map<number, Mesh>;
   /** v1.28 — pantallita junto a las puertas: planta donde está la cabina (y flecha de marcha). */
   indicator: { tex: DynamicTexture; mat: StandardMaterial; shown: string } | null;
+  /** v1.35 — MURAL de Pinturillas: grafiti con texto/dibujo gracioso pegado al fondo de la
+   *  cabina cuando `cabin_graffiti` > 0 (la junta lo limpia y desaparece). */
+  graffiti: Mesh | null;
   state: ShaftState;
   queue: { actorId: string; from: number; to: number }[];
   passengers: { actorId: string; to: number; slot: number }[];
@@ -80,6 +83,9 @@ export interface ElevatorsDirector {
   /** Estado interno de un pozo (QA/depuración): FSM, cola y pasajeros. */
   debugState(col: number): { state: ShaftState; queue: { actorId: string; from: number; to: number }[]; passengers: { actorId: string; to: number; slot: number }[] } | null;
   update(dt: number): void;
+  /** v1.35 — nivel de grafiti de la cabina (param cabin_graffiti del núcleo): 0 = limpio.
+   *  La presentación pinta el mural del catálogo (texto + dibujo gracioso en spray). */
+  setGraffiti(level: number): void;
   dispose(): void;
 }
 
@@ -288,6 +294,106 @@ export function createElevators(scene: Scene, world: World, content: Content): E
     entry.floors.push(b.cell.floor);
     cols.set(b.cell.col, entry);
   }
+  // ── v1.35 — MURAL DE LA CABINA (graffiti data-driven): texto en spray + dibujo gracioso
+  //  del catálogo (rules.view.graffiti). Un solo arte compartido por todos los pozos.
+  const graCfg = content.rules.view.graffiti;
+  let graffitiMat: StandardMaterial | null = null;
+  const buildGraffitiMat = (): StandardMaterial | null => {
+    if (!graCfg || graffitiMat) return graffitiMat;
+    const dt = new (B().DynamicTexture)('asc_grafiti_tex', { width: 512, height: 512 }, scene, true) as DynamicTexture;
+    const c = dt.getContext() as unknown as CanvasRenderingContext2D;
+    const text = graCfg.texts[0] ?? 'AQUÍ PINTÓ PINTURILLAS';
+    const colHex = graCfg.colors[0] ?? '#c77dff';
+    const col = Color3.FromHexString(colHex);
+    const rgb = `${Math.round(col.r * 255)},${Math.round(col.g * 255)},${Math.round(col.b * 255)}`;
+    // Halo de spray.
+    const g = c.createRadialGradient(256, 256, 40, 256, 256, 300);
+    g.addColorStop(0, `rgba(${rgb},0.35)`);
+    g.addColorStop(1, `rgba(${rgb},0)`);
+    c.fillStyle = g;
+    c.fillRect(0, 0, 512, 512);
+    // Texto en spray (dos líneas, contorno oscuro + relleno claro).
+    const words = text.split(' ');
+    const lines: string[] = [];
+    let cur = '';
+    for (const w of words) {
+      if ((cur + ' ' + w).trim().length > 12) { lines.push(cur.trim()); cur = w; }
+      else cur = (cur + ' ' + w).trim();
+    }
+    if (cur) lines.push(cur.trim());
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.lineJoin = 'round';
+    c.lineCap = 'round';
+    lines.forEach((ln, li) => {
+      const ty = 190 + li * 92;
+      c.font = 'italic bold 64px "Comic Sans MS", Arial, sans-serif';
+      c.lineWidth = 16;
+      c.strokeStyle = graCfg.outline;
+      c.strokeText(ln, 256, ty);
+      c.lineWidth = 8;
+      c.strokeStyle = `rgba(${rgb},1)`;
+      c.strokeText(ln, 256, ty);
+      c.fillStyle = 'rgba(255,255,255,0.85)';
+      c.font = 'italic bold 56px "Comic Sans MS", Arial, sans-serif';
+      c.fillText(ln, 256, ty);
+    });
+    // Goteos.
+    c.fillStyle = `rgba(${rgb},0.85)`;
+    for (let i = 0; i < 8; i++) {
+      const dx = 60 + ((i * 53) % 400);
+      const dy = 300 + ((i * 37) % 120);
+      c.fillRect(dx, dy, 6, 30 + ((i * 29) % 46));
+      c.beginPath();
+      c.arc(dx + 3, dy + 30 + ((i * 29) % 46) + 6, 5, 0, Math.PI * 2);
+      c.fill();
+    }
+    // Dibujo: carita sonriente con dientes torcidos + corona (el autorretrato del artista).
+    c.lineWidth = 8;
+    c.strokeStyle = graCfg.outline;
+    c.fillStyle = `rgba(${rgb},0.9)`;
+    const fx = 130;
+    const fy = 400;
+    c.beginPath();
+    c.arc(fx, fy, 34, 0, Math.PI * 2);
+    c.fill();
+    c.stroke();
+    c.fillStyle = '#1c1c1c';
+    c.beginPath(); c.arc(fx - 12, fy - 8, 4, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(fx + 12, fy - 8, 4, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = '#1c1c1c';
+    c.lineWidth = 4;
+    c.beginPath();
+    c.arc(fx, fy + 4, 16, 0.1 * Math.PI, 0.9 * Math.PI);
+    c.stroke();
+    c.beginPath();
+    c.moveTo(fx - 10, fy + 14); c.lineTo(fx - 3, fy + 21); c.moveTo(fx + 2, fy + 15); c.lineTo(fx + 9, fy + 22);
+    c.stroke();
+    // Corona sobre la carita.
+    c.strokeStyle = graCfg.outline;
+    c.fillStyle = '#ffd166';
+    c.lineWidth = 6;
+    c.beginPath();
+    c.moveTo(fx - 26, fy - 44);
+    c.lineTo(fx - 26, fy - 66);
+    c.lineTo(fx - 12, fy - 52);
+    c.lineTo(fx, fy - 72);
+    c.lineTo(fx + 12, fy - 52);
+    c.lineTo(fx + 26, fy - 66);
+    c.lineTo(fx + 26, fy - 44);
+    c.closePath();
+    c.fill();
+    c.stroke();
+    dt.update(true);
+    dt.hasAlpha = true;
+    graffitiMat = new StandardMaterial('asc_grafiti_mat', scene);
+    graffitiMat.diffuseTexture = dt;
+    graffitiMat.specularColor = new Color3(0, 0, 0);
+    graffitiMat.emissiveColor = new Color3(0.3, 0.3, 0.3);
+    graffitiMat.alpha = 0;
+    graffitiMat.backFaceCulling = false;
+    return graffitiMat;
+  };
   for (const [col, info] of cols) {
     info.floors.sort((a, b) => a - b);
     const root = new TransformNode(`asc_${col}`, scene);
@@ -349,6 +455,16 @@ export function createElevators(scene: Scene, world: World, content: Content): E
         scr.isPickable = false;
       }
     }
+    // v1.35 — MURAL del artista en la PARED DEL FONDO de la cabina (12 mm delante del
+    // panel; visible desde la puerta cuando las hojas se abren o desde el corte 2.5D).
+    let graffitiMesh: Mesh | null = null;
+    const gm = buildGraffitiMat();
+    if (gm) {
+      graffitiMesh = box(`asc_grafiti_${col}`, 0.78, 0.78, 0.012, 0, 1.02, 0.665, gm);
+      graffitiMesh.parent = cabin;
+      graffitiMesh.isPickable = false;
+      graffitiMesh.setEnabled(false);
+    }
     shafts.push({
       col,
       x: info.x,
@@ -358,6 +474,7 @@ export function createElevators(scene: Scene, world: World, content: Content): E
       doorPanels,
       callButtons,
       indicator,
+      graffiti: graffitiMesh,
       state: { s: 'idle', at: info.floors[0]! },
       queue: [],
       passengers: [],
@@ -616,6 +733,18 @@ export function createElevators(scene: Scene, world: World, content: Content): E
       }
       shafts.length = 0;
       rides.clear();
+    },
+
+    /** v1.35 — nivel de grafiti (0 = cabina limpia): alpha del mural proporcional al nivel. */
+    setGraffiti(level: number) {
+      const gm = buildGraffitiMat();
+      if (!gm) return;
+      const g = content.rules.view.graffiti;
+      if (!g) return;
+      const min = g.cabinMin ?? 1;
+      const t = Math.min(1, Math.max(0, (level - min) / 35));
+      gm.alpha = 0.95 * t;
+      for (const s of shafts) s.graffiti?.setEnabled(t > 0.02);
     },
   };
 }

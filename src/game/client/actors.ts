@@ -77,6 +77,14 @@ interface Actor {
   /** v1.30 — ASIENTO PENDIENTE de la sala de juntas: cuando la ruta acaba, el actor se
    *  planta en la silla (posición+yaw exactos) y encara el clip "sit". null = nada. */
   seatPending: { x: number; z: number; yaw: number } | null;
+  /** v1.35 — OBJETO EN MANOS (paquete/mudanza): nodo colgado sobre la cabeza; kind dice
+   *  caja de mudanza o paquete de reparto. null = manos libres. */
+  carry: TransformNode | null;
+  carryKind: 'box' | 'parcel' | null;
+  /** v1.35 — carry FORZADO por el teatro (cutscene mudanza) sobre el automático por actividad. */
+  carryManual: 'box' | 'parcel' | null;
+  /** v1.35 — true mientras la pose TUMBADA ('sleep') está aplicada (para restaurar al soltar). */
+  lying: boolean;
 }
 
 /**
@@ -116,6 +124,8 @@ export interface ActorsDirector {
   setGesture(id: string, state: string | null, seconds?: number): void;
   /** Pausa de charla (v1.20): congela la locomoción del actor `seconds` (0 lo suelta). */
   setHold(id: string, seconds: number): void;
+  /** v1.35 — llevar algo ENCIMA (caja de mudanza/paquete): el teatro manda; null lo suelta. */
+  setCarrying(id: string, kind: 'box' | 'parcel' | null): void;
   /** Gira el actor hacia un punto del mundo (charla de cruce: mirarse al hablar). */
   faceToward(id: string, x: number, z: number): void;
 }
@@ -144,7 +154,7 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
     m.emissiveColor = m.diffuseColor.scale(0.25);
     mesh.material = m;
     mesh.isPickable = false;
-    const a: Actor = { id, node: mesh, height, pivotY: height / 2, path: [], wanderT: 0, wanderLap: 0, targetLocal: null, lastLoc: null, directed: false, yaw: 0, targetYaw: null, gesture: null, gestureT: 0, seated: false, seatPending: null, elevatorReq: null, ridePhase: null, enabledPrev: false, stowedBlock: null, rig: null, chatT: 0 };
+    const a: Actor = { id, node: mesh, height, pivotY: height / 2, path: [], wanderT: 0, wanderLap: 0, targetLocal: null, lastLoc: null, directed: false, yaw: 0, targetYaw: null, gesture: null, gestureT: 0, seated: false, seatPending: null, elevatorReq: null, ridePhase: null, enabledPrev: false, stowedBlock: null, rig: null, chatT: 0, carry: null, carryKind: null, carryManual: null, lying: false };
     actors.set(id, a);
 
     // Arte final (opcional): modelo glTF del manifiesto; cualquier fallo → cápsula.
@@ -176,6 +186,10 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
         else rig.root.rotation.y = cur.yaw + MODEL_YAW_OFFSET;
         // El modelo se authora a nominalHeight: escala uniforme a la altura del arquetipo.
         rig.root.scaling.setAll(height / def.nominalHeight);
+        // v1.35 — el carry (si lo había) colgaba de la cápsula que ahora se dispone: se
+        // suelta y el bucle lo reconstruye sobre el rig al frame siguiente.
+        cur.carry = null;
+        cur.carryKind = null;
         cur.node.dispose(false, true); // cápsula fuera (libera también su material propio)
         cur.node = rig.root;
         cur.pivotY = 0.02; // pies en el suelo
@@ -641,6 +655,74 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
         if (q) Quaternion.RotationYawPitchRollToRef(a.yaw + MODEL_YAW_OFFSET, 0, 0, q);
         else a.node.rotation.y = a.yaw + MODEL_YAW_OFFSET;
 
+        // ── v1.35 — POSE TUMBADA (comedia del vecindario): con el gesto 'sleep' el vecino
+        //  se queda FRITO en el suelo (boca arriba, donde esté) — situación cómica del
+        //  catálogo (chats: se duerme en mitad de una charla). Al soltar el gesto vuelve
+        //  a pie (la rotación estándar de arriba ya lo repone; solo hay que resetear el
+        //  pitch de la cápsula greybox, que los rigs repone por cuaternión cada frame).
+        if (a.gesture === 'sleep') {
+          const qs = a.node.rotationQuaternion;
+          if (qs) Quaternion.RotationYawPitchRollToRef(a.yaw + MODEL_YAW_OFFSET, -Math.PI / 2, 0, qs);
+          else a.node.rotation.x = -Math.PI / 2;
+          // El cuerpo tumbado NO se hunde: el pivote sube a media altura del tronco.
+          node.y = goal.y - 0.14 + a.height * 0.22;
+          a.lying = true;
+        } else if (a.lying) {
+          a.lying = false;
+          if (!a.node.rotationQuaternion) a.node.rotation.x = 0;
+        }
+
+        // ── v1.35 — LLEVAR OBJETOS ENCIMA (paquetes/mudanzas): caja de cartón con cinta o
+        //  paquete blanco atado, EQUILIBRADO sobre la cabeza (el clásico transporte del
+        //  barrio). Automático por ACTIVIDAD del catálogo (rules.view.carry.activities:
+        //  reparto en pasillo, obra, mural…) y FORZABLE por el teatro (mudanza). Al cambiar
+        //  la actividad o soltar el teatro, el objeto desaparece (soltar).
+        const carryCfg = v.carry;
+        const wantAuto = carryCfg && r.activity && carryCfg.activities.includes(r.activity) ? 'box' : null;
+        const want = a.carryManual ?? wantAuto;
+        if (want !== a.carryKind) {
+          if (a.carry) {
+            a.carry.dispose(false, true);
+            a.carry = null;
+          }
+          a.carryKind = want;
+          if (want) {
+            const root = new (B().TransformNode)(`${id}_carry`, scene);
+            root.parent = a.node;
+            const cb = carryCfg;
+            const bodyM = new (B().StandardMaterial)(`${id}_carry_mat`, scene);
+            bodyM.diffuseColor = (B().Color3).FromHexString(want === 'box' ? cb?.boxColor ?? '#c9a66b' : cb?.parcelColor ?? '#e8e2d2');
+            const tapeM = new (B().StandardMaterial)(`${id}_carry_tape_mat`, scene);
+            tapeM.diffuseColor = (B().Color3).FromHexString(want === 'box' ? cb?.boxTape ?? '#a47148' : '#8a5a33');
+            const bw = cb?.boxW ?? 0.52;
+            const bh = cb?.boxH ?? 0.34;
+            const bd = cb?.boxD ?? 0.4;
+            const body = (B().MeshBuilder).CreateBox(`${id}_carry_cuerpo`, { width: want === 'parcel' ? bw * 0.78 : bw, height: want === 'parcel' ? bh * 0.7 : bh, depth: want === 'parcel' ? bd * 0.78 : bd }, scene);
+            body.material = bodyM;
+            body.isPickable = false;
+            body.parent = root;
+            // Cinta precintadora en cruz (caja) o cordel atado (paquete).
+            const strapW = want === 'parcel' ? 0.02 : bw * 0.16;
+            const strap1 = (B().MeshBuilder).CreateBox(`${id}_carry_cinta_x`, { width: strapW, height: 0.012, depth: want === 'parcel' ? bd * 0.8 : bd * 1.03 }, scene);
+            strap1.material = tapeM;
+            strap1.isPickable = false;
+            strap1.parent = root;
+            strap1.position.y = want === 'parcel' ? bh * 0.36 : bh / 2;
+            if (want === 'box') {
+              const strap2 = (B().MeshBuilder).CreateBox(`${id}_carry_cinta_z`, { width: bw * 1.03, height: 0.012, depth: strapW }, scene);
+              strap2.material = tapeM;
+              strap2.isPickable = false;
+              strap2.parent = root;
+              strap2.position.y = bh / 2;
+            }
+            root.position.y = a.height + (want === 'parcel' ? bh * 0.36 : bh / 2) + 0.07;
+            root.scaling.setAll(a.rig ? a.height / 1.35 : 1);
+            a.carry = root;
+          }
+        } else if (a.carry) {
+          a.carry.setEnabled(a.node.isEnabled());
+        }
+
         // ── Animación (solo rigs) por prioridad de estados (v1.2) + SINCRONÍA DE ZANCADA (v1.3):
         //   gesto explícito → run (speed > runSpeed) → walk (mientras se avanza) → clip de
         //   actividad parado → sentado en ancla → idle. El ratio de playback sale de la
@@ -784,6 +866,12 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
           a.targetLocal = null;
           a.wanderT = 0;
         }
+      },
+      /** v1.35 — llevar algo encima (teatro de mudanza): forzado sobre el automático. */
+      setCarrying(id: string, kind: 'box' | 'parcel' | null): void {
+        const a = actors.get(id);
+        if (!a) return;
+        a.carryManual = kind;
       },
       /** Gira hacia un punto del mundo (arco corto con el ritmo del catálogo). */
       faceToward(id: string, x: number, z: number): void {

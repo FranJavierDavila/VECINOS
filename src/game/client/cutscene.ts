@@ -159,6 +159,9 @@ export class CutscenePlayer {
           this.walk = { id };
           if (!this.involved.includes(id)) this.involved.push(id);
           this.hideLine();
+          // v1.35 — el beat puede traer `carry`: el actor SUBE CON CAJAS (mudanza) o
+          // paquete encima — «que puedan coger y soltar cosas», y el paseo se ve con carga.
+          if (beat.carry) this.stage.actors.setCarrying(id, beat.carry);
           // V1.9 TRAVELLING: el plano sigue al actor desde el primer frame (la ruta puede recorrer
           // medio edificio; antes la cámara se quedaba clavada en el último encuadre y el paseo
           // entero ocurría FUERA de cuadro: plano vacío + mundo parado = sensación de bloqueo).
@@ -200,7 +203,12 @@ export class CutscenePlayer {
 
   /** Fin normal o por salto: los actores vuelven a la IA y la cámara al modo del jugador. */
   private finish(): void {
-    for (const id of this.involved) this.stage?.actors.release(id);
+    // v1.35 — al terminar el espectáculo, los que llevaban cajas lo SUELTAN (la IA recaptura
+    // y la carga desaparece: recogieron al llegar).
+    for (const id of this.involved) {
+      this.stage?.actors.setCarrying(id, null);
+      this.stage?.actors.release(id);
+    }
     this.involved = [];
     if (this.spoken) {
       this.stage?.actors.setGesture(this.spoken, null);

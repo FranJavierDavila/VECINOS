@@ -33,7 +33,8 @@
      "block": "$event.block",
      "at": "door"
     },
-    "max": 12
+    "max": 12,
+    "carry": "box"
    },
    {
     "type": "line",

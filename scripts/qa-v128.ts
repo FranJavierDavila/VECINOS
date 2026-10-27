@@ -96,7 +96,7 @@ check('pantalla empotrada + cristal DELANTE (nada coplanar)', elevatorTs.include
 check('avería = ✕ en pantalla', elevatorTs.includes("if (broken) label = '✕';"));
 
 console.log('── 7. Anti-coplanaridad: clearance real frente a TODAS las caras ──');
-check('juntas: protrude 0.030 + stagger 0.010 (frontZ −0.080..−0.090, lejos de −0.05 fachada y −0.07 muro del cubo)', v.privacy.gapFill.protrude === 0.03 && v.privacy.gapFill.stagger === 0.01, `out ∈ [${v.privacy.gapFill.protrude}, ${v.privacy.gapFill.protrude + v.privacy.gapFill.stagger})`);
+check('juntas: v1.35 RETRANQUEADAS tras la fachada (protrude −0.030, adiós al casi-coplano con soleras C↔escalera)', v.privacy.gapFill.protrude === -0.03 && v.privacy.gapFill.stagger === 0.008, `out ∈ [${v.privacy.gapFill.protrude}, ${v.privacy.gapFill.protrude + v.privacy.gapFill.stagger})`);
 check('solera: protrude 0.034 + stagger 0.010 (banda propia, jamás el plano del muro del cubo)', v.privacy.solera.protrude === 0.034 && v.privacy.solera.stagger === 0.01);
 check('sin cara nueva a frontZ − 0.07 (el plano del muro del cubo de v1.27)', !buildingTs.includes('frontZ - v.wall / 2 - 0.02'));
 
@@ -122,7 +122,7 @@ check('exterior.ts: piezas forzadas con el mismo pipeline de recorte', exteriorT
 console.log('── 11. Suelo de pasillos: losetas de 40 cm ──');
 check('corridorFloor en catálogo (tile 0.4 m)', !!v.corridorFloor && Math.abs(v.corridorFloor.tile - 0.4) < 0.001, JSON.stringify(v.corridorFloor));
 check('plano de losetas 4 mm sobre la losa (nada coplanar)', buildingTs.includes('bottom + v.slab * 2 + 0.004'));
-check('junta = tile metros reales (uScale/vScale del calado y ancho del bloque)', buildingTs.includes('tex.uScale = Math.max(1, Math.round((b.size.w * v.cellW) / (cf.tile * 2)));'));
+check('junta = tile metros reales (uScale/vScale del calado y ancho del bloque)', buildingTs.includes('tex.uScale = Math.max(1, Math.round(wMeters / (cf.tile * 2)));'));
 
 console.log('── Rutas: la entrada cae en el hueco de la puerta ──');
 const world = createWorld(content, 'slice');

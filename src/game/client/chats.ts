@@ -28,16 +28,19 @@ import { resolveTokens } from '@/game/support/texts';
 interface ActiveChat {
   a: string;
   b: string;
-  kind: 'talk' | 'argue' | 'fight';
+  kind: 'talk' | 'argue' | 'fight' | 'dance' | 'sleep';
   lines: string[];
   /** Siguiente línea a decir (par → A, impar → B). */
   idx: number;
   t: number;
   /** Tras la última línea: mirándose un momento antes de soltarse. */
   after: number;
-  /** v1.32 — perdedor de la pelea (clave del actor) y cuenta atrás de su recuperación. */
+  /** v1.32 — perdedor de la pelea (clave del actor) y cuenta atrás de su recuperación.
+   *  v1.35 — también el vecino DORMIDO en el suelo (misma cuenta atrás hasta despertar). */
   injured: string | null;
   hurtLeft: number;
+  /** v1.35 — cuenta atrás para el siguiente «😴 Zzz…» del dormido. */
+  zzzT: number;
   /** Testigo pendiente de comentar la pelea. */
   witness: { at: number; who: string } | null;
 }
@@ -107,6 +110,8 @@ export function createChats(
     pairUntil.set(key, now + cad.pairCooldown);
 
     // v1.32 — ESCALACIÓN (catálogo): la tirada decide si esta charla degenera.
+    // v1.35 — comedia del vecindario: PELEA → DISCUSIÓN → BAILE improvisado → siesta
+    // inesperada (uno de los dos acaba tumbado en el suelo del pasillo, con Zzz).
     let kind: ActiveChat['kind'] = 'talk';
     let lines: string[] = [];
     const group = cfg.groups.find((g) => g.mood === bucket) ?? cfg.groups[0];
@@ -114,6 +119,8 @@ export function createChats(
     lines = topic ? topic.lines.map((l) => l) : [];
     if (esc) {
       const roll = hash01(`${b}~${a}~escala`, lap);
+      const danceP = esc.danceChance ?? 0;
+      const sleepP = esc.sleepChance ?? 0;
       if (roll < esc.fightChance) {
         kind = 'fight';
         lines = esc.fightFight.filter(Boolean);
@@ -123,11 +130,17 @@ export function createChats(
         const pool = esc.argueGroups[bucket === 'bad' ? 'hot' : 'mild'] ?? esc.argueGroups[Object.keys(esc.argueGroups)[0] ?? ''] ?? [];
         const at = pool[Math.floor(hash01(`${a}~${b}~discute`, lap) * pool.length) % Math.max(1, pool.length)];
         lines = at ? at.lines.map((l) => l) : [];
+      } else if (roll < esc.fightChance + esc.argueChance + danceP && (esc.danceLines?.length ?? 0) > 0) {
+        kind = 'dance';
+        lines = esc.danceLines!.map((l) => l);
+      } else if (roll < esc.fightChance + esc.argueChance + danceP + sleepP && (esc.sleepLines?.length ?? 0) > 0) {
+        kind = 'sleep';
+        lines = esc.sleepLines!.map((l) => l);
       }
     }
     if (lines.length === 0) return;
     const total = kind === 'fight' ? lines.length * (esc?.fightLinesSeconds ?? 0.9) + 2 : lines.length * cad.lineSeconds + cad.holdAfter;
-    active.set(key, { a, b, kind, lines, idx: 0, t: 0, after: kind === 'fight' ? 1.2 : cad.holdAfter, injured: null, hurtLeft: 0, witness: null });
+    active.set(key, { a, b, kind, lines, idx: 0, t: 0, after: kind === 'fight' ? 1.2 : cad.holdAfter, injured: null, hurtLeft: 0, zzzT: 0, witness: null });
     actors.setHold(a, total);
     actors.setHold(b, total);
   };
@@ -160,12 +173,21 @@ export function createChats(
           continue;
         }
         // v1.32 — HERIDO: cuenta atrás de recuperación; el testigo suelta su comentario.
+        // v1.35 — el DORMIDO del suelo usa el mismo mecanismo (despierta al acabar) y
+        // mientras duerme sueña en voz baja: «😴 Zzz…» cada pocos segundos.
         if (ch.injured) {
           ch.hurtLeft -= dt;
+          if (ch.kind === 'sleep') {
+            ch.zzzT -= dt;
+            if (ch.zzzT <= 0) {
+              ch.zzzT = 2.6;
+              bubbles.sayText(ch.injured, '😴 Zzz…', 2.2);
+            }
+          }
           if (ch.witness) {
             ch.witness.at -= dt;
             if (ch.witness.at <= 0) {
-              const line = pickLine(esc?.witnessLines ?? [], 'testigo_linea');
+              const line = pickLine(ch.kind === 'sleep' ? (esc?.sleepWitnessLines ?? []) : (esc?.witnessLines ?? []), 'testigo_linea');
               if (line && !actors.isRiding(ch.witness.who) && !actors.isDirected(ch.witness.who)) {
                 bubbles.sayText(ch.witness.who, line, 4);
                 actors.setGesture(ch.witness.who, 'talk', 3.5);
@@ -193,6 +215,11 @@ export function createChats(
             // Los DOS pelean: el golpeador lanza, el otro está en guardia (mismo clip).
             actors.setGesture(speaker, 'fight', (esc?.fightLinesSeconds ?? 0.9) + 0.2);
             actors.setGesture(other, 'fight', (esc?.fightLinesSeconds ?? 0.9) + 0.35);
+          } else if (ch.kind === 'dance') {
+            // v1.35 — BAILE improvisado: los dos se marcan el paso (clip 'dance'; quien no
+            // lo tenga, marca el ritmo con su idle) mientras sueltando puyas del catálogo.
+            actors.setGesture(speaker, 'dance', cad.lineSeconds + 0.7);
+            actors.setGesture(other, 'dance', cad.lineSeconds + 0.9);
           } else {
             // v1.32 — la discusión usa 'argue' (gesto que ya traía el catálogo y nadie tocaba).
             actors.setGesture(speaker, ch.kind === 'argue' ? 'argue' : 'talk', cad.lineSeconds + 0.5);
@@ -223,6 +250,25 @@ export function createChats(
               actors.setHold(loser, esc.hurtSeconds + 1.2); // el vencedor se queda mirando
               actors.setHold(winner, 2.8);
             }
+          }
+        } else if (ch.kind === 'sleep' && ch.after > 0) {
+          // v1.35 — fin de la charla-siesta: uno de los dos se queda FRITO en el suelo.
+          ch.after -= dt;
+          if (ch.after <= 0 && esc) {
+            actors.setGesture(ch.a, null);
+            actors.setGesture(ch.b, null);
+            const sleeper = hash01(`${ch.b}~dormido`, lap) < 0.5 ? ch.a : ch.b;
+            const awake = sleeper === ch.a ? ch.b : ch.a;
+            const secs = esc.sleepSeconds ?? 10;
+            ch.injured = sleeper;
+            ch.hurtLeft = secs;
+            ch.zzzT = 1.2;
+            actors.setGesture(sleeper, 'sleep', secs + 0.6);
+            actors.setHold(sleeper, secs + 1.4);
+            actors.setHold(awake, 3.2);
+            bubbles.sayText(sleeper, '😴 Zzz…', 2.4);
+            const pw = actors.nodeOf(sleeper);
+            if (pw) scheduleWitness(ch, pw, Math.min(4, secs * 0.45));
           }
         } else if (ch.after > 0) {
           ch.after -= dt;

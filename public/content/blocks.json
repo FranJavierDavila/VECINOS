@@ -135,7 +135,11 @@
   "view": {
    "color": "#b08968"
   },
-  "label": "el portal"
+  "label": "el portal",
+  "container": {
+   "childKind": "room",
+   "layout": "layout_portal"
+  }
  },
  {
   "id": "trasteros",

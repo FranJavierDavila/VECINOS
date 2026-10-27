@@ -145,5 +145,21 @@
    }
   ],
   "doorways": []
+ },
+ {
+  "id": "layout_portal",
+  "rooms": [
+   {
+    "key": "portal_lobby",
+    "defId": "estancia_portal",
+    "startsUnlocked": true,
+    "rect": {
+     "x": 0.06,
+     "z": 0.06,
+     "w": 4.56,
+     "d": 2.56
+    }
+   }
+  ]
  }
 ]

@@ -120,8 +120,8 @@ check('sirena rojo/azul alternando (patrulla)', trafficTs.includes("Color3.FromH
 check('matrícula sin emissive pero con textura (sin negros de alpha)', trafficTs.includes('pm.diffuseTexture = plateTex(def.plate)'));
 
 console.log('── 7. Versiones ──');
-check('insignia actual en i18n (v1.33, la 1.31 fue sustituida por la nueva)', i18nTs.includes('v1.34 · entra por donde sea') && i18nTs.includes('v1.34 · enter anywhere'));
-check('sw.js bump a vecinos-v1.34 (sigue subiendo)', swJs.includes('vecinos-v1.34'));
+check('insignia actual en i18n (v1.35, las anteriores fueron sustituidas)', i18nTs.includes('v1.35 · se ve dentro y hay vida') && i18nTs.includes('v1.35 · see inside, feel alive'));
+check('sw.js bump a vecinos-v1.34 (sigue subiendo)', swJs.includes('vecinos-v1.35'));
 check('PwaRegister espera vecinos-v1.34', pwaTsx.includes('vecinos-v1.34'));
 
 console.log('── Sim intacto ──');
