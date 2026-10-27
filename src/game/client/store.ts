@@ -49,6 +49,15 @@ export interface CampaignHud {
   over: boolean;
 }
 
+/** Chip de presidencia del HUD (v1.18, support/campaign): día de mandato y término. */
+export interface CampaignHud {
+  active: boolean;
+  dayOfTerm: number;
+  termDays: number;
+  label: string;
+  over: boolean;
+}
+
 export interface LogItem {
   id: number;
   tick: number;
