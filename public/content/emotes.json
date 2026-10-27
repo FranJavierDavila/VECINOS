@@ -5,7 +5,7 @@
     "maxDistance": 72,
     "popMs": 160,
     "decisionMs": 250,
-    "buildingMaxGlyphs": 6
+    "buildingMaxGlyphs": 0
   },
   "mood": {
     "needs": {

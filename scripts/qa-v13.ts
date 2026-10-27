@@ -103,7 +103,7 @@ check('escaleras_planta: nominal acorde al span (spanW·cellW−gapW)', !!escEnt
   const y1 = y0 + v.cellH;
   const up = stairPathPoints(v, sx, y0, y1);
   const down = stairPathPoints(v, sx, y1, y0);
-  check('escalera: ruta de subida con 14 puntos', up.length === 14, `${up.length}`);
+  check('escalera: ruta de subida peldaño a peldaño (v1.19: ≥20 puntos)', up.length >= 20, `${up.length}`);
   let mono = true;
   for (let i = 1; i < up.length; i++) if (up[i]!.y < up[i - 1]!.y - 1e-9) mono = false;
   check('escalera: subida monotónica (sin descuidos)', mono);

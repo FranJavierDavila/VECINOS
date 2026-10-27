@@ -7,7 +7,7 @@
  *
  * Todo data-driven: rutas, escalas nominales y clips de animación viven en el manifiesto.
  */
-import type { AnimationGroup, AssetContainer, Material, Scene, TransformNode } from '@babylonjs/core';
+import type { AnimationGroup, AssetContainer, Material, Quaternion, Scene, TransformNode } from '@babylonjs/core';
 import type { ActorAssetDef, BlockAssetDef } from '@/game/core/types';
 import { B } from './babylon';
 
@@ -79,6 +79,11 @@ export async function instantiateActorAsset(scene: Scene, def: ActorAssetDef, ba
     const inst = c.instantiateModelsToScene();
     const root = inst.rootNodes[0] as TransformNode | undefined;
     if (!root) return null;
+    // v1.29 — LOS ACTORES NO OCULTAN BOCADILLOS: todas sus mallas nacen no-pickable para
+    // que el rayo de oclusión de los bocadillos (bubbles.ts) atraviese a los vecinos
+    // (un vecino delante de otro no le roba el bocadillo). No hay picking de personajes
+    // en el juego (la interacción va por zonas/teclado), así que esto no rompe nada.
+    for (const mesh of root.getChildMeshes(false)) mesh.isPickable = false;
     const groups = new Map<string, AnimationGroup>();
     // Los clones de instantiateModelsToScene llegan como "Clone of idle": emparejamiento
     // tolerante exacto → inclusión (cubre sufijos y prefijos de clonado).
@@ -98,6 +103,44 @@ export async function instantiateActorAsset(scene: Scene, def: ActorAssetDef, ba
       if (g) groups.set(state, g);
     }
     const defaultClip = def.defaultAnimation && groups.has(def.defaultAnimation) ? def.defaultAnimation : null;
+    // V1.28 — POSTURA DE PAUSA DE VERDAD: los clips NO comparten canales (idle no anima
+    // piernas; talk/phone/sit tampoco). Al cambiar de clip, Babylon deja los huesos del clip
+    // anterior en su ÚLTIMA pose: el vecino que se para a mitad de zancada se quedaba
+    // CONGELADO en pose de andar ("no existe postura de pausa"). Ahora cada grupo recuerda
+    // qué nodos GIRA, la instancia captura la pose de reposo antes de animar nada y play()
+    // RESTAURA la reposo de los nodos que quedan sin cubrir al cambiar de clip.
+    const rotTargetsOf = (g: AnimationGroup): Set<TransformNode> => {
+      const s = new Set<TransformNode>();
+      for (const t of g.targetedAnimations) {
+        const node = t.target as TransformNode;
+        if (!node || typeof node !== 'object' || !('position' in node)) continue;
+        const an = (t as unknown as { animation?: { targetProperty?: string } }).animation;
+        const prop = an?.targetProperty ?? '';
+        if (prop === 'rotation' || prop === 'rotationQuaternion') s.add(node);
+      }
+      return s;
+    };
+    const rotTargets = new Map<AnimationGroup, Set<TransformNode>>();
+    for (const g of groups.values()) rotTargets.set(g, rotTargetsOf(g));
+    const restQuat = new Map<TransformNode, Quaternion | null>();
+    const restRot = new Map<TransformNode, number>();
+    for (const g of groups.values()) {
+      for (const node of rotTargets.get(g) ?? []) {
+        if (restQuat.has(node)) continue;
+        restQuat.set(node, node.rotationQuaternion ? node.rotationQuaternion.clone() : null);
+        restRot.set(node, node.rotation?.y ?? 0);
+      }
+    }
+    const restoreUncovered = (prev: AnimationGroup | null, next: AnimationGroup | null): void => {
+      if (!prev) return;
+      const keep = next ? rotTargets.get(next) : null;
+      for (const node of rotTargets.get(prev) ?? []) {
+        if (keep?.has(node)) continue; // el clip nuevo sigue animándolo: no tocar
+        const q = restQuat.get(node);
+        if (q && node.rotationQuaternion) node.rotationQuaternion.copyFrom(q);
+        else if (!q && node.rotation) node.rotation.y = restRot.get(node) ?? 0;
+      }
+    };
     const rig: ActorRig = {
       root,
       groups,
@@ -112,9 +155,11 @@ export async function instantiateActorAsset(scene: Scene, def: ActorAssetDef, ba
           if (rig.group && Math.abs(rig.group.speedRatio - rate) > 0.01) rig.group.speedRatio = rate;
           return;
         }
+        const nextGroup = key ? groups.get(key)! : null;
+        restoreUncovered(rig.group, nextGroup); // v1.28: piernas/brazos sin cobertura vuelven a reposo
         rig.group?.stop();
         rig.current = key;
-        rig.group = key ? groups.get(key)! : null;
+        rig.group = nextGroup;
         rig.group?.start(true, rate);
       },
       dispose() {

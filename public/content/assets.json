@@ -1,452 +1,465 @@
 {
-  "base": "/assets/",
-  "actors": {
-    "nino_grafitero": {
-      "model": "actors/nino_grafitero.gltf",
-      "nominalHeight": 1.2,
-      "animations": {
-        "idle": "idle",
-        "walk": "walk",
-        "spray": "spray"
-      },
-      "defaultAnimation": "idle",
-      "walkAnimation": "walk",
-      "activityAnimations": {
-        "paint_cabin": "spray",
-        "roam": "walk"
-      },
-      "stateAnimations": {
-        "run": "run",
-        "talk": "talk",
-        "laugh": "laugh",
-        "argue": "argue",
-        "phone": "phone",
-        "sit": "sit"
-      }
-    },
-    "cotilla": {
-      "model": "actors/cotilla.gltf",
-      "nominalHeight": 1.35,
-      "animations": {
-        "idle": "idle",
-        "walk": "walk",
-        "watch": "watch"
-      },
-      "defaultAnimation": "idle",
-      "walkAnimation": "walk",
-      "activityAnimations": {
-        "watch_corridor": "watch"
-      },
-      "stateAnimations": {
-        "run": "run",
-        "talk": "talk",
-        "laugh": "laugh",
-        "argue": "argue",
-        "phone": "phone",
-        "sit": "sit"
-      }
-    },
-    "fiestero": {
-      "model": "actors/fiestero.gltf",
-      "nominalHeight": 1.35,
-      "animations": {
-        "idle": "idle",
-        "walk": "walk",
-        "dance": "dance"
-      },
-      "defaultAnimation": "idle",
-      "walkAnimation": "walk",
-      "activityAnimations": {
-        "party": "dance"
-      },
-      "stateAnimations": {
-        "run": "run",
-        "talk": "talk",
-        "laugh": "laugh",
-        "argue": "argue",
-        "phone": "phone",
-        "sit": "sit"
-      }
-    },
-    "jubilada": {
-      "model": "actors/jubilada.gltf",
-      "nominalHeight": 1.35,
-      "animations": {
-        "idle": "idle",
-        "walk": "walk",
-        "knit": "knit"
-      },
-      "defaultAnimation": "idle",
-      "walkAnimation": "walk",
-      "activityAnimations": {
-        "chair": "knit"
-      },
-      "stateAnimations": {
-        "run": "run",
-        "talk": "talk",
-        "laugh": "laugh",
-        "argue": "argue",
-        "phone": "phone",
-        "sit": "sit"
-      }
-    },
-    "jugador_base": {
-      "model": "actors/jugador_base.gltf",
-      "nominalHeight": 1.35,
-      "animations": {
-        "idle": "idle",
-        "walk": "walk",
-        "work": "work"
-      },
-      "defaultAnimation": "idle",
-      "walkAnimation": "walk",
-      "activityAnimations": {
-        "work": "work"
-      },
-      "stateAnimations": {
-        "run": "run",
-        "talk": "talk",
-        "laugh": "laugh",
-        "argue": "argue",
-        "phone": "phone",
-        "sit": "sit"
-      }
-    },
-    "presidente": {
-      "model": "actors/presidente.gltf",
-      "nominalHeight": 1.35,
-      "animations": {
-        "idle": "idle",
-        "walk": "walk",
-        "inspect": "inspect"
-      },
-      "defaultAnimation": "idle",
-      "walkAnimation": "walk",
-      "activityAnimations": {
-        "stroll": "inspect"
-      },
-      "stateAnimations": {
-        "run": "run",
-        "talk": "talk",
-        "laugh": "laugh",
-        "argue": "argue",
-        "phone": "phone",
-        "sit": "sit"
-      }
-    },
-    "estudiante": {
-      "model": "actors/estudiante.gltf",
-      "nominalHeight": 1.35,
-      "animations": {
-        "idle": "idle",
-        "walk": "walk",
-        "rock": "rock"
-      },
-      "defaultAnimation": "idle",
-      "walkAnimation": "walk",
-      "activityAnimations": {
-        "study_music": "rock"
-      },
-      "stateAnimations": {
-        "run": "run",
-        "talk": "talk",
-        "laugh": "laugh",
-        "argue": "argue",
-        "phone": "phone",
-        "sit": "sit"
-      }
-    },
-    "fondo_buitre": {
-      "model": "actors/fondo_buitre.gltf",
-      "nominalHeight": 1.35,
-      "animations": {
-        "idle": "idle",
-        "walk": "walk",
-        "appraise": "appraise"
-      },
-      "defaultAnimation": "idle",
-      "walkAnimation": "walk",
-      "activityAnimations": {
-        "stroll": "appraise"
-      },
-      "stateAnimations": {
-        "run": "run",
-        "talk": "talk",
-        "laugh": "laugh",
-        "argue": "argue",
-        "phone": "phone",
-        "sit": "sit"
-      }
-    },
-    "inquilino": {
-      "model": "actors/inquilino.gltf",
-      "nominalHeight": 1.35,
-      "animations": {
-        "idle": "idle",
-        "walk": "walk",
-        "phone": "phone"
-      },
-      "defaultAnimation": "idle",
-      "walkAnimation": "walk",
-      "activityAnimations": {
-        "idle": "phone"
-      },
-      "stateAnimations": {
-        "run": "run",
-        "talk": "talk",
-        "laugh": "laugh",
-        "argue": "argue",
-        "phone": "phone",
-        "sit": "sit"
-      }
-    },
-    "okupa": {
-      "model": "actors/okupa.gltf",
-      "nominalHeight": 1.35,
-      "animations": {
-        "idle": "idle",
-        "walk": "walk",
-        "drill": "drill"
-      },
-      "defaultAnimation": "idle",
-      "walkAnimation": "walk",
-      "activityAnimations": {
-        "reforma_creativa": "drill"
-      },
-      "stateAnimations": {
-        "run": "run",
-        "talk": "talk",
-        "laugh": "laugh",
-        "argue": "argue",
-        "phone": "phone",
-        "sit": "sit"
-      }
-    },
-    "musico": {
-      "model": "actors/musico.gltf",
-      "nominalHeight": 1.35,
-      "animations": {
-        "idle": "idle",
-        "walk": "walk",
-        "drums": "drums",
-        "gig": "gig"
-      },
-      "defaultAnimation": "idle",
-      "walkAnimation": "walk",
-      "activityAnimations": {
-        "bateria": "drums",
-        "concierto_bar": "gig"
-      },
-      "stateAnimations": {
-        "run": "run",
-        "talk": "talk",
-        "laugh": "laugh",
-        "argue": "argue",
-        "phone": "phone",
-        "sit": "sit"
-      }
-    },
-    "pintora": {
-      "model": "actors/pintora.gltf",
-      "nominalHeight": 1.35,
-      "animations": {
-        "idle": "idle",
-        "walk": "walk",
-        "paint": "paint"
-      },
-      "defaultAnimation": "idle",
-      "walkAnimation": "walk",
-      "activityAnimations": {
-        "pintar_mural": "paint",
-        "charla_rodillo": "idle"
-      },
-      "stateAnimations": {
-        "run": "run",
-        "talk": "talk",
-        "laugh": "laugh",
-        "argue": "argue",
-        "phone": "phone",
-        "sit": "sit"
-      }
-    },
-    "repartidor": {
-      "model": "actors/repartidor.gltf",
-      "nominalHeight": 1.35,
-      "animations": {
-        "idle": "idle",
-        "walk": "walk",
-        "ride": "ride"
-      },
-      "defaultAnimation": "idle",
-      "walkAnimation": "walk",
-      "activityAnimations": {
-        "ruta_nocturna": "ride",
-        "descarga_en_pasillo": "idle",
-        "siesta_mediodia": "idle"
-      },
-      "stateAnimations": {
-        "run": "run",
-        "talk": "talk",
-        "laugh": "laugh",
-        "argue": "argue",
-        "phone": "phone",
-        "sit": "sit"
-      }
-    },
-    "electricista": {
-      "model": "actors/electricista.gltf",
-      "nominalHeight": 1.35,
-      "animations": {
-        "idle": "idle",
-        "walk": "walk",
-        "obra": "obra"
-      },
-      "defaultAnimation": "idle",
-      "walkAnimation": "walk",
-      "activityAnimations": {
-        "obra_en_casa": "obra"
-      },
-      "stateAnimations": {
-        "run": "run",
-        "talk": "talk",
-        "laugh": "laugh",
-        "argue": "argue",
-        "phone": "phone",
-        "sit": "sit"
-      }
-    },
-    "sanitaria": {
-      "model": "actors/sanitaria.gltf",
-      "nominalHeight": 1.35,
-      "animations": {
-        "idle": "idle",
-        "walk": "walk",
-        "care": "care"
-      },
-      "defaultAnimation": "idle",
-      "walkAnimation": "walk",
-      "activityAnimations": {
-        "prepara_botiquin": "care"
-      },
-      "stateAnimations": {
-        "run": "run",
-        "talk": "talk",
-        "laugh": "laugh",
-        "argue": "argue",
-        "phone": "phone",
-        "sit": "sit"
-      }
-    }
+ "base": "/assets/",
+ "actors": {
+  "nino_grafitero": {
+   "model": "actors/nino_grafitero.gltf",
+   "nominalHeight": 1.2,
+   "animations": {
+    "idle": "idle",
+    "walk": "walk",
+    "spray": "spray"
+   },
+   "defaultAnimation": "idle",
+   "walkAnimation": "walk",
+   "activityAnimations": {
+    "paint_cabin": "spray",
+    "roam": "walk"
+   },
+   "stateAnimations": {
+    "run": "run",
+    "talk": "talk",
+    "laugh": "laugh",
+    "argue": "argue",
+    "phone": "phone",
+    "sit": "sit"
+   }
   },
-  "blocks": {
-    "nucleo_comunicaciones": {
-      "model": "blocks/nucleo_comunicaciones.gltf",
-      "nominal": {
-        "w": 2.4,
-        "h": 2.6,
-        "d": 1.4
-      },
-      "tintStrength": 0.55
-    },
-    "portal": {
-      "model": "blocks/portal.gltf",
-      "nominal": {
-        "w": 4.68,
-        "h": 2.46,
-        "d": 1.4
-      },
-      "tintStrength": 0.5
-    },
-    "escaleras_planta": {
-      "model": "blocks/escaleras_planta.gltf",
-      "nominal": {
-        "w": 4.68,
-        "h": 2.46,
-        "d": 1.4
-      },
-      "spanW": 2,
-      "tintStrength": 0.5
-    },
-    "pasillo_planta": {
-      "model": "blocks/pasillo_planta.gltf",
-      "nominal": {
-        "w": 24,
-        "h": 0.14,
-        "d": 1.4
-      },
-      "tintStrength": 0.55
-    },
-    "garaje": {
-      "model": "blocks/garaje.gltf",
-      "nominal": {
-        "w": 2.28,
-        "h": 2.46,
-        "d": 1.4
-      },
-      "tintStrength": 0.5
-    },
-    "trasteros": {
-      "model": "blocks/trasteros.gltf",
-      "nominal": {
-        "w": 2.28,
-        "h": 2.46,
-        "d": 1.4
-      },
-      "tintStrength": 0.5
-    },
-    "trasteros_planta": {
-      "model": "blocks/trasteros_planta.gltf",
-      "nominal": {
-        "w": 21.48,
-        "h": 2.46,
-        "d": 2.8
-      },
-      "tintStrength": 0.55
-    },
-    "bajocubierta": {
-      "model": "blocks/bajocubierta.gltf",
-      "nominal": {
-        "w": 21.48,
-        "h": 2.46,
-        "d": 2.8
-      },
-      "tintStrength": 0.5
-    },
-    "tejado": {
-      "model": "blocks/tejado.gltf",
-      "nominal": {
-        "w": 26.28,
-        "h": 2.46,
-        "d": 3.5
-      },
-      "tintStrength": 0.45
-    },
-    "local_comercial": {
-      "model": "blocks/local_comercial.gltf",
-      "nominal": {
-        "w": 4.68,
-        "h": 2.46,
-        "d": 1.4
-      },
-      "tintStrength": 0.4
-    },
-    "lavanderia_comunal": {
-      "model": "blocks/lavanderia_comunal.gltf",
-      "nominal": {
-        "w": 4.68,
-        "h": 2.46,
-        "d": 1.4
-      },
-      "tintStrength": 0.4
-    },
-    "vivienda_estandar": {
-      "model": "blocks/vivienda_estandar.gltf",
-      "nominal": {
-        "w": 4.68,
-        "h": 2.46,
-        "d": 2.8
-      },
-      "overlay": true
-    }
+  "cotilla": {
+   "model": "actors/cotilla.gltf",
+   "nominalHeight": 1.35,
+   "animations": {
+    "idle": "idle",
+    "walk": "walk",
+    "watch": "watch"
+   },
+   "defaultAnimation": "idle",
+   "walkAnimation": "walk",
+   "activityAnimations": {
+    "watch_corridor": "watch"
+   },
+   "stateAnimations": {
+    "run": "run",
+    "talk": "talk",
+    "laugh": "laugh",
+    "argue": "argue",
+    "phone": "phone",
+    "sit": "sit"
+   }
+  },
+  "fiestero": {
+   "model": "actors/fiestero.gltf",
+   "nominalHeight": 1.35,
+   "animations": {
+    "idle": "idle",
+    "walk": "walk",
+    "dance": "dance"
+   },
+   "defaultAnimation": "idle",
+   "walkAnimation": "walk",
+   "activityAnimations": {
+    "party": "dance"
+   },
+   "stateAnimations": {
+    "run": "run",
+    "talk": "talk",
+    "laugh": "laugh",
+    "argue": "argue",
+    "phone": "phone",
+    "sit": "sit"
+   }
+  },
+  "jubilada": {
+   "model": "actors/jubilada.gltf",
+   "nominalHeight": 1.35,
+   "animations": {
+    "idle": "idle",
+    "walk": "walk",
+    "knit": "knit"
+   },
+   "defaultAnimation": "idle",
+   "walkAnimation": "walk",
+   "activityAnimations": {
+    "chair": "knit"
+   },
+   "stateAnimations": {
+    "run": "run",
+    "talk": "talk",
+    "laugh": "laugh",
+    "argue": "argue",
+    "phone": "phone",
+    "sit": "sit"
+   }
+  },
+  "jugador_base": {
+   "model": "actors/jugador_base.gltf",
+   "nominalHeight": 1.35,
+   "animations": {
+    "idle": "idle",
+    "walk": "walk",
+    "work": "work"
+   },
+   "defaultAnimation": "idle",
+   "walkAnimation": "walk",
+   "activityAnimations": {
+    "work": "work"
+   },
+   "stateAnimations": {
+    "run": "run",
+    "talk": "talk",
+    "laugh": "laugh",
+    "argue": "argue",
+    "phone": "phone",
+    "sit": "sit"
+   }
+  },
+  "presidente": {
+   "model": "actors/presidente.gltf",
+   "nominalHeight": 1.35,
+   "animations": {
+    "idle": "idle",
+    "walk": "walk",
+    "inspect": "inspect"
+   },
+   "defaultAnimation": "idle",
+   "walkAnimation": "walk",
+   "activityAnimations": {
+    "stroll": "inspect"
+   },
+   "stateAnimations": {
+    "run": "run",
+    "talk": "talk",
+    "laugh": "laugh",
+    "argue": "argue",
+    "phone": "phone",
+    "sit": "sit"
+   }
+  },
+  "estudiante": {
+   "model": "actors/estudiante.gltf",
+   "nominalHeight": 1.35,
+   "animations": {
+    "idle": "idle",
+    "walk": "walk",
+    "rock": "rock"
+   },
+   "defaultAnimation": "idle",
+   "walkAnimation": "walk",
+   "activityAnimations": {
+    "study_music": "rock"
+   },
+   "stateAnimations": {
+    "run": "run",
+    "talk": "talk",
+    "laugh": "laugh",
+    "argue": "argue",
+    "phone": "phone",
+    "sit": "sit"
+   }
+  },
+  "fondo_buitre": {
+   "model": "actors/fondo_buitre.gltf",
+   "nominalHeight": 1.35,
+   "animations": {
+    "idle": "idle",
+    "walk": "walk",
+    "appraise": "appraise"
+   },
+   "defaultAnimation": "idle",
+   "walkAnimation": "walk",
+   "activityAnimations": {
+    "stroll": "appraise"
+   },
+   "stateAnimations": {
+    "run": "run",
+    "talk": "talk",
+    "laugh": "laugh",
+    "argue": "argue",
+    "phone": "phone",
+    "sit": "sit"
+   }
+  },
+  "inquilino": {
+   "model": "actors/inquilino.gltf",
+   "nominalHeight": 1.35,
+   "animations": {
+    "idle": "idle",
+    "walk": "walk",
+    "phone": "phone"
+   },
+   "defaultAnimation": "idle",
+   "walkAnimation": "walk",
+   "activityAnimations": {
+    "idle": "phone"
+   },
+   "stateAnimations": {
+    "run": "run",
+    "talk": "talk",
+    "laugh": "laugh",
+    "argue": "argue",
+    "phone": "phone",
+    "sit": "sit"
+   }
+  },
+  "okupa": {
+   "model": "actors/okupa.gltf",
+   "nominalHeight": 1.35,
+   "animations": {
+    "idle": "idle",
+    "walk": "walk",
+    "drill": "drill"
+   },
+   "defaultAnimation": "idle",
+   "walkAnimation": "walk",
+   "activityAnimations": {
+    "reforma_creativa": "drill"
+   },
+   "stateAnimations": {
+    "run": "run",
+    "talk": "talk",
+    "laugh": "laugh",
+    "argue": "argue",
+    "phone": "phone",
+    "sit": "sit"
+   }
+  },
+  "musico": {
+   "model": "actors/musico.gltf",
+   "nominalHeight": 1.35,
+   "animations": {
+    "idle": "idle",
+    "walk": "walk",
+    "drums": "drums",
+    "gig": "gig"
+   },
+   "defaultAnimation": "idle",
+   "walkAnimation": "walk",
+   "activityAnimations": {
+    "bateria": "drums",
+    "concierto_bar": "gig"
+   },
+   "stateAnimations": {
+    "run": "run",
+    "talk": "talk",
+    "laugh": "laugh",
+    "argue": "argue",
+    "phone": "phone",
+    "sit": "sit"
+   }
+  },
+  "pintora": {
+   "model": "actors/pintora.gltf",
+   "nominalHeight": 1.35,
+   "animations": {
+    "idle": "idle",
+    "walk": "walk",
+    "paint": "paint"
+   },
+   "defaultAnimation": "idle",
+   "walkAnimation": "walk",
+   "activityAnimations": {
+    "pintar_mural": "paint",
+    "charla_rodillo": "idle"
+   },
+   "stateAnimations": {
+    "run": "run",
+    "talk": "talk",
+    "laugh": "laugh",
+    "argue": "argue",
+    "phone": "phone",
+    "sit": "sit"
+   }
+  },
+  "repartidor": {
+   "model": "actors/repartidor.gltf",
+   "nominalHeight": 1.35,
+   "animations": {
+    "idle": "idle",
+    "walk": "walk",
+    "ride": "ride"
+   },
+   "defaultAnimation": "idle",
+   "walkAnimation": "walk",
+   "activityAnimations": {
+    "ruta_nocturna": "ride",
+    "descarga_en_pasillo": "idle",
+    "siesta_mediodia": "idle"
+   },
+   "stateAnimations": {
+    "run": "run",
+    "talk": "talk",
+    "laugh": "laugh",
+    "argue": "argue",
+    "phone": "phone",
+    "sit": "sit"
+   }
+  },
+  "electricista": {
+   "model": "actors/electricista.gltf",
+   "nominalHeight": 1.35,
+   "animations": {
+    "idle": "idle",
+    "walk": "walk",
+    "obra": "obra"
+   },
+   "defaultAnimation": "idle",
+   "walkAnimation": "walk",
+   "activityAnimations": {
+    "obra_en_casa": "obra"
+   },
+   "stateAnimations": {
+    "run": "run",
+    "talk": "talk",
+    "laugh": "laugh",
+    "argue": "argue",
+    "phone": "phone",
+    "sit": "sit"
+   }
+  },
+  "sanitaria": {
+   "model": "actors/sanitaria.gltf",
+   "nominalHeight": 1.35,
+   "animations": {
+    "idle": "idle",
+    "walk": "walk",
+    "care": "care"
+   },
+   "defaultAnimation": "idle",
+   "walkAnimation": "walk",
+   "activityAnimations": {
+    "prepara_botiquin": "care"
+   },
+   "stateAnimations": {
+    "run": "run",
+    "talk": "talk",
+    "laugh": "laugh",
+    "argue": "argue",
+    "phone": "phone",
+    "sit": "sit"
+   }
   }
+ },
+ "blocks": {
+  "nucleo_comunicaciones": {
+   "model": "blocks/nucleo_comunicaciones.gltf",
+   "nominal": {
+    "w": 2.4,
+    "h": 2.6,
+    "d": 2.8
+   },
+   "tintStrength": 0.55
+  },
+  "portal": {
+   "model": "blocks/portal.gltf",
+   "nominal": {
+    "w": 4.68,
+    "h": 2.46,
+    "d": 2.8
+   },
+   "tintStrength": 0.5
+  },
+  "escaleras_planta": {
+   "model": "blocks/escaleras_planta.gltf",
+   "nominal": {
+    "w": 4.68,
+    "h": 2.46,
+    "d": 2.8
+   },
+   "spanW": 2,
+   "tintStrength": 0.5
+  },
+  "pasillo_planta": {
+   "model": "blocks/pasillo_planta.gltf",
+   "nominal": {
+    "w": 24,
+    "h": 0.14,
+    "d": 1.4
+   },
+   "tintStrength": 0.55
+  },
+  "garaje": {
+   "model": "blocks/garaje.gltf",
+   "nominal": {
+    "w": 2.28,
+    "h": 2.46,
+    "d": 1.4
+   },
+   "tintStrength": 0.5
+  },
+  "trasteros": {
+   "model": "blocks/trasteros.gltf",
+   "nominal": {
+    "w": 2.28,
+    "h": 2.46,
+    "d": 1.4
+   },
+   "tintStrength": 0.5,
+   "overlay": true
+  },
+  "trasteros_planta": {
+   "model": "blocks/trasteros_planta.gltf",
+   "nominal": {
+    "w": 21.48,
+    "h": 2.46,
+    "d": 2.8
+   },
+   "tintStrength": 0.55
+  },
+  "bajocubierta": {
+   "model": "blocks/bajocubierta.gltf",
+   "nominal": {
+    "w": 21.48,
+    "h": 2.46,
+    "d": 2.8
+   },
+   "tintStrength": 0.5
+  },
+  "tejado": {
+   "model": "blocks/tejado.gltf",
+   "nominal": {
+    "w": 26.28,
+    "h": 2.46,
+    "d": 3.5
+   },
+   "tintStrength": 0.45
+  },
+  "local_comercial": {
+   "model": "blocks/local_comercial.gltf",
+   "nominal": {
+    "w": 4.68,
+    "h": 2.46,
+    "d": 1.4
+   },
+   "tintStrength": 0.4,
+   "overlay": true
+  },
+  "lavanderia_comunal": {
+   "model": "blocks/lavanderia_comunal.gltf",
+   "nominal": {
+    "w": 4.68,
+    "h": 2.46,
+    "d": 1.4
+   },
+   "tintStrength": 0.4,
+   "overlay": true
+  },
+  "vivienda_estandar": {
+   "model": "blocks/vivienda_estandar.gltf",
+   "nominal": {
+    "w": 4.68,
+    "h": 2.46,
+    "d": 2.8
+   },
+   "overlay": true
+  },
+  "escaleras_cota": {
+   "model": "blocks/escaleras_cota.gltf",
+   "nominal": {
+    "w": 4.68,
+    "h": 2.46,
+    "d": 2.8
+   },
+   "spanW": 2,
+   "tintStrength": 0.5
+  }
+ }
 }

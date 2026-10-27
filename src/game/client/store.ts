@@ -33,6 +33,20 @@ export interface ToastItem {
   id: number;
   text: string;
   tone: Tone;
+  /** v1.30 — post-it de CELEBRACIÓN (misión completada): se pliega como origami y suelta
+   *  estrellitas que caen al suelo hasta desaparecer, sobre la fanfarria. */
+  celebrate?: boolean;
+  /** performance.now() al nacer (el plegado arranca al final de su vida). */
+  bornAt?: number;
+}
+
+/** Chip de presidencia del HUD (v1.18, support/campaign): día de mandato y término. */
+export interface CampaignHud {
+  active: boolean;
+  dayOfTerm: number;
+  termDays: number;
+  label: string;
+  over: boolean;
 }
 
 export interface LogItem {
@@ -192,6 +206,8 @@ interface GameState {
   elevator: string;
   homeLabel: string;
   travelText: string | null;
+  /** Campaña de presidencia (v1.18): chip del HUD; null = sin mandato activo. */
+  campaign: CampaignHud | null;
   objective: { title: string; text: string } | null;
   prompt: string | null;
   params: ParamUi[];
@@ -219,6 +235,9 @@ interface GameState {
   mpPanelOpen: boolean;
   mpError: string | null;
 
+  // ── Campaña de presidencia (v1.18): chip del HUD; la lógica vive en support/campaign ──
+  setCampaign: (c: CampaignHud | null) => void;
+
   // ── Logros tipo Steam (v1.17): perfil persistente; resetUi CONSERVA los desbloqueos ──
   achievements: AchievementUi[];
   /** Popup en pantalla (UNO a la vez): la cola de `newly` la gestiona AchievementPopup. */
@@ -235,7 +254,7 @@ interface GameState {
   setLang: (l: Lang) => void;
   setFps: (n: number) => void;
   syncHud: (h: HudSnapshot) => void;
-  pushToast: (text: string, tone?: Tone) => void;
+  pushToast: (text: string, tone?: Tone, opts?: { celebrate?: boolean }) => void;
   dropToast: (id: number) => void;
   pushLog: (text: string, tone?: Tone) => void;
   setPhone: (p: PhoneState | null) => void;
@@ -287,6 +306,7 @@ export const useGameStore = create<GameState>((set) => ({
   elevator: 'broken',
   homeLabel: '—',
   travelText: null,
+  campaign: null,
   objective: null,
   prompt: null,
   params: [],
@@ -333,12 +353,17 @@ export const useGameStore = create<GameState>((set) => ({
   setLang: (lang) => set({ lang }),
   setFps: (fps) => set({ fps }),
   syncHud: (h) => set(h),
-  pushToast: (text, tone = 'info') => {
+  pushToast: (text, tone = 'info', opts) => {
     const id = nextId++;
-    set((s) => ({ toasts: [...s.toasts.slice(-3), { id, text, tone }] }));
+    const celebrate = opts?.celebrate === true;
+    set((s) => ({ toasts: [...s.toasts.slice(-3), { id, text, tone, celebrate, bornAt: performance.now() }] }));
+    // v1.29 — los avisos DURAN MÁS (petición del vecino: «que duren un poco más de tiempo
+    // en pantalla y que aparezcan como Post its»): 7.5 s — se pueden cerrar con un clic.
+    // v1.30 — el post-it de misión completada vive 12 s: los últimos ~3 s se pliega como
+    // origami y deja caer sus estrellitas (la animación vive en ToastStack).
     setTimeout(() => {
       set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }));
-    }, 3600);
+    }, celebrate ? 12000 : 7500);
   },
   dropToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
   pushLog: (text, tone = 'info') =>
@@ -360,6 +385,7 @@ export const useGameStore = create<GameState>((set) => ({
   setMpParticipants: (mpParticipants) => set({ mpParticipants }),
   setMpPanelOpen: (mpPanelOpen) => set({ mpPanelOpen }),
   setMpError: (mpError) => set({ mpError }),
+  setCampaign: (campaign) => set({ campaign }),
   setAchievements: (achievements) => set({ achievements }),
   setAchievementPopup: (achievementPopup) => set({ achievementPopup }),
   // Sin cambio de verdad → sin set: si siempre devolviera un array nuevo, el efecto que lo
@@ -384,6 +410,7 @@ export const useGameStore = create<GameState>((set) => ({
       junta: null,
       minigame: null,
       finale: null,
+      campaign: null,
       toasts: [],
       log: [],
       achievementPopup: null,

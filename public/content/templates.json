@@ -1,46 +1,304 @@
 [
   {
     "id": "edificio_9x8_nucleo_central",
-    "grid": { "cols": 10, "floors": 14 },
+    "grid": {
+      "cols": 10,
+      "floors": 11
+    },
     "rows": [
-      { "floors": [0, 12], "blocks": [{ "col": 0, "defId": "pasillo_planta", "tag": "pasillo" }] },
       {
-        "floors": [0, 12],
+        "floors": [
+          0,
+          9
+        ],
         "blocks": [
-          { "col": 4, "defId": "nucleo_comunicaciones", "tag": "nucleo" },
-          { "col": 9, "defId": "escaleras_planta", "tag": "escalera" }
+          {
+            "col": 0,
+            "defId": "pasillo_planta",
+            "tag": "pasillo"
+          }
         ]
       },
       {
-        "floors": [0, 0],
+        "floors": [
+          0,
+          8
+        ],
         "blocks": [
-          { "col": 0, "defId": "portal", "tag": "portal" },
-          { "col": 2, "defId": "garaje", "tag": "garaje" },
-          { "col": 3, "defId": "trasteros", "tag": "trasteros" },
-          { "col": 5, "defId": "local_comercial", "tag": "local" },
-          { "col": 7, "defId": "lavanderia_comunal", "tag": "lavanderia" }
+          {
+            "col": 4,
+            "defId": "nucleo_comunicaciones",
+            "tag": "nucleo"
+          },
+          {
+            "col": 9,
+            "defId": "escaleras_planta",
+            "tag": "escalera"
+          }
         ]
       },
       {
-        "floors": [1, 7],
+        "floors": [
+          9,
+          9
+        ],
         "blocks": [
-          { "col": 0, "defId": "vivienda_estandar", "tag": "a" },
-          { "col": 2, "defId": "vivienda_estandar", "tag": "b" },
-          { "col": 5, "defId": "vivienda_estandar", "tag": "c" },
-          { "col": 7, "defId": "vivienda_estandar", "tag": "d" }
+          {
+            "col": 4,
+            "defId": "nucleo_comunicaciones",
+            "tag": "nucleo"
+          },
+          {
+            "col": 9,
+            "defId": "escaleras_cota",
+            "tag": "escalera"
+          }
         ]
       },
       {
-        "floors": [8, 11],
-        "blocks": [{ "col": 0, "defId": "trasteros_planta", "tag": "trasterosp" }]
+        "floors": [
+          0,
+          0
+        ],
+        "blocks": [
+          {
+            "col": 0,
+            "defId": "portal",
+            "tag": "portal"
+          },
+          {
+            "col": 2,
+            "defId": "garaje",
+            "tag": "garaje"
+          },
+          {
+            "col": 3,
+            "defId": "trasteros",
+            "tag": "trasteros"
+          },
+          {
+            "col": 5,
+            "defId": "local_comercial",
+            "tag": "local"
+          },
+          {
+            "col": 7,
+            "defId": "lavanderia_comunal",
+            "tag": "lavanderia"
+          }
+        ]
       },
       {
-        "floors": [12, 12],
-        "blocks": [{ "col": 0, "defId": "bajocubierta", "tag": "bajocubierta" }]
+        "floors": [
+          1,
+          7
+        ],
+        "blocks": [
+          {
+            "col": 0,
+            "defId": "vivienda_estandar",
+            "tag": "a"
+          },
+          {
+            "col": 2,
+            "defId": "vivienda_estandar",
+            "tag": "b"
+          },
+          {
+            "col": 5,
+            "defId": "vivienda_estandar",
+            "tag": "c"
+          },
+          {
+            "col": 7,
+            "defId": "vivienda_estandar",
+            "tag": "d"
+          }
+        ]
       },
       {
-        "floors": [13, 13],
-        "blocks": [{ "col": 0, "defId": "tejado", "tag": "tejado" }]
+        "floors": [
+          8,
+          8
+        ],
+        "blocks": [
+          {
+            "col": 0,
+            "defId": "trasteros_columna",
+            "tag": "a"
+          },
+          {
+            "col": 2,
+            "defId": "trasteros_columna",
+            "tag": "b"
+          },
+          {
+            "col": 5,
+            "defId": "trasteros_columna",
+            "tag": "c"
+          },
+          {
+            "col": 7,
+            "defId": "trasteros_columna",
+            "tag": "d"
+          }
+        ]
+      },
+      {
+        "floors": [
+          9,
+          9
+        ],
+        "blocks": [
+          {
+            "col": 0,
+            "defId": "bajocubierta",
+            "tag": "bajocubierta"
+          }
+        ]
+      },
+      {
+        "floors": [
+          10,
+          10
+        ],
+        "blocks": [
+          {
+            "col": 0,
+            "defId": "tejado",
+            "tag": "tejado"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "edificio_3p_3v",
+    "grid": {
+      "cols": 9,
+      "floors": 5
+    },
+    "rows": [
+      {
+        "floors": [
+          0,
+          3
+        ],
+        "blocks": [
+          {
+            "col": 0,
+            "defId": "pasillo_planta",
+            "tag": "pasillo"
+          }
+        ]
+      },
+      {
+        "floors": [
+          0,
+          3
+        ],
+        "blocks": [
+          {
+            "col": 2,
+            "defId": "nucleo_comunicaciones",
+            "tag": "nucleo"
+          }
+        ]
+      },
+      {
+        "floors": [
+          0,
+          2
+        ],
+        "blocks": [
+          {
+            "col": 8,
+            "defId": "escaleras_planta",
+            "tag": "escalera"
+          }
+        ]
+      },
+      {
+        "floors": [
+          3,
+          3
+        ],
+        "blocks": [
+          {
+            "col": 8,
+            "defId": "escaleras_cota",
+            "tag": "escalera"
+          }
+        ]
+      },
+      {
+        "floors": [
+          0,
+          0
+        ],
+        "blocks": [
+          {
+            "col": 0,
+            "defId": "portal",
+            "tag": "portal"
+          },
+          {
+            "col": 3,
+            "defId": "garaje",
+            "tag": "garaje"
+          },
+          {
+            "col": 4,
+            "defId": "trasteros",
+            "tag": "trasteros"
+          },
+          {
+            "col": 5,
+            "defId": "local_comercial",
+            "tag": "local"
+          },
+          {
+            "col": 7,
+            "defId": "lavanderia_comunal",
+            "tag": "lavanderia"
+          }
+        ]
+      },
+      {
+        "floors": [
+          1,
+          3
+        ],
+        "blocks": [
+          {
+            "col": 0,
+            "defId": "vivienda_estandar",
+            "tag": "a"
+          },
+          {
+            "col": 3,
+            "defId": "vivienda_estandar",
+            "tag": "b"
+          },
+          {
+            "col": 5,
+            "defId": "vivienda_estandar",
+            "tag": "c"
+          }
+        ]
+      },
+      {
+        "floors": [
+          4,
+          4
+        ],
+        "blocks": [
+          {
+            "col": 0,
+            "defId": "tejado",
+            "tag": "tejado"
+          }
+        ]
       }
     ]
   }

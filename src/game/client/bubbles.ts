@@ -1,4 +1,4 @@
-import type { AbstractEngine, Scene } from '@babylonjs/core';
+import type { AbstractEngine, Ray, Scene, Vector3 } from '@babylonjs/core';
 import type { Content, GameEvent, ResidentInstance, World } from '@/game/core/types';
 import { B } from './babylon';
 import { useGameStore } from './store';
@@ -51,6 +51,15 @@ interface BubbleView {
   /** Prioridad del pick actual (ordenación del tope de glifos en vista edificio). */
   priority: number;
   hidden: boolean;
+  /** v1.18: SOLO se muestra tras la primera proyección con transform real. Sin esto, un
+   *  bocadillo creado mientras su actor no proyecta nace en (0,0) — la esquina superior
+   *  izquierda — y se pinta ENCIMA del indicador de FPS hasta su primera reposición. */
+  placed: boolean;
+  /** v1.29 — VISIBILIDAD EN CÁMARA: ¿se ve el personaje que lleva el bocadillo? El rayo
+   *  cámara→cabeza se reparte por frames (presupuesto) con TTL por actor: la oclusión es
+   *  un rayo barato y la decisión cambia poco. */
+  occluded: boolean;
+  occludedAt: number;
 }
 
 export interface BubblesDirector {
@@ -58,6 +67,8 @@ export interface BubblesDirector {
   update(dt: number, localActorId: string): void;
   /** Eventos del sim → bocadillos temporales según emotes.events del catálogo. */
   onEvent(e: GameEvent): void;
+  /** Texto puntual (v1.20, charlas de cruce): pinta una línea que expira sola. */
+  sayText(id: string, text: string, seconds: number): void;
   /** Desmonta la capa DOM (cambio de mundo/escena). */
   dispose(): void;
 }
@@ -92,7 +103,7 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
   const cfg = content.emotes;
   if (!cfg) {
     // Sin catálogo: director nulo funcional (la partida no depende de los bocadillos).
-    return { update() {}, onEvent() {}, dispose() {} };
+    return { update() {}, onEvent() {}, sayText() {}, dispose() {} };
   }
 
   // ── Capa DOM: un contenedor absoluto sobre el canvas; los bocadillos son hijos suyos. ──
@@ -152,7 +163,7 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
     inner.appendChild(tail);
     el.appendChild(inner);
     layer.appendChild(el);
-    const view: BubbleView = { el, inner, key: '', mode: 'glyph', priority: 0, hidden: true };
+    const view: BubbleView = { el, inner, key: '', mode: 'glyph', priority: 0, hidden: true, placed: false, occluded: false, occludedAt: 0 };
     bubbles.set(id, view);
     return view;
   };
@@ -235,7 +246,9 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
     return null;
   };
 
-  /** Reevalúa y pinta el bocadillo de un actor (solo toca el DOM si cambia la expresión). */
+  /** Reevalúa y pinta el bocadillo de un actor (solo toca el DOM si cambia la expresión).
+   *  v1.18: un bocadillo sin `placed` (nunca proyectado) permanece invisible — aunque el
+   *  pick exista — hasta que el pase de reposición le asigna transform real. */
   const refresh = (id: string): void => {
     const r = world.residents[id];
     const head = actors.headOf(id);
@@ -255,15 +268,16 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
     // Silenciada por el tope de la vista edificio: se actualiza el contenido en silencio
     // (sin pop ni opacity 1 — el Web Animations API taparía el opacity 0 del cap).
     const capped = cappedIds !== null && !cappedIds.has(id);
+    const shelved = !b.placed; // jamás proyectado: ni un frame en (0,0)
     if (b.key !== key || (isText && b.mode !== 'text') || (!isText && b.mode !== 'glyph')) {
       const modeChanged = b.mode !== (isText ? 'text' : 'glyph');
       b.key = key;
       if (modeChanged) applyMode(b, isText ? 'text' : 'glyph');
       (b.inner.firstChild as HTMLElement).textContent = isText ? pick.text! : pick.glyph;
-      b.hidden = capped;
-      b.inner.style.opacity = capped ? '0' : '1';
-      if (!capped) pop(b);
-    } else if (b.hidden && !capped) {
+      b.hidden = capped || shelved;
+      b.inner.style.opacity = b.hidden ? '0' : '1';
+      if (!b.hidden) pop(b);
+    } else if (b.hidden && !capped && !shelved) {
       b.hidden = false;
       b.inner.style.opacity = '1';
       pop(b);
@@ -276,6 +290,54 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
   const toPt = new Vector3();
   const projected = new Vector3();
   const identity = Matrix.IdentityReadOnly;
+
+  // ── v1.29 — «SOLO SE VERÁN SI EN LA CÁMARA ESCOGIDA SE VE EL PERSONAJE QUE LOS LLEVA» ──
+  // Oclusión por rayo cámara→cabeza con presupuesto por frame (rotación) y TTL por actor:
+  // los bocadillos dejan de flotar sobre paredes cerradas, cubos de escalera y árboles.
+  // Los actores NO bloquean el rayo (sus mallas nacen isPickable=false: un vecino delante
+  // de otro no le roba el bocadillo) y el vidrio (alpha bajo) tampoco.
+  const occlusionTtlMs = 420;
+  const rayBudgetPerFrame = 3;
+  /** v1.30 — REPARTO JUSTO del presupuesto: antes los 3 rayos por frame se los llevaban
+   *  SIEMPRE los primeros bocadillos del mapa y los últimos nacían con «sin ocluir» recién
+   *  sellada (TTL fresco) — flotaban sobre paredes cerradas aunque su portador no se viera.
+   *  Ahora el cursor ROTA por la lista: cada frame le toca comprobar a otro tercio y los
+   *  que se quedan sin presupuesto CONSERVAN su decisión vigente (sin re-sellar el TTL). */
+  let occlCursor = 0;
+  // El constructor tipado de Ray resuelve a void en esta config (typeof import): el elenco
+  // recupera la firma real — el rayo vive reutilizado (cero basura por frame).
+  const RayC = B().Ray as unknown as new (origin: Vector3, dir: Vector3, length?: number) => Ray;
+  const occlRay = new RayC(new Vector3(0, 0, 0), new Vector3(0, 1, 0), 1);
+  const occlusionBlocked = (head: { x: number; y: number; z: number }, now: number, b: BubbleView): boolean => {
+    if (now - b.occludedAt < occlusionTtlMs) return b.occluded; // decisión en vigor
+    if (occlRayCount >= rayBudgetPerFrame) return b.occluded; // sin presupuesto: sin re-sellar
+    b.occludedAt = now;
+    const cam = scene.activeCamera;
+    if (!cam) {
+      b.occluded = false;
+      return false;
+    }
+    worldPt.set(head.x, head.y, head.z);
+    toPt.copyFrom(worldPt).subtractInPlace(cam.position);
+    const dist = toPt.length();
+    if (dist < 0.6) {
+      b.occluded = false; // demasiado cerca para ocluirse (la cámara está encima)
+      return false;
+    }
+    occlRay.origin.copyFrom(cam.position);
+    occlRay.direction.copyFrom(toPt).scaleInPlace(1 / dist);
+    occlRay.length = dist;
+    occlRayCount += 1;
+    const hit = scene.pickWithRay(occlRay, (m) => {
+      if (!m.isPickable || !m.isEnabled()) return false;
+      const mat = m.material as { alpha?: number } | null;
+      if (mat && mat.alpha !== undefined && mat.alpha < 0.42) return false; // vidrio/veladuras
+      return true;
+    });
+    b.occluded = !!hit?.hit && hit.distance < dist - 0.3;
+    return b.occluded;
+  };
+  let occlRayCount = 0;
 
   return {
     onEvent(e: GameEvent) {
@@ -305,6 +367,17 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
           dirty.add(id);
         }
       }
+    },
+
+    /** Texto puntual (v1.20): charlas de cruce y futuros teatros. Prioridad alta (95):
+     *  gana a glifos de gesto/actividad pero respeta eventos mayores; expira sola. */
+    sayText(id: string, text: string, seconds: number): void {
+      if (!world.residents[id] || seconds <= 0) return;
+      const now = performance.now() / 1000;
+      const cur = transient.get(id);
+      if (cur && cur.until > now && cur.priority > 95) return;
+      transient.set(id, { emoteId: `sayx:${id}:${Math.round(now * 1000)}`, glyph: '', priority: 95, until: now + seconds, text });
+      dirty.add(id);
     },
 
     update(dt, actorId) {
@@ -354,25 +427,27 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
       // 1) Reevaluación a cadencia (amortigua parpadeos del sim) + eventos pendientes ya.
       decisionAcc += dt;
       const decisionS = cfg.bubble.decisionMs / 1000;
+      const inBuilding = useGameStore.getState().camMode === 'edificio';
       if (decisionAcc >= decisionS || dirty.size > 0) {
         decisionAcc = 0;
         const pending = dirty.size > 0 ? [...dirty] : [];
         dirty.clear();
         for (const id of Object.keys(world.residents)) refresh(id);
         for (const id of pending) refresh(id);
-        // TOPE DE GLIFOS EN VISTA EDIFICIO (v1.17): el plano general muestra solo los N
-        // bocadillos más relevantes (prioridad del pick, empates estables por id) — el
-        // edificio entero no se convierte en una sopa de emoticonos. Sin tope en el
-        // catálogo o fuera de la vista edificio: todo visible como siempre.
-        if (buildingMaxGlyphs !== undefined && useGameStore.getState().camMode === 'edificio') {
-          const alive = [...bubbles.entries()]
-            .filter(([, b]) => !b.hidden || b.key !== '')
-            .map(([id, b]) => ({ id, priority: b.priority }))
-            .sort((a, z) => z.priority - a.priority || (a.id < z.id ? -1 : 1));
-          cappedIds = new Set(alive.slice(0, buildingMaxGlyphs).map((e) => e.id));
-        } else {
-          cappedIds = null;
-        }
+      }
+      // TOPE DE GLIFOS EN VISTA EDIFICIO (v1.17): el plano general muestra solo los N
+      // bocadillos más relevantes — y con tope 0 (v1.18) NINGUNO: ni glifos, ni texto,
+      // ni avisos de evento (la información importante sube al HUD, no al plano).
+      // Se recalcula CADA FRAME en esa vista para que el cambio de cámara no deje
+      // escapar ni un solo bocadillo durante la cadencia de decisión.
+      if (buildingMaxGlyphs !== undefined && inBuilding) {
+        const alive = [...bubbles.entries()]
+          .filter(([, b]) => !b.hidden || b.key !== '')
+          .map(([id, b]) => ({ id, priority: b.priority }))
+          .sort((a, z) => z.priority - a.priority || (a.id < z.id ? -1 : 1));
+        cappedIds = new Set(alive.slice(0, buildingMaxGlyphs).map((e) => e.id));
+      } else {
+        cappedIds = null;
       }
 
       // 2) Reposición cada frame: proyección 3D → píxeles del contenedor.
@@ -382,7 +457,15 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
       const renderW = engine.getRenderWidth();
       const renderH = engine.getRenderHeight();
       cam.getDirectionToRef(Vector3.Forward(false), camFwd);
-      for (const [id, b] of bubbles) {
+      occlRayCount = 0;
+      // v1.30 — reparto justo: el punto de partida ROTA cada frame (nadie se queda sin rayo).
+      const bubbleList = [...bubbles.entries()];
+      const rotated = bubbleList.length > 0
+        ? [...bubbleList.slice(occlCursor % bubbleList.length), ...bubbleList.slice(0, occlCursor % bubbleList.length)]
+        : bubbleList;
+      occlCursor = bubbleList.length > 0 ? (occlCursor + 1) % bubbleList.length : 0;
+      const nowMs = performance.now();
+      for (const [id, b] of rotated) {
         const head = actors.headOf(id);
         const capped = cappedIds !== null && !cappedIds.has(id);
         if (!head || capped) {
@@ -403,10 +486,38 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
           continue;
         }
         Vector3.ProjectToRef(worldPt, identity, scene.getTransformMatrix(), cam.viewport.toGlobal(renderW, renderH), projected);
+        // v1.29 — FRUSTUM: si la proyección cae FUERA del encuadre (otra planta, lateral del
+        // pasillo…), el personaje no está en pantalla y su bocadillo tampoco debe estarlo.
+        const nx = projected.x / renderW;
+        const ny = projected.y / renderH;
+        if (nx < -0.04 || nx > 1.04 || ny < -0.06 || ny > 1.06) {
+          if (!b.hidden) {
+            b.hidden = true;
+            b.inner.style.opacity = '0';
+          }
+          continue;
+        }
+        // v1.29 — OCLUSIÓN: pared cerrada/cubo/árbol delante del personaje → sin bocadillo.
+        if (occlusionBlocked(head, nowMs, b)) {
+          if (!b.hidden) {
+            b.hidden = true;
+            b.inner.style.opacity = '0';
+          }
+          continue;
+        }
         // Escala del canvas (hardware scaling) → píxeles CSS reales del contenedor.
         const x = (projected.x / renderW) * rect.width;
         const y = (projected.y / renderH) * rect.height;
         b.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -105%)`;
+        if (!b.placed) {
+          // Primera proyección real: a partir de aquí puede mostrarse (nunca en (0,0)).
+          b.placed = true;
+          if (!b.hidden) b.inner.style.opacity = '1';
+        } else if (b.hidden) {
+          b.hidden = false;
+          b.inner.style.opacity = '1';
+          pop(b);
+        }
       }
     },
 

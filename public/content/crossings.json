@@ -1,0 +1,272 @@
+{
+  "cadence": {
+    "checkEvery": 2.2,
+    "residentCooldown": 50,
+    "pairCooldown": 160,
+    "lineSeconds": 3,
+    "holdAfter": 1.2
+  },
+  "proximity": {
+    "distance": 1.6,
+    "maxConcurrent": 2
+  },
+  "chance": {
+    "base": 0.6,
+    "goodMoodBonus": 0.3,
+    "badMoodPenalty": 0.45
+  },
+  "mood": {
+    "goodMin": 55,
+    "okMin": 30,
+    "needs": {
+      "sleep": 1,
+      "social": 1,
+      "fun": 1
+    }
+  },
+  "groups": [
+    {
+      "id": "saludos_buenos",
+      "mood": "good",
+      "topics": [
+        {
+          "id": "ascensor_nuevo",
+          "lines": [
+            "¿Has probado el ascensor? Sube tan fino que casi te pide propina.",
+            "Yo le doy los buenos días. Un día me contesta, ya verás."
+          ]
+        },
+        {
+          "id": "macetas",
+          "lines": [
+            "Las macetas nuevas del pasillo son mías. Riega la tercera y te perdono la fiesta del sábado.",
+            "¡Era un bautizo! Y tu geranio está precioso. Casi tanto como mi resaca."
+          ]
+        },
+        {
+          "id": "sol",
+          "lines": [
+            "Qué día más bueno, ¿eh? Ni que lo pintara la junta.",
+            "Shh, no lo digas fuerte, que luego suben la derrama por el sol."
+          ]
+        },
+        {
+          "id": "obras",
+          "lines": [
+            "Román taladró a las 10:04. Diez y CUATRO. Hay progreso en este mundo.",
+            "Es que le di café. Con cafeína y horario, todo."
+          ]
+        },
+        {
+          "id": "paella",
+          "lines": [
+            "Huele a domingo en el 3B.",
+            "Y a humo. Pero un humo con tradición."
+          ]
+        },
+        {
+          "id": "buzones",
+          "lines": [
+            "Me ha llegado una carta de felicitación... para el inquilino anterior. La comunidad no olvida, {b}.",
+            "Al menos a ti te escriben. Yo recibo propaganda del kebab desde 2019."
+          ]
+        },
+        {
+          "id": "trastero",
+          "lines": [
+            "He ordenado mi trastero. Ahora sé dónde está TODO... menos lo que buscaba.",
+            "Clásico. Yo encontré una tostadora que ni siquiera era mía."
+          ]
+        },
+        {
+          "id": "jardin",
+          "lines": [
+            "Los jardines nuevos le han dado una alegría al barrio.",
+            "Ya tengo banco para mirar la calle con aire crítico. Como Dios manda."
+          ]
+        },
+        {
+          "id": "farolas",
+          "lines": [
+            "Las farolas nuevas al anochecer son de cine.",
+            "Yo salgo a posar. La comunidad paga la luz, yo pongo el glamour."
+          ]
+        },
+        {
+          "id": "trastero_orden",
+          "lines": [
+            "He ordenado mi trastero. Tres cajas menos y una bicicleta que no sé de quién es.",
+            "La bicicleta era mía. Bueno, era de alguien. Ahora es del trastero."
+          ]
+        },
+        {
+          "id": "ventana_fondo",
+          "lines": [
+            "Me han puesto una ventana en el cuarto de atrás. Ahora miro la ciudad mientras pienso qué hacer con mi vida.",
+            "¿Y qué concluiste? Que la ciudad está muy lejos y la siesta muy cerca."
+          ]
+        },
+        {
+          "id": "lluvia_guapa",
+          "lines": [
+            "Con esta lluvia las macetas se riegan solas. La pereza también tiene ciencia.",
+            "Y la junta aplaude: cero litros del cubo comunal."
+          ]
+        },
+        {
+          "id": "presidente_feliz",
+          "lines": [
+            "El presidente sonríe. Desconfía.",
+            "Es que le han aprobado las macetas. Al hombre hay que verle los brotes."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "saludos_normales",
+      "mood": "ok",
+      "topics": [
+        {
+          "id": "buenos_dias",
+          "lines": [
+            "Buenos días, vecino.",
+            "Buenos días. Que la junta nos pille confesados."
+          ]
+        },
+        {
+          "id": "espera_ascensor",
+          "lines": [
+            "¿Llevas mucho esperando el ascensor?",
+            "Lo justo para aprenderme el semáforo de memoria. Dice verde... pero miente."
+          ]
+        },
+        {
+          "id": "agua",
+          "lines": [
+            "¿Tú también notas el agua rara?",
+            "Rara no: cara. Es lo que tiene la derrama con suplemento."
+          ]
+        },
+        {
+          "id": "paquete",
+          "lines": [
+            "¿Me guardas un paquete si baja el repartidor?",
+            "Si no pesa más que mis culpas, sí."
+          ]
+        },
+        {
+          "id": "pasos",
+          "lines": [
+            "Anoche oí pasos en la bajocubierta.",
+            "Sería el gato. O Puri haciendo su ronda. No preguntes."
+          ]
+        },
+        {
+          "id": "finde",
+          "lines": [
+            "¿Planes para el fin de semana, {b}?",
+            "Limpiar. Y tú, {a}...",
+            "Fiesta. Mi vecino se muda el lunes: aprovecho el hueco legal."
+          ]
+        },
+        {
+          "id": "cascabel",
+          "lines": [
+            "¿Has visto el cartel del tablón?",
+            "Leo el tablón como quien mira el pronóstico: por si llueve derrama."
+          ]
+        },
+        {
+          "id": "farolas",
+          "lines": [
+            "¿Has visto que las farolas se encienden solas? La electricista dice que es tecnología.",
+            "Yo digo que es el vecino del uno, que aprieta un botón y se cree Dios."
+          ]
+        },
+        {
+          "id": "trastero_candado",
+          "lines": [
+            "A mi trastero solo entro yo. Ni el aire entra sin permiso.",
+            "Por eso huele a 1987 cuando se abre."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "grunidos",
+      "mood": "bad",
+      "topics": [
+        {
+          "id": "uf",
+          "lines": [
+            "Uf.",
+            "Uf tú también, {a}. No hace falta hablar más."
+          ]
+        },
+        {
+          "id": "ascensor_roto",
+          "lines": [
+            "Otra vez el ascensor.",
+            "Yo ya le llamo 'máquina de cardiología gratuita'. Subo y me ahorro el gimnasio."
+          ]
+        },
+        {
+          "id": "derrama",
+          "lines": [
+            "Derrama, derrama... yo pago y pago y la fuente del patio sigue seca.",
+            "La fuente no, {b}: la COMISIÓN de la fuente. Esa está boyante."
+          ]
+        },
+        {
+          "id": "fiesta",
+          "lines": [
+            "Fiesta. OTRO viernes de fiesta.",
+            "¡Pues invita, que como me toque la puerta te sueno las castañuelas!"
+          ]
+        },
+        {
+          "id": "taladro",
+          "lines": [
+            "Taladro. A las diez. Román otra vez.",
+            "Es su forma de decir buenos días. A lo bestia, pero es cariño."
+          ]
+        },
+        {
+          "id": "basura",
+          "lines": [
+            "Baja tú la basura, que la última vez subiste la última.",
+            "Yo subí la de RECICLAJE, {a}. Ese ascenso no cuenta en el pacto."
+          ]
+        },
+        {
+          "id": "wifi",
+          "lines": [
+            "El wifi del portal ha vuelto a fallar.",
+            "Como el ascensor, como el agua caliente, como mis ganas de discutir. Vete."
+          ]
+        },
+        {
+          "id": "pasillo_oscuro",
+          "lines": [
+            "El pasillo a oscuras otra vez. He dado tres pasos y media vida.",
+            "Yo llevo linterna. Y miedo, pero la linterna primero."
+          ]
+        },
+        {
+          "id": "lluvia_techo",
+          "lines": [
+            "Llueve y el tejado hace gorgoritos. No es canto, es una factura.",
+            "Derrama al canto del tejado. Firma ya."
+          ]
+        },
+        {
+          "id": "ruido_cajas",
+          "lines": [
+            "El del trastero de al lado arrastra cajas a medianoche. ¿Qué transporta? ¿Historia?",
+            "Mueve sus secretos. Y una elíptica que nadie ha visto aún."
+          ]
+        }
+      ]
+    }
+  ]
+}

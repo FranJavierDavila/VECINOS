@@ -11,7 +11,7 @@ import { MinigameModal } from './MinigameModal';
 import { FinaleModal } from './FinaleModal';
 import { CutsceneOverlay } from './CutsceneOverlay';
 import { ElevatorPanelModal } from './ElevatorPanelModal';
-import { OptionsModal } from './OptionsModal';
+import { MoneyOverlay } from './MoneyOverlay';
 import { ToastStack } from './ToastStack';
 import { TouchControls } from './TouchControls';
 
@@ -47,11 +47,12 @@ export default function GameStage() {
     })();
 
     const gameKeys = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space']);
-    /** Normaliza a códigos físicos: los navegadores reales traen ev.code; algunos eventos sintéticos solo ev.key. */
+    /** Normaliza a códigos físicos: los navegadores reales traen ev.code; algunos eventos
+     *  sintéticos (CDP/mandos virtuales) solo ev.key — en MAYÚSCULAS a veces ('W'). */
     const normalize = (ev: KeyboardEvent): string => {
       if (ev.code) return ev.code;
       const k = ev.key;
-      const map: Record<string, string> = { a: 'KeyA', d: 'KeyD', w: 'KeyW', s: 'KeyS', e: 'KeyE', A: 'KeyA', D: 'KeyD', W: 'KeyW', S: 'KeyS', E: 'KeyE', '1': 'Digit1', '2': 'Digit2', '3': 'Digit3', ' ': 'Space' };
+      const map: Record<string, string> = { a: 'KeyA', d: 'KeyD', w: 'KeyW', s: 'KeyS', e: 'KeyE', j: 'KeyJ', A: 'KeyA', D: 'KeyD', W: 'KeyW', S: 'KeyS', E: 'KeyE', J: 'KeyJ', '1': 'Digit1', '2': 'Digit2', '3': 'Digit3', ' ': 'Space' };
       return map[k] ?? k;
     };
     const onKeyDown = (ev: KeyboardEvent) => {
@@ -100,6 +101,9 @@ export default function GameStage() {
         </div>
       )}
 
+      {/* Economía siempre visible: arcas del edificio + hucha del jugador (v1.23). */}
+      {ready && <MoneyOverlay />}
+
       {ready && prompt && !modalOpen && (
         <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/70 px-4 py-1.5 text-xs font-medium text-amber-200 shadow" role="status">
           {prompt}
@@ -109,7 +113,6 @@ export default function GameStage() {
       <PhoneModal onNext={() => getController()?.phoneNext()} />
       <CutsceneOverlay />
       <ElevatorPanelModal />
-      <OptionsModal />
       <ChoicesModal onChoose={(choiceId) => getController()?.choose(choiceId)} />
       <JuntaModal onVote={(vote) => getController()?.juntaVote(vote)} />
       <MinigameModal />

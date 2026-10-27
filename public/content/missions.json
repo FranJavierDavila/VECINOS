@@ -55,11 +55,11 @@
   {
     "id": "m_ascensor",
     "title": "El ascensor, esa reliquia",
-    "description": "Roto desde antes de que llegaras. La solución, como todo en este edificio, pasa por la junta.",
+    "description": "Roto desde antes de que llegaras. Ahora lo presides tú: la solución, como todo en este edificio, pasa por la junta.",
     "trigger": {
       "all": [
         {
-          "mission": "m_bienvenida",
+          "mission": "m_presidencia_voto",
           "state": "done"
         }
       ]
@@ -522,7 +522,7 @@
         "id": "avisar",
         "type": "reach",
         "target": {
-          "block": "blk_p4_c",
+          "block": "blk_p2_c",
           "slot": "door"
         },
         "hint": "Sube a avisar a Esperanza (4C)"
@@ -674,7 +674,7 @@
         "id": "verlo",
         "type": "reach",
         "target": {
-          "block": "blk_p3_d",
+          "block": "blk_p1_a",
           "slot": "door"
         },
         "hint": "Pasa por la puerta del 3D"
@@ -683,7 +683,7 @@
     "onComplete": [
       {
         "op": "unlock",
-        "target": "blk_p3_d",
+        "target": "blk_p1_a",
         "availability": {
           "mode": "for_sale",
           "price": 2400
@@ -699,7 +699,7 @@
         "effects": [
           {
             "op": "buy",
-            "target": "blk_p3_d",
+            "target": "blk_p1_a",
             "price": 2400
           },
           {
@@ -709,17 +709,17 @@
           },
           {
             "op": "setParam",
-            "target": "blk_p3_d.style",
+            "target": "blk_p1_a.style",
             "value": "duplex"
           },
           {
             "op": "setParam",
-            "target": "blk_p3_d.condition",
+            "target": "blk_p1_a.condition",
             "value": 90
           },
           {
             "op": "setParam",
-            "target": "blk_p3_d.soundproofing",
+            "target": "blk_p1_a.soundproofing",
             "value": 0.9
           },
           {
@@ -742,12 +742,12 @@
         "effects": [
           {
             "op": "buy",
-            "target": "blk_p3_d",
+            "target": "blk_p1_a",
             "price": 2400
           },
           {
             "op": "unlock",
-            "target": "blk_p3_d",
+            "target": "blk_p1_a",
             "occupancy": "occupied",
             "resident": "res_inquilino_01",
             "arrival": "mudanza"
@@ -807,7 +807,7 @@
     "onComplete": [
       {
         "op": "unlock",
-        "target": "blk_p4_b",
+        "target": "blk_p3_b",
         "occupancy": "occupied",
         "resident": "res_buitre_01",
         "arrival": "mudanza"
@@ -2521,7 +2521,7 @@
           },
           {
             "op": "unlock",
-            "target": "blk_p5_a",
+            "target": "blk_p1_a",
             "occupancy": "occupied",
             "resident": "res_repartidor_01",
             "arrival": "mudanza"
@@ -2914,9 +2914,9 @@
         "id": "saludar",
         "type": "reach",
         "target": {
-          "block": "blk_p4_c"
+          "block": "blk_p2_c"
         },
-        "hint": "Sube al pasillo de la 4ª planta: el pastel no espera"
+        "hint": "Sube al pasillo de la 2ª planta: el pastel no espera"
       }
     ],
     "choices": [
@@ -3091,9 +3091,9 @@
         "id": "saludar",
         "type": "reach",
         "target": {
-          "block": "blk_p4_d"
+          "block": "blk_p1_c"
         },
-        "hint": "La puerta del 4D, donde el hielo no puede esperar"
+        "hint": "La puerta del 1C, donde el hielo no puede esperar"
       }
     ],
     "choices": [
@@ -3430,7 +3430,7 @@
           },
           {
             "op": "setParam",
-            "target": "blk_p4_c.hype",
+            "target": "blk_p2_c.hype",
             "delta": 6
           },
           {
@@ -3515,8 +3515,8 @@
       {
         "id": "siguela",
         "type": "enter",
-        "target": "blk_p4_pasillo",
-        "hint": "Sigue los maullidos hasta el pasillo de la 4ª planta"
+        "target": "blk_p2_pasillo",
+        "hint": "Sigue los maullidos hasta el pasillo de la 2ª planta"
       }
     ],
     "choices": [
@@ -3920,6 +3920,342 @@
         "op": "toast",
         "text": "🏠 La obra del 5B, historia. El edificio respira (menos polvo) y la caja respira (más fondos).",
         "tone": "good"
+      }
+    ]
+  },
+  {
+    "id": "m_junta_bienvenida",
+    "title": "Junta de bienvenida",
+    "description": "Ser vecino nuevo conlleva un trámite sagrado: la junta de presentación. Juana ya ha movido ficha.",
+    "trigger": {
+      "all": [
+        {
+          "mission": "m_bienvenida",
+          "state": "done"
+        }
+      ]
+    },
+    "steps": [
+      {
+        "id": "aviso",
+        "type": "phone_call",
+        "dialog": "dlg_juana_junta",
+        "hint": "La administradora llama"
+      },
+      {
+        "id": "portal",
+        "type": "reach",
+        "target": {
+          "block": "blk_p0_portal",
+          "slot": "door"
+        },
+        "hint": "Baja al portal (tablón de anuncios)"
+      }
+    ],
+    "onComplete": [
+      {
+        "op": "toast",
+        "text": "📌 Tablón: \"JUNTA EXTRAORDINARIA HOY. Asunto único: la presidencia rota... rotatoria\". Firmado: La Comisión.",
+        "tone": "info"
+      },
+      {
+        "op": "startMission",
+        "id": "m_presidencia_voto",
+        "delayMinutes": 45
+      }
+    ]
+  },
+  {
+    "id": "m_presidencia_voto",
+    "title": "La votación anómala",
+    "description": "El edificio entero reunido para elegir presidencia rotatoria. Tú pretendías solo vivir tranquilo.",
+    "trigger": {
+      "all": [
+        {
+          "mission": "m_junta_bienvenida",
+          "state": "done"
+        }
+      ]
+    },
+    "steps": [
+      {
+        "id": "aviso",
+        "type": "phone_call",
+        "dialog": "dlg_juana_votacion",
+        "hint": "Empieza la junta"
+      }
+    ],
+    "choices": [
+      {
+        "id": "excusas",
+        "label": "Soltar las 20.000 excusas ensayadas",
+        "hint": "Un discurso magistral. En vano.",
+        "icon": "mic",
+        "effects": [
+          {
+            "op": "toast",
+            "text": "🎤 Tu discurso de excusas dura 47 minutos. Aplausos. Votan exactamente igual.",
+            "tone": "info"
+          },
+          {
+            "op": "addReputation",
+            "resident": "player",
+            "amount": 2
+          },
+          {
+            "op": "openJunta",
+            "agenda": [
+              {
+                "id": "presidencia_rotatoria",
+                "title": "Presidencia rotatoria (7 días)",
+                "description": "El cargo cae donde debe: en el vecino más reciente. La urna ha hablado. Dos veces. Con la misma letra.",
+                "cost": 0,
+                "effects": [
+                  {
+                    "op": "toast",
+                    "text": "🗳️ Votación: 5 sí, 2 no y una papeleta con un dibujo de un gato. ¡Presidencia para el nuevo!",
+                    "tone": "good"
+                  },
+                  {
+                    "op": "addReputation",
+                    "resident": "player",
+                    "amount": 5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "aceptar",
+        "label": "Aceptar con dignidad fingida",
+        "hint": "Ya puestos, elegancia",
+        "icon": "vote",
+        "effects": [
+          {
+            "op": "toast",
+            "text": "🤝 \"Seré breve\", dices. El edificio entero ríe a la vez. Tardarán años en creerte.",
+            "tone": "info"
+          },
+          {
+            "op": "openJunta",
+            "agenda": [
+              {
+                "id": "presidencia_rotatoria",
+                "title": "Presidencia rotatoria (7 días)",
+                "description": "El cargo cae donde debe: en el vecino más reciente. La urna ha hablado. Dos veces. Con la misma letra.",
+                "cost": 0,
+                "effects": [
+                  {
+                    "op": "toast",
+                    "text": "🗳️ Votación: 5 sí, 2 no y una papeleta con un dibujo de un gato. ¡Presidencia para el nuevo!",
+                    "tone": "good"
+                  },
+                  {
+                    "op": "addReputation",
+                    "resident": "player",
+                    "amount": 5
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "onComplete": [
+      {
+        "op": "toast",
+        "text": "🎭 ¡PRESIDENCIA! 7 días de gloria, quejas y derramas. Menos mal que puedes teletrabajar...",
+        "tone": "good"
+      }
+    ]
+  },
+  {
+    "id": "m_derrama_tuberia",
+    "title": "La derrama del 4B",
+    "description": "Presidir es decidir quién paga lo que se rompe. La tubería del 4B ha elegido tu semana.",
+    "trigger": {
+      "all": [
+        {
+          "mission": "m_presidencia_voto",
+          "state": "done"
+        },
+        {
+          "dayMin": 3
+        }
+      ]
+    },
+    "steps": [
+      {
+        "id": "aviso",
+        "type": "phone_call",
+        "dialog": "dlg_juana_derrama",
+        "hint": "Juana y la tubería"
+      }
+    ],
+    "choices": [
+      {
+        "id": "pagar_bolsillo",
+        "label": "Pagarla de tu bolsillo (150 €)",
+        "hint": "Popularidad instantánea, cartera al suelo",
+        "icon": "wallet",
+        "effects": [
+          {
+            "op": "addFunds",
+            "to": "player",
+            "amount": -150
+          },
+          {
+            "op": "addReputation",
+            "resident": "player",
+            "amount": 8
+          },
+          {
+            "op": "addRelation",
+            "a": "player",
+            "b": "res_jubilada_01",
+            "affinity": 12
+          },
+          {
+            "op": "addRelation",
+            "a": "player",
+            "b": "res_cotilla_01",
+            "affinity": 10
+          },
+          {
+            "op": "toast",
+            "text": "🔧 Fontanero pagado. El 3B aplaude, tu cartera se lo piensa. La comunidad lo recuerda.",
+            "tone": "good"
+          }
+        ]
+      },
+      {
+        "id": "convocar_derrama",
+        "label": "Convocar junta y votar la derrama (400 €)",
+        "hint": "Democracia: que decida la caja",
+        "icon": "vote",
+        "effects": [
+          {
+            "op": "openJunta",
+            "agenda": [
+              {
+                "id": "derrama_4b",
+                "title": "Derrama: fontanero del 4B",
+                "description": "400 € de caja. Nadie ama una derrama, pero el 3B ama su techo seco.",
+                "cost": 400,
+                "effects": [
+                  {
+                    "op": "setParam",
+                    "target": "nucleo.condition",
+                    "delta": 5
+                  },
+                  {
+                    "op": "addReputation",
+                    "resident": "player",
+                    "amount": 4
+                  },
+                  {
+                    "op": "toast",
+                    "text": "🚿 Derrama aprobada. El 4B cesa su llorería acuática. Dos vecinos votan que el agua \"no es cosa de todos\".",
+                    "tone": "info"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "vista_gorda",
+        "label": "Mirar al techo con dignidad",
+        "hint": "El goteo, algún día, se cansará",
+        "icon": "eye",
+        "effects": [
+          {
+            "op": "addRelation",
+            "a": "player",
+            "b": "res_jubilada_01",
+            "affinity": -15
+          },
+          {
+            "op": "addReputation",
+            "resident": "player",
+            "amount": -6
+          },
+          {
+            "op": "toast",
+            "text": "💧 El goteo persiste. Doña Espera anota algo en su libreta. Otra vez.",
+            "tone": "bad"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "m_veredicto",
+    "title": "El veredicto de la junta",
+    "description": "Siete días al frente de la comunidad. Hoy se juzga tu gestión. Sobreviviste... ¿y a qué precio?",
+    "trigger": {
+      "all": [
+        {
+          "mission": "m_presidencia_voto",
+          "state": "done"
+        },
+        {
+          "dayMin": 7
+        }
+      ]
+    },
+    "steps": [
+      {
+        "id": "aviso",
+        "type": "phone_call",
+        "dialog": "dlg_juana_veredicto",
+        "hint": "La junta juzga"
+      }
+    ],
+    "choices": [
+      {
+        "id": "discurso_humilde",
+        "label": "Discurso humilde (y breve)",
+        "hint": "Por una vez, de verdad breve",
+        "icon": "mic",
+        "effects": [
+          {
+            "op": "addReputation",
+            "resident": "player",
+            "amount": 5
+          },
+          {
+            "op": "finale",
+            "text": "🏁 FIN DE LA CAMPAÑA · La junta valora tu gestión: sobreviviste 7 días a vecinos, derramas y urnas creativas. Doña Espera guarda su libreta... por si acaso. La presidencia rotatoria sigue su curso: al próximo que se mude, le toca."
+          }
+        ]
+      },
+      {
+        "id": "culpar_anterior",
+        "label": "Culpar al anterior presidente",
+        "hint": "Él nació para esto",
+        "icon": "megaphone",
+        "effects": [
+          {
+            "op": "addRelation",
+            "a": "player",
+            "b": "res_presidente_01",
+            "affinity": -20
+          },
+          {
+            "op": "addReputation",
+            "resident": "player",
+            "amount": -2
+          },
+          {
+            "op": "finale",
+            "text": "🏁 FIN DE LA CAMPAÑA · Culpaste al ex presidente de TODO. Él jura venganza con voz de orador de máster. La junta, que no es tonta, aprueba tu gestión de milagro y el bizcocho de Doña Espera. Sobreviviste 7 días: misión cumplida... con enemigos nuevos."
+          }
+        ]
       }
     ]
   }

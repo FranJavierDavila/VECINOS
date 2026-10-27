@@ -118,19 +118,19 @@ const num = (v: unknown): number => (typeof v === 'number' ? v : 0);
   const step = content.missions['m_mascota_perdida']!.steps[0]!;
   const ref = step.type === 'enter' ? step.target : step.type === 'reach' ? step.target.block : null;
   const block = ref ? w.blocks[ref] : undefined;
-  check('mascota: el paso apunta a un bloque EXISTENTE del mundo (pasillo p4)', !!block && block!.layer === 'corridor' && block!.cell.floor === 4, ref ?? '—');
+  check('mascota: el paso apunta a un bloque EXISTENTE del mundo (pasillo p2 — edificio v1.27 de 3 plantas)', !!block && block!.layer === 'corridor' && block!.cell.floor === 2, ref ?? '—');
   // Completable: el jugador camina por el grafo de circulación (moves legales 1 a 1) hasta el pasillo.
   let hops = 0;
   let loc = w.residents[w.playerId]!.location;
-  while (loc && loc !== 'blk_p4_pasillo' && hops < 30) {
-    const next = nextStepTowards(w, content, loc, 'blk_p4_pasillo');
+  while (loc && loc !== 'blk_p2_pasillo' && hops < 30) {
+    const next = nextStepTowards(w, content, loc, 'blk_p2_pasillo');
     if (!next) break;
     const res = dispatch(w, content, { type: 'move', resident: w.playerId, to: next });
     if (!res.ok) break;
     loc = next;
     hops += 1;
   }
-  check('mascota: llegar al pasillo p4 pide la elección (completable en partida)', m?.state === 'awaiting_choice', `${m?.state ?? '—'} en ${hops} tramos`);
+  check('mascota: llegar al pasillo p2 pide la elección (completable en partida)', m?.state === 'awaiting_choice', `${m?.state ?? '—'} en ${hops} tramos`);
   const cleanBefore = num(w.blocks['blk_p0_pasillo']!.params.cleanliness);
   const chosen = dispatch(w, content, { type: 'choose', mission: 'm_mascota_perdida', choice: 'dejarla' });
   check('mascota: elección "dejarla" aplica el setParam del pasillo (−5)', chosen.ok && num(w.blocks['blk_p0_pasillo']!.params.cleanliness) === cleanBefore - 5);

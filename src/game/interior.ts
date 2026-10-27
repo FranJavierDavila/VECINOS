@@ -40,7 +40,11 @@ export function layoutGeometryOf(content: Content, block: BlockInstance): Layout
   return {
     rooms: declared.map((r) => {
       const inst = block.rooms.find((x) => x.key === r.key);
-      return { key: r.key, defId: r.defId, rect: r.rect!, locked: inst ? inst.access !== 'unlocked' : true };
+      // v1.30 — LOCALES CON INTERIOR (trastero comunitario, sala de juntas): los bloques
+      // comunes no tienen instancias de estancia del sim; su acceso viene del CATÁLOGO
+      // (startsUnlocked). Sin esto toda la sala nacía "cerrada" y el jugador chocaba con
+      // un muro invisible al cruzar la puerta — el interior debía ser transitable entero.
+      return { key: r.key, defId: r.defId, rect: r.rect!, locked: inst ? inst.access !== 'unlocked' : r.startsUnlocked === false };
     }),
     doorways: layout.doorways ?? [],
   };
@@ -186,7 +190,11 @@ export function interiorTarget(
   residentId: string,
   lap: number,
 ): Pt | null {
-  const open = geo.rooms.filter((r) => !r.locked);
+  // Apilamiento 3D (v1.19): las salas TRASERAS (más profundas que el bloque principal) son
+  // territorio del jugador y de misiones dirigidas — la deambulación espontánea jamás mete
+  // a un vecino ahí (evita swaps de bloque por toda la fachada cada dos ticks).
+  const mainDepth = content.rules.view.depth;
+  const open = geo.rooms.filter((r) => !r.locked && r.rect.z + r.rect.d <= mainDepth + 0.01);
   if (open.length === 0) return null;
   if (anchorKind) {
     for (const room of open) {

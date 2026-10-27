@@ -91,7 +91,7 @@ dispatch(world, content, { type: 'place_furniture', block: 'blk_p3_c', room: 'sa
 for (let i = 0; i < 20; i++) tick(world, content);
 const evPlagas = drainEvents(world);
 console.log('Canal plagas activo en:', Object.keys(world.channels['plagas'] ?? {}).sort().join(', ') || '(ninguno)');
-console.log('Plaga (param) en 3D/2C:', world.blocks['blk_p3_d']!.params['plague'], '/', world.blocks['blk_p2_c']!.params['plague'], '· eventos:', plagueEvents(evPlagas.map((e) => e.type)).length);
+console.log('Plaga (param) en 1A/2C (v1.27):', world.blocks['blk_p1_a']!.params['plague'], '/', world.blocks['blk_p2_c']!.params['plague'], '· eventos:', plagueEvents(evPlagas.map((e) => e.type)).length);
 
 // El absorbente (trampa) reduce el canal en su propio bloque
 const plagueBefore = Object.keys(world.channels['plagas'] ?? {}).length;
@@ -109,7 +109,7 @@ for (let i = 0; i < 20; i++) tick(world, content);
 const evSmoke = drainEvents(world);
 console.log('Rechazo plancha en pared:', !rPared.ok);
 console.log('Canal smoke activo en:', Object.keys(world.channels['smoke'] ?? {}).sort().join(', ') || '(ninguno)');
-console.log('Hollín (param) en 4C:', world.blocks['blk_p4_c']!.params['soot'], '· eventos smoke:', plagueEvents(evSmoke.map((e) => e.type)).length);
+console.log('Hollín (param) en 2C (v1.27):', world.blocks['blk_p2_c']!.params['soot'], '· eventos smoke:', plagueEvents(evSmoke.map((e) => e.type)).length);
 dispatch(world, content, { type: 'remove_furniture', block: 'blk_p3_c', room: 'salon', slot: 'salon_suelo_1' }); // sale la plancha
 dispatch(world, content, { type: 'place_furniture', block: 'blk_p3_c', room: 'salon', slot: 'salon_suelo_1', item: 'mue_olla' }); // vuelve la olla
 

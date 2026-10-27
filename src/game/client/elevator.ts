@@ -1,5 +1,6 @@
-import type { Mesh, Scene, StandardMaterial, TransformNode } from '@babylonjs/core';
+import type { DynamicTexture, Mesh, Scene, StandardMaterial, TransformNode } from '@babylonjs/core';
 import type { Content, World } from '@/game/core/types';
+import { alphaBoundsOf, stripCorners } from './diorama';
 import { B } from './babylon';
 
 /**
@@ -50,6 +51,8 @@ interface Shaft {
   mats: { cabin: StandardMaterial; door: StandardMaterial; call: StandardMaterial; broken: StandardMaterial; off: StandardMaterial };
   doorPanels: Map<number, { left: Mesh; right: Mesh }>;
   callButtons: Map<number, Mesh>;
+  /** v1.28 — pantallita junto a las puertas: planta donde está la cabina (y flecha de marcha). */
+  indicator: { tex: DynamicTexture; mat: StandardMaterial; shown: string } | null;
   state: ShaftState;
   queue: { actorId: string; from: number; to: number }[];
   passengers: { actorId: string; to: number; slot: number }[];
@@ -134,6 +137,140 @@ export function createElevators(scene: Scene, world: World, content: Content): E
     broken: mat('asc_roto', cfg.brokenColor, { emissive: 0.5 }),
     off: mat('asc_apagado', '#3a4149'),
   };
+  /** v1.29 — INTERIOR DE CABINA DE VERDAD: texturas a canvas con los parámetros del
+   *  catálogo (rules.view.elevator.interior). Paneles metálicos verticales con junta y
+   *  remate, suelo antideslizante con dibujo de rombos y plafón de techo. Con el hueco
+   *  del glTF oculto (hideNodes) y la luz propia, al abrirse las puertas SE VE el
+   *  interior — las caras interiores son las de un ascensor de vecinos. */
+  const icfg = cfg.interior;
+  const panelTex = (): DynamicTexture => {
+    const dt = new (B().DynamicTexture)('asc_panel_tex', { width: 256, height: 256 }, scene, true) as DynamicTexture;
+    const c = dt.getContext() as unknown as CanvasRenderingContext2D;
+    c.fillStyle = icfg.panelColor;
+    c.fillRect(0, 0, 256, 256);
+    // Sombra suave de metal cepillado (vetas verticales tenues).
+    for (let x = 0; x < 256; x += 3) {
+      const a = 0.035 * Math.abs(Math.sin(x * 12.9898 + 4.1));
+      c.fillStyle = `rgba(70,80,90,${a.toFixed(3)})`;
+      c.fillRect(x, 0, 1, 256);
+    }
+    // Juntas verticales entre paneles (cada 64 px) + remate horizontal.
+    c.strokeStyle = icfg.panelSeam;
+    c.lineWidth = 3;
+    for (const x of [0, 64, 128, 192, 256]) {
+      c.beginPath();
+      c.moveTo(x + 0.5, 0);
+      c.lineTo(x + 0.5, 256);
+      c.stroke();
+    }
+    c.strokeStyle = icfg.panelTrim;
+    c.lineWidth = 6;
+    c.beginPath();
+    c.moveTo(0, 40);
+    c.lineTo(256, 40);
+    c.stroke();
+    c.beginPath();
+    c.moveTo(0, 216);
+    c.lineTo(256, 216);
+    c.stroke();
+    dt.update(true);
+    return dt;
+  };
+  const floorTex = (): DynamicTexture => {
+    const dt = new (B().DynamicTexture)('asc_suelo_tex', { width: 256, height: 256 }, scene, true) as DynamicTexture;
+    const c = dt.getContext() as unknown as CanvasRenderingContext2D;
+    c.fillStyle = icfg.floorColor;
+    c.fillRect(0, 0, 256, 256);
+    // Rombos antideslizantes (dos familias alternadas, como el chapeado de un ascensor).
+    c.strokeStyle = icfg.floorSeam;
+    c.lineWidth = 4;
+    for (let gy = 0; gy < 4; gy++) {
+      for (let gx = 0; gx < 4; gx++) {
+        const cx = gx * 64 + 32;
+        const cy = gy * 64 + 32;
+        const off = (gx + gy) % 2 === 0 ? 0 : 32;
+        c.beginPath();
+        c.moveTo(cx + off - 40, cy);
+        c.lineTo(cx + off, cy - 20);
+        c.lineTo(cx + off + 40, cy);
+        c.lineTo(cx + off, cy + 20);
+        c.closePath();
+        c.stroke();
+      }
+    }
+    dt.update(true);
+    return dt;
+  };
+  const cabinPanelMat = mat('asc_cabina_panel', icfg.panelColor);
+  cabinPanelMat.diffuseTexture = panelTex();
+  cabinPanelMat.specularColor = new Color3(0.16, 0.17, 0.18);
+  const cabinFloorMat = mat('asc_cabina_suelo', icfg.floorColor);
+  cabinFloorMat.diffuseTexture = floorTex();
+  cabinFloorMat.specularColor = new Color3(0.05, 0.05, 0.05);
+  const cabinCeilMat = mat('asc_cabina_techo', icfg.ceilingColor);
+  const cabinLightMat = mat('asc_cabina_plafon', icfg.lightColor);
+  cabinLightMat.emissiveColor = Color3.FromHexString(icfg.lightColor).scale(icfg.lightEmissive);
+  cabinLightMat.disableLighting = true; // plafón autoiluminado (la luz la lleva el PointLight)
+  const cabinRailMat = mat('asc_cabina_pasamanos', icfg.handrailColor);
+  cabinRailMat.specularColor = new Color3(0.22, 0.23, 0.25);
+  /** v1.25 — PUERTAS DE ASCENSOR con textura correcta: el arte (dos hojas metálicas con la
+   *  partida central) se reparte en DOS texturas (mitad izquierda / mitad derecha), una por
+   *  hoja. v1.27 — ENCAJE PERFECTO: cada mitad se re-encaja a la proporción EXACTA de su
+   *  caja (0.56 × 1.94) con recorte centrado del exceso — el arte llena la hoja sin estirar
+   *  (antes el lienzo 192×768 forzaba un 15% de compresión horizontal) y UN solo vuelco. */
+  const halfTex = (side: 'l' | 'r'): DynamicTexture | null => {
+    if (!cfg.doorArt) return null;
+    const TW = Math.round((768 * 0.56) / 1.94);
+    const TH = 768;
+    const dt = new (B().DynamicTexture)(`asc_puerta_tex_${side}`, { width: TW, height: TH }, scene, true) as DynamicTexture;
+    const img = new Image();
+    img.onload = () => {
+      const big = document.createElement('canvas');
+      big.width = img.naturalWidth;
+      big.height = img.naturalHeight;
+      const bx = big.getContext('2d', { willReadFrequently: true });
+      if (!bx) return;
+      bx.drawImage(img, 0, 0);
+      stripCorners(big, 0.14);
+      const b = alphaBoundsOf(big);
+      const sx = b ? b.x0 : 0;
+      const sy = b ? b.y0 : 0;
+      const sw = b ? b.x1 - b.x0 : img.naturalWidth;
+      const sh = b ? b.y1 - b.y0 : img.naturalHeight;
+      // Mitad del arte + cover-fit a la proporción de la hoja (sin estirar).
+      const halfW = sw / 2;
+      const x0 = side === 'l' ? sx : sx + halfW;
+      const targetAr = TW / TH;
+      const srcAr = halfW / Math.max(1, sh);
+      let cw = halfW;
+      let ch = sh;
+      let cx = x0;
+      let cy = sy;
+      if (srcAr > targetAr) {
+        cw = ch * targetAr;
+        cx = x0 + (halfW - cw) / 2;
+      } else {
+        ch = cw / targetAr;
+        cy = sy + (sh - ch) / 2;
+      }
+      const dctx = dt.getContext() as unknown as CanvasRenderingContext2D;
+      dctx.clearRect(0, 0, TW, TH);
+      dctx.drawImage(big, cx, cy, Math.max(1, cw), Math.max(1, ch), 0, 0, TW, TH);
+      dt.update(true);
+    };
+    img.src = cfg.doorArt;
+    return dt;
+  };
+  const doorTexL = halfTex('l');
+  const doorTexR = halfTex('r');
+  const doorMatL = mats.door;
+  let doorMatR = mats.door;
+  if (doorTexL && doorTexR) {
+    // Dos MATERIALES (uno por hoja): el mismo material llevaría solo una de las mitades.
+    doorMatL.diffuseTexture = doorTexL;
+    doorMatR = doorMatL.clone('asc_puerta_der');
+    doorMatR.diffuseTexture = doorTexR;
+  }
   const box = (name: string, w: number, h: number, d: number, x: number, y: number, z: number, m: StandardMaterial): Mesh => {
     const mesh = MeshBuilder.CreateBox(name, { width: w, height: h, depth: d }, scene);
     mesh.position.set(x, y, z);
@@ -156,22 +293,61 @@ export function createElevators(scene: Scene, world: World, content: Content): E
     const root = new TransformNode(`asc_${col}`, scene);
     const cabin = new TransformNode(`asc_cabina_${col}`, scene);
     cabin.parent = root;
-    // Cabina: suelo, techo, fondo y laterales — el FRENTE abierto (corte 2.5D: se ve a quien viaja).
-    box(`asc_cab_suelo_${col}`, 1.08, 0.06, 1.06, 0, 0.03, 0, mats.cabin).parent = cabin;
-    box(`asc_cab_techo_${col}`, 1.08, 0.06, 1.06, 0, 1.92, 0, mats.cabin).parent = cabin;
-    box(`asc_cab_fondo_${col}`, 1.08, 1.86, 0.06, 0, 0.96, 0.72, mats.cabin).parent = cabin;
-    box(`asc_cab_izq_${col}`, 0.06, 1.86, 1.0, -0.51, 0.96, 0.1, mats.cabin).parent = cabin;
-    box(`asc_cab_der_${col}`, 0.06, 1.86, 1.0, 0.51, 0.96, 0.1, mats.cabin).parent = cabin;
+    // Cabina (v1.29): suelo, techo, fondo y laterales — el FRENTE abierto (corte 2.5D: se
+    // ve a quien viaja). Las caras interiores son las de un ascensor: paneles metálicos con
+    // junta, suelo de rombos antideslizante, plafón cálido en el techo y pasamanos en la
+    // pared del fondo. El PointLight de la cabina derrama su luz por el pozo al abrirse
+    // las puertas (el interior JAMÁS vuelve a ser un agujero negro).
+    const cabinLight = new (B().PointLight)(`asc_luz_${col}`, new (B().Vector3)(0, 1.7, -0.15), scene);
+    cabinLight.parent = cabin;
+    cabinLight.diffuse = Color3.FromHexString(icfg.lightColor);
+    cabinLight.specular = Color3.FromHexString(icfg.lightColor).scale(0.25);
+    cabinLight.intensity = icfg.lightIntensity;
+    cabinLight.range = icfg.lightRange;
+    box(`asc_cab_suelo_${col}`, 1.08, 0.06, 1.06, 0, 0.03, 0, cabinFloorMat).parent = cabin;
+    box(`asc_cab_techo_${col}`, 1.08, 0.06, 1.06, 0, 1.92, 0, cabinCeilMat).parent = cabin;
+    box(`asc_cab_plafon_${col}`, 0.6, 0.02, 0.5, 0, 1.885, 0, cabinLightMat).parent = cabin;
+    box(`asc_cab_fondo_${col}`, 1.08, 1.86, 0.06, 0, 0.96, 0.72, cabinPanelMat).parent = cabin;
+    box(`asc_cab_izq_${col}`, 0.06, 1.86, 1.0, -0.51, 0.96, 0.1, cabinPanelMat).parent = cabin;
+    box(`asc_cab_der_${col}`, 0.06, 1.86, 1.0, 0.51, 0.96, 0.1, cabinPanelMat).parent = cabin;
+    if (icfg.handrail) {
+      // Pasamanos de acero en la pared del fondo (a la altura de la cintura, como un
+      // ascensor de barrio) — delante del panel, nada coplanar.
+      box(`asc_cab_pasamanos_${col}`, 0.9, 0.05, 0.05, 0, 0.95, 0.66, cabinRailMat).parent = cabin;
+      box(`asc_cab_pasamanos_soporte_i_${col}`, 0.04, 0.1, 0.04, -0.42, 0.88, 0.66, cabinRailMat).parent = cabin;
+      box(`asc_cab_pasamanos_soporte_d_${col}`, 0.04, 0.1, 0.04, 0.42, 0.88, 0.66, cabinRailMat).parent = cabin;
+    }
     cabin.position.set(info.x, info.floors[0]! * v.cellH, frontZ + 0.4);
     const doorPanels = new Map<number, { left: Mesh; right: Mesh }>();
     const callButtons = new Map<number, Mesh>();
+    // v1.28 — PANTALLA DE PLANTA (catálogo): junto a las puertas (lado espejo del botón de
+    // llamada) un display con la planta de la cabina y flecha de marcha; UNA textura por
+    // pozo (todas las plantas enseñan lo mismo, como un ascensor de vecinos) redibujada
+    // SOLO cuando cambia lo mostrado.
+    const ind = cfg.indicator;
+    let indicator: Shaft['indicator'] = null;
+    if (ind) {
+      const tex = new (B().DynamicTexture)(`asc_indicador_${col}_tex`, { width: 128, height: 96 }, scene, true) as DynamicTexture;
+      const im = new StandardMaterial(`asc_indicador_${col}_mat`, scene);
+      im.diffuseTexture = tex;
+      im.emissiveTexture = tex;
+      im.emissiveColor = new Color3(0.55, 0.55, 0.55);
+      im.specularColor = new Color3(0, 0, 0);
+      indicator = { tex, mat: im, shown: '' };
+    }
     for (const f of info.floors) {
       const y = f * v.cellH;
-      const left = box(`asc_puerta_${col}_${f}_i`, 0.56, 1.94, 0.06, info.x - 0.28, y + 0.97, doorZ, mats.door);
-      const right = box(`asc_puerta_${col}_${f}_d`, 0.56, 1.94, 0.06, info.x + 0.28, y + 0.97, doorZ, mats.door);
+      const left = box(`asc_puerta_${col}_${f}_i`, 0.56, 1.94, 0.06, info.x - 0.28, y + 0.97, doorZ, doorMatL);
+      const right = box(`asc_puerta_${col}_${f}_d`, 0.56, 1.94, 0.06, info.x + 0.28, y + 0.97, doorZ, doorMatR);
       doorPanels.set(f, { left, right });
       const btn = box(`asc_llamada_${col}_${f}`, 0.12, 0.16, 0.05, info.x + 0.76, y + 1.12, frontZ - 0.08, mats.off);
       callButtons.set(f, btn);
+      if (indicator && ind) {
+        // Cuerpo empotrado en fachada + pantalla UN POCO por delante del botón (nada coplanar).
+        box(`asc_indicador_${col}_${f}`, ind.w, ind.h, 0.05, info.x + ind.dx, y + ind.y, frontZ - 0.055, mats.off);
+        const scr = box(`asc_pantalla_${col}_${f}`, ind.w * 0.86, ind.h * 0.8, 0.012, info.x + ind.dx, y + ind.y, frontZ - 0.088, indicator.mat);
+        scr.isPickable = false;
+      }
     }
     shafts.push({
       col,
@@ -181,6 +357,7 @@ export function createElevators(scene: Scene, world: World, content: Content): E
       mats,
       doorPanels,
       callButtons,
+      indicator,
       state: { s: 'idle', at: info.floors[0]! },
       queue: [],
       passengers: [],
@@ -224,6 +401,26 @@ export function createElevators(scene: Scene, world: World, content: Content): E
     for (const [f, btn] of s.callButtons) {
       const broken = !s.floors.every((fl) => elevatorOk(s.col, fl));
       btn.material = broken ? mats.broken : called.has(f) ? mats.call : mats.off;
+    }
+    // v1.28 — pantallita: planta de la cabina + flecha de marcha; solo redibuja al cambiar.
+    if (s.indicator) {
+      const broken = !s.floors.every((fl) => elevatorOk(s.col, fl));
+      let label: string;
+      if (broken) label = '✕';
+      else if (s.state.s === 'moving') label = `${s.state.target!}${s.state.target! > s.state.at ? ' ▲' : ' ▼'}`;
+      else label = `${s.state.at}`;
+      if (label !== s.indicator.shown) {
+        s.indicator.shown = label;
+        const ctx = s.indicator.tex.getContext() as unknown as CanvasRenderingContext2D;
+        ctx.fillStyle = '#161b20';
+        ctx.fillRect(0, 0, 128, 96);
+        ctx.fillStyle = broken ? Color3.FromHexString(cfg.brokenColor).toHexString() : Color3.FromHexString(cfg.callColor).toHexString();
+        ctx.font = 'bold 58px Arial, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, 64, 52);
+        s.indicator.tex.update(true);
+      }
     }
   };
 
@@ -415,6 +612,7 @@ export function createElevators(scene: Scene, world: World, content: Content): E
           p.right.dispose();
         }
         for (const b of s.callButtons.values()) b.dispose();
+        if (s.indicator) s.indicator.tex.dispose();
       }
       shafts.length = 0;
       rides.clear();

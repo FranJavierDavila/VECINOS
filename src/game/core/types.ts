@@ -1,3 +1,9 @@
+import type { StreetCatalog, SoundsCatalog, InteriorsCatalog } from '@/game/content/schemas';
+
+// Re-exportados: los consumidores del contrato importan TODO desde aquí (types.ts es la
+// única fuente de verdad; los esquemas Zod son su espejo de validación).
+export type { StreetCatalog, SoundsCatalog, InteriorsCatalog };
+
 /**
  * VECINOS — Contrato central de tipos.
  * Única fuente de verdad para simulación, presentación (Babylon.js) e interfaz (React).
@@ -32,6 +38,42 @@ export interface BlockView {
   altColor?: string;
 }
 
+/** Props de bloque EXTERIOR (v1.20): aceras, carreteras y jardines del decorado urbano. */
+export interface ExteriorBlockView {
+  height: number;
+  /** Bordillo (v1.22): '' = sin bordillo. */
+  curbColor: string;
+  curbW: number;
+  /** Paso de cebra (v1.22). */
+  zebra: boolean;
+  zebraColor: string;
+  zebraStripeW: number;
+  zebraGap: number;
+  benchEvery: number;
+  benchColor: string;
+  benchLegColor: string;
+  lampEvery: number;
+  lampColor: string;
+  lampHeadColor: string;
+  lampH: number;
+  binEvery: number;
+  binColor: string;
+  laneDash: number;
+  laneDashColor: string;
+  treesPer10m: number;
+  bushesPer10m: number;
+  /** Dispersión 2D con topes (v1.22) para jardines enormes. */
+  gridScatter: boolean;
+  maxTrees?: number;
+  maxBushes?: number;
+  flowerChance: number;
+  trunkColor: string;
+  leafColors: string[];
+  bushColors: string[];
+  flowerColors: string[];
+  grassColor: string;
+}
+
 export interface BlockDef {
   id: string;
   /** Nombre visible para prompt/HUD. */
@@ -41,10 +83,12 @@ export interface BlockDef {
   size: { w: number; h: number };
   traversable?: boolean;
   alignGroup?: string;
-  features?: { stairs?: boolean; elevator?: boolean; mailboxes?: boolean; noticeboard?: boolean; bench?: boolean };
+  features?: { stairs?: boolean; elevator?: boolean; mailboxes?: boolean; noticeboard?: boolean; bench?: boolean; innerCorridor?: boolean };
   params?: Record<string, ParamDef>;
   container?: { childKind: string; layout: string };
   view: BlockView;
+  /** Solo bloques del decorado exterior (v1.20): nunca se instancian en el sim. */
+  exterior?: ExteriorBlockView;
 }
 
 export interface RoomDef {
@@ -709,6 +753,8 @@ export interface EcosystemContent {
     lampsPerCorridor: number;
     /** Tamaño (w,h,d en m) de cada lamparita. */
     lampSize: [number, number, number];
+    /** v1.21: de noche, luz solo si la instalación funciona Y hay vecinos en el pasillo. */
+    nightRequiresPresence: boolean;
   };
   mood: {
     /** Pesos de necesidades para la media de ánimo de los residentes presentes. */
@@ -758,6 +804,30 @@ export interface AchievementsCatalog {
   achievements: AchievementDef[];
 }
 
+/** Charla de cruce (v1.20): un tema de conversación entre dos vecinos que se cruzan. */
+export interface CrossingTopic {
+  id: string;
+  /** Líneas alternas: impar habla A, par habla B. {a}/{b} = nombres visibles. */
+  lines: string[];
+}
+
+/** Catálogo de charlas de cruce (v1.20, opcional): cuando dos vecinos se cruzan, puede
+ *  que paren a charlar (o no) según su ánimo; los temas y el ritmo viven en el JSON. */
+export interface CrossingsCatalog {
+  cadence: {
+    checkEvery: number;
+    residentCooldown: number;
+    pairCooldown: number;
+    lineSeconds: number;
+    holdAfter: number;
+  };
+  proximity: { distance: number; maxConcurrent: number };
+  chance: { base: number; goodMoodBonus: number; badMoodPenalty: number };
+  mood: { goodMin: number; okMin: number; needs: Record<string, number> };
+  /** Temas por cubo de ánimo; al cruzarse se elige el grupo del ánimo medio. */
+  groups: { id: string; mood: 'good' | 'ok' | 'bad'; topics: CrossingTopic[] }[];
+}
+
 export interface Content {
   rules: Rules;
   blocks: Record<string, BlockDef>;
@@ -781,6 +851,16 @@ export interface Content {
   ecosystem?: EcosystemContent;
   /** Logros tipo Steam (v1.17, opcional): perfil persistente; sin catálogo no hay logros. */
   achievements?: AchievementsCatalog;
+  /** Charlas de cruce (v1.20, opcional): humor vecinal cuando dos vecinos se cruzan. */
+  crossings?: CrossingsCatalog;
+  /** La calle vive (v1.22, opcional): manifestaciones con humor y reacciones vecinales. */
+  street?: StreetCatalog;
+  /** Catálogo procedural de sonido (v1.22, espejo del que carga audio.ts): el módulo de
+   *  voces de proximidad lee su sección `voices`; también lo valida el QA. */
+  sounds?: SoundsCatalog;
+  /** Dioramas interiores (v1.23, opcional): arte por tipo de estancia para los billboards
+   *  con paralaje; sin catálogo, los interiores siguen greybox. */
+  interiors?: InteriorsCatalog;
 }
 
 // ───────────────────────── Reglas y ajustes (catálogo rules.json) ─────────────────────────
@@ -840,6 +920,16 @@ export interface Rules {
       moodPenalty: number;
       clamp: { min: number; max: number };
     };
+    /** Campaña de presidencia (v1.18, presentación/support): HUD del mandato y agenda
+     *  convicable desde el tablón. El sim no la consume. */
+    campaign?: {
+      termMission: string;
+      endMission: string;
+      termDays: number;
+      presidentLabel: string;
+      convocationCooldownMinutes: number;
+      presetAgenda: { id: string; title: string; description: string; cost: number; effects: Effect[] }[];
+    };
     /** Malestar vecinal con el ascensor averiado (v1.5): coste social por tramo de escalera
      *  forzada y resoplido público ocasional (evento stairs_grumble con texto del catálogo). */
     elevator: { stairsMoodCost: number; grumbleChance: number; grumbleCooldownMinutes: number; grumbleText: string };
@@ -884,6 +974,60 @@ export interface Rules {
       landingX: number;
       stepCount: number;
       climbSpeed: number;
+      /** Forjado interior continuo del cubo (v1.18): losa a nivel de entrada en cada planta. */
+      floorSlab: { enabled: boolean; thickness: number; color: string; topAt: number };
+      /** v1.24 — acceso a la escalera DE VERDAD: muro frontal alrededor de la puerta (antes
+       *  flotaba sin pared), hoja con arte de zonas comunes + número de planta grande negro
+       *  centrado (vinculado a la hoja: bascula al abrirse), bisagras en el lado izquierdo
+       *  visto desde el pasillo, y apertura automática al acercarse alguien a entrar/salir. */
+      facade: {
+        enabled: boolean;
+        halfW: number;
+        /** v1.26: muro frontal del CUBO COMPLETO — barandillas/peldaños ya no se ven
+         *  "a través de la pared" por los laterales abiertos. */
+        fullWall?: boolean;
+        color: string;
+        doorW: number;
+        doorH: number;
+        doorBottom: number;
+        doorZ: number;
+        wallT: number;
+        art: string;
+        numberColor: string;
+        hinge: 'left' | 'right';
+        openAngle: number;
+        openAhead: number;
+        openSpeed: number;
+        /** v1.27 — VENTANAL del cubo: banda de cristal en el muro frontal (se ve subir y
+         *  bajar a los vecinos y la luz), montantes finos delante del vidrio y muro trasero
+         *  opcional que cierra el fondo del cubo. */
+        window?: {
+          enabled: boolean;
+          sill: number;
+          head: number;
+          color: string;
+          alpha: number;
+          mullions: number;
+          mullionW: number;
+          frameColor: string;
+          rear: boolean;
+        };
+        /** v1.25: nodos de la authoría glTF que sobran (p. ej. el hueco oscuro viejo). */
+        hideNodes?: string[];
+      };
+      /** v1.24 — iluminación COMPARTIDA de todos los cubos de escalera: de noche se enciende
+       *  si algún vecino se mueve por las escaleras (materiales de los sellos de luz del arte).
+       *  v1.25: `wallGlow` ilumina TAMBIÉN los materiales del propio cubo (autoiluminación
+       *  como en los interiores de vivienda — antes solo brillaba la bombilla). */
+      activityLight: {
+        enabled: boolean;
+        dayCutoff: number;
+        glow: number;
+        fade: number;
+        meshes: string[];
+        color: string;
+        wallGlow?: number;
+      };
     };
     /** Ascensor creíble (v1.5, presentación): llamadas, puertas, espera y capacidad (src/game/client/elevator.ts). */
     elevator: {
@@ -895,9 +1039,34 @@ export interface Rules {
       accelFloorsPerSecond2: number;
       cabinColor: string;
       doorColor: string;
+      /** v1.25: arte full-bleed de las hojas del ascensor (la partida central del arte cae
+       *  entre las dos hojas: cada una recibe su mitad). Vacío = color plano. */
+      doorArt?: string;
       callColor: string;
       brokenColor: string;
       rideZ: number;
+      /** v1.29 — pared del pozo GRIS OSCURA como el zócalo (fija sobre el arte glTF) y
+       *  nodos del glTF del núcleo que desaparecen (el panel del hueco tapaba la cabina). */
+      wallColor: string;
+      hideNodes?: string[];
+      /** v1.29 — interior de cabina de verdad: paneles metálicos, suelo antideslizante,
+       *  plafón cálido, pasamanos y luz propia (se ve al abrirse las puertas). */
+      interior: {
+        panelColor: string;
+        panelSeam: string;
+        panelTrim: string;
+        floorColor: string;
+        floorSeam: string;
+        ceilingColor: string;
+        lightColor: string;
+        lightEmissive: number;
+        handrail: boolean;
+        handrailColor: string;
+        lightRange: number;
+        lightIntensity: number;
+      };
+      /** v1.28 — pantallita junto a las puertas con la planta de la cabina (y flecha). */
+      indicator?: { w: number; h: number; dx: number; y: number };
     };
     /** Velocidad (m/s) a partir de la cual un actor en marcha usa el clip "run". */
     runSpeed: number;
@@ -936,10 +1105,31 @@ export interface Rules {
       /** Cabecera de cartel sobre la fachada de cada estantería (v1.17): el cartel numerado
        *  se monta en la propia estantería, no flotando. 0 = sin cabecera. */
       headerH: number;
+      /** ── Bloques por columna (v1.18): una planta de trasteros por letra, pasillo central,
+       *  impares a un lado y pares al otro, compartimentos cerrados, profundidad ×factor. */
+      blockDepthFactor: number;
+      corridorW: number;
+      wallT: number;
+      doorW: number;
+      doorH: number;
+      unitH: number;
+      doorColor: string;
+      /** Puerta dorada del trastero del propio jugador (v1.19). */
+      ownDoorColor: string;
+      oddSide: 'left' | 'right';
+      blockDefId: string;
+      /** Interior presentable de la celda propia (v1.19, apilamiento 3D de bloques). */
+      cellRoomDepth: number;
+      cellShelfTiers: number;
+      cellJunk: number;
+      /** Cartel guía exterior sobre el hueco del pasillo central (v1.19): qué trasteros
+       *  tienes a cada lado según la profundidad del pasillo en la que caminas. */
+      guide: { w: number; h: number; aboveUnit: number; bg: string; text: string; frame: string };
     };
     /** Tejadillo a dos aguas que cierra el edificio (v1.16) sobre la bajocubierta. */
     roof: { pitchH: number; overhang: number; color: string; ridge: string; fascia: string };
-    /** Macetas en los pasillos (v1.16): cantidad por planta determinista y colores. */
+    /** Macetas en los pasillos (v1.16): cantidad por planta determinista y colores.
+     *  v1.25: recortes billboard (`artH` del recorte dibujado a canvas). */
     pots: {
       perFloorMin: number;
       perFloorMax: number;
@@ -949,13 +1139,132 @@ export interface Rules {
       plant2Color: string;
       potR: number;
       potH: number;
+      art?: string[];
+      artH?: number;
+      /** v1.26: radio libre delante de cada puerta — nunca una maceta tapando un acceso. */
+      doorClearance?: number;
     };
     /** Privacidad de viviendas (v1.17): el interior solo se ve con alguien dentro; vacía,
-     *  la fachada se cierra con su puerta al pasillo (propietario, visita… o un ladrón). */
-    privacy: { enabled: boolean; doorColor: string; handleColor: string; doorW: number; doorH: number };
+     *  la fachada se cierra con su puerta al pasillo (propietario, visita… o un ladrón).
+     *  v1.24: la puerta es un PLANO con arte real + marco 3D pequeño del color de la puerta
+     *  + aplique de luz a un lado; la placa numerada queda por ENCIMA del marco (sin taparse).
+     *  `hideNodes` retira del modelo glTF overlay la decoración de puerta antigua. */
+    privacy: {
+      enabled: boolean;
+      doorColor: string;
+      handleColor: string;
+      doorW: number;
+      doorH: number;
+      doorArts?: string[];
+      frameW?: number;
+      frameDepth?: number;
+      hideNodes?: string[];
+      /** v1.26 — relleno de las juntas entre bloques (mismo color de pared), corte del
+       *  zócalo en las puertas y tapa de estancia cerrada con ARTE DE PUERTA.
+       *  v1.27 — protrude/stagger anti-coplanaridad + SOLERA en la base de los bloques. */
+      gapFill?: { color: string; pad: number; protrude?: number; stagger?: number };
+      solera?: { color: string; h: number; protrude?: number; stagger?: number };
+      skirtingDoorGap?: boolean;
+      coverArt?: string;
+      /** v1.25 — acabado de la vivienda: pared gris clarito, zócalo gris y marcos del
+       *  color del zócalo (continuidad visual); candado DIBUJADO (nada de cajas) y
+       *  luces nocturnas de interiores parametrizadas. */
+      wallColor?: string;
+      skirtingColor?: string;
+      skirtingH?: number;
+      lockArt?: string;
+      lockW?: number;
+      lockH?: number;
+      /** v1.28 — candado SOBRE la puerta (dx del centro en fracción del ancho, yFrac de la
+       *  hoja desde su base — altura del tirador — y out separado del plano de la hoja). */
+      lockOnDoor?: { dx: number; yFrac: number; out: number };
+      night?: { dayCutoff: number; dioGlow: number; floorGlow: number; lampGlow: number; wallSelf?: number };
+      lamp?: { side: -1 | 1; dx: number; dy: number; color: string; glowColor: string };
+    };
     roomZ: number;
+    /** Suelo de los pasillos (v1.28): losetas cuadradas (~40 cm) gris clarito con junta
+     *  del catálogo; `tile` es el lado de la baldosa en metros. v1.30: contrast = alternancia. */
+    corridorFloor?: { color: string; grout: string; tile: number; contrast?: number };
+    /** ── Locales de la planta baja (v1.30) ── portal acristalado con correderas, garaje
+     *  definido, trastero comunitario, sala de juntas y lavandería abierta. */
+    locals: {
+      /** Gris ÚNICO de las paredes que dan al pasillo (cubos, pozo, frentes de locales). */
+      corridorWall: string;
+      /** Nodos glTF que sobran por defId (los retira el loader). */
+      hideNodes: Record<string, string[]>;
+      portalDoors: {
+        slide: number;
+        openAhead: number;
+        openSeconds: number;
+        frame: string;
+        glass: string;
+        sheen: string;
+        handle: string;
+        alpha: number;
+      };
+      garaje: {
+        panel: string;
+        panelShade: string;
+        rail: string;
+        window: string;
+        sign: string;
+        signBg: string;
+        signText: string;
+        rampDepth: number;
+        rampColor: string;
+      };
+      trasteroComunal: {
+        doorArt: string;
+        doorW: number;
+        doorH: number;
+        doorDx: number;
+        shelfTiers: number;
+        sign: string;
+        signBg: string;
+        signText: string;
+      };
+      juntaHall: {
+        doorW: number;
+        sign: string;
+        signBg: string;
+        signText: string;
+        tableW: number;
+        tableD: number;
+        tableZ: number;
+        /** Asientos en coords LOCALES del bloque (x desde el borde izquierdo, z desde frontZ). */
+        seats: [number, number][];
+        wood: string;
+        woodDark: string;
+      };
+      lavanderia: {
+        machines: number;
+        art: string;
+        artH: number;
+        machineColor: string;
+        sign: string;
+        signBg: string;
+        signText: string;
+      };
+    };
+    /** Bloom/glow de las luces (v1.28): halo realista de los materiales emisivos. */
+    glow?: { enabled: boolean; intensity: number; blurKernelSize?: number };
     /** Calado (profundidad en Z) de las viviendas: doblado en v0.6-b para mobiliario interior. */
     depth: number;
+    /** Módulo de profundidad (v1.19): TODOS los bloques crecen 1 módulo hacia el fondo. */
+    depthModule: number;
+    /** Apilamiento 3D de bloques (v1.19): activación de bloques traseros con fundido del
+     *  precedente y contorno rojo en el perímetro frontal del bloque activo. */
+    rearBlock: {
+      outline: string;
+      outlineWidth: number;
+      fadeSeconds: number;
+      peekSeconds: number;
+      peekDistance: number;
+      junk: number;
+      lampColor: string;
+      /** Ventana al fondo del bloque trasero (v1.21): marco + cristal que asoma al paisaje. */
+      window: { w: number; h: number; sill: number; frame: string; glass: string; glassAlpha: number };
+    };
     /** Calado de los bloques comunes (portal, núcleo, trasteros): mantiene el glTF del núcleo a escala 1. */
     commonDepth: number;
     wall: number;
@@ -963,7 +1272,12 @@ export interface Rules {
     gapH: number;
     slab: number;
     sky: { r: number; g: number; b: number };
-    ambient: { dir: [number, number, number]; intensity: number };
+    ambient: {
+      dir: [number, number, number];
+      intensity: number;
+      /** v1.29 — color de rebote (groundColor): levanta techos/caras inferiores. */
+      ground?: string;
+    };
     sun: { dir: [number, number, number]; intensity: number };
     lockedColor: string;
     vacantTint: number;
@@ -976,6 +1290,145 @@ export interface Rules {
     actorRadius: number;
     /** Niveles de detalle por distancia (Vista: "prefab por bloque y LOD por distancia"). */
     lod: { enabled: boolean; focus: 'player'; levels: LodLevel[] };
+    /** ── Escena exterior (v1.20) ── tiras de calle frente al edificio (aceras,
+     *  carretera, jardines) con sus props; defId refiere bloques con `exterior`.
+     *  v1.22: orient 'z' (aceras laterales y calle transversal), gridScatter 2D con
+     *  topes, bordillos y paso de cebra; la carretera principal se escapa por pantalla. */
+    exterior: {
+      enabled: boolean;
+      rows: {
+        defId: string;
+        x0: number;
+        x1: number;
+        z0: number;
+        depth: number;
+        body: boolean;
+        orient: 'x' | 'z';
+        gridScatter: boolean;
+        maxTrees?: number;
+        maxBushes?: number;
+      }[];
+      ground: { color: string; size: number; backZ: number };
+      /** v1.24 — árboles como RECORTEs 2D (billboards de recorte, fundidos por arte).
+       *  Presente → sustituye a las esferas 3D; ausente → fallback greybox de siempre. */
+      treeArt?: { art: string; w: number; h: number; keyTolerance?: number }[];
+      /** v1.28 — rectángulos del mundo sin árboles ni arbustos (nada de verde tapando el
+       *  portal) y piezas COLOCADAS a mano (el árbol del portal, replantado a la derecha). */
+      keepOut?: { x0: number; x1: number; z0: number; z1: number }[];
+      forcedTrees?: { x: number; z: number; art?: string; s?: number }[];
+    };
+    /** ── Tráfico (v1.22) ── vehículos ocasionales (coches, bus, patrulla) por carriles;
+     *  solo presentación y solo vista "edificio". */
+    traffic: {
+      enabled: boolean;
+      lanes: { z: number; dir: number; speedMin: number; speedMax: number }[];
+      spawnEveryMin: number;
+      spawnEveryMax: number;
+      maxAlive: number;
+      xMin: number;
+      xMax: number;
+      passX: number;
+      passRadius: number;
+      vehicles: {
+        kind: string;
+        chance: number;
+        length: number;
+        width: number;
+        height: number;
+        cabin: number;
+        colors: string[];
+        siren: boolean;
+      }[];
+    };
+    /** ── Viandantes (v1.22) ── paseantes por las aceras; algunos entran al portal. */
+    pedestrians: {
+      enabled: boolean;
+      maxAlive: number;
+      spawnEveryMin: number;
+      spawnEveryMax: number;
+      speedMin: number;
+      speedMax: number;
+      enterChance: number;
+      exitChance: number;
+      enterX: number;
+      /** v1.30 — umbral del portal (z del mundo): entrar/salir cruza POR las correderas. */
+      enterZ?: number;
+      paths: { z: number; x0: number; x1: number; dir: number }[];
+      colors: string[];
+      hatChance: number;
+      hatColors: string[];
+      /** v1.25: arquetipos del catálogo de vecinos que prestan su cuerpo a los viandantes. */
+      actorArchetypes?: string[];
+    };
+    /** ── Fondo urbano (v1.20) ── cielo dinámico por hora + capas de fachadas 2D con
+     *  parallax natural (planos 3D a distintas z tras el edificio). */
+    backdrop: {
+      enabled: boolean;
+      layers: {
+        z: number;
+        height: number;
+        alpha: number;
+        tint: string;
+        windowColor: string;
+        windowLitColor: string;
+        galleryColor: string;
+        buildings: number;
+        floors: [number, number];
+        windowChance: number;
+        galleryChance: number;
+        nightGlow: number;
+        /** Sello PNG RGBA (v1.21): fachada real repetida por la capa (blur horneado). */
+        image?: string;
+        /** NIEBLA (v1.22): desaturación + fundido hacia fogColor (perspectiva aérea). */
+        fog: number;
+        fogColor: string;
+      }[];
+      sky: {
+        redrawSeconds: number;
+        keyframes: { hour: number; top: string; horizon: string; ambient: number; sun: number }[];
+        weatherDim: Record<string, number>;
+        /** v1.28 — velado de día de lluvia: el cielo se funde hacia estos colores y el
+         *  sol/luna se retiran (rain/storm marcan cuánto: 0..1). */
+        overcast?: { top: string; horizon: string; rain: number; storm: number };
+        sunColorDay: string;
+        sunColorLow: string;
+        sunSize: number;
+        sunArcHeight: number;
+        sunZ: number;
+        /** Altura (m) de la línea de horizonte del cielo de dos bandas (v1.21). */
+        horizonY: number;
+        moonColor: string;
+        moonSize: number;
+        stars: number;
+        starColor: string;
+      };
+      clouds: {
+        count: number;
+        yMin: number;
+        yMax: number;
+        z: number;
+        speed: number;
+        color: string;
+        stormColor: string;
+        alphaClear: number;
+        alphaCloudy: number;
+        /** v1.28 — con lluvia las nubes engordan hasta cerrar el cielo (1 = sin cambio). */
+        stormScale?: number;
+      };
+      /** Lluvia (v1.21): partículas de trazo cuando el clima es rain/storm.
+       *  v1.28: `wash` apaga la ciudad del fondo con el cielo cerrado. */
+      rain: {
+        count: number;
+        stormCount: number;
+        fallSpeed: number;
+        wind: number;
+        color: string;
+        alpha: number;
+        length: number;
+        width: number;
+        wash?: { color: string; alpha: number };
+      };
+    };
   };
   /** Defaults de las cutscenes de misión (Fase D): ritmos que no quieren repetirse en cada beat. */
   cutscene: {
@@ -1029,6 +1482,11 @@ export interface Rules {
     greet: string;
     laptop: string;
     bed: string;
+    /** Trastero propio y bloques traseros (v1.19, apilamiento 3D). */
+    storageEnter: string;
+    storageLocked: string;
+    rearExit: string;
+    rearRoom: string;
     stairs: string;
     elevator: string;
     elevatorBroken: string;
@@ -1183,6 +1641,17 @@ export interface PlayerPosition {
    * y la Z varían (tramos y descansillo); null fuera de la escalada (el pasillo manda).
    */
   pathZ: number | null;
+  /**
+   * Apilamiento 3D (v1.19): mientras el jugador está en un bloque TRASERO (interior de su
+   * trastero), la presentación lo planta aquí (x/z absolutos) en vez de en el sim.
+   */
+  rear: { x: number; z: number } | null;
+  /**
+   * Regla de cámara del pasillo de trasteros (v1.21): presente cuando el jugador camina por
+   * el pasillo central de un bloque de trasteros — la cámara se centra en el MEDIO del
+   * pasillo y lo mira de frente para verlo hasta el fondo (null fuera de esos bloques).
+   */
+  storage: { cx: number; frontZ: number; depth: number } | null;
 }
 
 export interface Input {
@@ -1200,7 +1669,9 @@ export type InteractTarget =
   | { kind: 'mailbox' }
   | { kind: 'noticeboard' }
   | { kind: 'laptop' }
-  | { kind: 'bed' };
+  | { kind: 'bed' }
+  | { kind: 'storageCell' }
+  | { kind: 'rearExit' };
 
 // ───────────────────────── Etiquetas ─────────────────────────
 

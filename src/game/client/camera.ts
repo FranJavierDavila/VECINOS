@@ -18,6 +18,12 @@ export class CameraRig {
   mode: CamMode = 'edificio';
   /** Mientras no es null (cutscene en curso), update() vuela hacia este encuadre en vez del modo. */
   cinematic: CinematicFrame | null = null;
+  /** Plano frontal y calado del edificio (v1.20): para encuadrar los bloques traseros
+   *  (apilamiento 3D) a la MISMA distancia que las estancias exteriores. */
+  metric: { frontZ: number; depth: number } = { frontZ: 0, depth: 4 };
+  /** Encuadre especial de la regla del pasillo de trasteros (v1.21): pitch y offset X
+   *  propios — cámara elevada mirando el pasillo de frente para verlo hasta el fondo. */
+  framing: { pitch: number; xOff: number } | null = null;
   private readonly pos: Vector3;
   private readonly look: Vector3;
 
@@ -44,9 +50,21 @@ export class CameraRig {
     let cx = width / 2;
     let cy = (this.floors * this.cellH) / 2;
     let cz = 0; // profundidad del punto de interés (solo estancia: sigue parcialmente al jugador)
+    this.framing = null;
     if (this.cinematic) {
       // Cutscene (Fase D): el encuadre lo manda el director; mismo suavizado → transiciones de cine.
       ({ cx, cy, cz, viewH } = this.cinematic);
+    } else if (p.storage) {
+      // Regla del PASILLO DE TRASTERO (v1.21): perspectiva FRONTAL a nivel, centrada en el
+      // eje del pasillo y a media altura — túnel de un punto de fuga: se ve TODO el pasillo
+      // hasta el fondo (el personaje llega al final) desde fuera. La fachada del bloque se
+      // desvanece mientras el jugador está dentro (building.update) para no tapar la vista.
+      // Al salir, p.storage pasa a null y la cámara recupera su comportamiento normal.
+      viewH = Math.max(this.cellH * 1.25, 3.2);
+      cx = p.storage.cx;
+      cy = Math.round(p.floor) * this.cellH + 1.0;
+      cz = p.storage.frontZ + 2.2;
+      this.framing = { pitch: 0.12, xOff: 0 };
     } else if (this.mode === 'edificio') {
       viewH = Math.max(this.floors * this.cellH * 1.25, (width * 1.25) / aspect);
     } else {
@@ -55,11 +73,20 @@ export class CameraRig {
       cx = half * 2 >= width ? width / 2 : Math.min(width - half, Math.max(half, p.x));
       cy = (p.floor + 0.5) * this.cellH;
       // Fase C: en estancia, la cámara se asoma al fondo siguiendo en parte la profundidad (z).
-      if (this.mode === 'estancia') cz = Math.min(1.2, Math.max(0, p.z)) * 0.45;
+      // v1.20: en un bloque TRASERO (apilamiento 3D, z > calado del bloque principal) la cámara
+      // se adelanta hasta el plano del bloque activo: misma distancia de vista que una estancia
+      // exterior — el interior no se ve desde lejos ni detrás de la pared divisoria.
+      if (this.mode === 'estancia') {
+        cz = p.z > this.metric.depth + 0.05
+          ? this.metric.frontZ + Math.min(p.z, this.metric.depth + 2.8)
+          : Math.min(1.2, Math.max(0, p.z)) * 0.45;
+      }
     }
     const dist = viewH / (2 * Math.tan(FOV / 2));
     const k = 1 - Math.exp(-dt * 6);
-    this.pos.addInPlace(new Vector3(cx + dist * 0.1, cy + dist * 0.05, cz - dist).subtract(this.pos).scale(k));
+    const pitch = this.framing ? this.framing.pitch : 0.05;
+    const xOff = this.framing ? this.framing.xOff : 0.1;
+    this.pos.addInPlace(new Vector3(cx + dist * xOff, cy + dist * Math.sin(pitch), cz - dist * Math.cos(pitch)).subtract(this.pos).scale(k));
     this.look.addInPlace(new Vector3(cx, cy, cz).subtract(this.look).scale(k));
     this.camera.position.copyFrom(this.pos);
     this.camera.setTarget(this.look);

@@ -74,7 +74,7 @@ const scen = content.scenarios[content.rules.startScenario]!;
 const pRes = scen.residents.find((r) => r.id === 'res_pintora_01');
 const rRes = scen.residents.find((r) => r.id === 'res_repartidor_01');
 check('res_pintora_01 en el escenario (present:false, 2C)', !!pRes && pRes.present === false && pRes.home === 'blk_p2_c');
-check('res_repartidor_01 en el escenario (present:false, 5A)', !!rRes && rRes.present === false && rRes.home === 'blk_p5_a');
+check('res_repartidor_01 en el escenario (present:false, 1A — v1.27)', !!rRes && rRes.present === false && rRes.home === 'blk_p1_a');
 const aP = content.assets?.actors?.['pintora'];
 const aR = content.assets?.actors?.['repartidor'];
 check('assets: pintora declarada con clip paint → pintar_mural', !!aP && aP.model === 'actors/pintora.gltf' && aP.activityAnimations?.pintar_mural === 'paint');
@@ -113,7 +113,7 @@ check('gran día activa a las 19:15 con hype 50', grandia2?.state === 'active', 
 check('roles del gran día resuelven ($role.presidente / $role.musico)', grandia2?.roles['presidente'] === 'res_presidente_01' && grandia2?.roles['musico'] === 'res_musico_01');
 applyEffects(w1, content, content.missions['m_festival_grandia']!.choices?.[0]!.effects ?? [], { roles: grandia2?.roles ?? {} });
 const ray = w1.residents['res_repartidor_01']!;
-check('elección brindis muda a Ray al 5A', ray.present && ray.home === 'blk_p5_a' && w1.blocks['blk_p5_a']!.occupancy === 'occupied');
+check('elección brindis muda a Ray al 1A (v1.27)', ray.present && ray.home === 'blk_p1_a' && w1.blocks['blk_p1_a']!.occupancy === 'occupied');
 
 console.log(fails === 0 ? '\nQA CONTENIDO F v1.1 OK' : `\nQA CONTENIDO F v1.1: ${fails} FALLOS`);
 process.exit(fails === 0 ? 0 : 1);

@@ -70,19 +70,30 @@ export function stairPathPoints(view: Rules['view'], sx: number, y0: number, y1:
   const asc: StairPoint[] = [
     { x: sx, y: lo, z: zF },
     { x: x0, y: lo, z: zF },
-    { x: x0 + g.flightRun / 3, y: lo + (7 * step) / 3, z: zF },
-    { x: x0 + (g.flightRun * 2) / 3, y: lo + (14 * step) / 3, z: zF },
-    { x: x1, y: lo + 7 * step, z: zF },
-    { x: xL, y: lo + 8 * step, z: zF },
-    { x: xL, y: lo + 8 * step, z: zB },
-    { x: x1, y: lo + 8 * step, z: zB },
-    { x: x1 - g.flightRun / 3, y: lo + 8 * step + (7 * step) / 3, z: zB },
-    { x: x0 + g.flightRun / 3, y: lo + 8 * step + (14 * step) / 3, z: zB },
-    { x: x0, y: lo + 15 * step, z: zB },
+  ];
+  // Tramo A peldaño a peldaño (v1.19): con solo 3 puntos por tramo la interpolación lineal
+  // cortaba las esquinas y el actor PATINABA sobre los peldaños del modelo. Un punto por
+  // peldaño mantiene los pies sobre el canto real de cada escalón (7 peldaños por tramo).
+  const runA = g.flightRun / g.stepCount;
+  for (let i = 1; i <= g.stepCount - 1; i++) {
+    asc.push({ x: x0 + i * runA, y: lo + i * step, z: zF });
+  }
+  // Descansillo (el 8.º peldaño es el propio forjado): subir a su canto hasta la X del giro,
+  // cruzar de carril frontal a trasero y volver a la X donde arranca el tramo B.
+  asc.push(
+    { x: xL, y: lo + g.stepCount * step, z: zF },
+    { x: xL, y: lo + g.stepCount * step, z: zB },
+    { x: x1, y: lo + g.stepCount * step, z: zB },
+  );
+  // Tramo B peldaño a peldaño (dirección contraria, carril trasero).
+  for (let i = 1; i <= g.stepCount - 1; i++) {
+    asc.push({ x: x1 - i * runA, y: lo + (g.stepCount + i) * step, z: zB });
+  }
+  asc.push(
     { x: sx, y: hi, z: zB },
     { x: sx, y: hi, z: zF },
     { x: sx, y: hi, z: view.corridorZ },
-  ];
+  );
   const ascending = y1 >= y0;
   return ascending ? asc : asc.slice().reverse();
 }

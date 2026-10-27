@@ -10,7 +10,6 @@ import { useT } from '@/game/client/i18n';
 import { AchievementsPanel } from './AchievementsPanel';
 import { EventLog } from './EventLog';
 import { HelpCard } from './HelpCard';
-import { InteriorEditorPanel } from './InteriorEditorPanel';
 import { MissionsPanel } from './MissionsPanel';
 import { ObjectiveCard } from './ObjectiveCard';
 import { ParamsPanel } from './ParamsPanel';
@@ -73,8 +72,11 @@ export function InfoDock() {
             <ParamsPanel />
             <EventLog />
           </TabsContent>
-          <TabsContent value="casa">
-            <InteriorEditorPanel />
+          <TabsContent value="casa" className="flex flex-col gap-3">
+            <p className="flex items-start gap-2 rounded-md border border-dashed bg-muted/30 p-3 text-xs leading-relaxed text-muted-foreground">
+              <span aria-hidden="true">🏠</span>
+              {t('casa.retired')}
+            </p>
           </TabsContent>
           <TabsContent value="logros">
             <AchievementsPanel />

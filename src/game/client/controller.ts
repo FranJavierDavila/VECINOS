@@ -5,7 +5,9 @@ import type { AchievementDef, Command, Content, CutsceneDef, GameEvent, Input, M
 import type { CommandResult } from '@/game/sim';
 import { blockLabel } from '@/game/core/types';
 import { loadContent } from '@/game/content';
+import { layoutGeometryOf, roomAt } from '@/game/interior';
 import { evaluateAchievements, type AchievementSnapshot } from '@/game/support/achievements';
+import { syncCampaign } from '@/game/support/campaign';
 import { activeObjective, applyEffects, buildCirculation, createWorld, dispatch, drainEvents, migrateRooms, tick, travelMinutes, visibleParams } from '@/game/sim';
 import { PlayerLogic } from '@/game/player-logic';
 import { createEngine } from './engine';
@@ -14,6 +16,13 @@ import { createActors } from './actors';
 import { createElevators, type ElevatorsDirector } from './elevator';
 import { createBubbles, type BubblesDirector } from './bubbles';
 import { createEcosystem, type EcosystemDirector } from './ecosystem';
+import { createBackdrop, type BackdropDirector } from './backdrop';
+import { createExterior, type ExteriorDirector } from './exterior';
+import { createChats, type ChatsDirector } from './chats';
+import { createTraffic, type TrafficDirector } from './traffic';
+import { createPedestrians, type PedestriansDirector } from './pedestrians';
+import { createStreetlife, type StreetlifeDirector } from './streetlife';
+import { createVoices, type VoicesDirector } from './voices';
 import { CameraRig, type CamMode } from './camera';
 import { CutscenePlayer, type CutsceneEventCtx } from './cutscene';
 import { B } from './babylon';
@@ -47,6 +56,18 @@ class GameController {
   private bubbles: BubblesDirector | null = null;
   private ecosystem: EcosystemDirector | null = null;
   private rig: CameraRig | null = null;
+  /** Fondo urbano + calle (v1.20): cielo dinámico, parallax y decorado exterior. */
+  private backdrop: BackdropDirector | null = null;
+  private exterior: ExteriorDirector | null = null;
+  /** Charlas de cruce (v1.20): vecinos que se cruzan y comentan la vida. */
+  private chats: ChatsDirector | null = null;
+  /** La calle vive (v1.22): tráfico, viandantes, manifestaciones y voces de proximidad. */
+  private traffic: TrafficDirector | null = null;
+  private pedestrians: PedestriansDirector | null = null;
+  private streetlife: StreetlifeDirector | null = null;
+  private voices: VoicesDirector | null = null;
+  /** Bloom/glow de las luces (v1.28): halo realista sobre materiales emisivos (catálogo). */
+  private glowLayer: { dispose(): void } | null = null;
 
   private get content(): Content {
     if (!this._content) throw new Error('El catálogo de contenido todavía no se ha cargado');
@@ -66,6 +87,8 @@ class GameController {
   // ── Logros tipo Steam (v1.17): perfil del navegador + cadencia de evaluación ──
   private unlockedAchievements = new Set<string>(loadUnlocked());
   private achAcc = 0;
+  /** Tick de la última junta convocada desde el tablón (cooldown del catálogo). */
+  private lastConvocaTick = -Infinity;
 
   private phoneMission = '';
   private phoneLines: { speaker: string; text: string }[] = [];
@@ -127,8 +150,22 @@ class GameController {
     this.net = null;
     this.bubbles?.dispose();
     this.bubbles = null;
+    this.chats?.dispose();
+    this.chats = null;
+    this.voices?.dispose();
+    this.voices = null;
+    this.streetlife?.dispose();
+    this.streetlife = null;
+    this.pedestrians?.dispose();
+    this.pedestrians = null;
+    this.traffic?.dispose();
+    this.traffic = null;
     this.ecosystem?.dispose();
     this.ecosystem = null;
+    this.backdrop?.dispose();
+    this.backdrop = null;
+    this.exterior?.dispose();
+    this.exterior = null;
     this.engine?.stopRenderLoop(this.frame);
     this.scene?.dispose();
     this.engine?.dispose();
@@ -150,6 +187,11 @@ class GameController {
     if (selectModalOpen(store)) return; // los modales gestionan sus propias teclas
     if (code === 'KeyE') {
       this.interact();
+      return;
+    }
+    if (code === 'KeyJ') {
+      // Presidencia (v1.18): J junto al tablón convoca una junta con la agenda del catálogo.
+      if (this.logic?.interactTarget()?.kind === 'noticeboard') this.convocaJunta();
       return;
     }
     const cam = CAM_BY_KEY[code];
@@ -250,6 +292,24 @@ class GameController {
       }
     }
     const r = this.logic.interact();
+    // v1.26: el bloqueo en seco (norma de vivienda vacía / candado) AVISA con un bocadillo —
+    // antes la E moría en silencio y parecía un botón roto.
+    if (r.type === 'locked') {
+      const s = useGameStore.getState();
+      s.pushToast(translate(s.lang, r.reason === 'vacant' ? 'door.vacant' : 'door.lockedGeneric'), 'info');
+    }
+    if (r.type === 'rearEnter') {
+      // Apilamiento 3D (v1.19): el swap lo ejecuta building.update por fases; aquí solo
+      // encuadra la cámara dentro del bloque trasero.
+      this.setCamMode('estancia');
+      this.pump();
+      return;
+    }
+    if (r.type === 'rearExit') {
+      this.setCamMode('planta');
+      this.pump();
+      return;
+    }
     if (r.type === 'entered') this.setCamMode('estancia');
     else if (r.type === 'exited') this.setCamMode('planta');
     else if (r.type === 'used') this.presentInteraction(r.kind);
@@ -291,13 +351,93 @@ class GameController {
     } else if (kind === 'noticeboard') {
       const elevatorBlock = Object.values(this.world.blocks).find((b) => b.params.elevator_status !== undefined);
       const status = String(elevatorBlock?.params.elevator_status ?? 'ok');
-      const text = ic.noticeboard.template
+      let text = ic.noticeboard.template
         .replace('{day}', String(this.world.clock.day))
         .replace('{funds}', String(this.world.community.funds))
         .replace('{elevator}', this.content.rules.labels.elevator[status] ?? status)
         .replace('{weather}', this.content.rules.labels.weather[this.world.weather.state] ?? this.world.weather.state);
+      // Presidencia (v1.18): con el mandato activo, el tablón también convoca.
+      const cfg = this.content.rules.sim.campaign;
+      if (cfg && useGameStore.getState().campaign?.active) text += `\n🗳️ [J] Convocar junta de vecinos (${cfg.presidentLabel.toLowerCase()})`;
       useGameStore.getState().pushToast(text, 'info');
     }
+  }
+
+  /**
+   * Junta extraordinaria convocada por la presidencia desde el tablón (v1.18): la agenda
+   * sale del catálogo (rules.sim.campaign.presetAgenda) y la votación la resuelve el sim
+   * (mismo flujo que las juntas de misión). Cooldown del catálogo; solo con mandato activo.
+   */
+  private convocaJunta(): void {
+    const world = this.world;
+    const cfg = this.content.rules.sim.campaign;
+    if (!world || !cfg || world.junta) return;
+    if (!useGameStore.getState().campaign?.active) {
+      useGameStore.getState().pushToast('Solo la presidencia convoca juntas. De momento, eres un vecino más (con suerte).', 'info');
+      return;
+    }
+    if (world.tick - this.lastConvocaTick < cfg.convocationCooldownMinutes) {
+      const left = Math.ceil(cfg.convocationCooldownMinutes - (world.tick - this.lastConvocaTick));
+      useGameStore.getState().pushToast(`Juana dice que la última junta fue hace poco. Próxima disponible en ${left} min. La democracia necesita descansos.`, 'info');
+      return;
+    }
+    this.lastConvocaTick = world.tick;
+    world.junta = { agenda: cfg.presetAgenda.map((i) => ({ ...i })), votes: {}, playerVoted: false };
+    useGameStore.getState().setJunta(cfg.presetAgenda.map((i) => ({ id: i.id, title: i.title, description: i.description, cost: i.cost })));
+    useGameStore.getState().pushLog('🗳️ Junta extraordinaria convocada desde el tablón. Los vecinos, en camino.', 'info');
+    this.marchJunta(); // v1.30: igual que las juntas de misión, la sala recibe a los asistentes
+  }
+
+  /**
+   * v1.30 — ASISTENCIA A LA JUNTA (teatro de presentación): convocada una junta, TODOS los
+   * vecinos presentes en el edificio entran en la sala de juntas y se SIENTAN en sus sillas
+   * (el local se abre y se ilumina mientras dura la sesión). El sim no cambia: es el mismo
+   * teatro del director de cutscenes — al cerrarse la junta, dismissJunta() los suelta.
+   * También acoge fiestas: el local queda como punto de encuentro de la comunidad.
+   */
+  private juntaAttendees: string[] = [];
+  private marchJunta(): void {
+    const world = this.world;
+    if (!world || !this.actors || !this.building) return;
+    const hall = this.building.juntaHallInfo();
+    if (!hall || hall.seats.length === 0) return;
+    this.dismissJunta();
+    this.building.setJuntaHall(hall.id);
+    const attendees: string[] = [];
+    for (const r of Object.values(world.residents)) {
+      if (!r.present || r.location === null) continue;
+      if (r.id === world.playerId) continue; // el jugador camina solo (es humano)
+      attendees.push(r.id);
+    }
+    // Reparto de asientos determinista por orden de id (los que sobran, de pie detrás).
+    attendees.sort((a, z) => (a < z ? -1 : 1));
+    attendees.forEach((id, i) => {
+      const seated = i < hall.seats.length;
+      const seat = hall.seats[seated ? i : i % hall.seats.length]!;
+      if (!this.actors!.director.take(id)) return;
+      const ok = this.actors!.director.walkTo(id, {
+        x: seat.x,
+        z: seat.z,
+        floor: 0,
+        inside: { block: hall.id, local: { x: seat.x - (world.blocks[hall.id]!.cell.col * (this.content!.rules.view.cellW)), z: seat.z - (this.content!.rules.view.roomZ - this.content!.rules.view.commonDepth / 2) } },
+      });
+      if (!ok) {
+        this.actors!.director.release(id);
+        return;
+      }
+      if (seated) this.actors!.director.seatWhenIdle(id, seat); // los que sobran, de pie detrás
+    });
+    this.juntaAttendees = attendees;
+    if (attendees.length > 0) {
+      useGameStore.getState().pushLog(`🗳️ ${attendees.length} vecinos entran en la sala de juntas y toman asiento.`, 'info');
+    }
+  }
+
+  /** v1.30 — fin de la junta (o cancelación): la sala se vacía y la IA recupera a cada vecino. */
+  private dismissJunta(): void {
+    this.building?.setJuntaHall(null);
+    for (const id of this.juntaAttendees) this.actors?.director.release(id);
+    this.juntaAttendees = [];
   }
 
   /** Editor: desplazarse a una vivienda del jugador (queda delante de su puerta). */
@@ -597,7 +737,7 @@ class GameController {
     // Ninguna cutscene sobrevive a un cambio de mundo: cola fuera y teatro desmontado.
     this.cutsceneQueue = [];
     this.cutscenePlayer?.abort();
-    const { Color4, DirectionalLight, HemisphericLight, Scene, UniversalCamera, Vector3 } = B();
+    const { Color3, Color4, DirectionalLight, HemisphericLight, Scene, UniversalCamera, Vector3 } = B();
     const view = this.content.rules.view;
     useGameStore.getState().resetUi();
 
@@ -617,12 +757,56 @@ class GameController {
     this.scene?.dispose();
     this.scene = new Scene(this.engine);
     this.scene.clearColor = new Color4(view.sky.r, view.sky.g, view.sky.b, 1);
-    new HemisphericLight('ambient', new Vector3(...view.ambient.dir), this.scene).intensity = view.ambient.intensity;
-    new DirectionalLight('sun', new Vector3(...view.sun.dir), this.scene).intensity = view.sun.intensity;
+    // Pase de calidad FPS (v1.22): el puntero no necesita picking por movimiento (la
+    // interacción va por zonas/teclado) y los materiales congelables del decorado lo
+    // hacen en exterior.ts. Cero impacto visual, menos trabajo por frame.
+    this.scene.skipPointerMovePicking = true;
+    const hemi = new HemisphericLight('ambient', new Vector3(...view.ambient.dir), this.scene);
+    hemi.intensity = view.ambient.intensity;
+    // v1.29 — LUZ DE REBOTEO (catálogo): el groundColor de la hemisférica levanta las caras
+    // que miran ABAJO (techos de los interiores, forjados) — antes negro puro, ahora un
+    // gris cálido que se lee como techo en sombra. Data-driven (view.ambient.ground).
+    if (view.ambient.ground) hemi.groundColor = Color3.FromHexString(view.ambient.ground);
+    const dirLight = new DirectionalLight('sun', new Vector3(...view.sun.dir), this.scene);
+    dirLight.intensity = view.sun.intensity;
 
     this.building = createBuilding(this.scene, this.world, this.content);
+    // v1.21: los rects de obstáculos del interior del trastero (estanterías/trastos que pinta
+    // building) alimentan la colisión del movimiento libre dentro de la celda — UNA verdad.
+    this.logic.setCellObstacles(this.building.cellObstacles());
     this.elevators = createElevators(this.scene, this.world, this.content);
     this.actors = createActors(this.scene, this.world, this.content, this.elevators);
+    // Fondo urbano (v1.20): cielo dinámico por hora + fachadas parallax; la luz del catálogo
+    // evoluciona con el sol (el edificio vive la misma hora que el cielo).
+    this.backdrop?.dispose();
+    this.backdrop = createBackdrop(this.scene, this.world, this.content, { hemi, dir: dirLight });
+    // V1.28 — BLOOM/GLOW (catálogo): los emisivos (apliques de puerta, farolas, ventanas
+    // nocturnas del fondo, pantallitas del ascensor, luz del cubo) ganan halo suave. Una
+    // capa GlowLayer por escena; intensidad y kernel del catálogo (rules.view.glow).
+    const glowCfg = this.content.rules.view.glow;
+    this.glowLayer?.dispose();
+    this.glowLayer = null;
+    if (glowCfg?.enabled) {
+      const { GlowLayer } = B();
+      const gl = new GlowLayer('luz_bloom', this.scene, { blurKernelSize: glowCfg.blurKernelSize ?? 32 });
+      gl.intensity = glowCfg.intensity ?? 0.7;
+      // v1.29 — GLOW SUTIL EN LOS INTERIORES: el vecino pidió que la luz simulada de las
+      // viviendas (diorama + suelos + lámparas de techo) sea autoiluminada SIN casi halo —
+      // «demasiado exagerado». El building entrega sus mallas interiores y la capa las
+      // excluye; apliques, farolas, pantallitas y ventanas nocturnas conservan su bloom.
+      for (const mesh of this.building.glowExcluded()) gl.addExcludedMesh(mesh);
+      this.glowLayer = gl;
+    }
+    // Calle (v1.20): aceras, carretera y jardines con sus props; las farolas leen la luz
+    // de día del fondo para encenderse al anochecer.
+    this.exterior?.dispose();
+    this.exterior = createExterior(this.scene, this.world, this.content, this.backdrop);
+    // La calle vive (v1.22): tráfico y viandantes — solo presentación, solo vista "edificio".
+    // (Las manifestaciones se crean más abajo, tras los bocadillos, para poder comentarlas.)
+    this.traffic?.dispose();
+    this.traffic = createTraffic(this.scene, this.world, this.content);
+    this.pedestrians?.dispose();
+    this.pedestrians = createPedestrians(this.scene, this.world, this.content);
     // Ecosistema del edificio (v1.14): cerebro data-driven + teatro de extras. Se recrea con
     // cada mundo (referencia al World vivo) y sigue la posición del jugador para las luces.
     this.ecosystem?.dispose();
@@ -630,18 +814,41 @@ class GameController {
     // Sonda de QA (SOLO dev): escena y controlador accesibles para el E2E automatizado.
     // En producción no se expone nada (la partida queda encapsulada igual que siempre).
     if (process.env.NODE_ENV !== 'production') {
-      (window as unknown as { __vecinosQA?: { scene: unknown; controller: unknown; elevators: unknown; ecosystem: unknown } }).__vecinosQA = {
+      (window as unknown as { __vecinosQA?: { scene: unknown; controller: unknown; elevators: unknown; ecosystem: unknown; toast: (t: string, tone?: 'info' | 'good' | 'bad') => void } }).__vecinosQA = {
         scene: this.scene,
         controller: this,
         elevators: this.elevators,
         ecosystem: this.ecosystem,
+        toast: (t, tone) => useGameStore.getState().pushToast(t, tone), // v1.29: QA de los post-its
       };
     }
+    // Sonda E2E de la calle y las charlas (v1.20, SOLO dev): acceso indirecto a los directores.
+    (window as unknown as { __vecinos20?: unknown }).__vecinos20 = {
+      chats: () => this.chats,
+      exterior: () => this.exterior,
+      backdrop: () => this.backdrop,
+    };
+    // Sonda E2E de la calle viva (v1.22, SOLO dev).
+    (window as unknown as { __vecinos22?: unknown }).__vecinos22 = {
+      traffic: () => this.traffic,
+      pedestrians: () => this.pedestrians,
+      streetlife: () => this.streetlife,
+      voices: () => this.voices,
+    };
     // Bocadillos de expresión (v1.10): capa DOM sobre el canvas, recreada con el mundo
     // (referencia al World vivo). Sin emotes.json en el catálogo, director nulo sin capa.
     this.bubbles?.dispose();
     const stage = this.canvas?.parentElement;
     this.bubbles = stage && this.actors ? createBubbles(stage, this.scene, this.engine, this.world, this.content, this.actors.director) : null;
+    // Charlas de cruce (v1.20): después de actores y bocadillos — son sus dos clientes.
+    this.chats?.dispose();
+    this.chats = createChats(this.world, this.content, this.actors!.director, this.bubbles);
+    // Voces de proximidad (v1.22): después de actores y bocadillos — son sus clientes.
+    this.voices?.dispose();
+    this.voices = createVoices(this.world, this.content, this.actors!.director, this.bubbles);
+    // streetlife necesita los bocadillos para los comentarios: reconstrúyelo con ellos.
+    this.streetlife?.dispose();
+    this.streetlife = createStreetlife(this.scene, this.world, this.content, this.actors?.director ?? null, this.bubbles);
     const blocks = Object.values(this.world.blocks);
     // El cubo de escalera (v1.4) sobresale spanW−1 celdas por la derecha del edificio:
     // el encuadre lo incluye para que la torre no se corte en cámara.
@@ -655,6 +862,9 @@ class GameController {
       view.cellW,
       view.cellH,
     );
+    // v1.20: plano frontal y calado del bloque principal — la cámara encuadra los bloques
+    // traseros (apilamiento 3D) a la misma distancia que una estancia exterior.
+    this.rig.metric = { frontZ: view.roomZ - view.commonDepth / 2, depth: view.depth };
     // Re-sincronización de vista (v0.6-b): la cámara sigue la posición del mundo (restaurado o
     // nuevo), no la preferencia anterior. Dentro de una vivienda → estancia; en pasillo, la
     // preferencia salvo que fuera 'estancia' (ahí estás en el pasillo, no en una estancia).
@@ -684,6 +894,8 @@ class GameController {
     this.pump();
     // Logros (v1.17): primera foto del catálogo para el panel (y desbloqueos de la partida restaurada).
     this.syncAchievements();
+    // Campaña (v1.18): primer estado del mandato (sobrevive a Cargar vía localStorage).
+    syncCampaign(this.world!, this.content);
   }
 
   private onResize = (): void => {
@@ -765,10 +977,34 @@ class GameController {
     if (this.achAcc >= 2) {
       this.achAcc = 0;
       this.syncAchievements();
+      // Campaña (v1.18): el día de mandato avanza con el reloj — misma cadencia.
+      syncCampaign(this.world!, this.content);
     }
 
     const pos = this.logic.position();
     this.actors.update(dt, pos, this.actorId());
+    // Fondo urbano (v1.20): el cielo, el sol y las nubes siguen la hora del sim; las farolas
+    // de la calle leen la luz de día resultante. Los modales no paran el ambiente (solo el reloj).
+    this.backdrop?.update(dt);
+    this.exterior?.update(dt);
+    // v1.21/v1.22: el MOBILIARIO de la calle, los vehículos, los viandantes y las
+    // manifestaciones viven en las vistas "edificio" y "planta" (v1.23: la planta baja
+    // ve pasar la acera en el encuadre — no perderse la vidilla de la calle); en
+    // estancia se apagan (menos carga, y no estorban la vista de la estancia).
+    const streetView = store.camMode === 'edificio' || store.camMode === 'planta';
+    this.exterior?.setPropsVisible(streetView);
+    this.traffic?.setVisible(streetView);
+    this.pedestrians?.setVisible(streetView);
+    this.streetlife?.setVisible(streetView);
+    if (streetView) {
+      this.traffic?.update(dt);
+      this.pedestrians?.update(dt);
+      this.streetlife?.update(dt);
+    }
+    // Charlas de cruce (v1.20): en multijugador quedan en pausa (mismo criterio que el ecosistema).
+    if (!this.net) this.chats?.update(dt);
+    // Voces de proximidad (v1.22): se oyen en cualquier vista (pasillos incluidos).
+    if (!this.net) this.voices?.update(dt);
     // Cutscene (Fase D): sus beats mueven cámara/actores DESPUÉS de los eventos y ANTES del render.
     this.cutscenePlayer?.update(dt);
     // Bocadillos (v1.10): después de actores y cámara — proyectan la posición FINAL del frame.
@@ -782,10 +1018,79 @@ class GameController {
     // LOD por distancia: solo con cámaras cercanas (planta/estancia); el plano general (edificio) muestra todo.
     // Privacidad (v1.17): el tercer argumento es el bloque donde está el jugador — las fachadas
     // de las viviendas reaccionan al instante cuando entra o sale.
-    this.building.update(dt, useGameStore.getState().camMode === 'edificio' ? undefined : { x: pos.x, floor: pos.floor }, pos.insideBlock);
+    // v1.19: el cuarto argumento alimenta carteles guía de trasteros y el apilamiento 3D.
+    this.syncRear(pos);
+    // v1.24: posiciones de todos los vecinos en escena — abren las puertas de escalera al
+    // acercarse y encienden su iluminación compartida de noche al moverse por los cubos.
+    const movers: { x: number; y: number; z: number }[] = [{ x: pos.x, y: pos.floor * (this.content?.rules.view.cellH ?? 2.6), z: pos.z }];
+    if (this.world && this.actors) {
+      for (const r of Object.values(this.world.residents)) {
+        if (!r.present || r.location === null) continue;
+        const p = this.actors.director?.nodeOf(r.id);
+        if (p) movers.push(p);
+      }
+    }
+    // v1.26: los EXTRAS del ecosistema (repartidor a puerta…) también abren las puertas de
+    // escalera y encienden la luz compartida del cubo — nadie más llega a puertas cerradas.
+    if (this.ecosystem) movers.push(...this.ecosystem.extraPositions());
+    // v1.30 — los VIANDANTES también cuentan: el portal abre sus correderas cuando un
+    // visitante se acerca a entrar (y el cubo de escalera los ve pasar, como siempre).
+    for (const p of this.pedestrians?.positions() ?? []) movers.push({ x: p.x, y: 0, z: p.z });
+    this.building.update(
+      dt,
+      useGameStore.getState().camMode === 'edificio' ? undefined : { x: pos.x, floor: pos.floor },
+      pos.insideBlock,
+      { x: pos.x, z: pos.z, insideBlock: pos.insideBlock },
+      // v1.21: luz de día del fondo → luces nocturnas de interiores (encendidas solo con
+      // gente despierta dentro) y pasillos a oscuras de noche salvo presencia + instalación OK.
+      // v1.24: movers → puertas de escalera + su luz compartida nocturna.
+      { daylight: this.backdrop ? this.backdrop.daylight : 1, movers },
+    );
     this.rig.update(dt, pos);
     this.scene.render();
   };
+
+  /**
+   * Apilamiento 3D (v1.19): cada frame decide la fase del bloque trasero activo (y apaga el
+   * resto). Trastero propio: E manda ('inside' mientras rearCell). Cuarto trasero de la
+   * vivienda: asoma al acercarte a la puerta del fondo ('peek') y se activa al cruzar ('inside').
+   */
+  private syncRear(pos: ReturnType<PlayerLogic['position']>): void {
+    if (!this.building || !this.world || !this.logic) return;
+    let activeId: string | null = null;
+    let phase: 'idle' | 'peek' | 'inside' = 'idle';
+    if (this.logic.rearCell) {
+      activeId = this.logic.rearCell.block;
+      phase = 'inside';
+    } else if (pos.mode === 'inside' && pos.insideBlock) {
+      const b = this.world.blocks[pos.insideBlock];
+      if (b && b.kind === 'dwelling') {
+        const geo = layoutGeometryOf(this.content, b);
+        const depth = this.content.rules.view.depth;
+        const rear = geo?.rooms.find((r) => r.rect.z + r.rect.d > depth + 0.01);
+        if (geo && rear) {
+          const localX = pos.x - b.cell.col * this.content.rules.view.cellW;
+          const room = roomAt(geo, localX, pos.z);
+          const rearDoor = geo.doorways.find((d) => d.axis === 'x' && d.b === rear.key);
+          const near =
+            rearDoor &&
+            pos.z > depth - this.content.rules.view.rearBlock.peekDistance &&
+            Math.abs(localX - rearDoor.at) < rearDoor.width / 2 + 0.3;
+          if (room.key === rear.key) {
+            activeId = b.id;
+            phase = 'inside';
+          } else if (near) {
+            activeId = b.id;
+            phase = 'peek';
+          }
+        }
+      }
+    }
+    for (const b of Object.values(this.world.blocks)) {
+      if (!this.building.hasRear(b.id)) continue;
+      this.building.setRearPhase(b.id, b.id === activeId ? phase : 'idle');
+    }
+  }
 
   /** Bomba de sincronización: reparte eventos pendientes y refresca el HUD. */
   private pump(): void {
@@ -847,9 +1152,12 @@ class GameController {
           store.pushLog(`📋 Nueva misión: ${String(d.title)}`, 'info');
           break;
         case 'mission_completed':
-          store.pushToast(`Misión completada: ${this.titleOf(d.mission)}`, 'good');
+          // v1.30 — post-it de CELEBRACIÓN: se pliega como origami y suelta estrellitas que
+          // caen al suelo (ToastStack) — sobre la fanfarria, como pidió el vecino.
+          store.pushToast(`Misión completada: ${this.titleOf(d.mission)}`, 'good', { celebrate: true });
           store.pushLog(`✔ Misión completada: ${this.titleOf(d.mission)}`, 'good');
           this.syncAchievements(); // una misión caída puede cerrar varios logros a la vez
+          syncCampaign(this.world!, this.content); // la misión del cargo activa el chip de presidencia
           break;
         case 'mission_failed':
           store.pushToast(`Misión fallida: ${this.titleOf(d.mission)}`, 'bad');
@@ -902,6 +1210,7 @@ class GameController {
           const agenda = (d.agenda as { id: string; title: string; description: string; cost: number }[] | undefined) ?? [];
           store.setJunta(agenda.map((i) => ({ id: i.id, title: i.title, description: i.description, cost: i.cost })));
           this.actors?.director.setGesture(this.actorId(), 'talk'); // defensa del orden del día
+          this.marchJunta(); // v1.30: los presentes entran en la sala de juntas y se sientan
           break;
         }
         case 'junta_result':
@@ -915,6 +1224,7 @@ class GameController {
           break;
         case 'junta_closed':
           store.setJunta(null);
+          this.dismissJunta(); // v1.30: la sala se vacía, la IA retoma a los vecinos
           break;
         case 'stairs_grumble':
           // Malestar vecinal (v1.5): texto del catálogo con el nombre del vecino que sube a pie.
@@ -1086,6 +1396,10 @@ class GameController {
           return ic.laptop;
         case 'bed':
           return ic.bed;
+        case 'storageCell':
+          return ic.storageEnter;
+        case 'rearExit':
+          return ic.rearExit;
       }
     }
     const zone = logic.zone();
@@ -1260,6 +1574,49 @@ export function createGameController(canvas: HTMLCanvasElement): GameController 
     instance = new GameController();
     setController(instance); // la UI lo usa desde ya; sus acciones toleran mundo nulo
     void instance.init(canvas);
+    // Gancho de depuración/E2E (solo lectura + teleport QoL de pruebas).
+    const dbg = instance as unknown as { logic?: PlayerLogic; world?: World } | null;
+    (globalThis as Record<string, unknown>).__vecinosDebug = () => ({
+      player: dbg?.logic
+        ? {
+            x: +dbg.logic.x.toFixed(2),
+            z: +dbg.logic.z.toFixed(2),
+            floor: dbg.logic.floor,
+            mode: dbg.logic.mode,
+            insideBlock: dbg.logic.insideBlock,
+            climbing: !!dbg.logic.position().climbing,
+          }
+        : null,
+      clock: dbg?.world ? { ...dbg.world.clock } : null,
+      camMode: useGameStore.getState().camMode,
+      paused: useGameStore.getState().paused,
+      simLocation: dbg?.world?.residents[dbg.world.playerId]?.location ?? null,
+      missions: dbg?.world?.missions.map((m) => `${m.id}:${m.state}${m.state === 'active' ? `#${m.step}` : ''}`) ?? [],
+      /** QoL de pruebas E2E: colocar al jugador ante la puerta de un bloque (recorrido legal del grafo). */
+      tp: (blockId: string) => !!dbg?.logic?.teleportTo(blockId),
+      /** QoL de pruebas E2E: comando del sim directo (diagnóstico de pasos). */
+      cmd: (c: unknown) => {
+        const w = dbg?.world;
+        const ct = (dbg as unknown as { _content?: Content } | null)?._content;
+        return w && ct ? JSON.stringify(dispatch(w, ct, c as Command)) : 'no-world';
+      },
+      /** QoL de pruebas E2E (pestaña en segundo plano: rAF suspendido): avanza n ticks del sim. */
+      tickN: (n: number) => {
+        const w = dbg?.world;
+        const ct = (dbg as unknown as { _content?: Content } | null)?._content;
+        if (!w || !ct) return 'no-world';
+        for (let i = 0; i < n; i++) tick(w, ct);
+        (dbg as unknown as { handleEvents?: () => void }).handleEvents?.();
+        return JSON.stringify({ ...w.clock });
+      },
+      /** QoL de pruebas E2E: coloca la X del jugador (presentación) para apuntar interacciones fijas. */
+      setX: (x: number) => {
+        const lg = dbg?.logic;
+        if (!lg) return 'no-logic';
+        lg.x = x;
+        return JSON.stringify({ x: lg.x });
+      },
+    });
   }
   return instance;
 }

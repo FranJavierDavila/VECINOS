@@ -441,5 +441,61 @@
         "text": "Hable usted con él o prepárese para el parte oficial. Usted decide: la gente le saluda, aproveche el capital."
       }
     ]
+  },
+  {
+    "id": "dlg_juana_junta",
+    "lines": [
+      {
+        "speaker": "Juana Lebrato · Administración de Fincas",
+        "text": "¿Veintemil excusas? Eso es después. Juana Lebrato, administradora. Llega vecino nuevo, se convoca junta: es física de edificio."
+      },
+      {
+        "speaker": "Juana Lebrato · Administración de Fincas",
+        "text": "Esta tarde, en el portal. Presentaciones, algún guiño involuntario y una votación. De lo creativo de la votación se encarga la comisión. No pregunte."
+      },
+      {
+        "speaker": "Juana Lebrato · Administración de Fincas",
+        "text": "Baje al portal y léase el tablón. La junta es sagrada. Y eterna."
+      }
+    ]
+  },
+  {
+    "id": "dlg_juana_votacion",
+    "lines": [
+      {
+        "speaker": "Juana Lebrato · Administración de Fincas",
+        "text": "Ya está todo el mundo. Doña Espera ha traído bizcocho y el ex presidente, cara de pocos amigos."
+      },
+      {
+        "speaker": "Juana Lebrato · Administración de Fincas",
+        "text": "Primero las presentaciones. Luego la presidencia rotatoria: siete días de gloria. Relájese y sonría, que las urnas de esta comunidad tienen fama de... improvisadas."
+      }
+    ]
+  },
+  {
+    "id": "dlg_juana_derrama",
+    "lines": [
+      {
+        "speaker": "Juana Lebrato · Administración de Fincas",
+        "text": "Juana, de nuevo. Baje la voz: la tubería del 4B gotea en el 3B, y el fontanero cobra lo que pesa."
+      },
+      {
+        "speaker": "Juana Lebrato · Administración de Fincas",
+        "text": "Opciones, señoría: lo paga usted del bolsillo, lo votamos en junta (la derrama mola menos en persona), o miramos al techo con dignidad. Usted preside."
+      }
+    ]
+  },
+  {
+    "id": "dlg_juana_veredicto",
+    "lines": [
+      {
+        "speaker": "Juana Lebrato · Administración de Fincas",
+        "text": "Día siete. La junta se reúne para juzgar su gestión. Doña Espera ha traído bizcocho Y una libreta de apuntes. Mal asunto."
+      },
+      {
+        "speaker": "Juana Lebrato · Administración de Fincas",
+        "text": "Palabras finales, presidencia. Piense: la caja, las macetas, el ascensor... y su reputación, que en este portal vale la mitad de la plaza."
+      }
+    ]
   }
 ]

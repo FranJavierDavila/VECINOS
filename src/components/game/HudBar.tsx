@@ -1,31 +1,23 @@
 'use client';
 
+/**
+ * HUD bajo el lienzo (v1.23): campaña, reputación, estado del ascensor, vivienda y
+ * desplazamiento. El reloj/meteorología viven en la barra de post-its y el DINERO en el
+ * overlay del lienzo (MoneyOverlay) — duplicarlos aquí confundiría.
+ */
+
 import {
-  CloudLightning,
-  CloudRain,
-  CloudSun,
-  Clock,
+  Drama,
   Home,
-  Landmark,
   Star,
-  Sun,
-  Wallet,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { useGameStore } from '@/game/client/store';
-import type { Weather } from '@/game/core/types';
 import { cn } from '@/lib/utils';
 import { useT } from '@/game/client/i18n';
-
-const WEATHER_UI: Record<Weather, { icon: LucideIcon; key: string; className: string }> = {
-  sunny: { icon: Sun, key: 'weather.sunny', className: 'text-amber-500' },
-  cloudy: { icon: CloudSun, key: 'weather.cloudy', className: 'text-muted-foreground' },
-  rain: { icon: CloudRain, key: 'weather.rain', className: 'text-sky-600 dark:text-sky-400' },
-  storm: { icon: CloudLightning, key: 'weather.storm', className: 'text-amber-600 dark:text-amber-400' },
-};
 
 function Chip({
   icon: Icon,
@@ -51,39 +43,22 @@ function Chip({
 
 export function HudBar() {
   const t = useT();
-  const clock = useGameStore((s) => s.clock);
-  const weather = useGameStore((s) => s.weather);
-  const funds = useGameStore((s) => s.funds);
-  const wallet = useGameStore((s) => s.wallet);
   const reputation = useGameStore((s) => s.reputation);
   const elevator = useGameStore((s) => s.elevator);
   const homeLabel = useGameStore((s) => s.homeLabel);
   const travelText = useGameStore((s) => s.travelText);
-
-  const hh = String(Math.floor(clock.minute / 60)).padStart(2, '0');
-  const mm = String(clock.minute % 60).padStart(2, '0');
-  const w = WEATHER_UI[weather];
-  const WeatherIcon = w.icon;
-  const weatherLabel = t(w.key);
+  const campaign = useGameStore((s) => s.campaign);
 
   return (
     <Card className="gap-2 py-3">
       <CardContent className="flex flex-wrap items-center gap-2 px-3">
-        <Chip icon={Clock} label={t('hud.clockAria')}>
-          {t('hud.day', { d: clock.day })} · {hh}:{mm}
-        </Chip>
-
-        <Chip icon={WeatherIcon} iconClassName={w.className} label={t('hud.weatherAria', { w: weatherLabel })}>
-          {weatherLabel}
-        </Chip>
-
-        <Chip icon={Landmark} label={t('hud.fundsAria')}>
-          {funds} €
-        </Chip>
-
-        <Chip icon={Wallet} label={t('hud.walletAria')}>
-          {wallet} €
-        </Chip>
+        {campaign?.active && (
+          <Chip icon={Drama} iconClassName="text-amber-500" label={t('hud.campaignAria')}>
+            {campaign.over
+              ? t('hud.campaignOver', { label: campaign.label, d: Math.min(campaign.dayOfTerm, campaign.termDays), n: campaign.termDays })
+              : t('hud.campaign', { label: campaign.label, d: campaign.dayOfTerm, n: campaign.termDays })}
+          </Chip>
+        )}
 
         <Chip icon={Star} iconClassName="text-amber-500" label={t('hud.repAria')}>
           {reputation}

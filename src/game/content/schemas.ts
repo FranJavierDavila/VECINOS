@@ -20,6 +20,55 @@ export const paramDefSchema = z.object({
 
 const viewSchema = z.object({ color: z.string(), altColor: z.string().optional() });
 
+/**
+ * ── Bloques EXTERIORES (v1.20) ── decorado urbano a pie de calle (aceras, carreteras,
+ * jardines). Nunca se instancian en el mundo del sim: son catálogo puro y la colocación
+ * vive en rules.view.exterior.rows; la presentación levanta el cuerpo y sus props.
+ */
+export const exteriorBlockSchema = z.object({
+  /** Alto del cuerpo del bloque (m): acera 0.12, carretera 0.04, jardín 0.18… */
+  height: z.number().min(0).default(0.1),
+  /** Bordillo (v1.22): listón fino a lo largo de AMBOS bordes largos (empalme correcto
+   *  entre acera y calzada). Vacío = sin bordillo. */
+  curbColor: z.string().default(''),
+  curbW: z.number().min(0).default(0.16),
+  /** Paso de cebra (v1.22): franjas perpendiculares al eje largo (variantes de carretera). */
+  zebra: z.boolean().default(false),
+  zebraColor: z.string().default('#f2ead9'),
+  zebraStripeW: z.number().positive().default(0.5),
+  zebraGap: z.number().min(0).default(0.5),
+  /** Bancos (aceras): uno cada N metros (0 = sin bancos). */
+  benchEvery: z.number().min(0).default(0),
+  benchColor: z.string().default('#8a5a33'),
+  benchLegColor: z.string().default('#3b3129'),
+  /** Farolas: una cada N metros (0 = sin farolas). */
+  lampEvery: z.number().min(0).default(0),
+  lampColor: z.string().default('#3b3129'),
+  lampHeadColor: z.string().default('#ffd166'),
+  lampH: z.number().positive().default(3.4),
+  /** Papelera junto a cada banco (0 = ninguna). */
+  binEvery: z.number().min(0).default(0),
+  binColor: z.string().default('#5d6b7a'),
+  /** Carretera: línea discontinua al centro, tramo N metros (0 = sin marcas). */
+  laneDash: z.number().min(0).default(0),
+  laneDashColor: z.string().default('#f4e9d8'),
+  /** Vegetación (jardines): árboles y arbustos por cada 10 m de tira. */
+  treesPer10m: z.number().min(0).default(0),
+  bushesPer10m: z.number().min(0).default(0),
+  /** Dispersión 2D (v1.22): reparte la vegetación por TODO el rect de la fila en lugar
+   *  de a lo largo del eje; los topes limitan las mallas en jardines enormes. */
+  gridScatter: z.boolean().default(false),
+  maxTrees: z.number().int().min(0).optional(),
+  maxBushes: z.number().int().min(0).optional(),
+  flowerChance: z.number().min(0).max(1).default(0.35),
+  trunkColor: z.string().default('#6f4926'),
+  leafColors: z.array(z.string()).default(['#5a9367', '#84a59d', '#708c5a']),
+  bushColors: z.array(z.string()).default(['#5a9367', '#6f9b72', '#8fb573']),
+  flowerColors: z.array(z.string()).default(['#e07a5f', '#ffd166', '#f2cc8f', '#e56b6f']),
+  /** Césped del jardín (tapa del cuerpo). */
+  grassColor: z.string().default('#7fa05f'),
+});
+
 export const blockDefSchema = z.object({
   id: z.string(),
   kind: z.enum(['common', 'dwelling', 'commercial', 'infrastructure']),
@@ -36,11 +85,16 @@ export const blockDefSchema = z.object({
       mailboxes: z.boolean().optional(),
       noticeboard: z.boolean().optional(),
       bench: z.boolean().optional(),
+      /** Pasillo interior de circulación (v1.18): el bloque se recorre ANDANDO por su
+       *  corredor central (trasteros por columna) — el jugador y los NPCs caminan por él. */
+      innerCorridor: z.boolean().optional(),
     })
     .optional(),
   params: z.record(z.string(), paramDefSchema).optional(),
   container: z.object({ childKind: z.string(), layout: z.string() }).optional(),
   view: viewSchema,
+  /** Props de bloque EXTERIOR (v1.20): solo aceras/carreteras/jardines del decorado. */
+  exterior: exteriorBlockSchema.optional(),
 });
 
 /**
@@ -487,6 +541,27 @@ export const rulesSchema = z.object({
       moodPenalty: z.number(),
       clamp: z.object({ min: z.number(), max: z.number() }),
     }),
+    /** Campaña de presidencia (v1.18, presentación/support): la misión que otorga el cargo,
+     *  la que cierra el mandato, su duración en días de juego y la agenda que el presidente
+     *  puede convocar desde el tablón. El sim NO la usa; el HUD y el tablón sí. */
+    campaign: z
+      .object({
+        termMission: z.string(),
+        endMission: z.string(),
+        termDays: z.number().int().min(1).default(7),
+        presidentLabel: z.string().default('Presidencia'),
+        convocationCooldownMinutes: z.number().int().min(0).default(360),
+        presetAgenda: z.array(
+          z.object({
+            id: z.string(),
+            title: z.string(),
+            description: z.string(),
+            cost: z.number(),
+            effects: z.array(z.custom<Effect>(() => true as const)),
+          }),
+        ),
+      })
+      .optional(),
     /** Malestar vecinal con el ascensor averiado (v1.5): subir por la escalera cuesta ánimo
      *  social y, de vez en cuando, un resoplido público (evento stairs_grumble, texto del catálogo). */
     elevator: z
@@ -541,6 +616,9 @@ export const rulesSchema = z.object({
     stairs: z
       .object({
         spanW: z.number().int().min(1).default(2),
+        /** v1.30 — el color del muro del cubo SIEMPRE del catálogo (el vecino pidió todas
+         *  las paredes del pasillo del mismo gris; el valor vive en view.locals.corridorWall
+         *  y aquí viaja como default del arte). */
         doorLocalX: z.number().default(-1.14),
         entryHalf: z.number().positive().default(0.45),
         laneFront: z.number().positive().default(0.35),
@@ -549,8 +627,123 @@ export const rulesSchema = z.object({
         landingX: z.number().positive().default(0.5),
         stepCount: z.number().int().min(4).default(8),
         climbSpeed: z.number().positive().default(1.8),
+        /** Forjado interior continuo del cubo (v1.18): losa a nivel de entrada que cubre la
+         *  huella del cubo en CADA planta — jamás se camina sobre un tramo sin suelo dentro
+         *  del bloque de escalera. La authoría glTF conserva su forjado de entrada; esta losa
+         *  (runtime) completa el resto hasta los muros. */
+        floorSlab: z
+          .object({
+            enabled: z.boolean().default(true),
+            thickness: z.number().positive().default(0.14),
+            color: z.string().default('#b8c0a8'),
+            topAt: z.number().min(0).default(0.14),
+          })
+          .default({ enabled: true, thickness: 0.14, color: '#b8c0a8', topAt: 0.14 }),
+        /** v1.24 — acceso a la escalera: muro frontal + hoja numerada con apertura automática. */
+        facade: z
+          .object({
+            enabled: z.boolean().default(true),
+            halfW: z.number().positive().default(1.2),
+            /** v1.26: muro frontal del CUBO COMPLETO (sin laterales abiertos por donde se
+             *  veían barandillas y peldaños "a través de la pared"). */
+            fullWall: z.boolean().default(true),
+            color: z.string().default('#ddd1b8'),
+            doorW: z.number().positive().default(0.86),
+            doorH: z.number().positive().default(1.84),
+            doorBottom: z.number().min(0).default(0.14),
+            doorZ: z.number().default(0.08),
+            wallT: z.number().positive().default(0.3),
+            art: z.string().default('/art/interiors/raw/door_comunal.png'),
+            numberColor: z.string().default('#1c1c1c'),
+            hinge: z.enum(['left', 'right']).default('left'),
+            openAngle: z.number().positive().default(1.75),
+            openAhead: z.number().positive().default(1.05),
+            openSpeed: z.number().positive().default(3.2),
+            /** v1.27 — VENTANAL del cubo de escalera: el muro frontal se abre en BANDA de
+             *  cristal (de diafra a cabezal) para ver subir y bajar a los vecinos y la luz
+             *  del poche. sill/head acotan la banda (altura desde el suelo del bloque);
+             *  el vidrio se parte alrededor de la hoja de la puerta. mullions = montantes
+             *  verticales finos DELANTE del vidrio (nada coplanar). rear cierra el fondo. */
+            window: z
+              .object({
+                enabled: z.boolean().default(true),
+                sill: z.number().min(0).default(0.5),
+                head: z.number().positive().default(2.3),
+                color: z.string().default('#cfe3ea'),
+                alpha: z.number().min(0.05).max(0.9).default(0.24),
+                mullions: z.number().min(0).default(5),
+                mullionW: z.number().positive().default(0.045),
+                frameColor: z.string().default('#7d7668'),
+                rear: z.boolean().default(true),
+              })
+              .default({
+                enabled: true,
+                sill: 0.5,
+                head: 2.3,
+                color: '#cfe3ea',
+                alpha: 0.24,
+                mullions: 5,
+                mullionW: 0.045,
+                frameColor: '#7d7668',
+                rear: true,
+              }),
+            /** v1.25: nodos de la authoría glTF del cubo que sobran (el hueco oscuro viejo
+             *  flotaba a la derecha de los tramos). Ocultos al cargar el modelo. */
+            hideNodes: z.array(z.string()).default([]),
+          })
+          .default({
+            enabled: true,
+            halfW: 1.2,
+            fullWall: true,
+            color: '#ddd1b8',
+            doorW: 0.86,
+            doorH: 1.84,
+            doorBottom: 0.14,
+            doorZ: 0.08,
+            wallT: 0.3,
+            art: '/art/interiors/raw/door_comunal.png',
+            numberColor: '#1c1c1c',
+            hinge: 'left',
+            openAngle: 1.75,
+            openAhead: 1.05,
+            openSpeed: 3.2,
+            window: { enabled: true, sill: 0.5, head: 2.3, color: '#cfe3ea', alpha: 0.24, mullions: 5, mullionW: 0.045, frameColor: '#7d7668', rear: true },
+            hideNodes: [],
+          }),
+        activityLight: z
+          .object({
+            enabled: z.boolean().default(true),
+            dayCutoff: z.number().min(0).max(1).default(0.4),
+            glow: z.number().min(0).default(0.9),
+            fade: z.number().positive().default(2.4),
+            meshes: z.array(z.string()).default(['luz_interior', 'tira_luz']),
+            color: z.string().default('#ffedc2'),
+            /** v1.25: AUTOILUMINACIÓN del cubo — con alguien en las escaleras de noche, los
+             *  materiales del PROPIO bloque (muros, forjados, tramos) se iluminan también,
+             *  como los interiores de las viviendas (antes solo brillaba la bombilla). */
+            wallGlow: z.number().min(0).default(0.32),
+          })
+          .default({
+            enabled: true,
+            dayCutoff: 0.4,
+            glow: 0.9,
+            fade: 2.4,
+            meshes: ['luz_interior', 'tira_luz'],
+            color: '#ffedc2',
+            wallGlow: 0.32,
+          })
       })
-      .default({ spanW: 2, doorLocalX: -1.14, entryHalf: 0.45, laneFront: 0.35, laneBack: 1.05, flightRun: 2.19, landingX: 0.5, stepCount: 8, climbSpeed: 1.8 }),
+      .default({
+        spanW: 2, doorLocalX: -1.14, entryHalf: 0.45, laneFront: 0.35, laneBack: 1.05, flightRun: 2.19, landingX: 0.5, stepCount: 8, climbSpeed: 1.8,
+        floorSlab: { enabled: true, thickness: 0.14, color: '#b8c0a8', topAt: 0.14 },
+        facade: {
+          enabled: true, halfW: 1.2, fullWall: true, color: '#ddd1b8', doorW: 0.86, doorH: 1.84, doorBottom: 0.14, doorZ: 0.08, wallT: 0.3,
+          art: '/art/interiors/raw/door_comunal.png', numberColor: '#1c1c1c', hinge: 'left', openAngle: 1.75, openAhead: 1.05, openSpeed: 3.2,
+          window: { enabled: true, sill: 0.5, head: 2.3, color: '#cfe3ea', alpha: 0.24, mullions: 5, mullionW: 0.045, frameColor: '#7d7668', rear: true },
+          hideNodes: [],
+        },
+        activityLight: { enabled: true, dayCutoff: 0.4, glow: 0.9, fade: 2.4, meshes: ['luz_interior', 'tira_luz'], color: '#ffedc2', wallGlow: 0.32 },
+      }),
     /** Ascensor creíble (v1.5, presentación): semáforo de permisos con llamadas, puertas que
      *  abren/cierran, espera al embarco y capacidad limitada. TODO en el catálogo, nada a pelo. */
     elevator: z
@@ -565,11 +758,91 @@ export const rulesSchema = z.object({
         accelFloorsPerSecond2: z.number().positive().default(1.2),
         cabinColor: z.string().default('#aeb8c2'),
         doorColor: z.string().default('#cbd5e1'),
+        /** v1.25: arte full-bleed de las hojas del ascensor (izquierda/derecha se recortan
+         *  de la MISMA pieza: la partida central del arte cae entre ambas). */
+        doorArt: z.string().default(''),
         callColor: z.string().default('#ffd166'),
         brokenColor: z.string().default('#c1666b'),
         rideZ: z.number().default(0.35),
+        /** v1.29 — PARES DEL POZO: gris oscuro tipo zócalo (fijado sobre el arte glTF del
+         *  núcleo, igual que la pared fija de las viviendas) y nodos del glTF que deben
+         *  desaparecer (el panel oscuro del hueco tapaba la cabina al abrirse las puertas). */
+        wallColor: z.string().default('#a3a19b'),
+        hideNodes: z.array(z.string()).default([]),
+        /** v1.29 — INTERIOR DE LA CABINA: las caras interiores son las de un ascensor de
+         *  verdad (paneles metálicos, suelo antideslizante, plafón luminoso, pasamanos y
+         *  luz propia que se derrama por el pozo al abrirse las puertas). Texturas generadas
+         *  a canvas con estos parámetros — nada a pelo en el código. */
+        interior: z
+          .object({
+            panelColor: z.string().default('#cfd6dc'),
+            panelSeam: z.string().default('#8f979f'),
+            panelTrim: z.string().default('#a9b2ba'),
+            floorColor: z.string().default('#5c636b'),
+            floorSeam: z.string().default('#474d55'),
+            ceilingColor: z.string().default('#e8e6e0'),
+            lightColor: z.string().default('#fff3d6'),
+            lightEmissive: z.number().min(0).max(2).default(0.9),
+            handrail: z.boolean().default(true),
+            handrailColor: z.string().default('#8d939c'),
+            lightRange: z.number().positive().default(3.2),
+            lightIntensity: z.number().min(0).max(2).default(0.55),
+          })
+          .default({
+            panelColor: '#cfd6dc',
+            panelSeam: '#8f979f',
+            panelTrim: '#a9b2ba',
+            floorColor: '#5c636b',
+            floorSeam: '#474d55',
+            ceilingColor: '#e8e6e0',
+            lightColor: '#fff3d6',
+            lightEmissive: 0.9,
+            handrail: true,
+            handrailColor: '#8d939c',
+            lightRange: 3.2,
+            lightIntensity: 0.55,
+          }),
+        /** v1.28 — pantallita junto a las puertas: planta de la cabina + flecha de marcha.
+         *  dx negativo = al otro lado del botón de llamada; y = altura sobre el forjado. */
+        indicator: z
+          .object({
+            w: z.number().positive().default(0.24),
+            h: z.number().positive().default(0.18),
+            dx: z.number().default(-0.76),
+            y: z.number().default(1.12),
+          })
+          .default({ w: 0.24, h: 0.18, dx: -0.76, y: 1.12 }),
       })
-      .default({ capacity: 4, doorWaitMs: 5000, doorMoveMs: 700, floorsPerSecond: 1.4, accelFloorsPerSecond2: 1.2, cabinColor: '#aeb8c2', doorColor: '#cbd5e1', callColor: '#ffd166', brokenColor: '#c1666b', rideZ: 0.35 }),
+      .default({
+        capacity: 4,
+        doorWaitMs: 5000,
+        doorMoveMs: 700,
+        floorsPerSecond: 1.4,
+        accelFloorsPerSecond2: 1.2,
+        cabinColor: '#aeb8c2',
+        doorColor: '#cbd5e1',
+        doorArt: '',
+        callColor: '#ffd166',
+        brokenColor: '#c1666b',
+        rideZ: 0.35,
+        wallColor: '#a3a19b',
+        hideNodes: [],
+        interior: {
+          panelColor: '#cfd6dc',
+          panelSeam: '#8f979f',
+          panelTrim: '#a9b2ba',
+          floorColor: '#5c636b',
+          floorSeam: '#474d55',
+          ceilingColor: '#e8e6e0',
+          lightColor: '#fff3d6',
+          lightEmissive: 0.9,
+          handrail: true,
+          handrailColor: '#8d939c',
+          lightRange: 3.2,
+          lightIntensity: 0.55,
+        },
+        indicator: { w: 0.24, h: 0.18, dx: -0.76, y: 1.12 },
+      }),
     /** Cartel numerado sobre cada puerta de vivienda (v1.6): el label sale del id del bloque
      *  (blk_p3_c → "3C") con DynamicTexture; tamaño, posición y colores del catálogo. */
     plaque: z
@@ -617,6 +890,39 @@ export const rulesSchema = z.object({
         /** Cabecera de cartel sobre la fachada de cada estantería (v1.17): travesaño donde
          *  se monta el cartel numerado "en la propia estantería" (no flotando). */
         headerH: z.number().min(0).default(0.15),
+        /** ── Bloques de trasteros por COLUMNA (v1.18) ── Una sola planta de trasteros por
+         *  letra: cada bloque guarda los trasteros de TODAS las viviendas de su columna
+         *  (impares a la izquierda del pasillo central, pares a la derecha), con
+         *  compartimentos CERRADOS (el interior no se ve: qué esconderá cada vecino).
+         *  La profundidad del bloque escala la de vivienda (blockDepthFactor). */
+        blockDepthFactor: z.number().min(1).default(1),
+        corridorW: z.number().positive().default(1.2),
+        wallT: z.number().positive().default(0.08),
+        doorW: z.number().positive().default(0.82),
+        doorH: z.number().positive().default(1.72),
+        unitH: z.number().positive().default(2.16),
+        doorColor: z.string().default('#7a5230'),
+        /** Puerta del trastero del JUGADOR (v1.19): dorada, para encontrar la tuya a la primera. */
+        ownDoorColor: z.string().default('#ffd166'),
+        oddSide: z.enum(['left', 'right']).default('left'),
+        blockDefId: z.string().default('trasteros_columna'),
+        /** ── Interior presentable de la celda propia (v1.19, swap de bloques) ── el bloque
+         *  principal se desvanece y el interior del trastero aparece como bloque activo. */
+        cellRoomDepth: z.number().positive().default(2.8),
+        cellShelfTiers: z.number().int().min(1).default(3),
+        cellJunk: z.number().int().min(0).default(7),
+        /** Cartel guía EXTERIOR (v1.19): sobre el hueco del pasillo central, muestra qué
+         *  trasteros tienes a cada lado según la profundidad a la que caminas. */
+        guide: z
+          .object({
+            w: z.number().positive().default(1.9),
+            h: z.number().positive().default(0.44),
+            aboveUnit: z.number().min(0).default(0.62),
+            bg: z.string().default('#3b3129'),
+            text: z.string().default('#ffd166'),
+            frame: z.string().default('#6f4926'),
+          })
+          .default({ w: 1.9, h: 0.44, aboveUnit: 0.62, bg: '#3b3129', text: '#ffd166', frame: '#6f4926' }),
       })
       .default({
         shelvesPerLevel: 8,
@@ -641,6 +947,20 @@ export const rulesSchema = z.object({
         partitionExtra: 0.22,
         partitionColor: '#6f4926',
         headerH: 0.15,
+        blockDepthFactor: 1,
+        corridorW: 1.2,
+        wallT: 0.08,
+        doorW: 0.82,
+        doorH: 1.72,
+        unitH: 2.16,
+        doorColor: '#7a5230',
+        ownDoorColor: '#ffd166',
+        oddSide: 'left',
+        blockDefId: 'trasteros_columna',
+        cellRoomDepth: 2.8,
+        cellShelfTiers: 3,
+        cellJunk: 7,
+        guide: { w: 1.9, h: 0.44, aboveUnit: 0.62, bg: '#3b3129', text: '#ffd166', frame: '#6f4926' },
       }),
     /** Tejadillo que cierra el edificio (v1.16): faldones a dos aguas sobre la bajocubierta.
      *  CONTRATO con la authoría glTF (scripts/gen-v16-assets.ts): mismos colores y misma
@@ -666,12 +986,19 @@ export const rulesSchema = z.object({
         plant2Color: z.string().default('#84a59d'),
         potR: z.number().positive().default(0.17),
         potH: z.number().positive().default(0.26),
+        /** v1.25: arte de maceta como RECORTE billboard (con fondo se usan cilindros). */
+        art: z.array(z.string()).default([]),
+        artH: z.number().positive().default(0.62),
+        /** v1.26: radio libre delante de cada puerta — jamás una maceta tapando un acceso. */
+        doorClearance: z.number().min(0).default(0.95),
       })
-      .default({ perFloorMin: 2, perFloorMax: 4, potColor: '#b5651d', soilColor: '#5d4037', plantColor: '#5a9367', plant2Color: '#84a59d', potR: 0.17, potH: 0.26 }),
+      .default({ perFloorMin: 2, perFloorMax: 4, potColor: '#b5651d', soilColor: '#5d4037', plantColor: '#5a9367', plant2Color: '#84a59d', potR: 0.17, potH: 0.26, art: [], artH: 0.62, doorClearance: 0.95 }),
     /** Privacidad de viviendas (v1.17): si una vivienda NO tiene a nadie dentro, el corte
      *  se cierra con su fachada y una puerta al pasillo; el interior solo se ve cuando su
      *  propietario (o cualquier vecino… o un ladrón) está dentro. Colores y medidas de la
-     *  puerta del catálogo; enabled=false vuelve al corte siempre abierto. */
+     *  puerta del catálogo; enabled=false vuelve al corte siempre abierto.
+     *  v1.25: pared gris clarito + zócalo de 25 cm + marcos DEL COLOR del zócalo, candado
+     *  dibujado (nada de cajas) y luces nocturnas de interiores parametrizadas. */
     privacy: z
       .object({
         enabled: z.boolean().default(true),
@@ -679,8 +1006,104 @@ export const rulesSchema = z.object({
         handleColor: z.string().default('#ffd166'),
         doorW: z.number().positive().default(0.95),
         doorH: z.number().positive().default(1.85),
+        /** v1.24: arte full-bleed de la hoja (variantes por hash), marco fino, nodos del
+         *  overlay glTF que se retiran y aplique de luz a un lado.
+         *  v1.25: una sola variante → todas las puertas iguales (marrón). */
+        doorArts: z.array(z.string()).default([]),
+        frameW: z.number().min(0).default(0.075),
+        frameDepth: z.number().positive().default(0.1),
+        hideNodes: z.array(z.string()).default([]),
+        /** v1.26 — relleno de las JUNTAS entre bloques (veían la parte trasera del edificio)
+         *  y corte del zócalo en las puertas + tapa de estancia cerrada CON ARTE DE PUERTA
+         *  (dejó de leerse como tabique). v1.27 — el relleno SALE hacia la calle (protrude,
+         *  medido desde la cara de fachada) con un escalonado determinista por bloque
+         *  (stagger): jamás dos caras coplanares — foco de parpadeos. */
+        gapFill: z
+          .object({
+            color: z.string().default('#dbd8d2'),
+            pad: z.number().min(0).default(0.04),
+            protrude: z.number().min(0).default(0.012),
+            stagger: z.number().min(0).default(0.008),
+          })
+          .default({ color: '#dbd8d2', pad: 0.04, protrude: 0.012, stagger: 0.008 }),
+        /** v1.27 — SOLERA de los bloques: banda en la base de cada bloque (viviendas y resto
+         *  de la banda principal) que sella la JUNTA VERTICAL entre un bloque y el siguiente
+         *  en altura. protrude/stagger con la misma regla anti-coplanaridad que gapFill. */
+        solera: z
+          .object({
+            color: z.string().default('#c9c6bf'),
+            h: z.number().positive().default(0.13),
+            protrude: z.number().min(0).default(0.016),
+            stagger: z.number().min(0).default(0.008),
+          })
+          .default({ color: '#c9c6bf', h: 0.13, protrude: 0.016, stagger: 0.008 }),
+        skirtingDoorGap: z.boolean().default(true),
+        coverArt: z.string().default(''),
+        /** v1.25 — acabado de la vivienda: pared gris clarito, banda de zócalo gris desde
+         *  el suelo y MARCOS de puerta del mismo color que el zócalo (continuidad). */
+        wallColor: z.string().default('#dbd8d2'),
+        skirtingColor: z.string().default('#a3a19b'),
+        skirtingH: z.number().positive().default(0.25),
+        /** v1.25 — candado dibujado (silueta real de candado, nada de cajas). */
+        lockArt: z.string().default(''),
+        lockW: z.number().positive().default(0.24),
+        lockH: z.number().positive().default(0.3),
+        /** v1.28 — candado SOBRE la puerta, a la altura del tirador y ligeramente separado
+         *  de la hoja (dx del centro en fracción del ancho, yFrac de la hoja, out en metros). */
+        lockOnDoor: z
+          .object({
+            dx: z.number().default(0.22),
+            yFrac: z.number().min(0).max(1).default(0.52),
+            out: z.number().min(0).default(0.05),
+          })
+          .default({ dx: 0.22, yFrac: 0.52, out: 0.05 }),
+        /** v1.25 — luces nocturnas de interiores: cuánto brilla una estancia habitada
+         *  de noche (emissive del diorama, suelos y lámparas). dayCutoff corta el día. */
+        night: z
+          .object({
+            dayCutoff: z.number().min(0).max(1).default(0.4),
+            dioGlow: z.number().min(0).default(0.85),
+            floorGlow: z.number().min(0).default(0.7),
+            lampGlow: z.number().min(0).default(1.6),
+            /** v1.29 — autoiluminación sutil de los muros estructurales de la vivienda
+             *  (las caras sin luz — fondos altos, forjados — se leían como bandas negras). */
+            wallSelf: z.number().min(0).max(1).default(0.3),
+          })
+          .default({ dayCutoff: 0.4, dioGlow: 0.85, floorGlow: 0.7, lampGlow: 1.6, wallSelf: 0.3 }),
+        lamp: z
+          .object({
+            side: z.union([z.literal(-1), z.literal(1)]).default(1),
+            dx: z.number().default(0.68),
+            dy: z.number().default(2.1),
+            color: z.string().default('#3b3129'),
+            glowColor: z.string().default('#ffd166'),
+          })
+          .default({ side: 1, dx: 0.68, dy: 2.1, color: '#3b3129', glowColor: '#ffd166' }),
       })
-      .default({ enabled: true, doorColor: '#5d4a3a', handleColor: '#ffd166', doorW: 0.95, doorH: 1.85 }),
+      .default({
+        enabled: true,
+        doorColor: '#5d4a3a',
+        handleColor: '#ffd166',
+        doorW: 0.95,
+        doorH: 1.85,
+        doorArts: [],
+        frameW: 0.075,
+        frameDepth: 0.1,
+        hideNodes: [],
+        gapFill: { color: '#dbd8d2', pad: 0.04, protrude: 0.012, stagger: 0.008 },
+        solera: { color: '#c9c6bf', h: 0.13, protrude: 0.016, stagger: 0.008 },
+        skirtingDoorGap: true,
+        coverArt: '',
+        wallColor: '#dbd8d2',
+        skirtingColor: '#a3a19b',
+        skirtingH: 0.25,
+        lockArt: '',
+        lockW: 0.24,
+        lockH: 0.3,
+        lockOnDoor: { dx: 0.22, yFrac: 0.52, out: 0.05 },
+        night: { dayCutoff: 0.4, dioGlow: 0.85, floorGlow: 0.7, lampGlow: 1.6, wallSelf: 0.3 },
+        lamp: { side: 1, dx: 0.68, dy: 2.1, color: '#3b3129', glowColor: '#ffd166' },
+      }),
     /** Velocidad (m/s) a partir de la cual un actor en marcha usa el clip "run". */
     runSpeed: z.number().positive().default(4.2),
     /** Multiplicador de velocidad del jugador mientras corre (Shift / botón del mando). */
@@ -689,13 +1112,186 @@ export const rulesSchema = z.object({
     seatAnchors: z.array(z.string()).default(['bed', 'tv', 'desk']),
     roomZ: z.number(),
     depth: z.number(),
+    /** v1.28 — suelo de los pasillos: losetas cuadradas gris clarito (tile = lado en metros).
+     *  v1.30 — contrast: alternancia entre baldosas vecinas (0 = uniforme; el vecino no
+     *  distinguía las losetas: «sigue pareciendo un color uniforme»). */
+    corridorFloor: z
+      .object({
+        color: z.string().default('#d8d7d2'),
+        grout: z.string().default('#b6b4ac'),
+        tile: z.number().positive().default(0.4),
+        contrast: z.number().min(0).max(0.35).default(0.1),
+      })
+      .default({ color: '#d8d7d2', grout: '#b6b4ac', tile: 0.4, contrast: 0.1 }),
+    /** ── LOCALES de la planta baja (v1.30) ── portal acristalado con puertas correderas,
+     *  garaje definido, trastero comunitario, sala de juntas de la comunidad y lavandería
+     *  abierta. TODO del catálogo: colores, medidas, rótulos y asientos — la sustitución
+     *  del arte no toca código. */
+    locals: z
+      .object({
+        /** v1.30 — gris ÚNICO de las paredes que dan al pasillo (el vecino: «deben tener
+         *  todas un color uniforme… por ejemplo las del bloque ascensor»). Lo visten los
+         *  cubos de escalera, el pozo del ascensor y los frentes nuevos de los locales. */
+        corridorWall: z.string().default('#dbd8d2'),
+        /** Nodos glTF que sobran por tipo de local (la fachada la levanta el runtime). */
+        hideNodes: z.record(z.string(), z.array(z.string())).default({}),
+        /** v1.30 — puertas correderas ACRISTALADAS del portal (se separan al acercarse y
+         *  se cierran al separarse; por ellas entran y salen vecinos Y visitantes). Las
+         *  hojas son los nodos cristal_izq/cristal_der del arte glTF del portal. */
+        portalDoors: z
+          .object({
+            slide: z.number().min(0).default(0.96),
+            openAhead: z.number().positive().default(1.7),
+            openSeconds: z.number().positive().default(0.8),
+            frame: z.string().default('#8fa3ad'),
+            glass: z.string().default('#cfe3ea'),
+            sheen: z.string().default('#ffffff'),
+            handle: z.string().default('#5d6b7a'),
+            alpha: z.number().min(0.15).max(1).default(0.72),
+          })
+          .default({ slide: 0.96, openAhead: 1.7, openSeconds: 0.8, frame: '#8fa3ad', glass: '#cfe3ea', sheen: '#ffffff', handle: '#5d6b7a', alpha: 0.72 }),
+        /** v1.30 — acceso al GARAJE: puerta basculante texturizada, rampa y rótulo legible. */
+        garaje: z
+          .object({
+            panel: z.string().default('#c9ced6'),
+            panelShade: z.string().default('#9aa2ad'),
+            rail: z.string().default('#6d747d'),
+            window: z.string().default('#dfe9ee'),
+            sign: z.string().default('GARAJES'),
+            signBg: z.string().default('#3b3129'),
+            signText: z.string().default('#ffd166'),
+            rampDepth: z.number().positive().default(1.1),
+            rampColor: z.string().default('#8f8d86'),
+          })
+          .default({ panel: '#c9ced6', panelShade: '#9aa2ad', rail: '#6d747d', window: '#dfe9ee', sign: 'GARAJES', signBg: '#3b3129', signText: '#ffd166', rampDepth: 1.1, rampColor: '#8f8d86' }),
+        /** v1.30 — TRASTERO COMUNITARIO (local de la planta 0): dos puertas mapeadas que
+         *  funcionan como las de las viviendas y dentro, estanterías para todos. */
+        trasteroComunal: z
+          .object({
+            doorArt: z.string().default('/art/interiors/raw/door_comunal.png'),
+            doorW: z.number().positive().default(0.85),
+            doorH: z.number().positive().default(1.72),
+            doorDx: z.number().default(0.55),
+            shelfTiers: z.number().int().min(1).default(3),
+            sign: z.string().default('TRASTERO COMÚN'),
+            signBg: z.string().default('#3b3129'),
+            signText: z.string().default('#ffd166'),
+          })
+          .default({ doorArt: '/art/interiors/raw/door_comunal.png', doorW: 0.85, doorH: 1.72, doorDx: 0.55, shelfTiers: 3, sign: 'TRASTERO COMÚN', signBg: '#3b3129', signText: '#ffd166' }),
+        /** v1.30 — SALA DE JUNTAS (local de la comunidad): se mapea como local de reuniones
+         *  (no como vivienda), con mesa y sillas; convocada una junta, los presentes entran
+         *  y se sientan (también acoge fiestas). Asientos en coords LOCALES del bloque. */
+        juntaHall: z
+          .object({
+            doorW: z.number().positive().default(1.05),
+            sign: z.string().default('SALA DE JUNTAS'),
+            signBg: z.string().default('#3b3129'),
+            signText: z.string().default('#ffd166'),
+            tableW: z.number().positive().default(2.6),
+            tableD: z.number().positive().default(0.95),
+            tableZ: z.number().positive().default(1.5),
+            seats: z.array(z.tuple([z.number(), z.number()])).default([
+              [1.15, 0.72], [2.34, 0.72], [3.53, 0.72],
+              [1.15, 2.28], [2.34, 2.28], [3.53, 2.28],
+              [0.6, 1.5], [4.08, 1.5],
+            ]),
+            wood: z.string().default('#8a5a33'),
+            woodDark: z.string().default('#6f4926'),
+          })
+          .default({
+            doorW: 1.05, sign: 'SALA DE JUNTAS', signBg: '#3b3129', signText: '#ffd166',
+            tableW: 2.6, tableD: 0.95, tableZ: 1.5,
+            seats: [[1.15, 0.72], [2.34, 0.72], [3.53, 0.72], [1.15, 2.28], [2.34, 2.28], [3.53, 2.28], [0.6, 1.5], [4.08, 1.5]],
+            wood: '#8a5a33', woodDark: '#6f4926',
+          }),
+        /** v1.30 — LAVANDERÍA comunitaria: local ABIERTO (sin pared frontal) con las
+         *  máquinas de lavado comunes dentro (recortes billboard del catálogo). */
+        lavanderia: z
+          .object({
+            machines: z.number().int().min(1).default(4),
+            art: z.string().default('/art/interiors/raw/f_lavadora.png'),
+            artH: z.number().positive().default(1.02),
+            machineColor: z.string().default('#e8e6e0'),
+            sign: z.string().default('LAVANDERÍA'),
+            signBg: z.string().default('#3b3129'),
+            signText: z.string().default('#ffd166'),
+          })
+          .default({ machines: 4, art: '/art/interiors/raw/f_lavadora.png', artH: 1.02, machineColor: '#e8e6e0', sign: 'LAVANDERÍA', signBg: '#3b3129', signText: '#ffd166' }),
+      })
+      .default({
+        corridorWall: '#dbd8d2',
+        hideNodes: {},
+        portalDoors: { slide: 0.96, openAhead: 1.7, openSeconds: 0.8, frame: '#8fa3ad', glass: '#cfe3ea', sheen: '#ffffff', handle: '#5d6b7a', alpha: 0.72 },
+        garaje: { panel: '#c9ced6', panelShade: '#9aa2ad', rail: '#6d747d', window: '#dfe9ee', sign: 'GARAJES', signBg: '#3b3129', signText: '#ffd166', rampDepth: 1.1, rampColor: '#8f8d86' },
+        trasteroComunal: { doorArt: '/art/interiors/raw/door_comunal.png', doorW: 0.85, doorH: 1.72, doorDx: 0.55, shelfTiers: 3, sign: 'TRASTERO COMÚN', signBg: '#3b3129', signText: '#ffd166' },
+        juntaHall: {
+          doorW: 1.05, sign: 'SALA DE JUNTAS', signBg: '#3b3129', signText: '#ffd166',
+          tableW: 2.6, tableD: 0.95, tableZ: 1.5,
+          seats: [[1.15, 0.72], [2.34, 0.72], [3.53, 0.72], [1.15, 2.28], [2.34, 2.28], [3.53, 2.28], [0.6, 1.5], [4.08, 1.5]],
+          wood: '#8a5a33', woodDark: '#6f4926',
+        },
+        lavanderia: { machines: 4, art: '/art/interiors/raw/f_lavadora.png', artH: 1.02, machineColor: '#e8e6e0', sign: 'LAVANDERÍA', signBg: '#3b3129', signText: '#ffd166' },
+      }),
+    /** v1.28 — bloom/glow de las luces: halo realista de los materiales emisivos. */
+    glow: z
+      .object({
+        enabled: z.boolean().default(true),
+        intensity: z.number().min(0).default(0.75),
+        blurKernelSize: z.number().int().min(8).default(32),
+      })
+      .default({ enabled: true, intensity: 0.75, blurKernelSize: 32 }),
+    /** Módulo de profundidad (v1.19): TODOS los bloques crecen 1 módulo hacia el fondo
+     *  (viviendas depth+module; comunes commonDepth+module; naves y tejado igual). */
+    depthModule: z.number().min(0).default(0),
     commonDepth: z.number().default(1.4),
+    /** ── Apilamiento 3D de bloques (v1.19) ── bloques traseros INACTIVOS (interiores de
+     *  trasteros, cuartos traseros de vivienda) que se activan al entrar: el bloque
+     *  precedente se desvanece y el nuevo aparece con transparencia hasta visualizarse,
+     *  identificado por un contorno ROJO grueso en todo el perímetro frontal. */
+    rearBlock: z
+      .object({
+        outline: z.string().default('#e63946'),
+        outlineWidth: z.number().positive().default(16),
+        fadeSeconds: z.number().positive().default(0.45),
+        peekSeconds: z.number().positive().default(0.5),
+        peekDistance: z.number().positive().default(1.05),
+        junk: z.number().int().min(0).default(6),
+        lampColor: z.string().default('#ffedbe'),
+        /** Ventana en la pared del FONDO del bloque trasero (v1.21): se ve el paisaje urbano
+         *  del fondo (fachadas parallax y cielo) desde dentro del cuarto trasero/trastero. */
+        window: z
+          .object({
+            w: z.number().positive().default(1.1),
+            h: z.number().positive().default(1.0),
+            sill: z.number().min(0).default(0.85),
+            frame: z.string().default('#6f4926'),
+            glass: z.string().default('#bcd8e8'),
+            glassAlpha: z.number().min(0).max(1).default(0.18),
+          })
+          .default({ w: 1.1, h: 1.0, sill: 0.85, frame: '#6f4926', glass: '#bcd8e8', glassAlpha: 0.18 }),
+      })
+      .default({
+        outline: '#e63946',
+        outlineWidth: 16,
+        fadeSeconds: 0.45,
+        peekSeconds: 0.5,
+        peekDistance: 1.05,
+        junk: 6,
+        lampColor: '#ffedbe',
+        window: { w: 1.1, h: 1.0, sill: 0.85, frame: '#6f4926', glass: '#bcd8e8', glassAlpha: 0.18 },
+      }),
     wall: z.number(),
     gapW: z.number(),
     gapH: z.number(),
     slab: z.number(),
     sky: z.object({ r: z.number(), g: z.number(), b: z.number() }),
-    ambient: z.object({ dir: z.tuple([z.number(), z.number(), z.number()]), intensity: z.number() }),
+    ambient: z.object({
+      dir: z.tuple([z.number(), z.number(), z.number()]),
+      intensity: z.number(),
+      /** v1.29 — color de rebote (groundColor de la hemisférica): levanta techos/caras
+       *  inferiores de los interiores (antes negro puro). */
+      ground: z.string().optional(),
+    }),
     sun: z.object({ dir: z.tuple([z.number(), z.number(), z.number()]), intensity: z.number() }),
     lockedColor: z.string(),
     vacantTint: z.number(),
@@ -706,6 +1302,292 @@ export const rulesSchema = z.object({
     actorFallbackColor: z.string(),
     actorFallbackHeight: z.number(),
     actorRadius: z.number(),
+    /** ── Escena exterior (v1.20) ── tiras de calle frente al edificio: aceras, carretera,
+     *  jardines. defId refiere blocks.json (defs con `exterior`); x0/x1/z0/depth en metros
+     *  de mundo (z negativo = hacia la calle). La presentación levanta cuerpo + props. */
+    exterior: z
+      .object({
+        enabled: z.boolean().default(false),
+        rows: z.array(
+          z.object({
+            defId: z.string(),
+            x0: z.number(),
+            x1: z.number(),
+            z0: z.number(),
+            depth: z.number().positive(),
+            /** false = solo props sobre la tira previa (sin cuerpo propio). */
+            body: z.boolean().default(true),
+            /** Orientación (v1.22): 'x' = tira a lo largo de X (calle frente al edificio);
+             *  'z' = tira a lo largo de Z (aceras laterales, calle transversal bifurcada). */
+            orient: z.enum(['x', 'z']).default('x'),
+            /** Dispersión 2D de la vegetación por todo el rect (con topes del bloque). */
+            gridScatter: z.boolean().default(false),
+            maxTrees: z.number().int().min(0).optional(),
+            maxBushes: z.number().int().min(0).optional(),
+          }),
+        ),
+        /** Suelo del mundo bajo todo el decorado (cierra el horizonte). backZ: hasta qué z
+         *  llega por DETRÁS del edificio — más allá, cielo (el suelo no debe hacer de muralla
+         *  entre el edificio y las capas de fachadas del fondo). */
+        ground: z
+          .object({ color: z.string().default('#a89a7c'), size: z.number().positive().default(220), backZ: z.number().default(0) })
+          .default({ color: '#a89a7c', size: 220, backZ: 0 }),
+        /** v1.24 — árboles como recortes 2D (billboards fundidos por arte); vacío = esferas 3D. */
+        treeArt: z
+          .array(
+            z.object({
+              art: z.string(),
+              w: z.number().positive(),
+              h: z.number().positive(),
+              keyTolerance: z.number().min(0.02).max(0.5).default(0.12),
+            }),
+          )
+          .default([]),
+        /** v1.28 — rectángulos del mundo sin árboles/arbustos (nada de verde tapando el portal). */
+        keepOut: z
+          .array(z.object({ x0: z.number(), x1: z.number(), z0: z.number(), z1: z.number() }))
+          .default([]),
+        /** v1.28 — árboles COLOCADOS a mano (posiciones explícitas del mundo): el vecino pidió
+         *  desplazar el del portal "a la parte derecha de la imagen". */
+        forcedTrees: z
+          .array(z.object({ x: z.number(), z: z.number(), art: z.string().optional(), s: z.number().positive().optional() }))
+          .default([]),
+      })
+      .default({ enabled: false, rows: [], ground: { color: '#a89a7c', size: 220, backZ: 0 }, treeArt: [], keepOut: [], forcedTrees: [] }),
+    /** ── Tráfico (v1.22) ── vehículos ocasionales por los carriles de la carretera:
+     *  coches, furgonetas, autobús y patrulla con sirena. Solo presentación (nunca sim)
+     *  y solo visibles en la vista "edificio". */
+    traffic: z
+      .object({
+        enabled: z.boolean().default(false),
+        lanes: z.array(
+          z.object({
+            z: z.number(),
+            /** +1 = hacia +X; −1 = hacia −X. */
+            dir: z.number().min(-1).max(1),
+            speedMin: z.number().positive(),
+            speedMax: z.number().positive(),
+          }),
+        ),
+        spawnEveryMin: z.number().positive().default(8),
+        spawnEveryMax: z.number().positive().default(24),
+        maxAlive: z.number().int().min(1).default(4),
+        xMin: z.number(),
+        xMax: z.number(),
+        /** Punto de "paso" para el sonido del motor al pasar frente al portal. */
+        passX: z.number().default(13.1),
+        passRadius: z.number().positive().default(22),
+        vehicles: z.array(
+          z.object({
+            kind: z.string(),
+            chance: z.number().min(0).max(1),
+            length: z.number().positive(),
+            width: z.number().positive(),
+            height: z.number().positive(),
+            /** Fracción trasera del cuerpo ocupada por la cabina (0.5 = coche, 0.1 = bus). */
+            cabin: z.number().min(0).max(1).default(0.4),
+            colors: z.array(z.string()).min(1),
+            /** Patrulla: barra de luces roja/azul alternando. */
+            siren: z.boolean().default(false),
+          }),
+        ),
+      })
+      .default({ enabled: false, lanes: [], spawnEveryMin: 8, spawnEveryMax: 24, maxAlive: 4, xMin: -60, xMax: 60, passX: 13.1, passRadius: 22, vehicles: [] }),
+    /** ── Viandantes (v1.22) ── paseantes por las aceras; algunos entran al edificio
+     *  (desaparecen en el portal) y otros salen. Solo presentación y solo vista edificio. */
+    pedestrians: z
+      .object({
+        enabled: z.boolean().default(false),
+        maxAlive: z.number().int().min(1).default(6),
+        spawnEveryMin: z.number().positive().default(5),
+        spawnEveryMax: z.number().positive().default(16),
+        speedMin: z.number().positive().default(0.9),
+        speedMax: z.number().positive().default(1.5),
+        enterChance: z.number().min(0).max(1).default(0.25),
+        exitChance: z.number().min(0).max(1).default(0.3),
+        enterX: z.number().default(13.1),
+        /** v1.30 — umbral del portal (z del mundo): entrar/salir cruza POR las correderas. */
+        enterZ: z.number().default(-1.7),
+        paths: z.array(
+          z.object({
+            z: z.number(),
+            x0: z.number(),
+            x1: z.number(),
+            dir: z.number().min(-1).max(1),
+          }),
+        ),
+        colors: z.array(z.string()).min(1),
+        hatChance: z.number().min(0).max(1).default(0.3),
+        hatColors: z.array(z.string()).default(['#3b3129']),
+        /** v1.25: arquetipos del catálogo de vecinos que prestan su cuerpo a los viandantes
+         *  (misma estética). Vacío → todos los del manifiesto con clip de andar. */
+        actorArchetypes: z.array(z.string()).default([]),
+      })
+      .default({ enabled: false, maxAlive: 6, spawnEveryMin: 5, spawnEveryMax: 16, speedMin: 0.9, speedMax: 1.5, enterChance: 0.25, exitChance: 0.3, enterX: 13.1, enterZ: -1.7, paths: [], colors: ['#5d6b7a'], hatChance: 0.3, hatColors: ['#3b3129'], actorArchetypes: [] }),
+    /** ── Fondo urbano (v1.20) ── cielo dinámico (sol/luna/estrellas/nubes según la hora)
+     *  + capas de fachadas 2D a distintas distancias (parallax natural: planos 3D reales
+     *  tras el edificio). Luz global (ambiente + sol) evoluciona con los keyframes. */
+    backdrop: z
+      .object({
+        enabled: z.boolean().default(false),
+        layers: z.array(
+          z.object({
+            z: z.number().positive(),
+            height: z.number().positive(),
+            alpha: z.number().min(0).max(1).default(0.5),
+            tint: z.string(),
+            windowColor: z.string().default('#8a94a6'),
+            windowLitColor: z.string().default('#ffd166'),
+            galleryColor: z.string().default('#9fb8c8'),
+            buildings: z.number().int().min(1).default(6),
+            floors: z.tuple([z.number(), z.number()]).default([3, 6]),
+            windowChance: z.number().min(0).max(1).default(0.75),
+            galleryChance: z.number().min(0).max(1).default(0.3),
+            nightGlow: z.number().min(0).max(1).default(0.35),
+            /** Imagen de sello (v1.21): PNG RGBA de fachada en public/content/backdrop/.
+             *  Presente → la capa se pinta REPITIENDO el sello (edificios reales, blur horneado
+             *  por distancia). Ausente → el pintado procedural de ventanas/galerías de v1.20. */
+            image: z.string().optional(),
+            /** NIEBLA (v1.22): desatura la capa y la funde hacia fogColor — los bloques del
+             *  fondo se intuyen (perspectiva aérea) sin robar atención al edificio. */
+            fog: z.number().min(0).max(1).default(0),
+            fogColor: z.string().default('#dfe4e6'),
+          }),
+        ),
+        /** LLUVIA (v1.21): partículas de trazo que caen cuando el clima es rain/storm.
+         *  Comportamiento realista con look cartoon: velocidades y viento del catálogo. */
+        rain: z
+          .object({
+            count: z.number().int().min(0).default(900),
+            stormCount: z.number().int().min(0).default(1600),
+            fallSpeed: z.number().positive().default(26),
+            wind: z.number().default(-3.5),
+            color: z.string().default('#cfe3f2'),
+            alpha: z.number().min(0).max(1).default(0.5),
+            length: z.number().positive().default(0.55),
+            width: z.number().positive().default(0.035),
+            /** v1.28 — lavado de la ciudad del fondo con el cielo cerrado (gris azulado). */
+            wash: z
+              .object({ color: z.string().default('#9aa3ad'), alpha: z.number().min(0).max(1).default(0.34) })
+              .default({ color: '#9aa3ad', alpha: 0.34 }),
+          })
+          .default({ count: 900, stormCount: 1600, fallSpeed: 26, wind: -3.5, color: '#cfe3f2', alpha: 0.5, length: 0.55, width: 0.035, wash: { color: '#9aa3ad', alpha: 0.34 } }),
+        sky: z
+          .object({
+            /** El gradiente del cielo se repinta a cadencia (barato) y por cambio de clima. */
+            redrawSeconds: z.number().positive().default(6),
+            /** Keyframes por hora (0..24): colores del cielo + intensidad de luces + sol. */
+            keyframes: z.array(
+              z.object({
+                hour: z.number().min(0).max(24),
+                top: z.string(),
+                horizon: z.string(),
+                ambient: z.number(),
+                sun: z.number(),
+              }),
+            ),
+            /** Atenuación del sol por clima (sunny pleno; tormenta apaga). */
+            weatherDim: z
+              .record(z.string(), z.number())
+              .default({ sunny: 1, cloudy: 0.95, rain: 0.8, storm: 0.6 }),
+            /** v1.28 — velado de día de lluvia: el cielo se funde hacia estos colores y el
+             *  sol/luna se retiran (rain/storm marcan cuánto: 0..1) — cielo CERRADO. */
+            overcast: z
+              .object({
+                top: z.string().default('#8e97a3'),
+                horizon: z.string().default('#aeb4ba'),
+                rain: z.number().min(0).max(1).default(0.85),
+                storm: z.number().min(0).max(1).default(1),
+              })
+              .default({ top: '#8e97a3', horizon: '#aeb4ba', rain: 0.85, storm: 1 }),
+            sunColorDay: z.string().default('#ffd166'),
+            sunColorLow: z.string().default('#f08a4b'),
+            sunSize: z.number().positive().default(2.4),
+            sunArcHeight: z.number().positive().default(30),
+            sunZ: z.number().positive().default(64),
+            /** Altura (m) de la línea de horizonte del cielo de dos bandas. */
+            horizonY: z.number().default(18),
+            moonColor: z.string().default('#e8ecf4'),
+            moonSize: z.number().positive().default(1.6),
+            stars: z.number().int().min(0).default(110),
+            starColor: z.string().default('#dfe7f2'),
+          })
+          .default({
+            redrawSeconds: 6,
+            keyframes: [],
+            weatherDim: { sunny: 1, cloudy: 0.95, rain: 0.8, storm: 0.6 },
+            overcast: { top: '#8e97a3', horizon: '#aeb4ba', rain: 0.85, storm: 1 },
+            sunColorDay: '#ffd166',
+            sunColorLow: '#f08a4b',
+            sunSize: 2.4,
+            sunArcHeight: 30,
+            sunZ: 64,
+            horizonY: 18,
+            moonColor: '#e8ecf4',
+            moonSize: 1.6,
+            stars: 110,
+            starColor: '#dfe7f2',
+          }),
+        clouds: z
+          .object({
+            count: z.number().int().min(0).default(7),
+            yMin: z.number().default(18),
+            yMax: z.number().default(34),
+            z: z.number().positive().default(58),
+            speed: z.number().default(0.4),
+            color: z.string().default('#f6f4ee'),
+            stormColor: z.string().default('#9aa0a8'),
+            alphaClear: z.number().min(0).max(1).default(0.14),
+            alphaCloudy: z.number().min(0).max(1).default(0.7),
+            /** v1.28 — con lluvia las nubes engordan hasta cerrar el cielo (1 = sin cambio). */
+            stormScale: z.number().min(1).default(1.7),
+          })
+          .default({
+            count: 7,
+            yMin: 18,
+            yMax: 34,
+            z: 58,
+            speed: 0.4,
+            color: '#f6f4ee',
+            stormColor: '#9aa0a8',
+            alphaClear: 0.14,
+            alphaCloudy: 0.7,
+            stormScale: 1.7,
+          }),
+      })
+      .default({
+        enabled: false,
+        layers: [],
+        rain: { count: 900, stormCount: 1600, fallSpeed: 26, wind: -3.5, color: '#cfe3f2', alpha: 0.5, length: 0.55, width: 0.035, wash: { color: '#9aa3ad', alpha: 0.34 } },
+        sky: {
+          redrawSeconds: 6,
+          keyframes: [],
+          weatherDim: { sunny: 1, cloudy: 0.95, rain: 0.8, storm: 0.6 },
+          overcast: { top: '#8e97a3', horizon: '#aeb4ba', rain: 0.85, storm: 1 },
+          sunColorDay: '#ffd166',
+          sunColorLow: '#f08a4b',
+          sunSize: 2.4,
+          sunArcHeight: 30,
+          sunZ: 64,
+          horizonY: 18,
+          moonColor: '#e8ecf4',
+          moonSize: 1.6,
+          stars: 110,
+          starColor: '#dfe7f2',
+        },
+        clouds: {
+          count: 7,
+          yMin: 18,
+          yMax: 34,
+          z: 58,
+          speed: 0.4,
+          color: '#f6f4ee',
+          stormColor: '#9aa0a8',
+          alphaClear: 0.14,
+          alphaCloudy: 0.7,
+          stormScale: 1.7,
+        },
+      }),
     lod: z.object({
       enabled: z.boolean(),
       focus: z.literal('player'),
@@ -746,6 +1628,11 @@ export const rulesSchema = z.object({
     greet: z.string(),
     laptop: z.string(),
     bed: z.string(),
+    /** Trastero propio y bloques traseros (v1.19, apilamiento 3D). */
+    storageEnter: z.string().default('E · abrir tu trastero'),
+    storageLocked: z.string().default('Trastero ajeno · cada uno guarda lo suyo'),
+    rearExit: z.string().default('E · salir'),
+    rearRoom: z.string().default('Cuarto trasero'),
     stairs: z.string(),
     elevator: z.string(),
     elevatorBroken: z.string(),
@@ -773,13 +1660,103 @@ export const soundsCatalogSchema = z.object({
     z.discriminatedUnion('kind', [
       soundStepSchema.extend({ kind: z.literal('tone') }),
       z.object({ kind: z.literal('noise'), durMs: z.number(), gain: z.number(), filterHz: z.number().default(1200), atMs: z.number().default(0) }),
-      z.object({ kind: z.literal('seq'), steps: z.array(soundStepSchema) }),
+      z.object({
+        kind: z.literal('seq'),
+        /** v1.22: una secuencia puede MEZCLAR tonos y ráfagas de ruido (suspiros, motores). */
+        steps: z.array(z.union([soundStepSchema, z.object({ kind: z.literal('noise'), durMs: z.number(), gain: z.number(), filterHz: z.number().default(1200), atMs: z.number().default(0) })])),
+      }),
     ]),
   ),
   events: z.record(z.string(), z.array(z.string())),
+  /** VOCES DE PROXIMIDAD (v1.22): al pasar al lado de un vecino se oye su voz — queja,
+   *  lamento, risa, silbido, cuchicheo… bancos de sonidos del propio catálogo elegidos
+   *  por su ánimo, con cadencia y antiedad de sobrecarga. Opcional: sin sección no hay voces. */
+  voices: z
+    .object({
+      proximity: z.object({
+        radius: z.number().positive(),
+        checkEvery: z.number().positive(),
+        chance: z.number().min(0).max(1),
+        cooldownPerResident: z.number().min(0),
+        maxPerMinute: z.number().int().min(1),
+        minGain: z.number().min(0).max(1).default(0.3),
+        gestureSeconds: z.number().positive().default(1.6),
+        captionChance: z.number().min(0).max(1).default(0),
+      }),
+      banks: z.record(z.string(), z.array(z.string()).min(1)),
+      /** Pies de foto opcionales por clave de sonido (bocadillo mínimo). */
+      captions: z.record(z.string(), z.string()).default({}),
+      moodMap: z.array(z.object({ mood: z.enum(['good', 'ok', 'bad']), banks: z.array(z.string()).min(1) })),
+    })
+    .optional(),
 });
 
 export type SoundsCatalog = z.infer<typeof soundsCatalogSchema>;
+
+// ───────────────── La calle vive (v1.22): manifestaciones y comentarios ─────────────────
+
+/**
+ * Catálogo de la calle (public/content/street.json, opcional): manifestaciones con humor
+ * vecinal — antidesahucios, reivindicaciones curiosas de trabajadores — y las reacciones
+ * de los vecinos que las ven. Solo presentación: el sim jamás lee este catálogo.
+ */
+export const streetCatalogSchema = z.object({
+  version: z.number().int().min(1),
+  manifestation: z.object({
+    enabled: z.boolean().default(true),
+    everyMin: z.number().positive(),
+    everyMax: z.number().positive(),
+    /** Primera manifestación (s): retraso de gracia desde el arranque. */
+    firstMin: z.number().min(0).default(20),
+    firstMax: z.number().min(0).default(45),
+    minDuration: z.number().positive(),
+    maxDuration: z.number().positive(),
+    minPeople: z.number().int().min(10),
+    maxPeople: z.number().int().min(10),
+    spacing: z.number().positive().default(0.75),
+    /** v1.24: irregularidad de la multitud — jitter longitudinal (m) y ancho de banda (m).
+     *  Con ellos la marcha deja de ser una fila exacta: columnas torpeas de gente real. */
+    slotJitter: z.number().min(0).default(0.5),
+    spreadZ: z.number().min(0).default(1.6),
+    speed: z.number().positive().default(0.55),
+    lanes: z.array(z.object({ z: z.number(), x0: z.number(), x1: z.number() })).min(1),
+    placard: z.object({
+      w: z.number().positive(),
+      h: z.number().positive(),
+      stickH: z.number().positive(),
+      liftY: z.number().positive().default(1.5),
+      bg: z.string(),
+      ink: z.string(),
+      accent: z.string(),
+      fontSizePx: z.number().positive(),
+      carryEvery: z.number().int().min(1).default(2),
+    }),
+    megaphoneColor: z.string().default('#e0b54e'),
+    chantEveryMin: z.number().positive().default(5),
+    chantEveryMax: z.number().positive().default(11),
+    commentDelayMin: z.number().min(0).default(4),
+    commentDelayMax: z.number().positive().default(12),
+    maxComments: z.number().int().min(1).default(3),
+    colors: z.array(z.string()).min(1),
+  }),
+  topics: z
+    .array(
+      z.object({
+        id: z.string(),
+        /** Grito del portavoz (suena como voz de megáfono). */
+        chant: z.string(),
+        placards: z.array(z.string()).min(1),
+      }),
+    )
+    .min(1),
+  reactions: z.object({
+    bad: z.array(z.string()).min(1),
+    ok: z.array(z.string()).min(1),
+    good: z.array(z.string()).min(1),
+  }),
+});
+
+export type StreetCatalog = z.infer<typeof streetCatalogSchema>;
 
 // ───────────────────────── Manifiesto de assets (arte final sustituible, opcional) ─────────────────────────
 
@@ -961,6 +1938,9 @@ export const ecosystemContentSchema = z.object({
     paramThreshold: z.number().min(0).max(100),
     lampsPerCorridor: z.number().int().min(1),
     lampSize: z.tuple([z.number().positive(), z.number().positive(), z.number().positive()]),
+    /** v1.21: de noche las luces de pasillo SOLO si la instalación funciona Y hay algún
+     *  vecino en ese pasillo (nadie pasea a oscuras por gusto). */
+    nightRequiresPresence: z.boolean().default(false),
   }),
   mood: z.object({ needs: z.record(z.string(), z.number()) }),
   visuals: z.object({
@@ -1039,3 +2019,123 @@ export const achievementsCatalogSchema = z.object({
 export type AchievementConditionParsed = z.infer<typeof achievementConditionSchema>;
 export type AchievementDefParsed = z.infer<typeof achievementDefSchema>;
 export type AchievementsCatalogParsed = z.infer<typeof achievementsCatalogSchema>;
+
+// ───────────────────────── Charlas de cruce (v1.20, opcional) ─────────────────────────
+
+// Cuando dos vecinos se cruzan, PUEDE que se paren a charlar (o no): lo decide su ánimo.
+// Todo vive en public/content/crossings.json; la presentación (chats.ts) solo ejecuta.
+// Las líneas alternan A/B y admiten {a}/{b} = nombres visibles de los dos vecinos.
+
+export const crossingsCatalogSchema = z.object({
+  cadence: z
+    .object({
+      /** Segundos entre rastreos de cruces. */
+      checkEvery: z.number().positive().default(2.2),
+      /** Segundos que un vecino no repite charla; lo mismo por PAREJA. */
+      residentCooldown: z.number().min(0).default(50),
+      pairCooldown: z.number().min(0).default(160),
+      /** Duración de cada línea del bocadillo y pausa tras la charla. */
+      lineSeconds: z.number().positive().default(3),
+      holdAfter: z.number().min(0).default(1.2),
+    })
+    .default({ checkEvery: 2.2, residentCooldown: 50, pairCooldown: 160, lineSeconds: 3, holdAfter: 1.2 }),
+  proximity: z
+    .object({
+      /** Distancia (m) a la que dos vecinos "se cruzan". */
+      distance: z.number().positive().default(1.6),
+      /** Charlas simultáneas máximas (anti-sobrecarga de bocadillos). */
+      maxConcurrent: z.number().int().min(1).default(2),
+    })
+    .default({ distance: 1.6, maxConcurrent: 2 }),
+  chance: z
+    .object({
+      base: z.number().min(0).max(1).default(0.6),
+      /** Buen ánimo suma opción de charla; mal ánimo resta (y saca los gruñidos). */
+      goodMoodBonus: z.number().min(0).default(0.3),
+      badMoodPenalty: z.number().min(0).default(0.45),
+    })
+    .default({ base: 0.6, goodMoodBonus: 0.3, badMoodPenalty: 0.45 }),
+  mood: z
+    .object({
+      /** Umbrales del ánimo medio (0..100): ≥ goodMin → 'good'; ≥ okMin → 'ok'; si no 'bad'. */
+      goodMin: z.number().default(55),
+      okMin: z.number().default(30),
+      /** Necesidades que promedian el ánimo y su peso (espejo de emotes.mood.needs). */
+      needs: z.record(z.string(), z.number()).default({ sleep: 1, social: 1, fun: 1 }),
+    })
+    .default({ goodMin: 55, okMin: 30, needs: { sleep: 1, social: 1, fun: 1 } }),
+  /** Grupos de temas por cubo de ánimo: al cruzarse se elige el grupo del ánimo medio. */
+  groups: z.array(
+    z.object({
+      id: z.string(),
+      mood: z.enum(['good', 'ok', 'bad']),
+      topics: z.array(z.object({ id: z.string(), lines: z.array(z.string()).min(1) })),
+    }),
+  ),
+});
+
+export type CrossingsCatalogParsed = z.infer<typeof crossingsCatalogSchema>;
+
+
+// ───────────────────────── Dioramas interiores (v1.23) ─────────────────────────
+
+/** Capa de billboard de mobiliario: un sprite con paralaje dentro de la estancia.
+ *  u/v son fracciones del rect de la estancia (0..1); w/h en METROS reales. */
+export const interiorSpriteSchema = z.object({
+  art: z.string().min(1),
+  w: z.number().positive(),
+  h: z.number().positive(),
+  u: z.number().min(0).max(1),
+  v: z.number().min(0).max(1),
+  layer: z.enum(['back', 'mid', 'front', 'rug']).default('mid'),
+  /** Elevación del pie del sprite sobre el suelo (m): cosas de pared o colgadas. */
+  y: z.number().min(0).default(0),
+});
+
+/** Diorama de un tipo de estancia: pared del fondo + suelo + capas de mobiliario.
+ *  v1.25: `walls` son PAREDES ALTERNATIVAS (misma estancia, otro arte) — el runtime elige
+ *  una por hash del bloque: variedad aleatoria entre viviendas sin tocar el sim.
+ *  v1.29 — PARALLAX COMPLETO: el diorama mapea TODAS las caras (fondo, laterales, techo y
+ *  suelo). `floors`, `sideWalls` y `ceilings` son variantes elegidas por hash; `sets` son
+ *  JUEGOS de mobiliario alternativos (mismo catálogo de sprites en varios repartos) — con
+ *  paredes × suelos × techos × juegos el número de interiores distintos supera de sobra
+ *  las 10 variaciones que pide el vecino. El reparto jamás se solapa (el runtime lo
+ *  garantiza con reintentos deterministas, como las macetas con las puertas). */
+export const interiorDioramaSchema = z.object({
+  wall: z.string().min(1),
+  walls: z.array(z.string()).default([]),
+  floor: z.string().min(1),
+  floors: z.array(z.string()).default([]),
+  sideWalls: z.array(z.string()).default([]),
+  ceilings: z.array(z.string()).default([]),
+  sets: z.array(z.array(interiorSpriteSchema)).default([]),
+  sprites: z.array(interiorSpriteSchema).default([]),
+});
+
+/** Catálogo de interiores (OPCIONAL): sin el fichero, los interiores siguen greybox.
+ *  v1.25 — variedad aleatoria entre viviendas: cada estancia puede teñir su pared con un
+ *  tinte de `wallTints` (hash del bloque), espejar su reparto de muebles (`mirrorChance`)
+ *  y moverlos un poco (`jitter`, fracciones del rect). Todo determinista por hash01.
+ *  v1.29 — `shell`: arte de la CARCASO de la vivienda (laterales + techo con paralaje,
+ *  un solo bloque) — sideWalls/ceilings por hash y tinte neutro que casa con las estancias. */
+export const interiorsCatalogSchema = z.object({
+  artBase: z.string().default('/art/interiors/raw/'),
+  keyColor: z.string().default('#ffffff'),
+  keyTolerance: z.number().min(0).max(1).default(0.09),
+  processSize: z.number().int().min(64).max(2048).default(512),
+  alphaCutoff: z.number().min(0).max(1).default(0.45),
+  doorDecal: z.object({ art: z.string().min(1), w: z.number().positive(), h: z.number().positive() }),
+  wallTints: z.array(z.string()).default(['#ffffff']),
+  mirrorChance: z.number().min(0).max(1).default(0),
+  jitter: z.number().min(0).max(0.25).default(0),
+  shell: z
+    .object({
+      sideWalls: z.array(z.string()).default([]),
+      ceilings: z.array(z.string()).default([]),
+      tint: z.string().default('#ffffff'),
+    })
+    .default({ sideWalls: [], ceilings: [], tint: '#ffffff' }),
+  rooms: z.record(z.string(), interiorDioramaSchema),
+});
+
+export type InteriorsCatalog = z.infer<typeof interiorsCatalogSchema>;
