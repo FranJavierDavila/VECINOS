@@ -47,7 +47,7 @@
     "lines": [
       {
         "speaker": "Inmobiliaria Molina & Hijos",
-        "text": "Le han puesto precio al 3D: la puerta de al lado de la suya. 3.200 €. \"Oportunidad\", la llamamos nosotros."
+        "text": "Le han puesto precio al {blk:blk_p1_a}: la puerta de al lado de la suya. 3.200 €. \"Oportunidad\", la llamamos nosotros."
       },
       {
         "speaker": "Inmobiliaria Molina & Hijos",

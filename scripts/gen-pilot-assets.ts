@@ -272,7 +272,21 @@ function buildPortal(): Record<string, unknown> {
   const mBush = g.addMaterial('arbusto', '#84a59d');
 
   const mesh = (name: string, m: number) => g.addBoxMesh(name, m);
-  g.addNode({ name: 'Root', children: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] });
+  // v1.34 — MACETAS Y ARBUSTOS DE VERDAD: el cubo crudo del portal se leía como «cajas
+  // apiladas / ruedas apiladas» en la esquina del edificio. Maceta = superficie de
+  // revolución (barriga, labio y tierra) y arbusto = racimo de tres esferas.
+  const mPotMesh = g.addLatheMesh('maceta_lathe', mPot, [
+    [0.0, 0.0], [0.11, 0.0], [0.14, 0.06], [0.16, 0.18], [0.17, 0.25], [0.175, 0.29], [0.15, 0.3], [0.13, 0.29], [0.125, 0.27], [0.0, 0.265],
+  ], 14);
+  const mBushMesh = g.addSphereMesh('arbusto_esfera', mBush, 7, 12);
+  const bush = (name: string, x: number, z: number): void => {
+    g.addNode({ name: `${name}_a`, mesh: mBushMesh, translation: [x, 0.44, z], scale: [0.36, 0.38, 0.34] });
+    g.addNode({ name: `${name}_b`, mesh: mBushMesh, translation: [x + 0.08, 0.56, z + 0.02], scale: [0.26, 0.26, 0.26] });
+    g.addNode({ name: `${name}_c`, mesh: mBushMesh, translation: [x - 0.09, 0.38, z - 0.03], scale: [0.2, 0.2, 0.2] });
+  };
+  // Los ARBUSTOS se añaden DESPUÉS de las 15 piezas (Root = nodo 0: la escena lo referencia;
+  // los hijos se numeran 1..21 en el orden de añadido — nada de índices a mano).
+  g.addNode({ name: 'Root', children: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20] });
   // Nominal 4.68 × 2.46 × commonDepth (w2 · cellH · comunes), base y=0. FRENTE = +Z en glTF
   // (el loader de Babylon niega la Z: lo autorado en +z mira a la calle/corredor).
   g.addNode({ name: 'cuerpo', mesh: mesh('cuerpo', mBody), translation: [0, 1.23, 0], scale: [4.68, 2.46, CD] });
@@ -287,10 +301,10 @@ function buildPortal(): Record<string, unknown> {
   g.addNode({ name: 'rotulo', mesh: mesh('rotulo', mSign), translation: [0, 2.32, CD / 2 + 0.05], scale: [1.7, 0.2, 0.06] });
   g.addNode({ name: 'farol_izq', mesh: mesh('farol_izq', mLamp), translation: [-1.7, 1.95, CD / 2 + 0.08], scale: [0.12, 0.2, 0.1] });
   g.addNode({ name: 'farol_der', mesh: mesh('farol_der', mLamp), translation: [1.7, 1.95, CD / 2 + 0.08], scale: [0.12, 0.2, 0.1] });
-  g.addNode({ name: 'maceta_izq', mesh: mesh('maceta_izq', mPot), translation: [-2.05, 0.17, CD / 2 + 0.18], scale: [0.34, 0.34, 0.3] });
-  g.addNode({ name: 'arbusto_izq', mesh: mesh('arbusto_izq', mBush), translation: [-2.05, 0.5, CD / 2 + 0.18], scale: [0.3, 0.34, 0.26] });
-  g.addNode({ name: 'maceta_der', mesh: mesh('maceta_der', mPot), translation: [2.05, 0.17, CD / 2 + 0.18], scale: [0.34, 0.34, 0.3] });
-  g.addNode({ name: 'arbusto_der', mesh: mesh('arbusto_der', mBush), translation: [2.05, 0.5, CD / 2 + 0.18], scale: [0.3, 0.34, 0.26] });
+  g.addNode({ name: 'maceta_izq', mesh: mPotMesh, translation: [-2.05, 0.01, CD / 2 + 0.18] });
+  g.addNode({ name: 'maceta_der', mesh: mPotMesh, translation: [2.05, 0.01, CD / 2 + 0.18] });
+  bush('arbusto_izq', -2.05, CD / 2 + 0.18);
+  bush('arbusto_der', 2.05, CD / 2 + 0.18);
   return g.finish('vecinos-gen-pilot-assets (portal v1)');
 }
 

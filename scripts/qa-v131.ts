@@ -84,22 +84,25 @@ console.log('── 3. Modelos multi-pieza (adiós cajones) ──');
 check('rueda = cubo que gira + neumático + llanta + radios en cruz', /buildWheel/.test(trafficTs) && trafficTs.includes('_cubo_') && trafficTs.includes('_llanta_') && trafficTs.includes('_radio_'));
 check('neumático redondo de verdad (tessellation ≥ 18)', /tessellation: 18/.test(trafficTs));
 check('spin = v/R alrededor del eje (ruedas que giran con la marcha)', trafficTs.includes('hub.rotation.z -= spin') && trafficTs.includes('geos[a.defIndex]!.R'));
-check('parabrisas inclinado con cristal propio', trafficTs.includes("'parabrisas'") && trafficTs.includes('rotation.z = -0.5'));
+// v1.34 — el parabrisas de la berlina vive en el GREENHOUSE extruido (cristal propio);
+check('parabrisas inclinado con cristal propio (greenhouse de berlina + paneles de furgoneta/bus)', trafficTs.includes('greenhouseOf(geo)') && trafficTs.includes("'parabrisas'") && trafficTs.includes('ws.rotation.z = -0.3'));
 check('luneta trasera inclinada', trafficTs.includes("'luneta'"));
 check('paragolpes delante/detrás + parrilla', trafficTs.includes("'paragolpes_del'") && trafficTs.includes("'paragolpes_tras'"));
 check('retrovisores sobre el pilar A', trafficTs.includes("'retro'"));
 check('bajos: chasis que cierra la vista bajo el cuerpo', trafficTs.includes("'bajos'") && trafficTs.includes('chassis'));
 
 console.log('── 4. Costados pintados y NUNCA enterrados ──');
-check('Geo.sideHalf por estilo (el semiancho real del cuerpo)', trafficTs.includes('sideHalf') && trafficTs.includes('sideHalf: W * 0.49') && trafficTs.includes('sideHalf: W * 0.47') && trafficTs.includes('sideHalf: W * 0.46') && trafficTs.includes('sideHalf: W * 0.44'));
-check('plano lateral PROUD del casco (+14 mm, nada coplanar)', trafficTs.includes('const sideOff = geo.sideHalf + 0.014;'));
-check('costado pintado a canvas por (tipo, color) con caché', trafficTs.includes('sideTex') && trafficTs.includes('`side:${def.kind}:${hex}`'));
-check('ventanas pintadas #2e3a44 con brillo', trafficTs.includes("'#2e3a44'") && trafficTs.includes('rgba(255,255,255,0.16)'));
-check('arcos de rueda RECORTADOS del costado (v1.32: agujero real, rueda dentro)', trafficTs.includes("c.globalCompositeOperation = 'destination-out'") && trafficTs.includes('geo.R * 1.3 * S'));
+// v1.34 — ya NO hay planos laterales pintados: el cuerpo es UNA EXTRUSIÓN del perfil
+// (silueta con morro/parabrisas/luneta) y los arcos de rueda son GEOMETRÍA del perfil.
+check('carrocería por EXTRUSIÓN del perfil (nada de planos pintados)', trafficTs.includes('MeshBuilder.ExtrudeShape') && trafficTs.includes('closeShape: true'));
+check('arcos de rueda = GEOMETRÍA del perfil (escotadura, no alpha-test)', trafficTs.includes('const archArc') && !trafficTs.includes("globalCompositeOperation = 'destination-out'"));
+check('habitáculo de la berlina RETRANQUEADO (cristal a W*0.84, nada coplanar)', trafficTs.includes('W * 0.84, glass)'));
+check('chasis oscuro tras los arcos (no se ve al otro lado)', trafficTs.includes("box(def.kind, 'chasis'") && trafficTs.includes('W * 0.72, chassis'));
 check('cotas compartidas geometría ↔ pintado (una sola verdad)', trafficTs.includes('const geos = cfg.vehicles.map((d) => geoOf(d));'));
-check('bus: banda de ventanas con pilares y puerta doble', /nWin = 7/.test(trafficTs) && trafficTs.includes('Puerta doble'));
-check('patrulla: banda azul con POLICÍA en el costado', trafficTs.includes("'#286090'"));
-check('taxi: franja dama bajo las ventanas', trafficTs.includes('Franja dama del taxi'));
+check('bus: banda de ventanas corrida de CRISTAL (caja fina con grosor)', trafficTs.includes("`ventanas_${sz > 0 ? 'd' : 'i'}`") && trafficTs.includes('0.02, glass'));
+check('patrulla: banda azul con POLICÍA en calcomanía', trafficTs.includes("'#286090'") && trafficTs.includes("'rotulacion'"));
+check('taxi: franja dama como caja con damero a canvas', trafficTs.includes('checkerTex()'));
+check('rotulaciones a canvas con alpha-test (calcomanías pequeñas)', trafficTs.includes('decalTex') && trafficTs.includes('alphaCutOff = 0.4'));
 
 console.log('── 5. Matrículas y rótulos (convención de la casa) ──');
 check('DynamicTexture con update(true) (invertY del proyecto)', trafficTs.includes('dt.update(true)'));
@@ -117,9 +120,9 @@ check('sirena rojo/azul alternando (patrulla)', trafficTs.includes("Color3.FromH
 check('matrícula sin emissive pero con textura (sin negros de alpha)', trafficTs.includes('pm.diffuseTexture = plateTex(def.plate)'));
 
 console.log('── 7. Versiones ──');
-check('insignia actual en i18n (v1.33, la 1.31 fue sustituida por la nueva)', i18nTs.includes('v1.33 · cristales en su sitio') && i18nTs.includes('v1.33 · glass in its place'));
-check('sw.js bump a vecinos-v1.33 (sigue subiendo)', swJs.includes('vecinos-v1.33'));
-check('PwaRegister espera vecinos-v1.33', pwaTsx.includes('vecinos-v1.33'));
+check('insignia actual en i18n (v1.33, la 1.31 fue sustituida por la nueva)', i18nTs.includes('v1.34 · entra por donde sea') && i18nTs.includes('v1.34 · enter anywhere'));
+check('sw.js bump a vecinos-v1.34 (sigue subiendo)', swJs.includes('vecinos-v1.34'));
+check('PwaRegister espera vecinos-v1.34', pwaTsx.includes('vecinos-v1.34'));
 
 console.log('── Sim intacto ──');
 const world = createWorld(content, 'slice');

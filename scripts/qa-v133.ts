@@ -8,7 +8,7 @@
  *  1. CRISTALES TRANSVERSALES: fino en X (0.035/0.04), ancho en Z (W*0.8/0.84/0.86)
  *     en los 7 puntos (6 del buildRig + la ambulancia), con sus rake intactos.
  *  2. NADA del patrón viejo ('parabrisas', W * ...) en el código.
- *  3. Versiones: insignia v1.33 en i18n (es/en), sw.js y PwaRegister.
+ *  3. Versiones: insignia v1.34 en i18n (es/en), sw.js y PwaRegister.
  *  4. Contenido carga limpio + sim intacto (240 ticks deterministas).
  */
 import fs from 'fs';
@@ -46,17 +46,18 @@ const swJs = srcOf('public/sw.js');
 const pwaTsx = srcOf('src/components/game/PwaRegister.tsx');
 
 console.log('── 1. Parabrisas/luneta TRANSVERSALES (adiós «aletas de tiburón») ──');
-check('berlina: parabrisas fino en X y ancho en Z', trafficTs.includes("box(def.kind, 'parabrisas', 0.035, geo.cabinH * 0.92, W * 0.8, glass)"));
-check('berlina: luneta fino en X y ancho en Z', trafficTs.includes("box(def.kind, 'luneta', 0.035, geo.cabinH * 0.88, W * 0.8, glass)"));
+// v1.34 — la berlina ya no lleva parabrisas/luneta como CAJAS: el habitáculo es una
+// extrusión de cristal (greenhouse) cuyas paredes inclinadas SON parabrisas y luneta.
+check('berlina: habitáculo de CRISTAL por extrusión (greenhouse)', trafficTs.includes('const cab = extrudeBody(`trafico_${def.kind}_cabina`, greenhouseOf(geo), W * 0.84, glass);'));
+check('berlina: greenhouse con parabrisas y luneta INCLINADOS en el perfil', trafficTs.includes('cx - cabinL * 0.3, yRf, 0') && trafficTs.includes('cx + cabinL / 2, yB - 0.05, 0'));
+check('berlina: techo metálico sobre el habitáculo', trafficTs.includes("box(def.kind, 'techo', geo.cabinL * 0.58, 0.035, W * 0.9, bodyMat)"));
 check('furgoneta: parabrisas transversal', trafficTs.includes("box(def.kind, 'parabrisas', 0.04, hullH * 0.5, W * 0.84, glass)"));
 check('reparto: parabrisas transversal', trafficTs.includes("box(def.kind, 'parabrisas', 0.04, geo.cabH * 0.42, W * 0.84, glass)"));
 check('bus: parabrisas transversal', trafficTs.includes("box(def.kind, 'parabrisas', 0.04, hullH * 0.42, W * 0.86, glass)"));
 check('bus: luneta transversal', trafficTs.includes("box(def.kind, 'luneta', 0.04, hullH * 0.3, W * 0.8, glass)"));
 check('ambulancia: parabrisas transversal', trafficTs.includes("box('ambulancia', 'parabrisas', 0.04, hullH * 0.5, W * 0.84, glass)"));
 check('cero restos del patrón viejo (ejes permutados)', !trafficTs.includes("'parabrisas', W *") && !trafficTs.includes("'luneta', W *"));
-check('rake del parabrisas de berlina intacto (−0.5)', trafficTs.includes('ws.rotation.z = -0.5'));
-check('rake de la luneta de berlina intacto (+0.52)', trafficTs.includes('rw.rotation.z = 0.52'));
-check('rakes de furgoneta/reparto/bus intactos', trafficTs.includes('ws.rotation.z = -0.3') && trafficTs.includes('ws.rotation.z = -0.22') && trafficTs.includes('ws.rotation.z = -0.16'));
+check('rakes de furgoneta/reparto/bus intactos (parabrisas transversales)', trafficTs.includes('ws.rotation.z = -0.3') && trafficTs.includes('ws.rotation.z = -0.22') && trafficTs.includes('ws.rotation.z = -0.16'));
 // Regla geométrica: TODO parabrisas/luneta debe nacer con su cota X menor que la Z.
 const glassCalls = trafficTs.match(/box\((?:def\.kind|'ambulancia'),\s*'(?:parabrisas|luneta)',\s*([^,]+),\s*([^,]+),\s*([^,]+),/g) ?? [];
 let axisOk = glassCalls.length > 0;
@@ -67,13 +68,14 @@ for (const call of glassCalls) {
 check('los 7 cristales nacen finos en X y anchos en Z (regla, no ejemplos)', axisOk, `${glassCalls.length} llamadas auditadas`);
 
 console.log('── 2. Versiones ──');
-check('insignia v1.33 en i18n (es/en)', i18nTs.includes('v1.33 · cristales en su sitio') && i18nTs.includes('v1.33 · glass in its place'));
-check('sw.js bump a vecinos-v1.33', swJs.includes('vecinos-v1.33'));
-check('PwaRegister espera vecinos-v1.33', pwaTsx.includes('vecinos-v1.33'));
+check('insignia v1.34 en i18n (es/en)', i18nTs.includes('v1.34 · entra por donde sea') && i18nTs.includes('v1.34 · enter anywhere'));
+check('sw.js bump a vecinos-v1.34', swJs.includes('vecinos-v1.34'));
+check('PwaRegister espera vecinos-v1.34', pwaTsx.includes('vecinos-v1.34'));
 
 console.log('── 2.bis Avisos narrados 100% data-driven (v1.33: ecosistema + cutscenes) ──');
 check('ecosystem.json ya no habla de la 4C (el gato es de la 2C)', srcOf('public/content/ecosystem.json').includes('la gata de la 2C') && !srcOf('public/content/ecosystem.json').includes('gata de la 4C'));
-check('cutscene de Espera rotulada con su vivienda real (2C)', srcOf('public/content/cutscenes.json').includes('"speaker": "Espera · 2C"'));
+// v1.34 — el rótulo vive TOKENIZADO (data-driven): el resolutor pinta la vivienda real.
+check('cutscene de Espera rotulada con token data-driven de vivienda', srcOf('public/content/cutscenes.json').includes('"speaker": "Espera · {viviendaDe:res_jubilada_01}"'));
 check('scanFloorReferences audita TAMBIÉN ecosistema y cutscenes', textsTs.includes("collect(content.ecosystem, strings, 'ecosystem')") && textsTs.includes("collect(content.cutscenes, strings, 'cutscenes')"));
 const worldScan = createWorld(content, 'slice');
 check('contenido real SIN menciones imposibles (alcance completo)', scanFloorReferences(worldScan, content).length === 0);

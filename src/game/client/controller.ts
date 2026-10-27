@@ -8,7 +8,7 @@ import { loadContent } from '@/game/content';
 import { layoutGeometryOf, roomAt } from '@/game/interior';
 import { evaluateAchievements, type AchievementSnapshot } from '@/game/support/achievements';
 import { syncCampaign } from '@/game/support/campaign';
-import { resolveTokens } from '@/game/support/texts';
+import { resolveTokens, applyStaticTokens } from '@/game/support/texts';
 import { activeObjective, applyEffects, buildCirculation, createWorld, dispatch, drainEvents, migrateRooms, tick, travelMinutes, visibleParams } from '@/game/sim';
 import { PlayerLogic } from '@/game/player-logic';
 import { createEngine } from './engine';
@@ -761,6 +761,10 @@ class GameController {
     useGameStore.getState().resetUi();
 
     this.world = state ?? createWorld(this.content, this.activeScenarioId());
+    // v1.34 — TEXTOS 100% DATA-DRIVEN: los catálogos narrativos admiten tokens estructurales
+    // ({plantas}, {viviendas}, {blk:id}) que se expanden UNA vez con el mundo real — un
+    // título de misión dice la vivienda que existe, un cartel dice las plantas que hay.
+    applyStaticTokens(this.content, this.world);
     this.scenarioOverrides = this.content.scenarios[this.world.scenarioId ?? '']?.minigameOverrides ?? {};
     // Guardados antiguos sin `entry`: la entrada es la zona común de planta baja.
     if (!this.world.entry) {
@@ -1285,10 +1289,12 @@ class GameController {
         case 'ui_toast':
           // v1.33: los avisos del catálogo (ecosistema incluido) admiten tokens
           // data-driven si el evento trae vecinos {a}/{b}; sin contexto, texto tal cual.
+          // v1.34: {home} (la vivienda del jugador) y el resto del catálogo de tokens.
           store.pushToast(
             resolveTokens(String(d.text), this.world, this.content, {
               a: typeof d.a === 'string' ? d.a : undefined,
               b: typeof d.b === 'string' ? d.b : undefined,
+              home: this.world.residents[this.world.playerId]?.home,
             }),
             (d.tone as Tone | undefined) ?? 'info',
           );

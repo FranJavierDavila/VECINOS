@@ -128,6 +128,87 @@ export class Gltf {
     return this.meshes.length - 1;
   }
 
+  /** Mesh crudo (posición/normal/índice ya cocinados) — para primativas que no son cubos. */
+  addRawMesh(name: string, materialIdx: number, pos: Float32Array, nor: Float32Array, idx: Uint16Array): number {
+    const pv = this.view(pos, 34962);
+    const nv = this.view(nor, 34962);
+    const iv = this.view(idx, 34963);
+    const mins = [0, 1, 2].map((k) => Math.min(...Array.from(pos).filter((_, i) => i % 3 === k)));
+    const maxs = [0, 1, 2].map((k) => Math.max(...Array.from(pos).filter((_, i) => i % 3 === k)));
+    this.meshes.push({
+      name,
+      primitives: [
+        {
+          attributes: { POSITION: this.accessor(pv, 5126, pos.length / 3, 'VEC3', { min: mins, max: maxs }), NORMAL: this.accessor(nv, 5126, nor.length / 3, 'VEC3', { min: [-1, -1, -1], max: [1, 1, 1] }) },
+          indices: this.accessor(iv, 5123, idx.length, 'SCALAR'),
+          material: materialIdx,
+        },
+      ],
+    });
+    return this.meshes.length - 1;
+  }
+
+  /** MACETA (v1.34): superficie de revolución (lathe) con asa de perfil — barriga, labio y
+   *  boca; tapa de tierra incluida. Reemplaza al cubo crudo que se leía como «caja apilada».
+   *  El perfil es [radio, altura] en metros (base y=0). Segmentos = resolución radial. */
+  addLatheMesh(name: string, materialIdx: number, profile: [number, number][], segments = 14): number {
+    const pos: number[] = [];
+    const nor: number[] = [];
+    const idx: number[] = [];
+    const rings = profile.length;
+    for (let s = 0; s <= segments; s++) {
+      const a = (s / segments) * Math.PI * 2;
+      const ca = Math.cos(a);
+      const sa = Math.sin(a);
+      for (let r = 0; r < rings; r++) {
+        const [rad, y] = profile[r]!;
+        pos.push(ca * rad, y, sa * rad);
+        // Normal por anillo: tangente del perfil rotada 90° (apunta hacia fuera).
+        const prev = profile[Math.max(0, r - 1)]!;
+        const next = profile[Math.min(rings - 1, r + 1)]!;
+        const dr = next[0] - prev[0];
+        const dy = next[1] - prev[1];
+        const len = Math.max(1e-5, Math.hypot(dr, dy));
+        nor.push(dy / len * ca, -dr / len, dy / len * sa);
+      }
+    }
+    for (let s = 0; s < segments; s++) {
+      for (let r = 0; r < rings - 1; r++) {
+        const a = s * rings + r;
+        const b = (s + 1) * rings + r;
+        idx.push(a, b, a + 1, a + 1, b, b + 1);
+      }
+    }
+    return this.addRawMesh(name, materialIdx, new Float32Array(pos), new Float32Array(nor), new Uint16Array(idx));
+  }
+
+  /** ESFERA UV (v1.34): copas de arbusto redondas de verdad (el cubo del portal leía como
+   *  «ruedas apiladas»). Radio 0.5 centrado en el origen; el node.scale la dimensiona. */
+  addSphereMesh(name: string, materialIdx: number, stacks = 7, slices = 12): number {
+    const pos: number[] = [];
+    const nor: number[] = [];
+    const idx: number[] = [];
+    for (let st = 0; st <= stacks; st++) {
+      const phi = (st / stacks) * Math.PI;
+      for (let sl = 0; sl <= slices; sl++) {
+        const th = (sl / slices) * Math.PI * 2;
+        const x = Math.sin(phi) * Math.cos(th);
+        const y = Math.cos(phi);
+        const z = Math.sin(phi) * Math.sin(th);
+        pos.push(x * 0.5, y * 0.5, z * 0.5);
+        nor.push(x, y, z);
+      }
+    }
+    for (let st = 0; st < stacks; st++) {
+      for (let sl = 0; sl < slices; sl++) {
+        const a = st * (slices + 1) + sl;
+        const b = (st + 1) * (slices + 1) + sl;
+        idx.push(a, b, a + 1, a + 1, b, b + 1);
+      }
+    }
+    return this.addRawMesh(name, materialIdx, new Float32Array(pos), new Float32Array(nor), new Uint16Array(idx));
+  }
+
   addMaterial(name: string, hex: string, opts: { metallic?: number; roughness?: number; emissive?: string } = {}): number {
     const emissive = opts.emissive
       ? { emissiveFactor: colorLinear(opts.emissive).slice(0, 3) as [number, number, number] }

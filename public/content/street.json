@@ -81,7 +81,7 @@
       "chant": "¡Sin suplementos!",
       "placards": [
         "NO A LA DERRAMA CON SUPLEMENTO",
-        "EL ascensor SE ARREGLA CON MUELLES, NO CON DINERO",
+        "EL ASCENSOR SE ARREGLA CON MUELLES, NO CON DINERO",
         "DERRAMA SÍ, VAGANCIA NO"
       ]
     },
@@ -90,7 +90,7 @@
       "chant": "¡Ascensor ya!",
       "placards": [
         "ASCENSOR YA",
-        "9 PISOS A PIE: PREGUNTA A MIS RODILLAS",
+        "{plantas} PISOS A PIE: PREGUNTA A MIS RODILLAS",
         "HEMOS SUBIDO POR LA ESCALERA Y SOLO QUEREMOS BAJAR"
       ]
     },

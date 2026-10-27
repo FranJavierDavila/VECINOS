@@ -1150,7 +1150,8 @@ export const rulesSchema = z.object({
             alpha: z.number().min(0.15).max(1).default(0.72),
           })
           .default({ slide: 0.96, openAhead: 1.7, openSeconds: 0.8, frame: '#8fa3ad', glass: '#cfe3ea', sheen: '#ffffff', handle: '#5d6b7a', alpha: 0.72 }),
-        /** v1.30 — acceso al GARAJE: puerta basculante texturizada, rampa y rótulo legible. */
+        /** v1.30 — acceso al GARAJE: puerta basculante texturizada, rampa y rótulo legible.
+         *  v1.34 — el garaje es HABITABLE: mobiliario del interior 100% del catálogo. */
         garaje: z
           .object({
             panel: z.string().default('#c9ced6'),
@@ -1162,6 +1163,31 @@ export const rulesSchema = z.object({
             signText: z.string().default('#ffd166'),
             rampDepth: z.number().positive().default(1.1),
             rampColor: z.string().default('#8f8d86'),
+            furniture: z
+              .object({
+                benchW: z.number().positive().default(1.35),
+                benchH: z.number().positive().default(0.92),
+                benchD: z.number().positive().default(0.55),
+                pegW: z.number().positive().default(1.1),
+                pegH: z.number().positive().default(0.7),
+                shelfW: z.number().positive().default(1),
+                shelfH: z.number().positive().default(1.6),
+                shelfD: z.number().positive().default(0.38),
+                shelfTiers: z.number().int().min(1).default(3),
+                tireR: z.number().positive().default(0.3),
+                tireCount: z.number().int().min(0).default(3),
+                boxW: z.number().positive().default(0.52),
+                boxH: z.number().positive().default(0.34),
+                boxD: z.number().positive().default(0.4),
+                benchColor: z.string().default('#6d747d'),
+                benchTopColor: z.string().default('#8f8d86'),
+                tireColor: z.string().default('#26221e'),
+                shelfColor: z.string().default('#8a5a33'),
+                boxColor: z.string().default('#c9a66b'),
+                pegColor: z.string().default('#4a5560'),
+                wallColor: z.string().default('#9aa2ad'),
+              })
+              .optional(),
           })
           .default({ panel: '#c9ced6', panelShade: '#9aa2ad', rail: '#6d747d', window: '#dfe9ee', sign: 'GARAJES', signBg: '#3b3129', signText: '#ffd166', rampDepth: 1.1, rampColor: '#8f8d86' }),
         /** v1.30 — TRASTERO COMUNITARIO (local de la planta 0): dos puertas mapeadas que
@@ -1217,8 +1243,10 @@ export const rulesSchema = z.object({
             openAhead: z.number().positive().default(1.15),
             openSeconds: z.number().positive().default(0.45),
             openAngle: z.number().positive().default(1.0),
+            /** v1.34 — ángulo de LEVANTAMIENTO de la basculante del garaje (rad). */
+            liftAngle: z.number().positive().default(1.45),
           })
-          .default({ enabled: true, openAhead: 1.15, openSeconds: 0.45, openAngle: 1.0 }),
+          .default({ enabled: true, openAhead: 1.15, openSeconds: 0.45, openAngle: 1.0, liftAngle: 1.45 }),
         /** v1.30 — LAVANDERÍA comunitaria: local ABIERTO (sin pared frontal) con las
          *  máquinas de lavado comunes dentro (recortes billboard del catálogo). */
         lavanderia: z
@@ -1239,7 +1267,7 @@ export const rulesSchema = z.object({
         portalDoors: { slide: 0.96, openAhead: 1.7, openSeconds: 0.8, frame: '#8fa3ad', glass: '#cfe3ea', sheen: '#ffffff', handle: '#5d6b7a', alpha: 0.72 },
         garaje: { panel: '#c9ced6', panelShade: '#9aa2ad', rail: '#6d747d', window: '#dfe9ee', sign: 'GARAJES', signBg: '#3b3129', signText: '#ffd166', rampDepth: 1.1, rampColor: '#8f8d86' },
         trasteroComunal: { doorArt: '/art/interiors/raw/door_comunal.png', doorW: 0.85, doorH: 1.72, doorDx: 0.55, shelfTiers: 3, sign: 'TRASTERO COMÚN', signBg: '#3b3129', signText: '#ffd166' },
-        hallDoors: { enabled: true, openAhead: 1.15, openSeconds: 0.45, openAngle: 1.0 },
+        hallDoors: { enabled: true, openAhead: 1.15, openSeconds: 0.45, openAngle: 1.0, liftAngle: 1.45 },
         juntaHall: {
           doorW: 1.05, sign: 'SALA DE JUNTAS', signBg: '#3b3129', signText: '#ffd166',
           tableW: 2.6, tableD: 0.95, tableZ: 1.5,
@@ -2022,6 +2050,9 @@ export const ecosystemContentSchema = z.object({
       bodyW: z.number().positive(),
       bodyH: z.number().positive(),
       headScale: z.number().positive(),
+      /** v1.34 — patas (alto) y collar del perro; si faltan, el cuerpo sale a tierra. */
+      legH: z.number().positive().optional(),
+      collar: z.string().min(1).optional(),
     }),
   }),
   lights: z.object({

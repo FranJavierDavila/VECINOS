@@ -1,34 +1,38 @@
-import type { Color3, Mesh, Scene, StandardMaterial, Texture, TransformNode } from '@babylonjs/core';
+import type { Color3, Mesh, Scene, StandardMaterial, Texture, TransformNode, Vector3 as TVector3 } from '@babylonjs/core';
 import type { Content, World } from '@/game/core/types';
 import { hash01 } from '@/game/interior';
 import { B } from './babylon';
 import { playSoundAt } from './audio';
 
 /**
- * TRÁFICO (v1.22, rehecho en v1.31 «tráfico con oficio») — vehículos por la carretera
- * que ya no son cajones andantes: cada tipo es un MODELO MULTI-PIEZA con oficio.
+ * TRÁFICO (v1.22, rehecho en v1.31, v1.32 y VUELTO A HACER en v1.34 «carrocería de verdad»)
+ * — vehículos por la carretera que ya no son ni cajones andantes ni «cajas con planos
+ * pegados sin recortar»: cada carrocería es UNA SOLID REAL por EXTRUSIÓN del perfil lateral
+ * (silueta con MORRO, PILAR A, PARABRISAS y LUNETA en la propia forma) y los ARCOS DE RUEDA
+ * son GEOMETRÍA de verdad (escotaduras del perfil por las que se ve la rueda dentro), no
+ * agujeros pintados con alpha-test.
  *
- *  ─ Cuerpo por estilo (berlina / furgoneta / camión de reparto / bus) con morro, pilar
- *    A, parabrisas y luneta trasera INCLINADOS (cristal propio, no pintado).
- *  ─ Costados PINTADOS a canvas por (tipo, color) — ventanas con brillo, pilares,
- *    juntas de puertas, tiradores, faldón y rotulaciones del catálogo (MUDANZAS MOLINA,
- *    línea 12, POLICÍA…): el mismo dialecto 2.5D que puertas y macetas. Los quads van
- *    PROUD de la cara del cuerpo (nada coplanar, regla de la casa).
- *  ─ v1.32 «RECORTADOS DE VERDAD»: el costado ya NO es un plano rectangular entero —
- *    los ARCOS DE RUEDA son AGUJEROS REALES (alpha-test del canvas: el círculo del arco
- *    se RECORTA del plano) y las ruedas viven DENTRO del cuerpo, vistas por el hueco,
- *    con pozo oscuro detrás (nada de discos pintados ni ruedas asomando por fuera:
- *    adiós a las «cajas con planos pegados sin recortar»). El habitáculo de la berlina
- *    se ensancha al ancho del cuerpo para que el costado le abrace sin flotar.
- *  ─ RUEDAS QUE GIRAN de verdad: neumático + llanta clara + radios en cruz, montadas
- *    en un cubo que rota con la distancia recorrida (spin = v/R en el eje del eje).
- *  ─ Detalles: paragolpes oscuros, parrilla, retrovisores, bajos (chasis que no deja
- *    ver al otro lado), FAROS y pilotos traseros (emisivos: de noche se encienden y el
- *    GlowLayer les da el halo), MATRÍCULA con texto del catálogo, cartel de TAXI en el
- *    techo, rótulo de destino del bus, parrilla portaequipajes de la furgoneta y
- *    climatizador del bus. La patrulla mantiene su barra roja/azul alternando.
- *  ─ Datos: rules.view.traffic.vehicles[] con plate/sideText/destSign/roofSign/
- *    roofRack/axles (schema v1.31); el código solo interpreta.
+ *  ─ CUERPO = ExtrudeShape del perfil cerrado (XY) a lo ancho (Z): las TAPAS son las caras
+ *    laterales metálicas reales y las PAREDES son morro/trasera/techo con sombreado propio
+ *    — el volumen se lee desde cualquier ángulo, también de frente en el cruce.
+ *  ─ BERLINA en dos extrusiones: carrocería hasta la línea de cintura + HABITÁCULO DE
+ *    CRISTAL retranqueado (W*0.84) cuyas tapas SON las ventanas laterales y cuyas paredes
+ *    inclinadas SON parabrisas y luneta; tapa de techo en color carrocería un pelo más
+ *    ancha (pilares + techo metálico). Nada coplanar: el habitáculo nace DENTRO del cuerpo.
+ *  ─ FURGONETA/REPARTO/BUS/AMBULANCIA en una extrusión con su silueta real (rake del
+ *    parabrisas, caja alta del reparto, panza del bus) y CRISTALES como cajas finas
+ *    sobresaliendo 8 mm de la chapa (paneles con grosor, jamás planos pegados).
+ *  ─ ROTULACIONES como CALCOMANIAS pequeñas y orgullosas (POLICÍA, MUDANZAS MOLINA, línea
+ *    12, cruz de la ambulancia): quads de texto a canvas con alpha-test 8 mm por delante
+ *    de la chapa; las bandas (patrulla, taxi, ambulancia) son CAJAS finas de verdad.
+ *  ─ RUEDAS QUE GIRAN: neumático + llanta + radios en cruz bajo un cubo que rota con la
+ *    marcha (spin = v/R), metidas en su arco con el CHASIS oscuro detrás (no se ve al otro
+ *    lado); bajos que cierran la vista bajo el cuerpo.
+ *  ─ Detalles: paragolpes, matrícula delantera/trasera, retrovisores, tubo de escape,
+ *    cartel de TAXI, rótulo de destino del bus, portaequipajes, climatizador y FAROS que
+ *    leen la luz del cielo (de noche se encienden y el GlowLayer hace el halo).
+ *  ─ Datos: rules.view.traffic.vehicles[] con plate/sideText/destSign/roofSign/roofRack/
+ *    axles — el código solo interpreta (los ejes del catálogo mandan las posiciones).
  *
  * Solo presentación: recorren los carriles del catálogo y se desvanecen al salir; el
  * sim jamás los ve. Solo vista "edificio"/"planta" (setVisible) y congelados en modales.
@@ -37,13 +41,9 @@ import { playSoundAt } from './audio';
 interface VehicleRig {
   root: TransformNode;
   bodyMat: StandardMaterial;
-  /** Planos laterales pintados (el material lleva la textura del (tipo, color) vivo). */
-  sideMat: StandardMaterial;
   wheels: { hub: TransformNode; r: number }[];
   siren: { red: StandardMaterial; blue: StandardMaterial } | null;
   lights: { head: StandardMaterial; tail: StandardMaterial; signs: StandardMaterial[] };
-  /** v1.32: mallas que NO proyectan sombra (costados con alpha-test de arcos). */
-  noShadow: Mesh[];
 }
 
 interface Active {
@@ -63,14 +63,14 @@ export interface TrafficDirector {
   setVisible(visible: boolean): void;
   /** Vehículos vivos (para QA/E2E). */
   aliveCount(): number;
-  /** v1.32 — RIG de la ambulancia para el teatro de emergencias (ambulance.ts).
+  /** RIG de la ambulancia para el teatro de emergencias (ambulance.ts).
    *  null si el catálogo no trae view.traffic.ambulance. */
   buildAmbulance(): AmbulanceRig | null;
   dispose(): void;
 }
 
-/** v1.32 — Ambulancia del teatro: furgón con librea, puertas traseras abatibles,
- *  girofarios que alternan y ruedas dentro de sus arcos recortados. */
+/** Ambulancia del teatro: furgón con librea, puertas traseras abatibles,
+ *  girofarios que alternan y ruedas dentro de sus arcos de verdad. */
 export interface AmbulanceRig {
   root: TransformNode;
   /** Longitud total (para aparcar el morro en el punto del catálogo). */
@@ -89,12 +89,12 @@ type DaylightFn = () => number;
 const NIGHT_DAYLIGHT = 0.42;
 
 export function createTraffic(scene: Scene, world: World, content: Content, daylight?: DaylightFn): TrafficDirector {
-  const { Color3, MeshBuilder, StandardMaterial, TransformNode, Vector3 } = B();
+  const { Color3, Mesh, MeshBuilder, StandardMaterial, TransformNode, Vector3 } = B();
   const cfg = content.rules.view.traffic;
   if (!cfg.enabled || cfg.vehicles.length === 0 || cfg.lanes.length === 0) {
     return { update() {}, setVisible() {}, aliveCount: () => 0, dispose() {}, buildAmbulance: () => null };
   }
-  // v1.32 — AMBULANCIA (opcional del catálogo): la librea lee franja/cruz del catálogo.
+  // AMBULANCIA (opcional del catálogo): la librea lee franja/cruz del catálogo.
   const acfg = cfg.ambulance ?? { stripe: '#e8641b', cross: '#c0392b' };
 
   const root = new TransformNode('trafico', scene);
@@ -118,9 +118,9 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
   const hubMat = matOf('#b8b2a6', 'llanta');
   const chassis = matOf('#26241f', 'bajos');
 
-  // ── Texturas a canvas (v1.31) ────────────────────────────────────────────────────
-  // Costados, matrículas y rótulos: el mismo camino que puertas y macetas (canvas →
-  // DynamicTexture opaca, sin alpha que se ponga negra en WebGPU).
+  // ── Texturas a canvas ─────────────────────────────────────────────────────────────
+  // Matrículas, rótulos y CALCOMANIAS: el mismo camino que puertas y fachadas (canvas →
+  // DynamicTexture, update(true) = convención invertY de la casa).
   const texCache = new Map<string, Texture>();
 
   const dynTex = (name: string, w: number, h: number, draw: (c: CanvasRenderingContext2D, w: number, h: number) => void): Texture => {
@@ -132,227 +132,16 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
     return dt as unknown as Texture;
   };
 
-  /** Costado pintado por (tipo, color): el dibujo usa las MISMAS cotas que la geometría.
-   *  v1.32: el canvas nace TRANSPARENTE y los arcos de rueda se RECORTAN (destination-out):
-   *  el plano del costado queda con agujeros reales por los que se ven las ruedas dentro
-   *  de sus pozos — material en ALPHATEST (recorte duro, sin sorting ni velos negros). */
-  const sideTex = (def: (typeof cfg.vehicles)[number] | { kind: string; sideText?: string }, hex: string, geo: Geo): Texture => {
-    const key = `side:${def.kind}:${hex}`;
+  /** CALCOMANIA: canvas TRANSPARENTE + dibujo (texto, cruz…) recortado con alpha-test.
+   *  El quad cuelga 8 mm por delante de la chapa: un vinilo, no un panel. */
+  const decalTex = (name: string, draw: (c: CanvasRenderingContext2D, w: number, h: number) => void): Texture => {
+    const key = `decal:${name}`;
     let t = texCache.get(key);
     if (t) return t;
-    const S = 96; // píxeles por metro
-    const W = Math.max(64, Math.round(geo.L * S));
-    const H = Math.max(48, Math.round(geo.roofTop * S));
-    t = dynTex(`trafico_side_${def.kind}_${hex.replace('#', '')}`, W, H, (c) => {
-      c.clearRect(0, 0, W, H); // sin cuerpo pintado = agujero (alpha-test descarta el texel)
-      const X = (x: number): number => (x + geo.L / 2) * S; // morro (+X) a la derecha
-      const Y = (y: number): number => geo.roofTop * S - y * S; // mundo arriba → lienzo abajo
-      const rr = (x: number, y: number, w: number, h: number, r: number): void => {
-        c.beginPath();
-        c.moveTo(x + r, y);
-        c.arcTo(x + w, y, x + w, y + h, r);
-        c.arcTo(x + w, y + h, x, y + h, r);
-        c.arcTo(x, y + h, x, y, r);
-        c.arcTo(x, y, x + w, y, r);
-        c.closePath();
-      };
-      const glassFill = (x: number, y: number, w: number, h: number, r: number): void => {
-        rr(x, y, w, h, r);
-        c.fillStyle = '#2e3a44';
-        c.fill();
-        c.save();
-        c.clip();
-        c.fillStyle = 'rgba(255,255,255,0.16)';
-        c.beginPath();
-        c.moveTo(x + w * 0.12, y + h);
-        c.lineTo(x + w * 0.38, y);
-        c.lineTo(x + w * 0.55, y);
-        c.lineTo(x + w * 0.28, y + h);
-        c.closePath();
-        c.fill();
-        c.restore();
-        c.strokeStyle = 'rgba(20,26,32,0.65)';
-        c.lineWidth = Math.max(1.5, S * 0.012);
-        rr(x, y, w, h, r);
-        c.stroke();
-      };
-      // Base del color del vehículo (el quad cubre de suelo a tejado).
-      c.fillStyle = hex;
-      c.fillRect(0, 0, W, H);
-      // Sombra de la parte alta (techo/caja) para dar volumen al costado.
-      const grad = c.createLinearGradient(0, 0, 0, H);
-      grad.addColorStop(0, 'rgba(0,0,0,0.16)');
-      grad.addColorStop(0.22, 'rgba(0,0,0,0.02)');
-      grad.addColorStop(1, 'rgba(0,0,0,0.08)');
-      c.fillStyle = grad;
-      c.fillRect(0, 0, W, H);
-
-      const isSedan = def.kind === 'coche' || def.kind === 'taxi' || def.kind === 'policia';
-      if (isSedan) {
-        // Ventanas del habitáculo (dos por lado con pilar central) sobre la cabina 3D.
-        const wy = Y(geo.y0 + geo.hullH + geo.cabinH * 0.86);
-        const wh = geo.cabinH * 0.62 * S;
-        const x0 = X(-geo.L * 0.28);
-        const wWin = geo.cabinL * S * 0.42;
-        glassFill(x0, wy, wWin, wh, S * 0.05);
-        glassFill(x0 + wWin + S * 0.07, wy, wWin, wh, S * 0.05);
-        // Juntas de puertas + tiradores.
-        c.strokeStyle = 'rgba(0,0,0,0.32)';
-        c.lineWidth = Math.max(1.5, S * 0.014);
-        for (const dx of [-geo.L * 0.1, geo.L * 0.13]) {
-          c.beginPath();
-          c.moveTo(X(dx), Y(geo.y0 + geo.hullH + geo.cabinH * 0.9));
-          c.lineTo(X(dx), Y(geo.y0 + 0.03));
-          c.stroke();
-        }
-        c.fillStyle = '#d9d4c8';
-        for (const dx of [-geo.L * 0.02, geo.L * 0.2]) {
-          rr(X(dx), Y(geo.y0 + geo.hullH * 0.72), S * 0.11, S * 0.045, S * 0.02);
-          c.fill();
-        }
-      } else if (def.kind === 'ambulancia') {
-        // v1.32 — LIBREA DE EMERGENCIAS: franja naranja baja, cruz de vida en el costado,
-        // rotulación AMBULANCIA y ventanilla de cabina (el texto viene del catálogo).
-        const bandY = Y(geo.y0 + geo.hullH * 0.34);
-        c.fillStyle = acfg.stripe;
-        c.fillRect(0, bandY, W, geo.hullH * 0.16 * S);
-        // Cruz de vida (círculo claro + cruz) en el costado de la caja.
-        const cxp = X(-geo.L * 0.16);
-        const cyp = Y(geo.y0 + geo.hullH * 0.66);
-        const rp = geo.hullH * 0.3 * S;
-        c.fillStyle = '#f6f7f4';
-        c.beginPath();
-        c.arc(cxp, cyp, rp, 0, Math.PI * 2);
-        c.fill();
-        c.fillStyle = acfg.cross;
-        const aw = rp * 0.34;
-        c.fillRect(cxp - aw / 2, cyp - rp * 0.78, aw, rp * 1.56);
-        c.fillRect(cxp - rp * 0.78, cyp - aw / 2, rp * 1.56, aw);
-        if (def.sideText) {
-          c.fillStyle = 'rgba(30,26,20,0.85)';
-          c.font = `900 ${Math.round(S * 0.3)}px 'Arial Black', Arial, sans-serif`;
-          c.textAlign = 'center';
-          c.textBaseline = 'middle';
-          c.fillText(def.sideText, X(geo.L * 0.2), Y(geo.y0 + geo.hullH * 0.68));
-        }
-        glassFill(X(geo.L * 0.16), Y(geo.y0 + geo.hullH * 0.98), geo.L * 0.2 * S, geo.hullH * 0.4 * S, S * 0.05);
-      } else if (def.kind === 'furgoneta') {
-        // Ventanilla del conductor + puerta corredera con riel.
-        glassFill(X(geo.L * 0.16), Y(geo.y0 + geo.hullH * 0.98), geo.L * 0.2 * S, geo.hullH * 0.4 * S, S * 0.05);
-        c.strokeStyle = 'rgba(0,0,0,0.35)';
-        c.lineWidth = Math.max(1.5, S * 0.016);
-        c.beginPath();
-        c.moveTo(X(geo.L * 0.05), Y(geo.roofTop - 0.06));
-        c.lineTo(X(geo.L * 0.05), Y(geo.y0 + 0.03));
-        c.stroke();
-        c.beginPath();
-        c.moveTo(X(geo.L * 0.05), Y(geo.y0 + geo.hullH * 0.55));
-        c.lineTo(X(-geo.L * 0.44), Y(geo.y0 + geo.hullH * 0.55));
-        c.stroke();
-        if (def.sideText) {
-          c.fillStyle = 'rgba(30,26,20,0.78)';
-          c.font = `700 ${Math.round(S * 0.34)}px 'Arial Black', Arial, sans-serif`;
-          c.textAlign = 'center';
-          c.textBaseline = 'middle';
-          c.fillText(def.sideText, X(-geo.L * 0.16), Y(geo.y0 + geo.hullH * 0.62));
-        }
-      } else if (def.kind === 'reparto') {
-        // Caja de carga: marco + rótulo +_chapa goteada; cabina con su ventanilla.
-        const bx = X(-geo.L * 0.44);
-        const bw = geo.boxL * S;
-        c.strokeStyle = 'rgba(0,0,0,0.3)';
-        c.lineWidth = Math.max(2, S * 0.02);
-        c.strokeRect(bx, Y(geo.roofTop - 0.02), bw, (geo.roofTop - geo.y0 - 0.1) * S);
-        c.strokeStyle = 'rgba(0,0,0,0.14)';
-        c.lineWidth = Math.max(1, S * 0.01);
-        for (let y = geo.roofTop - 0.16; y > geo.y0 + 0.14; y -= 0.2) {
-          c.beginPath();
-          c.moveTo(bx + S * 0.04, Y(y));
-          c.lineTo(bx + bw - S * 0.04, Y(y));
-          c.stroke();
-        }
-        if (def.sideText) {
-          c.fillStyle = 'rgba(28,24,18,0.82)';
-          c.font = `800 ${Math.round(S * 0.3)}px 'Arial Black', Arial, sans-serif`;
-          c.textAlign = 'center';
-          c.textBaseline = 'middle';
-          c.fillText(def.sideText, bx + bw / 2, Y(geo.y0 + (geo.roofTop - geo.y0) * 0.62));
-        }
-        glassFill(X(geo.L * 0.3), Y(geo.y0 + geo.cabH * 0.92), geo.L * 0.14 * S, geo.cabH * 0.42 * S, S * 0.04);
-      } else {
-        // Bus: banda de ventanas con pilares + puerta doble + número de línea grande.
-        const wy = Y(geo.y0 + geo.hullH * 0.94);
-        const wh = geo.hullH * 0.36 * S;
-        const xFront = X(geo.L * 0.42);
-        const xBack = X(-geo.L * 0.46);
-        const nWin = 7;
-        const wWin = (xFront - xBack - S * 0.1) / nWin;
-        for (let i = 0; i < nWin; i++) {
-          glassFill(xBack + i * wWin + S * 0.012, wy, wWin - S * 0.03, wh, S * 0.04);
-        }
-        // Puerta doble en el costado (delante del eje trasero).
-        c.strokeStyle = 'rgba(0,0,0,0.4)';
-        c.lineWidth = Math.max(2, S * 0.018);
-        const dx = X(geo.L * 0.12);
-        c.strokeRect(dx, Y(geo.y0 + geo.hullH * 0.62), S * 0.5, geo.hullH * 0.62 * S);
-        c.beginPath();
-        c.moveTo(dx + S * 0.25, Y(geo.y0 + geo.hullH * 0.62));
-        c.lineTo(dx + S * 0.25, Y(geo.y0 + 0.06));
-        c.stroke();
-        if (def.sideText) {
-          c.fillStyle = 'rgba(255,255,255,0.94)';
-          c.font = `800 ${Math.round(S * 0.52)}px 'Arial Black', Arial, sans-serif`;
-          c.textAlign = 'center';
-          c.textBaseline = 'middle';
-          c.strokeStyle = 'rgba(0,0,0,0.5)';
-          c.lineWidth = Math.max(2, S * 0.02);
-          c.strokeText(def.sideText, X(geo.L * 0.3), Y(geo.y0 + geo.hullH * 0.42));
-          c.fillText(def.sideText, X(geo.L * 0.3), Y(geo.y0 + geo.hullH * 0.42));
-        }
-      }
-      // Banda de la patrulla + rotulación.
-      if (def.kind === 'policia') {
-        const by = Y(geo.y0 + geo.hullH * 0.62);
-        c.fillStyle = '#286090';
-        c.fillRect(0, by, W, S * 0.26);
-        c.fillStyle = 'rgba(255,255,255,0.95)';
-        c.font = `900 ${Math.round(S * 0.26)}px 'Arial Black', Arial, sans-serif`;
-        c.textAlign = 'center';
-        c.textBaseline = 'middle';
-        c.fillText(def.sideText || 'POLICÍA', W / 2, by + S * 0.13);
-      }
-      // Franja dama del taxi (tablero bajo las ventanas).
-      if (def.kind === 'taxi') {
-        const by = Y(geo.y0 + geo.hullH * 0.98);
-        const n = Math.ceil(W / (S * 0.14));
-        for (let i = 0; i < n; i++) {
-          c.fillStyle = i % 2 === 0 ? '#26221c' : hex;
-          c.fillRect(i * S * 0.14, by, S * 0.14, S * 0.09);
-        }
-      }
-      // v1.32 — ARCOS DE RUEDA RECORTADOS: el círculo del arco (radio 1.3R, el mismo que
-      // la geometría del pozo) se BORRA del canvas (destination-out) → agujero real en el
-      // plano por el que se ve la rueda dentro. Un reborde fino pintado alrededor del
-      // hueco (guardabarros) remata el corte.
-      c.globalCompositeOperation = 'destination-out';
-      for (const wx of geo.wheelX) {
-        c.beginPath();
-        c.arc(X(wx), Y(geo.R), geo.R * 1.3 * S, 0, Math.PI * 2);
-        c.fill();
-      }
-      c.globalCompositeOperation = 'source-over';
-      c.strokeStyle = 'rgba(20,16,12,0.55)';
-      c.lineWidth = Math.max(2, S * 0.03);
-      for (const wx of geo.wheelX) {
-        c.beginPath();
-        c.arc(X(wx), Y(geo.R), geo.R * 1.3 * S, 0, Math.PI * 2);
-        c.stroke();
-      }
-      // Faldón (franja oscura bajo las puertas).
-      c.fillStyle = 'rgba(0,0,0,0.22)';
-      c.fillRect(0, Y(geo.y0 + 0.09), W, (0.09 + 0.05) * S);
+    t = dynTex(`trafico_decal_${name}`, 512, 128, (c, w, h) => {
+      c.clearRect(0, 0, w, h);
+      draw(c, w, h);
     });
-    // v1.32: la textura lleva ALPHA (agujeros de arco) — el material la recorta.
     (t as unknown as { hasAlpha: boolean }).hasAlpha = true;
     texCache.set(key, t);
     return t;
@@ -398,58 +187,155 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
     return t;
   };
 
-  // ── Cotas por estilo (compartidas por la geometría y el pintado del costado) ──────
+  /** Damero del taxi: franja dama pintada en una caja fina (vinilo de verdad). */
+  const checkerTex = (): Texture => {
+    const key = 'checker:taxi';
+    let t = texCache.get(key);
+    if (t) return t;
+    t = dynTex('trafico_damero', 256, 32, (c, w, h) => {
+      const n = Math.ceil(w / (h / 2));
+      for (let i = 0; i < n; i++) {
+        c.fillStyle = i % 2 === 0 ? '#26221c' : '#e0b54e';
+        c.fillRect(i * (h / 2), 0, h / 2 + 1, h);
+      }
+    });
+    texCache.set(key, t);
+    return t;
+  };
+
+  // ── Cotas por estilo (compartidas por la geometría, los arcos y las calcomanías) ──
   interface Geo {
     L: number;
+    W: number;
     R: number;
-    y0: number; // canto inferior del cuerpo
-    hullH: number; // altura del bloque principal
+    y0: number; // canto inferior de la carrocería
+    hullH: number; // altura del bloque principal (hasta la línea de cintura)
     cabinH: number; // altura del habitáculo sobre el cuerpo (berlina)
     cabinL: number;
-    boxL: number; // caja de carga (reparto)
+    boxTop: number; // remate de la caja de carga (reparto)
     cabH: number; // altura de la cabina (reparto)
     roofTop: number;
     wheelX: number[];
-    /** Semiancho del cuerpo más profundo: el costado pintado sale de AHÍ + holgura
-     *  (regla de la casa: jamás coplanar con la cara del casco). */
-    sideHalf: number;
   }
-  const geoOf = (def: { kind: string; length: number; width: number; height: number; cabin: number }): Geo => {
+  const geoOf = (def: { kind: string; length: number; width: number; height: number; cabin: number; axles?: number }): Geo => {
     const L = def.length;
     const W = def.width;
     const H = def.height;
     const R = Math.min(0.42, Math.max(0.26, H * 0.32));
+    // Ejos del catálogo (axles): los camiones llevan 3 (tándem trasero más separado para
+    // que los arcos jamás se toquen); berlinas y furgonetas, 2.
+    const wheelX =
+      (def.axles ?? 2) >= 3 ? [L * 0.35, -L * 0.08, -L * 0.36] : def.kind === 'furgoneta' || def.kind === 'ambulancia' ? [L * 0.34, -L * 0.28] : [L * 0.32, -L * 0.33];
     if (def.kind === 'furgoneta' || def.kind === 'ambulancia') {
       const y0 = R * 0.95;
       const hullH = H - y0 - 0.02;
-      return { L, R, y0, hullH, cabinH: 0, cabinL: 0, boxL: 0, cabH: 0, roofTop: y0 + hullH, wheelX: [L * 0.34, -L * 0.28], sideHalf: W * 0.46 };
+      return { L, W, R, y0, hullH, cabinH: 0, cabinL: 0, boxTop: y0 + hullH, cabH: 0, roofTop: y0 + hullH, wheelX };
     }
     if (def.kind === 'reparto') {
       const y0 = R * 0.92;
-      const boxL = L * 0.66;
       const cabH = H * 0.78;
-      return { L, R, y0, hullH: H * 0.5, cabinH: 0, cabinL: 0, boxL, cabH, roofTop: y0 + 0.06 + H * 1.02, wheelX: [L * 0.36, -L * 0.24, -L * 0.38], sideHalf: W * 0.49 };
+      const boxTop = y0 + 0.06 + H * 1.02;
+      return { L, W, R, y0, hullH: H * 0.5, cabinH: 0, cabinL: 0, boxTop, cabH, roofTop: boxTop, wheelX };
     }
     if (def.kind === 'bus') {
       const y0 = R * 1.05;
       const hullH = H - 0.12 - y0;
-      return { L, R, y0, hullH, cabinH: 0, cabinL: 0, boxL: 0, cabH: 0, roofTop: H - 0.12, wheelX: [L * 0.36, -L * 0.13, -L * 0.27], sideHalf: W * 0.47 };
+      return { L, W, R, y0, hullH, cabinH: 0, cabinL: 0, boxTop: H - 0.12, cabH: 0, roofTop: H - 0.12, wheelX };
     }
     // Berlina (coche / taxi / patrulla): habitáculo centrado-ligeramente atrás.
     const y0 = R * 0.72;
     const hullH = H * 0.52;
     const cabinL = L * (0.34 + def.cabin * 0.32);
     const cabinH = H * 0.44;
-    return { L, R, y0, hullH, cabinH, cabinL, boxL: 0, cabH: 0, roofTop: y0 + hullH + cabinH - 0.02, wheelX: [L * 0.32, -L * 0.33], sideHalf: W * 0.44 };
+    return { L, W, R, y0, hullH, cabinH, cabinL, boxTop: y0 + hullH, cabH: 0, roofTop: y0 + hullH + cabinH - 0.02, wheelX };
   };
 
   // Cotas por definición (una sola vez: la geometría y las ruedas comparten la verdad).
   const geos = cfg.vehicles.map((d) => geoOf(d));
 
-  /** Rueda completa: neumático + llanta + radios, bajo un cubo que GIRA con la marcha. */
-  const buildWheel = (kind: string, r: number, x: number, z: number): { hub: TransformNode; r: number } => {
+  /**
+   * ESCOTADURA DE RUEDA: puntos del ARCO (radio 1.32R centrado en el eje) que corta el
+   * canto inferior del perfil. El arco cruza y=y0 en dos puntos; se recorre del izquierdo
+   * al derecho pasando por la clave — así el fondo del coche queda abierto SOLO sobre cada
+   * rueda y la rueda se ve DENTRO, como en un coche de verdad.
+   */
+  const archArc = (pts: TVector3[], wx: number, R: number, y0: number, steps = 10): void => {
+    const Ra = R * 1.32;
+    const a = Math.asin(Math.max(-0.92, Math.min(0.92, (y0 - R) / Ra)));
+    for (let i = 0; i <= steps; i++) {
+      const th = Math.PI - a - ((Math.PI - 2 * a) * i) / steps;
+      pts.push(new Vector3(wx + Ra * Math.cos(th), R + Ra * Math.sin(th), 0));
+    }
+  };
+
+  /** Fondo del perfil (de popa a proa) con los arcos de las ruedas en orden real. */
+  const bottomWithArches = (geo: Geo, out: TVector3[], noseX: number): void => {
+    const Ra = geo.R * 1.32;
+    const halfW = Ra * Math.cos(Math.asin(Math.max(-0.92, Math.min(0.92, (geo.y0 - geo.R) / Ra))));
+    const sorted = [...geo.wheelX].sort((p, q) => p - q);
+    for (let i = 0; i < sorted.length; i++) {
+      const wx = sorted[i]!;
+      archArc(out, wx, geo.R, geo.y0);
+      // Tramo de canto hasta el siguiente arco (o hasta el morro), si hay cuerpo entre medias.
+      const nextLeft = i + 1 < sorted.length ? sorted[i + 1]! - halfW : noseX;
+      if (nextLeft > wx + halfW) out.push(new Vector3(nextLeft, geo.y0, 0));
+    }
+  };
+
+  /** Perfil CERRADO de la carrocería por estilo (CCW visto desde +Z, morro a +X). */
+  const profileOf = (kind: string, geo: Geo): TVector3[] => {
+    const { L, y0, hullH } = geo;
+    const pts: TVector3[] = [new Vector3(-L / 2, y0, 0)];
+    if (kind === 'reparto') {
+      bottomWithArches(geo, pts, L / 2 - 0.03);
+      pts.push(new Vector3(L / 2, y0 + 0.09, 0), new Vector3(L / 2, y0 + geo.cabH * 0.5, 0), new Vector3(L * 0.46, y0 + geo.cabH * 0.55, 0), new Vector3(L * 0.4, y0 + geo.cabH * 0.96, 0), new Vector3(L * 0.3, y0 + geo.cabH, 0), new Vector3(L * 0.2, y0 + geo.cabH, 0), new Vector3(L * 0.185, geo.boxTop, 0), new Vector3(-L / 2 + 0.04, geo.boxTop, 0), new Vector3(-L / 2, geo.boxTop - 0.09, 0));
+    } else if (kind === 'bus') {
+      bottomWithArches(geo, pts, L / 2 - 0.03);
+      pts.push(new Vector3(L / 2, y0 + 0.1, 0), new Vector3(L / 2, geo.roofTop - 0.16, 0), new Vector3(L / 2 - 0.06, geo.roofTop, 0), new Vector3(-L / 2 + 0.06, geo.roofTop, 0), new Vector3(-L / 2, geo.roofTop - 0.16, 0));
+    } else if (kind === 'furgoneta' || kind === 'ambulancia') {
+      bottomWithArches(geo, pts, L / 2 - 0.03);
+      pts.push(new Vector3(L / 2, y0 + 0.08, 0), new Vector3(L / 2, y0 + hullH * 0.42, 0), new Vector3(L * 0.46, y0 + hullH * 0.47, 0), new Vector3(L * 0.385, y0 + hullH * 0.97, 0), new Vector3(L * 0.3, y0 + hullH, 0), new Vector3(-L / 2 + 0.05, y0 + hullH, 0), new Vector3(-L / 2, y0 + hullH - 0.08, 0));
+    } else {
+      // Berlina: carrocería hasta la línea de cintura (el habitáculo va aparte, de cristal).
+      bottomWithArches(geo, pts, L / 2 - 0.02);
+      pts.push(new Vector3(L / 2, y0 + 0.07, 0), new Vector3(L / 2, y0 + hullH - 0.12, 0), new Vector3(L * 0.34, y0 + hullH, 0), new Vector3(-L * 0.05 + geo.cabinL / 2 + 0.05, y0 + hullH, 0), new Vector3(-L / 2, y0 + hullH, 0));
+    }
+    return pts;
+  };
+
+  /** Habitáculo de cristal de la berlina (parabrisas y luneta INCLINADOS en la forma). */
+  const greenhouseOf = (geo: Geo): TVector3[] => {
+    const { L, y0, hullH, cabinH, cabinL } = geo;
+    const yB = y0 + hullH;
+    const yRf = yB + cabinH - 0.02;
+    const cx = -L * 0.05;
+    return [
+      new Vector3(cx - cabinL / 2, yB - 0.05, 0),
+      new Vector3(cx - cabinL * 0.3, yRf, 0),
+      new Vector3(cx + cabinL * 0.28, yRf, 0),
+      new Vector3(cx + cabinL / 2, yB - 0.05, 0),
+    ];
+  };
+
+  /** Extrusión sólida de un perfil cerrado a lo ancho del vehículo. */
+  const extrudeBody = (name: string, profile: TVector3[], w: number, mat: StandardMaterial): Mesh => {
+    const m = MeshBuilder.ExtrudeShape(
+      name,
+      { shape: profile, path: [new Vector3(0, 0, -w / 2), new Vector3(0, 0, w / 2)], cap: Mesh.CAP_ALL, closeShape: true },
+      scene,
+    );
+    m.material = mat;
+    return m;
+  };
+
+  /** Rueda completa: neumático + llanta + radios, bajo un cubo que GIRA con la marcha.
+   *  v1.34 — el cubo cuelga del NODO del vehículo (antes quedaba huérfano en el origen de
+   *  la escena: 52 ruedas apiladas en la esquina izquierda del edificio mientras los coches
+   *  circulaban sin ellas — la causa de las «ruedas apiladas» y de los coches sin ruedas). */
+  const buildWheel = (kind: string, r: number, x: number, z: number, parent: TransformNode): { hub: TransformNode; r: number } => {
     const hub = new TransformNode(`trafico_${kind}_cubo_x${x.toFixed(2)}_z${z.toFixed(1)}`, scene);
     hub.position.set(x, r, z);
+    hub.parent = parent;
     const w = MeshBuilder.CreateCylinder(`trafico_${kind}_rueda_x${x.toFixed(2)}_z${z.toFixed(1)}`, { diameter: r * 2, height: 0.22, tessellation: 18 }, scene);
     w.rotation.x = Math.PI / 2;
     w.material = tyre;
@@ -475,36 +361,39 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
     return b;
   };
 
+  /** Calcomanía textual (o dibujada) sobre las dos chapas laterales. */
+  const decalQuad = (node: TransformNode, kind: string, part: string, w: number, h: number, x: number, y: number, zOff: number, tex: Texture): void => {
+    const m = new StandardMaterial(`trafico_${kind}_${part}_mat`, scene);
+    m.diffuseTexture = tex;
+    m.useAlphaFromDiffuseTexture = true;
+    m.transparencyMode = 2; // ALPHATEST: recorte duro del texto, sin velos
+    m.alphaCutOff = 0.4;
+    m.specularColor = new Color3(0, 0, 0);
+    m.backFaceCulling = true;
+    for (const sz of [-1, 1]) {
+      const q = MeshBuilder.CreatePlane(`trafico_${kind}_${part}_${sz > 0 ? 'd' : 'i'}`, { width: w, height: h }, scene);
+      q.material = m;
+      q.rotation.y = sz > 0 ? Math.PI : 0; // los planos miran a −Z: el lado +Z gira
+      q.position.set(x, y, sz * (zOff + 0.008));
+      q.parent = node;
+    }
+  };
+
   /** Construye UNA plantilla por tipo de vehículo (pool: se recolorean al salir). */
   const buildRig = (defIndex: number): VehicleRig => {
     const def = cfg.vehicles[defIndex]!;
     const geo = geos[defIndex]!;
     const node = new TransformNode(`trafico_${def.kind}`, scene);
     node.parent = root;
-    // v1.32: planos que NO proyectan sombra (costados con alpha-test) — el pase de sombras
-    // del controlador los retira de la lista de casters.
-    const noShadow: Mesh[] = [];
-    let sideOffSafe = geo.sideHalf + 0.014;
     const bodyMat = new StandardMaterial(`trafico_${def.kind}_mat`, scene);
     bodyMat.diffuseColor = Color3.FromHexString(def.colors[0]!);
     bodyMat.specularColor = new Color3(0, 0, 0);
-    const body = (part: string, w: number, h: number, d: number): Mesh => box(def.kind, part, w, h, d, bodyMat);
     const place = (m: Mesh, x: number, y: number, z = 0): Mesh => {
       m.position.set(x, y, z);
       m.parent = node;
       return m;
     };
-    const sideMat = new StandardMaterial(`trafico_${def.kind}_side`, scene);
-    sideMat.specularColor = new Color3(0, 0, 0);
-    sideMat.backFaceCulling = true;
-    // v1.32 — RECORTADO REAL: alpha-test del difuso (los texels transparentes del arco se
-    // descartan — sin blending, sin sorting, sin velos negros en WebGPU; el mismo camino
-    // verificado de las máquinas de la lavandería y los recortes de macetas).
-    sideMat.useAlphaFromDiffuseTexture = true;
-    sideMat.transparencyMode = 2; // ALPHATEST
-    sideMat.alphaCutOff = 0.4;
-
-    const W = def.width;
+    const W = geo.W;
     const L = def.length;
     const { R, y0, hullH } = geo;
     const isSedan = def.kind === 'coche' || def.kind === 'taxi' || def.kind === 'policia';
@@ -512,55 +401,55 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
     // Bajos: chasis oscuro que cierra la vista bajo el cuerpo (nada de ver al otro lado).
     place(box(def.kind, 'bajos', L * 0.94, y0 - 0.02, W * 0.5, chassis), 0, (y0 - 0.02) / 2 + 0.02);
 
+    // ── CUERPO POR EXTRUSIÓN (silueta real con arcos de rueda geométricos) ──
+    const body = extrudeBody(`trafico_${def.kind}_cuerpo`, profileOf(def.kind, geo), W, bodyMat);
+    place(body, 0, 0);
+
+    // Chasis tras los arcos: desde el lateral se ve rueda → chasis oscuro (no el otro lado).
+    const ws = [...geo.wheelX].sort((p, q) => p - q);
+    const archTop = R + R * 1.32;
+    if (ws.length >= 2) {
+      place(box(def.kind, 'chasis', ws[ws.length - 1]! - ws[0]!, archTop - 0.04, W * 0.72, chassis), (ws[0]! + ws[ws.length - 1]!) / 2, 0.04 + (archTop - 0.04) / 2);
+    }
+
+    // ── CRISTALES Y DETALLES POR ESTILO ──
     if (isSedan) {
-      // Cuerpo + habitáculo; morro integrado en el bloque (el costado pintado da el perfil).
-      // v1.32: la cabina se ensancha al ANCHO DEL CUERPO (W*0.88) — el costado pintado la
-      // abraza sin flotar por fuera (antes W*0.8: plano pegado a un cuerpo más estrecho).
-      place(body('cuerpo', L, hullH, W * 0.88), 0, y0 + hullH / 2);
-      const cab = body('cabina', geo.cabinL, geo.cabinH, W * 0.86);
-      place(cab, -L * 0.05, y0 + hullH + geo.cabinH / 2 - 0.04);
-      // Parabrisas y luneta inclinados (cristal propio, pilar A del catálogo).
-      // v1.33: panel TRANSVERSAL — fino en X (largo), ancho en Z (anchura del coche).
-      // Antes iba con ejes permutados y sobresalían del techo como aletas longitudinales.
-      const ws = box(def.kind, 'parabrisas', 0.035, geo.cabinH * 0.92, W * 0.8, glass);
-      ws.rotation.z = -0.5;
-      place(ws, -L * 0.05 + geo.cabinL / 2 - 0.02, y0 + hullH + geo.cabinH * 0.52);
-      const rw = box(def.kind, 'luneta', 0.035, geo.cabinH * 0.88, W * 0.8, glass);
-      rw.rotation.z = 0.52;
-      place(rw, -L * 0.05 - geo.cabinL / 2 + 0.02, y0 + hullH + geo.cabinH * 0.5);
+      // Habitáculo de cristal retranqueado: sus tapas SON las ventanas laterales y sus
+      // paredes inclinadas el parabrisas y la luneta. Nace DENTRO del cuerpo (yB−0.05):
+      // nada coplanar. Tapa de techo en color carrocería, un pelo más ancha (techo metálico).
+      const cab = extrudeBody(`trafico_${def.kind}_cabina`, greenhouseOf(geo), W * 0.84, glass);
+      place(cab, 0, 0);
+      place(box(def.kind, 'techo', geo.cabinL * 0.58, 0.035, W * 0.9, bodyMat), -L * 0.05, geo.roofTop + 0.0175);
     } else if (def.kind === 'furgoneta') {
-      // Volumen único (cab-over) con morro corto bajo el parabrisas.
-      place(body('cuerpo', L * 0.98, hullH, W * 0.92), -L * 0.01, y0 + hullH / 2);
-      const nose = body('morro', L * 0.12, hullH * 0.42, W * 0.92);
-      place(nose, L * 0.47, y0 + hullH * 0.21);
-      // v1.33: parabrisas transversal (fino en X, ancho en Z) — antes era una aleta longitudinal.
+      // Parabrisas (panel transversal con rake, v1.33) + ventanilla de cabina con grosor.
       const ws = box(def.kind, 'parabrisas', 0.04, hullH * 0.5, W * 0.84, glass);
       ws.rotation.z = -0.3;
       place(ws, L * 0.42, y0 + hullH * 0.78);
+      for (const sz of [-1, 1]) {
+        place(box(def.kind, `ventanilla_${sz > 0 ? 'd' : 'i'}`, L * 0.17, hullH * 0.32, 0.02, glass), L * 0.22, y0 + hullH * 0.7, sz * (W / 2 + 0.008));
+      }
     } else if (def.kind === 'reparto') {
-      const cab = body('cabina', L * 0.26, geo.cabH, W * 0.92);
-      place(cab, L * 0.35, y0 + geo.cabH / 2);
-      const cargo = body('caja', geo.boxL, def.height * 1.02, W * 0.98);
-      place(cargo, -L * 0.13, y0 + 0.06 + (def.height * 1.02) / 2);
-      // v1.33: parabrisas transversal (fino en X, ancho en Z).
       const ws = box(def.kind, 'parabrisas', 0.04, geo.cabH * 0.42, W * 0.84, glass);
       ws.rotation.z = -0.22;
       place(ws, L * 0.44, y0 + geo.cabH * 0.72);
+      for (const sz of [-1, 1]) {
+        place(box(def.kind, `ventanilla_${sz > 0 ? 'd' : 'i'}`, L * 0.13, geo.cabH * 0.36, 0.02, glass), L * 0.33, y0 + geo.cabH * 0.66, sz * (W / 2 + 0.008));
+      }
     } else {
-      // Bus: cuerpo largo a un agua con panza; el costado pintado trae las ventanas.
-      place(body('cuerpo', L, hullH, W * 0.94), 0, y0 + hullH / 2);
-      place(body('tejadillo', L * 0.99, 0.1, W * 0.9), 0, y0 + hullH + 0.05);
-      // v1.33: parabrisas y luneta transversales (finos en X, anchos en Z).
+      // Bus: banda de ventanas corrida (caja de cristal con grosor) + luneta trasera.
+      for (const sz of [-1, 1]) {
+        place(box(def.kind, `ventanas_${sz > 0 ? 'd' : 'i'}`, L * 0.8, hullH * 0.34, 0.02, glass), -L * 0.03, y0 + hullH * 0.74, sz * (W / 2 + 0.008));
+      }
       const ws = box(def.kind, 'parabrisas', 0.04, hullH * 0.42, W * 0.86, glass);
       ws.rotation.z = -0.16;
-      place(ws, L * 0.49, y0 + hullH * 0.8);
+      place(ws, L / 2 - 0.01, y0 + hullH * 0.78);
       const rw = box(def.kind, 'luneta', 0.04, hullH * 0.3, W * 0.8, glass);
-      place(rw, -L * 0.49, y0 + hullH * 0.82);
+      place(rw, -L / 2 - 0.01, y0 + hullH * 0.8);
       // Climatizador de techo.
-      place(box(def.kind, 'ac', L * 0.26, 0.14, W * 0.5, dark), -L * 0.05, y0 + hullH + 0.16);
+      place(box(def.kind, 'ac', L * 0.26, 0.14, W * 0.5, dark), -L * 0.05, geo.roofTop + 0.07);
     }
 
-    // Paragolpes, parrilla y matrícula.
+    // Paragolpes, matrícula.
     const bumpH = Math.max(0.14, R * 0.42);
     place(box(def.kind, 'paragolpes_del', L * 0.045, bumpH, W * 1.0, dark), L / 2 + 0.012, y0 + bumpH * 0.62);
     place(box(def.kind, 'paragolpes_tras', L * 0.045, bumpH, W * 1.0, dark), -L / 2 - 0.012, y0 + bumpH * 0.62);
@@ -598,19 +487,7 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
       place(tl, -L / 2 - 0.015, y0 + hullH * 0.68, sz * W * 0.3);
     }
 
-    // v1.32 — POZOS DE RUEDA: caja oscura DETRÁS de cada arco recortado (el hueco del
-    // costado muestra el pozo y la rueda, no el otro lado del coche). La caja NO envuelve
-    // al neumático: se queda tras su cara interior (la rueda vive en la cavidad del arco,
-    // visible por el hueco; el pozo tapa el fondo). Nada asoma por el costado opuesto.
-    const wellDepth = Math.max(0.02, (sideOffSafe - 0.25) * 2);
-    for (const wx of geo.wheelX) {
-      const wellTop = Math.min(geo.roofTop, geo.R + geo.R * 1.3);
-      const wh = Math.max(0.02, wellTop - y0);
-      place(box(def.kind, 'pozo', geo.R * 2.6 + 0.06, wh, wellDepth, chassis), wx, y0 + wh / 2);
-    }
-
-    // v1.32 — DETALLES FINALES: tubo de escape (todos los motorizados) y tiradores 3D
- //    que salen del plano pintado (berlina y furgoneta: puertas con manija de verdad).
+    // Tubo de escape y tiradores 3D (berlina y furgoneta: manijas que salen de la chapa).
     const exhaust = MeshBuilder.CreateCylinder(`trafico_${def.kind}_escape`, { diameter: 0.045, height: 0.16, tessellation: 8 }, scene);
     exhaust.rotation.z = Math.PI / 2;
     exhaust.material = dark;
@@ -619,7 +496,7 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
       const hY = y0 + hullH * (isSedan ? 0.72 : 0.55);
       for (const hx of isSedan ? [-geo.L * 0.02, geo.L * 0.2] : [geo.L * 0.05]) {
         for (const sz of [-1, 1]) {
-          place(box(def.kind, 'tirador3d', 0.11, 0.035, 0.05, dark), hx, hY, sz * (sideOffSafe + 0.018));
+          place(box(def.kind, 'tirador3d', 0.11, 0.035, 0.05, dark), hx, hY, sz * (W / 2 + 0.018));
         }
       }
     }
@@ -633,32 +510,47 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
       place(mir, isSedan ? -L * 0.05 + geo.cabinL / 2 - 0.05 : L * 0.4, y0 + hullH + (isSedan ? geo.cabinH * 0.62 : 0.12), sz * (mirrorZ + 0.02));
     }
 
-    // Costados pintados: quads PROUD del semiancho real del cuerpo (regla de la casa:
-    // nada coplanar — la v1.31 inicial enterraba el plano en furgoneta/bus/reparto).
-    // v1.32: los planos no proyectan sombra (el ALPHATEST del arco no llega al mapa de
-    // profundidad: proyectarían un rectángulo entero); la silueta la dan cuerpo y ruedas.
-    const sideOff = geo.sideHalf + 0.014;
-    sideOffSafe = sideOff;
-    const sideH = geo.roofTop;
-    for (const sz of [-1, 1]) {
-      const q = MeshBuilder.CreatePlane(`trafico_${def.kind}_costado_${sz > 0 ? 'd' : 'i'}`, { width: L, height: sideH, sideOrientation: 2 /* DOUBLESIDE */ }, scene);
-      q.material = sideMat;
-      q.rotation.y = sz > 0 ? Math.PI : 0;
-      q.position.set(0, sideH / 2, sz * sideOff);
-      q.parent = node;
-      q.receiveShadows = false;
-      noShadow.push(q);
-    }
-
-    // Ruedas (neumático + llanta + radios, giran con la marcha). v1.32: DENTRO del cuerpo
-    // (la cara exterior del neumático queda tras el plano del costado — se ven POR EL ARCO,
-    // como en un coche de verdad, ya no asoman por fuera de la carrocería).
-    const wheels: VehicleRig['wheels'] = [];
-    const tireZ = sideOff - 0.13;
-    for (const wx of geo.wheelX) {
+    // ── ROTULACIONES (calcomanías pequeñas + bandas-caja de verdad) ──
+    const yStrip = y0 + hullH * 0.55;
+    if (def.kind === 'policia') {
       for (const sz of [-1, 1]) {
-        wheels.push(buildWheel(def.kind, R, wx, sz * tireZ));
+        place(box(def.kind, `banda_${sz > 0 ? 'd' : 'i'}`, L * 0.72, 0.13, 0.02, matOf('#286090', 'banda_policia')), -L * 0.02, yStrip, sz * (W / 2 + 0.012));
       }
+      decalQuad(node, def.kind, 'rotulacion', 1.2, 0.24, -L * 0.02, yStrip, W / 2 + 0.012, decalTex('policia', (c, w, h) => {
+        c.fillStyle = 'rgba(255,255,255,0.95)';
+        c.font = `900 84px 'Arial Black', Arial, sans-serif`;
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText(def.sideText || 'POLICÍA', w / 2, h / 2 + 2);
+      }));
+    }
+    if (def.kind === 'taxi') {
+      // Franja dama: caja fina con damero a canvas (vinilo con grosor, a la altura del panel).
+      for (const sz of [-1, 1]) {
+        const strip = box(def.kind, `damero_${sz > 0 ? 'd' : 'i'}`, L * 0.62, 0.09, 0.02, new StandardMaterial(`trafico_taxi_damero_mat`, scene));
+        const cmat = strip.material as StandardMaterial;
+        cmat.diffuseTexture = checkerTex();
+        cmat.specularColor = new Color3(0, 0, 0);
+        place(strip, -L * 0.02, y0 + hullH * 0.98, sz * (W / 2 + 0.012));
+      }
+    }
+    if (def.sideText && (def.kind === 'furgoneta' || def.kind === 'reparto' || def.kind === 'bus')) {
+      const dy = def.kind === 'reparto' ? y0 + (geo.boxTop - y0) * 0.58 : def.kind === 'bus' ? y0 + hullH * 0.4 : y0 + hullH * 0.6;
+      const big = def.kind === 'bus';
+      decalQuad(node, def.kind, 'rotulacion', big ? 0.6 : L * 0.46, big ? 0.5 : 0.26, big ? L * 0.28 : -L * 0.14, dy, W / 2, decalTex(`${def.kind}_side`, (c, w, h) => {
+        c.fillStyle = big ? 'rgba(255,255,255,0.94)' : 'rgba(30,26,20,0.85)';
+        // El texto SIEMPRE cabe: se mide y la fuente se encoge hasta caber (nada recortado).
+        let px = big ? 96 : 64;
+        c.font = `900 ${px}px 'Arial Black', Arial, sans-serif`;
+        const text = def.sideText!;
+        while (px > 18 && c.measureText(text).width > w * 0.94) {
+          px -= 4;
+          c.font = `900 ${px}px 'Arial Black', Arial, sans-serif`;
+        }
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText(text, w / 2, h / 2 + 2);
+      }));
     }
 
     // Tejado: cartel de TAXI, parrilla de furgoneta o barra de la patrulla.
@@ -711,8 +603,18 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
       siren = { red, blue };
     }
 
+    // Ruedas (neumático + llanta + radios, giran con la marcha) DENTRO de su arco:
+    // la cara exterior del neumático queda 3 cm por dentro de la chapa.
+    const wheels: VehicleRig['wheels'] = [];
+    const tireZ = W / 2 - 0.14;
+    for (const wx of geo.wheelX) {
+      for (const sz of [-1, 1]) {
+        wheels.push(buildWheel(def.kind, R, wx, sz * tireZ, node));
+      }
+    }
+
     node.setEnabled(false);
-    return { root: node, bodyMat, sideMat, wheels, siren, lights: { head, tail, signs }, noShadow };
+    return { root: node, bodyMat, wheels, siren, lights: { head, tail, signs } };
   };
 
   const rigs = cfg.vehicles.map((_, i) => buildRig(i));
@@ -738,7 +640,6 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
     // Un rig por tipo: si ya está en la calle, este tipo no sale esta vez (pool honesto).
     if ([...active].some((a) => a.defIndex === defIndex)) return;
     const rig = rigs[defIndex]!;
-    const geo = geoOf(def);
     const laneIndex = Math.floor(hash01('trafico_carril', roll) * cfg.lanes.length) % cfg.lanes.length;
     const lane = cfg.lanes[laneIndex]!;
     const dir = lane.dir >= 0 ? 1 : -1;
@@ -746,16 +647,15 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
     const x = dir > 0 ? cfg.xMin - def.length : cfg.xMax + def.length;
     const hex = def.colors[Math.floor(hash01('trafico_color', roll) * def.colors.length) % def.colors.length]!;
     rig.bodyMat.diffuseColor = Color3.FromHexString(hex);
-    rig.sideMat.diffuseTexture = sideTex(def, hex, geo);
     rig.root.rotation.y = dir > 0 ? 0 : Math.PI;
     rig.root.setEnabled(visible);
     rig.root.position = new Vector3(x, 0, lane.z);
     active.add({ rig, defIndex, laneIndex, x, speed, passed: false, phase: hash01('trafico_fase', roll) * 6 });
   };
 
-  /** v1.32 — AMBULANCIA del teatro de emergencias: furgón blanco con librea (franja +
-   *  cruz + rotulación del catálogo), puertas traseras abatibles, girofarios alternantes
-   *  y las MISMAS ruedas dentro de arcos recortados que el resto del tráfico. */
+  /** AMBULANCIA del teatro de emergencias: furgón blanco con librea (franja + cruz +
+   *  rotulación del catálogo), puertas traseras abatibles, girofarios alternantes y las
+   *  MISMAS carrocerías por extrusión con arcos de rueda de verdad que el resto del tráfico. */
   const buildAmbulance = (): AmbulanceRig | null => {
     const a = cfg.ambulance;
     if (!a) return null;
@@ -774,35 +674,52 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
       m.parent = node;
       return m;
     };
-    // Bajos + cuerpo + morro bajo el parabrisas (misma genealogía que la furgoneta).
+    // Bajos + carrocería por extrusión (silueta real con arcos) + chasis tras los arcos.
     place(box('ambulancia', 'bajos', L * 0.94, y0 - 0.02, W * 0.5, chassis), 0, (y0 - 0.02) / 2 + 0.02);
-    place(box('ambulancia', 'cuerpo', L * 0.98, hullH, W * 0.92, white), -L * 0.01, y0 + hullH / 2);
-    place(box('ambulancia', 'morro', L * 0.12, hullH * 0.42, W * 0.92, white), L * 0.47, y0 + hullH * 0.21);
-    // v1.33: parabrisas transversal (fino en X, ancho en Z) — antes era una aleta longitudinal.
+    place(extrudeBody('trafico_ambulancia_cuerpo', profileOf('ambulancia', geo), W, white), 0, 0);
+    const wsX = [...geo.wheelX].sort((p, q) => p - q);
+    const archTop = R + R * 1.32;
+    place(box('ambulancia', 'chasis', wsX[wsX.length - 1]! - wsX[0]!, archTop - 0.04, W * 0.72, chassis), (wsX[0]! + wsX[wsX.length - 1]!) / 2, 0.04 + (archTop - 0.04) / 2);
+    // Parabrisas transversal + ventanillas de cabina con grosor.
     const ws = box('ambulancia', 'parabrisas', 0.04, hullH * 0.5, W * 0.84, glass);
     ws.rotation.z = -0.3;
     place(ws, L * 0.42, y0 + hullH * 0.78);
-    // Costados pintados con librea (arcos recortados; NO proyectan sombra).
-    const sideMat = new StandardMaterial('ambulancia_side', scene);
-    sideMat.specularColor = new Color3(0, 0, 0);
-    sideMat.useAlphaFromDiffuseTexture = true;
-    sideMat.transparencyMode = 2;
-    sideMat.alphaCutOff = 0.4;
-    const sideOff = geo.sideHalf + 0.014;
     for (const sz of [-1, 1]) {
-      const q = MeshBuilder.CreatePlane(`trafico_ambulancia_costado_${sz > 0 ? 'd' : 'i'}`, { width: L, height: geo.roofTop, sideOrientation: 2 }, scene);
-      q.material = sideMat;
-      q.rotation.y = sz > 0 ? Math.PI : 0;
-      q.position.set(0, geo.roofTop / 2, sz * sideOff);
-      q.parent = node;
-      q.receiveShadows = false;
+      place(box('ambulancia', `ventanilla_${sz > 0 ? 'd' : 'i'}`, L * 0.17, hullH * 0.32, 0.02, glass), L * 0.22, y0 + hullH * 0.7, sz * (W / 2 + 0.008));
     }
-    sideMat.diffuseTexture = sideTex({ kind: 'ambulancia', sideText: a.sideText }, a.color, geo);
-    // Ruedas dentro de sus pozos (la verdad v1.32).
+    // LIBREA: franja naranja (caja fina de verdad), cruz de vida y rotulación (calcomanías).
+    for (const sz of [-1, 1]) {
+      place(box('ambulancia', `franja_${sz > 0 ? 'd' : 'i'}`, L * 0.94, hullH * 0.16, 0.02, matOf(acfg.stripe, 'franja_ambulancia')), 0, y0 + hullH * 0.34, sz * (W / 2 + 0.012));
+    }
+    decalQuad(node, 'ambulancia', 'cruz', 0.62, 0.62, -L * 0.16, y0 + hullH * 0.66, W / 2 + 0.012, decalTex('ambulancia_cruz', (c, w, h) => {
+      const r = Math.min(w, h) * 0.36;
+      const cx = w / 2;
+      const cy = h / 2;
+      c.fillStyle = '#f6f7f4';
+      c.beginPath();
+      c.arc(cx, cy, r, 0, Math.PI * 2);
+      c.fill();
+      c.fillStyle = acfg.cross;
+      const aw = r * 0.34;
+      c.fillRect(cx - aw / 2, cy - r * 0.78, aw, r * 1.56);
+      c.fillRect(cx - r * 0.78, cy - aw / 2, r * 1.56, aw);
+    }));
+    if (a.sideText) {
+      decalQuad(node, 'ambulancia', 'rotulacion', 1.5, 0.28, L * 0.18, y0 + hullH * 0.66, W / 2 + 0.012, decalTex('ambulancia_texto', (c, w, h) => {
+        c.fillStyle = 'rgba(30,26,20,0.85)';
+        c.font = `900 72px 'Arial Black', Arial, sans-serif`;
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText(a.sideText, w / 2, h / 2 + 2);
+      }));
+    }
+    // Ruedas dentro de sus arcos (la verdad geométrica).
     const wheels: { hub: TransformNode; r: number }[] = [];
-    const tireZ = sideOff - 0.13;
+    const tireZ = W / 2 - 0.14;
     for (const wx of geo.wheelX) {
-      for (const sz of [-1, 1]) wheels.push(buildWheel('ambulancia', R, wx, sz * tireZ));
+      for (const sz of [-1, 1]) {
+        wheels.push(buildWheel('ambulancia', R, wx, sz * tireZ, node));
+      }
     }
     // Puertas traseras abatibles: dos hojas con bisagra en los montantes.
     const rearX = -L / 2 - 0.012;

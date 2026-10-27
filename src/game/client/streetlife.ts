@@ -152,7 +152,14 @@ export function createStreetlife(
         stick.material = stickMat;
         stick.parent = placard;
         const panel = MeshBuilder.CreatePlane('cartel_panel', { width: man.placard.w, height: man.placard.h, sideOrientation: Mesh.DOUBLESIDE }, scene);
-        const text = topic.placards[Math.floor(i / man.placard.carryEvery - 1) % topic.placards.length]!;
+        // v1.34 — los lemas también son data-driven: «{plantas} PISOS A PIE» pinta las
+        // plantas de verdad del edificio (antes decía 9 en un bloque de 3).
+        const text = resolveTokens(
+          topic.placards[Math.floor(i / man.placard.carryEvery - 1) % topic.placards.length]!,
+          world,
+          content,
+          {},
+        );
         const mat = new StandardMaterial(`cartel_mat_${i}`, scene);
         mat.diffuseTexture = texOf(text);
         mat.emissiveTexture = texOf(text);

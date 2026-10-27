@@ -740,6 +740,9 @@ export interface EcosystemContent {
       bodyW: number;
       bodyH: number;
       headScale: number;
+      /** v1.34 — patas (alto) y collar del perro. */
+      legH?: number;
+      collar?: string;
     };
   };
   lights: {
@@ -1224,6 +1227,30 @@ export interface Rules {
         signText: string;
         rampDepth: number;
         rampColor: string;
+        /** v1.34 — mobiliario del garaje comunitario (interior habitable). */
+        furniture?: {
+          benchW: number;
+          benchH: number;
+          benchD: number;
+          pegW: number;
+          pegH: number;
+          shelfW: number;
+          shelfH: number;
+          shelfD: number;
+          shelfTiers: number;
+          tireR: number;
+          tireCount: number;
+          boxW: number;
+          boxH: number;
+          boxD: number;
+          benchColor: string;
+          benchTopColor: string;
+          tireColor: string;
+          shelfColor: string;
+          boxColor: string;
+          pegColor: string;
+          wallColor: string;
+        };
       };
       trasteroComunal: {
         doorArt: string;
@@ -1256,6 +1283,8 @@ export interface Rules {
         openAhead: number;
         openSeconds: number;
         openAngle: number;
+        /** v1.34 — ángulo de levantamiento de la basculante del garaje (rad). */
+        liftAngle: number;
       };
       lavanderia: {
         machines: number;

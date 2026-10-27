@@ -133,7 +133,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
    *  cierran solas. La fachada del local SOLO se desvanece cuando el jugador entra (o con
    *  la junta activa): las paredes del pasillo ya no se levantan porque un vecino pase
    *  por dentro. */
-  const hallDoors: { hinge: TransformNode; openT: number; doorX: number; doorZ: number; floorY: number; side: 1 | -1 }[] = [];
+  const hallDoors: { hinge: TransformNode; openT: number; doorX: number; doorZ: number; floorY: number; side: 1 | -1; lift?: boolean }[] = [];
   /** Hojas de cristal del portal: nodo vivo del arte + baseX + sentido de deslizamiento. */
   const portalLeaves: { mesh: Mesh; baseX: number; dir: number }[] = [];
   let portalDoorX = 0;
@@ -246,6 +246,9 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
   const hallLaundryMat = mat('local_lavanderia_mat');
   hallLaundryMat.diffuseColor = Color3.FromHexString('#ece9e2');
   hallLaundryMat.specularColor = new Color3(0.02, 0.02, 0.02);
+  const hallGarajeMat = mat('local_garaje_mat');
+  hallGarajeMat.diffuseColor = Color3.FromHexString(loc.garaje.furniture?.wallColor ?? '#9aa2ad');
+  hallGarajeMat.specularColor = new Color3(0.02, 0.02, 0.02);
   /** Recorte billboard genérico (máquinas de la lavandería): PNG → stripWhite → Texture
    *  (dataURL, conserva alpha — mismo camino verificado de las macetas). */
   const keyedTexCache = new Map<string, { dt: Texture; ar: number; onTrim: Array<(ar: number) => void>; loaded: boolean }>();
@@ -920,24 +923,30 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       // Tejadillo (v1.16): fallback = canto de cerramiento (el glTF trae faldones, cumbrera,
       // chimenea y antena).
       view.greybox.push(box(`${b.id}_canto`, w, v.slab * 2, d, cx, bottom + v.slab, frontZ + d / 2, m));
-    } else if (b.defId === 'trasteros' || b.defId === 'local_comercial' || b.defId === 'lavanderia_comunal') {
-      // ── v1.30 — LOCALES DE LA PLANTA 0 con interior de verdad ──
+    } else if (b.defId === 'trasteros' || b.defId === 'local_comercial' || b.defId === 'lavanderia_comunal' || b.defId === 'garaje') {
+      // ── v1.30 — LOCALES DE LA PLANTA 0 con interior de verdad (v1.34: también el GARAJE) ──
       //  · TRASTERO COMUNITARIO: dos puertas mapeadas que funcionan como las de las
       //    viviendas (abren al entrar alguien) y dentro, estanterías para todos los vecinos.
       //  · SALA DE JUNTAS: mapeada como local de reuniones (no vivienda) con mesa y sillas;
       //    convocada una junta, los vecinos entran y se sientan (también fiestas).
       //  · LAVANDERÍA: local ABIERTO sin pared frontal con las máquinas comunes dentro.
+      //  · GARAJE (v1.34 — petición: «entrar por una puerta de la planta 0 debe dejar
+      //    entrar en el bloque y ocultar la pared como en las viviendas»): la FACHADA es
+      //    el arte glTF (puerta basculante que se LEVANTA al acercarse, rótulo y faroles);
+      //    al entrar, la fachada se desvanece entera y queda el interior con mesa de
+      //    trabajo, estantería, pila de ruedas y caja de herramientas (todo del catálogo).
       //  El arte glTF conserva zócalo/rótulo/faroles (hideNodes del catálogo retira el
       //  cuerpo cerrado); la fachada y el interior los levanta SIEMPRE el runtime con el
       //  gris de pasillo (locals.corridorWall) — mismo dialecto que las viviendas.
       const isLaundry = b.defId === 'lavanderia_comunal';
+      const isGaraje = b.defId === 'garaje';
       const tc = loc.trasteroComunal;
       const jh = loc.juntaHall;
       const x0 = cx - w / 2; // borde izquierdo del bloque (los rects del layout son locales)
       const baseY = bottom + v.slab * 2;
       const H = v.cellH - v.slab * 2;
       const frontMat = hallFrontMat;
-      const intMat = isLaundry ? hallLaundryMat : hallInnerMat;
+      const intMat = isLaundry || isGaraje ? (isGaraje ? hallGarajeMat : hallLaundryMat) : hallInnerMat;
       // Carcasa: forjado + fondo + laterales + techo (la lavandería SIN pared frontal).
       view.greybox.push(
         box(`${b.id}_forjado`, w, v.slab * 2, d, cx, bottom + v.slab, cz, m),
@@ -953,11 +962,12 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       const lamp = box(`${b.id}_lampara_int`, Math.min(0.9, w * 0.4), 0.05, 0.22, cx, baseY + H - 0.05, frontZ + d * 0.55, lampM);
       lamp.setEnabled(false);
       // Fachada: paredes al gris de pasillo con el HUECO/S de puerta reales (la lavandería
-      // se queda abierta de par en par). Nada coplanar: la hoja vive delante del canto.
+      // se queda abierta de par en par; el garaje la pone el ARTE glTF — basculante — y el
+      // runtime no duplica nada). Nada coplanar: la hoja vive delante del canto.
       const doorZHall = frontZ - v.wall / 2 - 0.035;
       const gapWs: number[] = [];
-      if (isLaundry) {
-        // abierta: sin tramos ni hoja (interior siempre a la vista)
+      if (isLaundry || isGaraje) {
+        // abierta (lavandería) o fachada del arte (garaje): sin tramos ni hoja del runtime
       } else if (b.defId === 'trasteros') {
         gapWs.push(cx - tc.doorDx, cx + tc.doorDx);
       } else {
@@ -1123,6 +1133,61 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
             standsW.push({ x: wx, z: wz, yaw: Math.atan2(-fz / len, fx / len) });
           }
           hallSeats.set(b.id, { seats: seatsW, stands: standsW });
+        } else if (b.defId === 'garaje') {
+          // v1.34 — GARAJE COMUNITARIO HABITABLE: mesa de trabajo con tablero de herramientas,
+          // estantería con botes, pila de ruedas y caja de herramientas — TODO del catálogo
+          // (locals.garaje.furniture). Al entrar, la fachada glTF se desvanece y esto se ve.
+          const gf = loc.garaje.furniture;
+          if (gf) {
+            const benchM = mat(`${b.id}_g_banco_mat`);
+            benchM.diffuseColor = Color3.FromHexString(gf.benchColor);
+            const topM = mat(`${b.id}_g_tablero_mat`);
+            topM.diffuseColor = Color3.FromHexString(gf.benchTopColor);
+            const tireM = mat(`${b.id}_g_rueda_mat`);
+            tireM.diffuseColor = Color3.FromHexString(gf.tireColor);
+            const shelfM = mat(`${b.id}_g_estante_mat`);
+            shelfM.diffuseColor = Color3.FromHexString(gf.shelfColor);
+            const boxM = mat(`${b.id}_g_caja_mat`);
+            boxM.diffuseColor = Color3.FromHexString(gf.boxColor);
+            const pegM = mat(`${b.id}_g_panel_mat`);
+            pegM.diffuseColor = Color3.FromHexString(gf.pegColor);
+            // Mesa de trabajo contra el fondo, a la izquierda; tablero perforado encima.
+            const benchZ = frontZ + d - v.wall - gf.benchD / 2 - 0.05;
+            const benchX = x0 + 0.25 + gf.benchW / 2;
+            view.greybox.push(
+              box(`${b.id}_g_banco_tapa`, gf.benchW, 0.06, gf.benchD, benchX, baseY + gf.benchH, benchZ, topM),
+              box(`${b.id}_g_banco_cuerpo`, gf.benchW - 0.1, gf.benchH - 0.06, gf.benchD - 0.08, benchX, baseY + (gf.benchH - 0.06) / 2, benchZ, benchM),
+              box(`${b.id}_g_panel`, gf.pegW, gf.pegH, 0.03, benchX, baseY + gf.benchH + 0.06 + gf.pegH / 2, frontZ + d - v.wall - 0.04, pegM),
+              // Herramientas colgadas del tablero (llaves estilizadas, deterministas).
+              box(`${b.id}_g_herr_1`, 0.05, 0.3, 0.02, benchX - gf.pegW * 0.25, baseY + gf.benchH + 0.3, frontZ + d - v.wall - 0.02, benchM),
+              box(`${b.id}_g_herr_2`, 0.05, 0.24, 0.02, benchX + gf.pegW * 0.05, baseY + gf.benchH + 0.27, frontZ + d - v.wall - 0.02, benchM),
+              box(`${b.id}_g_herr_3`, 0.05, 0.34, 0.02, benchX + gf.pegW * 0.32, baseY + gf.benchH + 0.32, frontZ + d - v.wall - 0.02, benchM),
+            );
+            // Caja de herramientas sobre la mesa.
+            view.greybox.push(box(`${b.id}_g_caja`, gf.boxW, gf.boxH, gf.boxD, benchX + 0.32, baseY + gf.benchH + 0.03 + gf.boxH / 2, benchZ + 0.04, boxM));
+            // Estantería a la derecha del fondo con botes.
+            const shelfX = x0 + w - v.wall - 0.12 - gf.shelfD / 2;
+            for (let t = 1; t <= gf.shelfTiers; t++) {
+              view.greybox.push(box(`${b.id}_g_balda_${t}`, gf.shelfW, 0.04, gf.shelfD, shelfX, baseY + (t * gf.shelfH) / (gf.shelfTiers + 1), frontZ + d - v.wall - 0.12, shelfM));
+              if (hash01(b.id, 7200 + t) < 0.8) {
+                const jw = 0.14 + hash01(b.id, 7300 + t) * 0.1;
+                view.greybox.push(box(`${b.id}_g_bote_${t}`, jw, 0.18 + hash01(b.id, 7400 + t) * 0.1, jw, shelfX + (hash01(b.id, 7500 + t) - 0.5) * (gf.shelfW - jw - 0.05), baseY + (t * gf.shelfH) / (gf.shelfTiers + 1) + 0.13, frontZ + d - v.wall - 0.12, boxM));
+              }
+            }
+            for (const sx of [-1, 1]) {
+              view.greybox.push(box(`${b.id}_g_poste_${sx > 0 ? 'd' : 'i'}`, 0.06, gf.shelfH, 0.06, shelfX + sx * (gf.shelfW / 2 - 0.03), baseY + gf.shelfH / 2, frontZ + d - v.wall - 0.12, shelfM));
+            }
+            // Pila de ruedas en la esquina frontal derecha (neumáticos apilados de verdad).
+            const tireX = x0 + w - v.wall - 0.35;
+            const tireZ = frontZ + 0.42;
+            for (let t = 0; t < gf.tireCount; t++) {
+              const tire = attach(b.id, MeshBuilder.CreateCylinder(`${b.id}_g_neumatico_${t}`, { diameter: gf.tireR * 2, height: 0.19, tessellation: 16 }, scene));
+              tire.position.set(tireX, baseY + 0.095 + t * 0.19, tireZ);
+              tire.material = tireM;
+              tire.isPickable = false;
+              view.greybox.push(tire);
+            }
+          }
         } else {
           // LAVANDERÍA: las máquinas comunes contra el muro del fondo (recortes billboard
           // del catálogo, tocando el suelo) + una cuerda con prendas ya no hace falta:
@@ -1537,6 +1602,24 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
             dmat.diffuseTexture = garageDoorTex();
             dmat.specularColor = new Color3(0.08, 0.08, 0.08);
             doorMesh.material = dmat;
+            // v1.34 — la basculante SE LEVANTA al acercarse (bisagra en el canto superior,
+            // la hoja y sus nervios cuelgan de ella): entra con el resto de las puertas.
+            const liftHinge = new TransformNode(`${b.id}_basculante_hinge`, scene);
+            // Canto superior de la hoja, en el MISMO espacio local del arte (el loader niega
+            // la Z: se toma la posición viva del nodo, no la nominal del glTF).
+            liftHinge.position.set(doorMesh.position.x, doorMesh.position.y + 1.86 / 2, doorMesh.position.z);
+            liftHinge.parent = model.root;
+            const under = (mesh: Mesh): void => {
+              const p = mesh.position.clone();
+              mesh.parent = liftHinge;
+              mesh.position.set(p.x - liftHinge.position.x, p.y - liftHinge.position.y, p.z - liftHinge.position.z);
+            };
+            under(doorMesh);
+            for (const nv of ['nervio_1', 'nervio_2', 'nervio_3']) {
+              const nm = meshBySuffix(nv);
+              if (nm) under(nm);
+            }
+            hallDoors.push({ hinge: liftHinge, openT: 0, doorX: b.cell.col * v.cellW + w / 2, doorZ: frontZ - 0.12, floorY: b.cell.floor * v.cellH, side: 1, lift: true });
           }
           const rotulo = meshBySuffix('rotulo');
           if (rotulo) {
@@ -2408,6 +2491,10 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     view.handle?.setEnabled(wall);
     for (const d of view.doorDecor) d.setEnabled(wall);
     view.lock?.setEnabled(locked && !view.lodHiddenPanels);
+    // v1.34 — GARAJE: la fachada es el ARTE glTF (basculante + rótulo). Al entrar, el modelo
+    // entero se desvanece y queda el interior del catálogo — la misma regla que las viviendas,
+    // con la fachada de verdad del arte. Al salir, la basculante vuelve a cerrar la vista.
+    if (b.defId === 'garaje') view.model?.setEnabled(wall);
     // Diorama (v1.23): visibilidad ESPEJO de la fachada — fachada cerrada = interior oculto,
     // fachada abierta = diorama a la vista (y cero draw calls de interiores tapados).
     const interior = interiors.get(b.id);
@@ -2653,8 +2740,11 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
             }
             const nextT = d.openT + (near ? dt : -dt * 0.8) / Math.max(0.05, hd.openSeconds);
             d.openT = Math.min(1, Math.max(0, nextT));
+            // v1.34 — la basculante del garaje SE LEVANTA (rotación X hacia el techo); las
+            // hojas batientes giran sobre su bisagra lateral como siempre.
+            if (d.lift) d.hinge.rotation.x = hd.liftAngle * d.openT;
             // La bisagra izquierda suelta la hoja hacia dentro (+z) con −θ; la derecha, espejo.
-            d.hinge.rotation.y = -d.side * hd.openAngle * d.openT;
+            else d.hinge.rotation.y = -d.side * hd.openAngle * d.openT;
           }
         }
         if (al.enabled && stairLightMats.length > 0) {

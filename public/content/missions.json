@@ -648,7 +648,7 @@
   },
   {
     "id": "m_piso_al_lado",
-    "title": "El piso de al lado (3D)",
+    "title": "El piso de al lado ({blk:blk_p1_a})",
     "description": "La puerta de al lado está en venta. Misma puerta, mismos muros, infinitas posibilidades.",
     "trigger": {
       "all": [
@@ -677,7 +677,7 @@
           "block": "blk_p1_a",
           "slot": "door"
         },
-        "hint": "Pasa por la puerta del 3D"
+        "hint": "Pasa por la puerta del {blk:blk_p1_a}"
       }
     ],
     "onComplete": [
@@ -729,7 +729,7 @@
           },
           {
             "op": "toast",
-            "text": "¡DÚPLEX! Derribar el tabique fue hermoso. Encontrar el cable de la luz del 3C, menos.",
+            "text": "¡DÚPLEX! Derribar el tabique fue hermoso. Encontrar el cable de la luz del {home}, menos.",
             "tone": "good"
           }
         ]
@@ -772,7 +772,7 @@
         "effects": [
           {
             "op": "toast",
-            "text": "El cartel de \"SE VENDE\" del 3D se queda. Como las ideas que no llega el martes.",
+            "text": "El cartel de \"SE VENDE\" del {blk:blk_p1_a} se queda. Como las ideas que no llega el martes.",
             "tone": "info"
           }
         ]

@@ -111,5 +111,39 @@
    }
   ],
   "doorways": []
+ },
+ {
+  "id": "layout_garaje_comunal",
+  "rooms": [
+   {
+    "key": "garaje_comun",
+    "defId": "estancia_garaje",
+    "startsUnlocked": true,
+    "rect": {
+     "x": 0,
+     "z": 0,
+     "w": 2.28,
+     "d": 2.8
+    }
+   }
+  ],
+  "doorways": []
+ },
+ {
+  "id": "layout_lavanderia_comunal",
+  "rooms": [
+   {
+    "key": "lavanderia_comun",
+    "defId": "estancia_lavanderia",
+    "startsUnlocked": true,
+    "rect": {
+     "x": 0,
+     "z": 0,
+     "w": 2.28,
+     "d": 2.8
+    }
+   }
+  ],
+  "doorways": []
  }
 ]

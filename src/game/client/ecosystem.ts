@@ -60,6 +60,8 @@ interface Extra {
   /** Mascota: dirección del ping-pong y salida hacia casa. */
   dir: 1 | -1;
   exiting: boolean;
+  /** v1.34 — animación propia del cuadrúpedo (patas, cola, cabeza): caminando + fase. */
+  animate?: (walking: boolean, dt: number) => void;
 }
 
 export interface EcosystemDirector {
@@ -88,7 +90,7 @@ export function createEcosystem(
     return { update() {}, dispose() {}, report: null, state: createEcosystemState(), extraPositions: () => [] };
   }
 
-  const { Color3, Mesh, MeshBuilder, Quaternion, StandardMaterial, TransformNode } = B();
+  const { Color3, Mesh, MeshBuilder, Quaternion, StandardMaterial, TransformNode, Vector3 } = B();
   const v = content.rules.view;
   const frontZ = frontPlaneZ(v); // plano frontal de los bloques: la cara de las puertas
   /** Nivel de pies en el pasillo de una planta (el canto del forjado, igual que los vecinos). */
@@ -211,28 +213,91 @@ export function createEcosystem(
     spawnVendor(stage, centerOf(entry), y0, v.corridorZ).path = legs;
   };
 
-  /** Mascota: cuerpecito simple (caja + cabeza) con medidas y color del catálogo. */
+  /** Mascota (v1.34 — «que parezca un animal»): PERRO de verdad, no dos cajas. Cuerpo
+   *  con pecho, cabeza con hocico y orejas caídas, cuatro PATAS que caminan (pivote en la
+   *  cadera, trote en diagonal), COLA que menea y collar. Medidas y color del catálogo
+   *  (ecosystem.extras.pet); el meneo es determinista (fase = camino recorrido). */
   const spawnPet = (corridor: BlockInstance): Extra => {
     const p = eco.extras.pet;
+    const legH = p.legH ?? 0.16; // patas del catálogo (fallback razonable si falta)
     const root = new TransformNode('eco_mascota', scene);
-    const body = MeshBuilder.CreateBox('eco_mascota_cuerpo', { width: p.bodyW, height: p.bodyH, depth: p.bodyW * 1.5 }, scene);
-    body.position.set(0, p.bodyH / 2, 0);
-    const head = MeshBuilder.CreateBox('eco_mascota_cabeza', { size: p.bodyH * p.headScale * 2 }, scene);
-    head.position.set(0, p.bodyH * 1.05, p.bodyW * 0.75);
-    body.parent = root;
-    head.parent = root;
     const m = new StandardMaterial('eco_mascota_mat', scene);
     m.diffuseColor = Color3.FromHexString(p.color);
-    m.emissiveColor = m.diffuseColor.scale(0.25);
-    body.material = m;
-    head.material = m;
-    body.isPickable = false;
-    head.isPickable = false;
+    m.specularColor = new Color3(0, 0, 0);
+    const mDark = new StandardMaterial('eco_mascota_oscura_mat', scene);
+    mDark.diffuseColor = Color3.FromHexString(p.color).scale(0.62);
+    mDark.specularColor = new Color3(0, 0, 0);
+    const mLight = new StandardMaterial('eco_mascota_clara_mat', scene);
+    mLight.diffuseColor = Color3.FromHexString(p.color).scale(1.35);
+    mLight.specularColor = new Color3(0, 0, 0);
+    const collarM = new StandardMaterial('eco_mascota_collar_mat', scene);
+    collarM.diffuseColor = Color3.FromHexString(p.collar ?? '#c0392b');
+    collarM.specularColor = new Color3(0, 0, 0);
+    const noseM = new StandardMaterial('eco_mascota_nariz_mat', scene);
+    noseM.diffuseColor = Color3.FromHexString('#2b2420');
+    noseM.specularColor = new Color3(0, 0, 0);
+    const part = (name: string, w: number, h: number, d: number, mat: StandardMaterial): Mesh => {
+      const b = MeshBuilder.CreateBox(`eco_mascota_${name}`, { width: w, height: h, depth: d }, scene);
+      b.material = mat;
+      b.isPickable = false;
+      b.parent = root;
+      return b;
+    };
+    // Cuerpo (tórax + pecho más bajo delante) y cuello que sube a la cabeza.
+    const bodyL = p.bodyW * 1.5;
+    const body = part('cuerpo', p.bodyW, p.bodyH, bodyL, m);
+    body.position.set(0, p.bodyH * 0.62 + legH * 0.5, 0);
+    const chest = part('pecho', p.bodyW * 0.92, p.bodyH * 0.78, bodyL * 0.34, m);
+    chest.position.set(0, p.bodyH * 0.5 + legH * 0.5, bodyL * 0.3);
+    const neck = part('cuello', p.bodyW * 0.42, p.bodyH * 0.62, p.bodyW * 0.42, m);
+    neck.position.set(0, p.bodyH * 1.06 + legH * 0.5, bodyL * 0.5);
+    // Cabeza + hocico + nariz + ojos + OREJAS CAÍDAS (lo que hace que se lea «perro»).    
+    const headS = p.bodyH * p.headScale * 2;
+    const head = part('cabeza', headS, headS * 0.86, headS * 1.06, m);
+    head.position.set(0, p.bodyH * 1.34 + legH * 0.5, bodyL * 0.62);
+    const snout = part('hocico', headS * 0.44, headS * 0.34, headS * 0.52, mLight);
+    snout.position.set(0, head.position.y - headS * 0.12, bodyL * 0.62 + headS * 0.68);
+    const nose = part('nariz', headS * 0.16, headS * 0.14, headS * 0.14, noseM);
+    nose.position.set(0, snout.position.y + headS * 0.08, bodyL * 0.62 + headS * 0.96);
+    const eyeL = part('ojo_i', headS * 0.1, headS * 0.1, headS * 0.08, noseM);
+    eyeL.position.set(-headS * 0.24, head.position.y + headS * 0.14, bodyL * 0.62 + headS * 0.44);
+    const eyeR = part('ojo_d', headS * 0.1, headS * 0.1, headS * 0.08, noseM);
+    eyeR.position.set(headS * 0.24, eyeL.position.y, eyeL.position.z);
+    const earL = part('oreja_i', headS * 0.16, headS * 0.42, headS * 0.1, mDark);
+    earL.setPivotPoint(new Vector3(0, headS * 0.21, 0));
+    earL.position.set(-headS * 0.5, head.position.y + headS * 0.3, bodyL * 0.62);
+    earL.rotation.z = -0.5; // caída hacia fuera
+    const earR = part('oreja_d', headS * 0.16, headS * 0.42, headS * 0.1, mDark);
+    earR.setPivotPoint(new Vector3(0, headS * 0.21, 0));
+    earR.position.set(headS * 0.5, earL.position.y, earL.position.z);
+    earR.rotation.z = 0.5;
+    // Collar: aro fino bajo la cabeza.
+    const collar = MeshBuilder.CreateTorus('eco_mascota_collar', { diameter: headS * 0.78, thickness: headS * 0.09, tessellation: 14 }, scene);
+    collar.material = collarM;
+    collar.isPickable = false;
+    collar.rotation.x = Math.PI / 2;
+    collar.position.set(0, p.bodyH * 1.16 + legH * 0.5, bodyL * 0.55);
+    collar.parent = root;
+    // Cuatro patas con pivote en la CADERA (trote en diagonal: i+z con d−z).
+    const legW = Math.max(0.055, p.bodyW * 0.16);
+    const legs: Mesh[] = [];
+    for (const [sx, sz] of [[-1, 1], [1, 1], [-1, -1], [1, -1]] as const) {
+      const leg = part(`pata_${sx < 0 ? 'i' : 'd'}${sz > 0 ? 'd' : 't'}`, legW, legH, legW, mDark);
+      leg.setPivotPoint(new Vector3(0, legH / 2, 0));
+      leg.position.set(sx * p.bodyW * 0.34, legH + p.bodyH * 0.1, sz * bodyL * 0.32);
+      legs.push(leg);
+    }
+    // Cola con pivote en la base: meneo (determinista) — el signo vivo del perro.
+    const tail = part('cola', legW * 0.7, p.bodyH * 0.78, legW * 0.7, mDark);
+    tail.setPivotPoint(new Vector3(0, p.bodyH * 0.39, 0));
+    tail.position.set(0, body.position.y + p.bodyH * 0.3, -bodyL * 0.52);
+    tail.rotation.x = 0.7; // en alto, donde la cola feliz
     const feetY = feetOf(corridor.cell.floor);
     const x0 = corridor.cell.col * v.cellW + 0.5;
     const x1 = (corridor.cell.col + corridor.size.w) * v.cellW - 0.5;
     const x = x0 + hash01('eco_mascota', 3) * (x1 - x0);
     root.position.set(x, feetY, v.corridorZ);
+    let animT = hash01('eco_mascota', 11) * 6;
     const extra: Extra = {
       kind: 'pet',
       id: 'eco_mascota',
@@ -249,7 +314,28 @@ export function createEcosystem(
       sway: false,
       dir: hash01('eco_mascota', 7) >= 0.5 ? 1 : -1,
       exiting: false,
+      animate(walking, dt) {
+        animT += dt * (walking ? 9 : 2.2);
+        const swing = walking ? 0.62 : 0.06;
+        // Trote en diagonal: pata i+z con d−z (las de un lado con las del otro).
+        legs[0]!.rotation.x = Math.sin(animT) * swing;
+        legs[3]!.rotation.x = Math.sin(animT) * swing;
+        legs[1]!.rotation.x = -Math.sin(animT) * swing;
+        legs[2]!.rotation.x = -Math.sin(animT) * swing;
+        // Cola: meneo lateral siempre (rápido al andar, perezoso en la pausa) + rebote.
+        tail.rotation.z = Math.sin(animT * (walking ? 1.7 : 1)) * (walking ? 0.55 : 0.3);
+        tail.rotation.x = 0.7 + Math.sin(animT * 0.9) * 0.08;
+        // Cabeza: al husmear (pausa) baja un poco y orea; al andar, firme con botecito.
+        const headY = p.bodyH * 1.34 + legH * 0.5;
+        head.position.y = headY + (walking ? Math.abs(Math.sin(animT)) * 0.02 : Math.sin(animT * 0.7) * 0.015);
+        snout.position.y = head.position.y - headS * 0.12;
+        earL.rotation.x = walking ? Math.sin(animT) * 0.12 : Math.sin(animT * 0.5) * 0.05;
+        earR.rotation.x = -earL.rotation.x;
+        // Cuerpo: trotecito (SIN tocar la raíz: el bucle de movimiento manda la posición).
+        body.rotation.x = walking ? Math.sin(animT * 2) * 0.015 : 0;
+      },
     };
+    extra.animate?.(false, 0);
     extras.set(extra.id, extra);
     return extra;
   };
@@ -328,6 +414,8 @@ export function createEcosystem(
       // v1.26: el vendedor QUE LLAMA gestiona (habla a la puerta): clip de charla si existe.
       if (e.rig && e.sway) e.rig.play('talk', 1);
       else if (e.rig) e.rig.play('idle', 1);
+      // v1.34: el perro en pausa husmea (cola lenta, cabeza baja) — vida en el quieto.
+      e.animate?.(false, dt);
       return true;
     }
     const leg = e.path[0];
@@ -359,6 +447,9 @@ export function createEcosystem(
       const rate = Math.min(sync.maxRate, Math.max(sync.minRate, speed / Math.max(0.1, sync.walkRefSpeed)));
       e.rig.play('walk', rate);
     }
+    // v1.34 — el cuadrúpedo anima su trote (patas en diagonal, cola, orejas) SOLO cuando
+    // hay avance real; en tramo vertical (escalera) guarda las patas pegadas al cuerpo.
+    e.animate?.(dH > 0.001 && Math.abs(dY) <= 0.02, dt);
     // Rumbo: el extra MIRA hacia donde camina (arco corto, ritmo del catálogo).
     const mdx = pos.x - e.px;
     const mdz = pos.z - e.pz;

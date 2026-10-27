@@ -237,5 +237,49 @@
   "view": {
    "color": "#e9c46a"
   }
+ },
+ {
+  "id": "estancia_garaje",
+  "kind": "room",
+  "label": "Garaje comunitario",
+  "size": {
+   "w": 1,
+   "h": 1
+  },
+  "params": {
+   "condition": {
+    "type": "number",
+    "min": 0,
+    "max": 100,
+    "default": 80,
+    "tier": 1,
+    "label": "Estado"
+   }
+  },
+  "view": {
+   "color": "#9aa2ad"
+  }
+ },
+ {
+  "id": "estancia_lavanderia",
+  "kind": "room",
+  "label": "Lavandería comunitaria",
+  "size": {
+   "w": 1,
+   "h": 1
+  },
+  "params": {
+   "condition": {
+    "type": "number",
+    "min": 0,
+    "max": 100,
+    "default": 80,
+    "tier": 1,
+    "label": "Estado"
+   }
+  },
+  "view": {
+   "color": "#a8dadc"
+  }
  }
 ]

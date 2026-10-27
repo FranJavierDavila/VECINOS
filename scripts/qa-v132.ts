@@ -70,14 +70,16 @@ const swJs = srcOf('public/sw.js');
 const pwaTsx = srcOf('src/components/game/PwaRegister.tsx');
 
 console.log('── 1. Vehículos recortados (adiós «cajas con planos pegados») ──');
-check('alpha-test en el material del costado', trafficTs.includes('sideMat.transparencyMode = 2') && trafficTs.includes('useAlphaFromDiffuseTexture'));
-check('el canvas del costado nace transparente y RECORTA los arcos (destination-out)', trafficTs.includes('c.clearRect(0, 0, W, H)') && trafficTs.includes("c.globalCompositeOperation = 'destination-out'"));
-check('la textura del costado declara hasAlpha', trafficTs.includes('hasAlpha = true'));
-check('ruedas DENTRO del cuerpo (tireZ = sideOff − 0.13)', trafficTs.includes('const tireZ = sideOff - 0.13'));
-check('pozo oscuro detrás de cada arco', trafficTs.includes("'pozo'"));
-check('cabina de berlina al ancho del cuerpo (W*0.86)', trafficTs.includes("body('cabina', geo.cabinL, geo.cabinH, W * 0.86)"));
+// v1.34 — los costados PINTADOS desaparecen: carrocería = extrusión del perfil con arcos
+// geométricos; el alpha-test queda solo para las CALCOMANIAS pequeñas (rotulaciones).
+check('carrocería por extrusión sólida del perfil (CAP_ALL + closeShape)', trafficTs.includes('cap: Mesh.CAP_ALL') && trafficTs.includes('closeShape: true'));
+check('cero planos laterales pintados (sideTex(/sideMat eliminados)', !/sideTex\(/.test(trafficTs) && !/\bsideMat\b/.test(trafficTs));
+check('calcomanías con alpha-test (alphaCutOff 0.4)', trafficTs.includes('alphaCutOff = 0.4'));
+check('ruedas DENTRO del cuerpo (tireZ = W/2 − 0.14) y PARENTADAS al coche', trafficTs.includes('const tireZ = W / 2 - 0.14') && trafficTs.includes('hub.parent = parent'));
+check('chasis oscuro detrás de cada arco (no se ve al otro lado)', trafficTs.includes("box(def.kind, 'chasis'"));
+check('habitáculo de la berlina: extrusión de cristal (greenhouse)', trafficTs.includes('greenhouseOf(geo)'));
 check('tubo de escape y tiradores 3D', trafficTs.includes('_escape') && trafficTs.includes('tirador3d'));
-check('costados excluidos del pase de sombras (noShadow)', trafficTs.includes('noShadow.push(q)') && trafficTs.includes('noShadow: Mesh[]'));
+check('las carrocerías SÍ proyectan sombra (nada excluido del pase)', !trafficTs.includes('noShadow'));
 check('geoOf acepta la ambulancia (furgoneta/ambulancia comparten cota)', trafficTs.includes("def.kind === 'furgoneta' || def.kind === 'ambulancia'"));
 check('buildAmbulance exporta el rig del teatro', trafficTs.includes('buildAmbulance(): AmbulanceRig | null'));
 check('catálogo trae view.traffic.ambulance', !!v.traffic.ambulance && !!v.traffic.ambulance.sideText);
@@ -161,9 +163,9 @@ check('contenido real SIN menciones de plantas/viviendas imposibles', violations
 }
 
 console.log('── 9. Versiones ──');
-check('insignia v1.33 en i18n (es/en, la 1.32 fue sustituida por la nueva)', i18nTs.includes('v1.33 · cristales en su sitio') && i18nTs.includes('v1.33 · glass in its place'));
-check('sw.js bump a vecinos-v1.33 (sigue subiendo)', swJs.includes('vecinos-v1.33'));
-check('PwaRegister espera vecinos-v1.33', pwaTsx.includes('vecinos-v1.33'));
+check('insignia v1.34 en i18n (es/en, la 1.32 fue sustituida por la nueva)', i18nTs.includes('v1.34 · entra por donde sea') && i18nTs.includes('v1.34 · enter anywhere'));
+check('sw.js bump a vecinos-v1.34 (sigue subiendo)', swJs.includes('vecinos-v1.34'));
+check('PwaRegister espera vecinos-v1.34', pwaTsx.includes('vecinos-v1.34'));
 
 console.log('── Sim intacto ──');
 const hashes: string[] = [];

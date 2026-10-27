@@ -19,6 +19,7 @@ import { blockLabel } from '@/game/core/types';
 import { playSound } from './audio';
 import type { CameraRig } from './camera';
 import type { ActorsDirector } from './actors';
+import { resolveTokens } from '@/game/support/texts';
 import { useGameStore } from './store';
 
 /** Contexto del evento que disparó la cutscene: alimenta $event.* y los roles de misión. */
@@ -304,13 +305,18 @@ export class CutscenePlayer {
     };
   }
 
-  /** Marcadores del catálogo: {resident} → nombre visible, {block} → etiqueta del bloque. */
+  /** Marcadores del catálogo: {resident} → nombre visible, {block} → etiqueta del bloque.
+   *  v1.34 — además TODOS los tokens data-driven del catálogo ({viviendaDe:id}, {home},
+   *  {plantas}…): los rótulos de hablante («Ex presidente · {viviendaDe:res_presidente_01}»)
+   *  muestran la vivienda REAL del vecino aunque el edificio cambie de plantas o letras. */
   private template(text: string): string {
     if (!this.stage) return text;
     const rid = this.ctx.resident;
     const r = rid ? this.stage.world.residents[rid] : undefined;
     const name = r ? this.content.archetypes[r.archetype]?.name ?? r.id : '';
     const bl = this.ctx.block ? blockLabel(this.ctx.block) : '';
-    return text.replaceAll('{resident}', name).replaceAll('{block}', bl);
+    const expanded = text.replaceAll('{resident}', name).replaceAll('{block}', bl);
+    const home = this.stage.world.residents[this.stage.world.playerId]?.home;
+    return resolveTokens(expanded, this.stage.world, this.content, { home });
   }
 }

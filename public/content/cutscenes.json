@@ -1,754 +1,754 @@
 [
-  {
-    "id": "cut_mudanza",
-    "trigger": {
-      "on": "neighbor_arrived"
-    },
-    "beats": [
-      {
-        "type": "sound",
-        "id": "thud"
-      },
-      {
-        "type": "cam",
-        "focus": "wide",
-        "hold": 0.9
-      },
-      {
-        "type": "cam",
-        "focus": {
-          "block": "$event.block",
-          "at": "door"
-        },
-        "hold": 0.5
-      },
-      {
-        "type": "walk",
-        "who": "$event.resident",
-        "from": {
-          "block": "$entry",
-          "at": "door"
-        },
-        "to": {
-          "block": "$event.block",
-          "at": "door"
-        },
-        "max": 12
-      },
-      {
-        "type": "line",
-        "text": "Mudanza en {block}: {resident} sube con cajas, cacharros y opiniones.",
-        "seconds": 3
-      },
-      {
-        "type": "cam",
-        "focus": "player",
-        "hold": 0.6
-      }
-    ]
+ {
+  "id": "cut_mudanza",
+  "trigger": {
+   "on": "neighbor_arrived"
   },
-  {
-    "id": "cut_pillarlo",
-    "trigger": {
-      "on": "step_started",
-      "mission": "m_pintadas_ascensor",
-      "step": "pillarlo"
+  "beats": [
+   {
+    "type": "sound",
+    "id": "thud"
+   },
+   {
+    "type": "cam",
+    "focus": "wide",
+    "hold": 0.9
+   },
+   {
+    "type": "cam",
+    "focus": {
+     "block": "$event.block",
+     "at": "door"
     },
-    "beats": [
-      {
-        "type": "cam",
-        "focus": {
-          "block": "$event.block",
-          "at": "door"
-        },
-        "hold": 0.7
-      },
-      {
-        "type": "walk",
-        "who": "$event.resident",
-        "to": {
-          "block": "$event.block",
-          "at": "door"
-        },
-        "max": 8
-      },
-      {
-        "type": "line",
-        "speaker": "{resident}",
-        "text": "¿Quién, yo? Esto es ARTE urbano. Que lo diga la junta.",
-        "seconds": 3.2,
-        "who": "$event.resident",
-        "gesture": "talk"
-      },
-      {
-        "type": "sound",
-        "id": "thud"
-      },
-      {
-        "type": "cam",
-        "focus": "player",
-        "hold": 0.5
-      }
-    ]
+    "hold": 0.5
+   },
+   {
+    "type": "walk",
+    "who": "$event.resident",
+    "from": {
+     "block": "$entry",
+     "at": "door"
+    },
+    "to": {
+     "block": "$event.block",
+     "at": "door"
+    },
+    "max": 12
+   },
+   {
+    "type": "line",
+    "text": "Mudanza en {block}: {resident} sube con cajas, cacharros y opiniones.",
+    "seconds": 3
+   },
+   {
+    "type": "cam",
+    "focus": "player",
+    "hold": 0.6
+   }
+  ]
+ },
+ {
+  "id": "cut_pillarlo",
+  "trigger": {
+   "on": "step_started",
+   "mission": "m_pintadas_ascensor",
+   "step": "pillarlo"
   },
-  {
-    "id": "cut_bienvenida",
-    "trigger": {
-      "on": "mission_completed",
-      "mission": "m_bienvenida"
+  "beats": [
+   {
+    "type": "cam",
+    "focus": {
+     "block": "$event.block",
+     "at": "door"
     },
-    "beats": [
-      {
-        "type": "cam",
-        "focus": "wide",
-        "hold": 1.1
-      },
-      {
-        "type": "line",
-        "text": "Tu piso, sus vecinos, su junta. El edificio es tuyo... más o menos.",
-        "seconds": 3
-      },
-      {
-        "type": "cam",
-        "focus": "player",
-        "hold": 0.6
-      }
-    ]
+    "hold": 0.7
+   },
+   {
+    "type": "walk",
+    "who": "$event.resident",
+    "to": {
+     "block": "$event.block",
+     "at": "door"
+    },
+    "max": 8
+   },
+   {
+    "type": "line",
+    "speaker": "{resident}",
+    "text": "¿Quién, yo? Esto es ARTE urbano. Que lo diga la junta.",
+    "seconds": 3.2,
+    "who": "$event.resident",
+    "gesture": "talk"
+   },
+   {
+    "type": "sound",
+    "id": "thud"
+   },
+   {
+    "type": "cam",
+    "focus": "player",
+    "hold": 0.5
+   }
+  ]
+ },
+ {
+  "id": "cut_bienvenida",
+  "trigger": {
+   "on": "mission_completed",
+   "mission": "m_bienvenida"
   },
-  {
-    "id": "cut_bar_inaugura",
-    "trigger": {
-      "on": "mission_completed",
-      "mission": "m_bar_inaugura"
-    },
-    "beats": [
-      {
-        "type": "sound",
-        "id": "doorbell"
-      },
-      {
-        "type": "cam",
-        "focus": "wide",
-        "hold": 1.0
-      },
-      {
-        "type": "cam",
-        "focus": {
-          "block": "blk_p0_local",
-          "at": "door"
-        },
-        "hold": 0.8
-      },
-      {
-        "type": "line",
-        "text": "El Rincón enciende el letrero: tapas, hielo y la primera bronca vecinal servida en barra.",
-        "seconds": 3.4
-      },
-      {
-        "type": "cam",
-        "focus": "player",
-        "hold": 0.6
-      }
-    ]
+  "beats": [
+   {
+    "type": "cam",
+    "focus": "wide",
+    "hold": 1.1
+   },
+   {
+    "type": "line",
+    "text": "Tu piso, sus vecinos, su junta. El edificio es tuyo... más o menos.",
+    "seconds": 3
+   },
+   {
+    "type": "cam",
+    "focus": "player",
+    "hold": 0.6
+   }
+  ]
+ },
+ {
+  "id": "cut_bar_inaugura",
+  "trigger": {
+   "on": "mission_completed",
+   "mission": "m_bar_inaugura"
   },
-  {
-    "id": "cut_lavanderia",
-    "trigger": {
-      "on": "step_started",
-      "mission": "m_lavanderia_pelea",
-      "step": "bajar"
+  "beats": [
+   {
+    "type": "sound",
+    "id": "doorbell"
+   },
+   {
+    "type": "cam",
+    "focus": "wide",
+    "hold": 1.0
+   },
+   {
+    "type": "cam",
+    "focus": {
+     "block": "blk_p0_local",
+     "at": "door"
     },
-    "beats": [
-      {
-        "type": "cam",
-        "focus": {
-          "block": "blk_p0_lavanderia",
-          "at": "door"
-        },
-        "hold": 0.8
-      },
-      {
-        "type": "walk",
-        "who": "$role.abuela",
-        "from": {
-          "block": "blk_p2_c",
-          "at": "door"
-        },
-        "to": {
-          "block": "blk_p0_lavanderia",
-          "at": "door"
-        },
-        "max": 12
-      },
-      {
-        "type": "line",
-        "speaker": "Esperanza",
-        "text": "Los días impares, la lavadora es MÍA. Lo demás es folclore.",
-        "seconds": 3.2,
-        "who": "$role.abuela",
-        "gesture": "argue"
-      },
-      {
-        "type": "sound",
-        "id": "wind"
-      },
-      {
-        "type": "cam",
-        "focus": "player",
-        "hold": 0.5
-      }
-    ]
+    "hold": 0.8
+   },
+   {
+    "type": "line",
+    "text": "El Rincón enciende el letrero: tapas, hielo y la primera bronca vecinal servida en barra.",
+    "seconds": 3.4
+   },
+   {
+    "type": "cam",
+    "focus": "player",
+    "hold": 0.6
+   }
+  ]
+ },
+ {
+  "id": "cut_lavanderia",
+  "trigger": {
+   "on": "step_started",
+   "mission": "m_lavanderia_pelea",
+   "step": "bajar"
   },
-  {
-    "id": "cut_garaje",
-    "trigger": {
-      "on": "step_started",
-      "mission": "m_garaje_despacho",
-      "step": "bajar"
+  "beats": [
+   {
+    "type": "cam",
+    "focus": {
+     "block": "blk_p0_lavanderia",
+     "at": "door"
     },
-    "beats": [
-      {
-        "type": "cam",
-        "focus": {
-          "block": "blk_p0_garaje",
-          "at": "door"
-        },
-        "hold": 0.8
-      },
-      {
-        "type": "walk",
-        "who": "$role.vendedor",
-        "from": {
-          "block": "blk_p3_b",
-          "at": "door"
-        },
-        "to": {
-          "block": "blk_p0_garaje",
-          "at": "door"
-        },
-        "max": 10
-      },
-      {
-        "type": "line",
-        "speaker": "Sr. Vulture",
-        "text": "El garaje es un activo subexplotado. Mis mejores inversiones empezaron siendo huecos con humedad.",
-        "seconds": 3.4,
-        "who": "$role.vendedor",
-        "gesture": "talk"
-      },
-      {
-        "type": "sound",
-        "id": "thud"
-      },
-      {
-        "type": "cam",
-        "focus": "player",
-        "hold": 0.5
-      }
-    ]
+    "hold": 0.8
+   },
+   {
+    "type": "walk",
+    "who": "$role.abuela",
+    "from": {
+     "block": "blk_p2_c",
+     "at": "door"
+    },
+    "to": {
+     "block": "blk_p0_lavanderia",
+     "at": "door"
+    },
+    "max": 12
+   },
+   {
+    "type": "line",
+    "speaker": "Esperanza",
+    "text": "Los días impares, la lavadora es MÍA. Lo demás es folclore.",
+    "seconds": 3.2,
+    "who": "$role.abuela",
+    "gesture": "argue"
+   },
+   {
+    "type": "sound",
+    "id": "wind"
+   },
+   {
+    "type": "cam",
+    "focus": "player",
+    "hold": 0.5
+   }
+  ]
+ },
+ {
+  "id": "cut_garaje",
+  "trigger": {
+   "on": "step_started",
+   "mission": "m_garaje_despacho",
+   "step": "bajar"
   },
-  {
-    "id": "cut_trastero",
-    "trigger": {
-      "on": "step_started",
-      "mission": "m_trastero_pinturillas",
-      "step": "bajar"
+  "beats": [
+   {
+    "type": "cam",
+    "focus": {
+     "block": "blk_p0_garaje",
+     "at": "door"
     },
-    "beats": [
-      {
-        "type": "cam",
-        "focus": {
-          "block": "blk_p0_trasteros",
-          "at": "door"
-        },
-        "hold": 0.8
-      },
-      {
-        "type": "walk",
-        "who": "$role.vecino",
-        "from": {
-          "block": "blk_p1_b",
-          "at": "door"
-        },
-        "to": {
-          "block": "blk_p0_trasteros",
-          "at": "door"
-        },
-        "max": 12
-      },
-      {
-        "type": "line",
-        "speaker": "Pinturillas",
-        "text": "Cinco latas expuestas y a la sombra. Esto en el Prado no lo tienes.",
-        "seconds": 3,
-        "who": "$role.vecino",
-        "gesture": "talk"
-      },
-      {
-        "type": "sound",
-        "id": "wind"
-      },
-      {
-        "type": "cam",
-        "focus": "player",
-        "hold": 0.5
-      }
-    ]
+    "hold": 0.8
+   },
+   {
+    "type": "walk",
+    "who": "$role.vendedor",
+    "from": {
+     "block": "blk_p3_b",
+     "at": "door"
+    },
+    "to": {
+     "block": "blk_p0_garaje",
+     "at": "door"
+    },
+    "max": 10
+   },
+   {
+    "type": "line",
+    "speaker": "Sr. Vulture",
+    "text": "El garaje es un activo subexplotado. Mis mejores inversiones empezaron siendo huecos con humedad.",
+    "seconds": 3.4,
+    "who": "$role.vendedor",
+    "gesture": "talk"
+   },
+   {
+    "type": "sound",
+    "id": "thud"
+   },
+   {
+    "type": "cam",
+    "focus": "player",
+    "hold": 0.5
+   }
+  ]
+ },
+ {
+  "id": "cut_trastero",
+  "trigger": {
+   "on": "step_started",
+   "mission": "m_trastero_pinturillas",
+   "step": "bajar"
   },
-  {
-    "id": "cut_wifi",
-    "trigger": {
-      "on": "mission_completed",
-      "mission": "m_wifi_antena"
+  "beats": [
+   {
+    "type": "cam",
+    "focus": {
+     "block": "blk_p0_trasteros",
+     "at": "door"
     },
-    "beats": [
-      {
-        "type": "cam",
-        "focus": "wide",
-        "hold": 1.0
-      },
-      {
-        "type": "line",
-        "text": "La antena nueva cruje orgullosa. El hámster, despedido con carta de recomendación y un puñado de semillas.",
-        "seconds": 3.2
-      },
-      {
-        "type": "cam",
-        "focus": "player",
-        "hold": 0.5
-      }
-    ]
+    "hold": 0.8
+   },
+   {
+    "type": "walk",
+    "who": "$role.vecino",
+    "from": {
+     "block": "blk_p1_b",
+     "at": "door"
+    },
+    "to": {
+     "block": "blk_p0_trasteros",
+     "at": "door"
+    },
+    "max": 12
+   },
+   {
+    "type": "line",
+    "speaker": "Pinturillas",
+    "text": "Cinco latas expuestas y a la sombra. Esto en el Prado no lo tienes.",
+    "seconds": 3,
+    "who": "$role.vecino",
+    "gesture": "talk"
+   },
+   {
+    "type": "sound",
+    "id": "wind"
+   },
+   {
+    "type": "cam",
+    "focus": "player",
+    "hold": 0.5
+   }
+  ]
+ },
+ {
+  "id": "cut_wifi",
+  "trigger": {
+   "on": "mission_completed",
+   "mission": "m_wifi_antena"
   },
-  {
-    "id": "cut_festival_convocatoria",
-    "trigger": {
-      "on": "mission_completed",
-      "mission": "m_festival_convocatoria"
-    },
-    "beats": [
-      {
-        "type": "sound",
-        "id": "doorbell"
-      },
-      {
-        "type": "cam",
-        "focus": "wide",
-        "hold": 1.0
-      },
-      {
-        "type": "cam",
-        "focus": {
-          "block": "blk_p0_portal",
-          "at": "door"
-        },
-        "hold": 0.9
-      },
-      {
-        "type": "line",
-        "text": "El portal recupera su tradición: el FESTIVAL DEL PORTAL. Hacía años que solo se celebraba en discusiones de junta.",
-        "seconds": 3.4
-      },
-      {
-        "type": "cam",
-        "focus": "player",
-        "hold": 0.6
-      }
-    ]
+  "beats": [
+   {
+    "type": "cam",
+    "focus": "wide",
+    "hold": 1.0
+   },
+   {
+    "type": "line",
+    "text": "La antena nueva cruje orgullosa. El hámster, despedido con carta de recomendación y un puñado de semillas.",
+    "seconds": 3.2
+   },
+   {
+    "type": "cam",
+    "focus": "player",
+    "hold": 0.5
+   }
+  ]
+ },
+ {
+  "id": "cut_festival_convocatoria",
+  "trigger": {
+   "on": "mission_completed",
+   "mission": "m_festival_convocatoria"
   },
-  {
-    "id": "cut_festival_final",
-    "trigger": {
-      "on": "mission_completed",
-      "mission": "m_festival_grandia"
+  "beats": [
+   {
+    "type": "sound",
+    "id": "doorbell"
+   },
+   {
+    "type": "cam",
+    "focus": "wide",
+    "hold": 1.0
+   },
+   {
+    "type": "cam",
+    "focus": {
+     "block": "blk_p0_portal",
+     "at": "door"
     },
-    "beats": [
-      {
-        "type": "sound",
-        "id": "jingle_win"
-      },
-      {
-        "type": "cam",
-        "focus": "wide",
-        "hold": 0.9
-      },
-      {
-        "type": "cam",
-        "focus": {
-          "block": "blk_p0_portal",
-          "at": "center"
-        },
-        "hold": 0.8
-      },
-      {
-        "type": "walk",
-        "who": "$role.presidente",
-        "from": {
-          "block": "blk_p0_portal",
-          "at": "door"
-        },
-        "to": {
-          "block": "blk_p0_portal",
-          "at": "center"
-        },
-        "max": 6
-      },
-      {
-        "type": "line",
-        "speaker": "El presidente",
-        "text": "¡Vecinos! Este portal vuelve a ser una plaza. Bebed, bailad y mañana... ¡junta de derramas!",
-        "seconds": 3.6,
-        "who": "$role.presidente",
-        "gesture": "talk"
-      },
-      {
-        "type": "walk",
-        "who": "$role.musico",
-        "from": {
-          "block": "blk_p0_portal",
-          "at": "door"
-        },
-        "to": {
-          "block": "blk_p0_portal",
-          "at": "center"
-        },
-        "max": 6
-      },
-      {
-        "type": "line",
-        "speaker": "Rita",
-        "text": "¡Y ahora sí: percusión en directo! El directo me conoce y me teme.",
-        "seconds": 3.2,
-        "who": "$role.musico",
-        "gesture": "laugh"
-      },
-      {
-        "type": "cam",
-        "focus": "player",
-        "hold": 0.7
-      }
-    ]
+    "hold": 0.9
+   },
+   {
+    "type": "line",
+    "text": "El portal recupera su tradición: el FESTIVAL DEL PORTAL. Hacía años que solo se celebraba en discusiones de junta.",
+    "seconds": 3.4
+   },
+   {
+    "type": "cam",
+    "focus": "player",
+    "hold": 0.6
+   }
+  ]
+ },
+ {
+  "id": "cut_festival_final",
+  "trigger": {
+   "on": "mission_completed",
+   "mission": "m_festival_grandia"
   },
-  {
-    "id": "cut_visita_merienda",
-    "trigger": {
-      "on": "step_started",
-      "mission": "m_visita_merienda",
-      "step": "saludar"
+  "beats": [
+   {
+    "type": "sound",
+    "id": "jingle_win"
+   },
+   {
+    "type": "cam",
+    "focus": "wide",
+    "hold": 0.9
+   },
+   {
+    "type": "cam",
+    "focus": {
+     "block": "blk_p0_portal",
+     "at": "center"
     },
-    "beats": [
-      {
-        "type": "cam",
-        "focus": {
-          "block": "blk_p2_a",
-          "at": "door"
-        }
-      },
-      {
-        "type": "walk",
-        "who": "$role.visitante",
-        "to": {
-          "block": "blk_p2_a",
-          "at": "door"
-        }
-      },
-      {
-        "type": "line",
-        "who": "$role.visitante",
-        "text": "Toc, toc. ¿Estás en casa? Traigo tarta y dos cotilleos.",
-        "gesture": "talk",
-        "seconds": 3.4
-      },
-      {
-        "type": "line",
-        "who": "$role.anfitrion",
-        "text": "¡Dolores! Pasa, pasa. Hoy hasta funciona el radiador.",
-        "gesture": "laugh",
-        "seconds": 3.2
-      },
-      {
-        "type": "walk",
-        "who": "$role.visitante",
-        "to": {
-          "block": "blk_p2_a",
-          "at": "center"
-        }
-      },
-      {
-        "type": "wait",
-        "seconds": 1.4
-      },
-      {
-        "type": "cam",
-        "focus": "player"
-      }
-    ]
+    "hold": 0.8
+   },
+   {
+    "type": "walk",
+    "who": "$role.presidente",
+    "from": {
+     "block": "blk_p0_portal",
+     "at": "door"
+    },
+    "to": {
+     "block": "blk_p0_portal",
+     "at": "center"
+    },
+    "max": 6
+   },
+   {
+    "type": "line",
+    "speaker": "El presidente",
+    "text": "¡Vecinos! Este portal vuelve a ser una plaza. Bebed, bailad y mañana... ¡junta de derramas!",
+    "seconds": 3.6,
+    "who": "$role.presidente",
+    "gesture": "talk"
+   },
+   {
+    "type": "walk",
+    "who": "$role.musico",
+    "from": {
+     "block": "blk_p0_portal",
+     "at": "door"
+    },
+    "to": {
+     "block": "blk_p0_portal",
+     "at": "center"
+    },
+    "max": 6
+   },
+   {
+    "type": "line",
+    "speaker": "Rita",
+    "text": "¡Y ahora sí: percusión en directo! El directo me conoce y me teme.",
+    "seconds": 3.2,
+    "who": "$role.musico",
+    "gesture": "laugh"
+   },
+   {
+    "type": "cam",
+    "focus": "player",
+    "hold": 0.7
+   }
+  ]
+ },
+ {
+  "id": "cut_visita_merienda",
+  "trigger": {
+   "on": "step_started",
+   "mission": "m_visita_merienda",
+   "step": "saludar"
   },
-  {
-    "id": "cut_visita_pastel",
-    "trigger": {
-      "on": "step_started",
-      "mission": "m_visita_pastel",
-      "step": "saludar"
-    },
-    "beats": [
-      {
-        "type": "cam",
-        "focus": {
-          "block": "blk_p2_c",
-          "at": "door"
-        }
-      },
-      {
-        "type": "walk",
-        "who": "$role.visitante",
-        "to": {
-          "block": "blk_p2_c",
-          "at": "door"
-        }
-      },
-      {
-        "type": "line",
-        "who": "$role.visitante",
-        "text": "¡Sorpresaaa! Tomás y su pastel al rescate del cumpleaños.",
-        "gesture": "laugh",
-        "seconds": 3.2
-      },
-      {
-        "type": "line",
-        "who": "$role.anfitrion",
-        "text": "Tomás, cariño, con que no fueras TÚ la sorpresa ya me vale.",
-        "gesture": "laugh",
-        "seconds": 3.4
-      },
-      {
-        "type": "walk",
-        "who": "$role.visitante",
-        "to": {
-          "block": "blk_p2_c",
-          "at": "center"
-        }
-      },
-      {
-        "type": "wait",
-        "seconds": 1.4
-      },
-      {
-        "type": "cam",
-        "focus": "player"
-      }
-    ]
+  "beats": [
+   {
+    "type": "cam",
+    "focus": {
+     "block": "blk_p2_a",
+     "at": "door"
+    }
+   },
+   {
+    "type": "walk",
+    "who": "$role.visitante",
+    "to": {
+     "block": "blk_p2_a",
+     "at": "door"
+    }
+   },
+   {
+    "type": "line",
+    "who": "$role.visitante",
+    "text": "Toc, toc. ¿Estás en casa? Traigo tarta y dos cotilleos.",
+    "gesture": "talk",
+    "seconds": 3.4
+   },
+   {
+    "type": "line",
+    "who": "$role.anfitrion",
+    "text": "¡Dolores! Pasa, pasa. Hoy hasta funciona el radiador.",
+    "gesture": "laugh",
+    "seconds": 3.2
+   },
+   {
+    "type": "walk",
+    "who": "$role.visitante",
+    "to": {
+     "block": "blk_p2_a",
+     "at": "center"
+    }
+   },
+   {
+    "type": "wait",
+    "seconds": 1.4
+   },
+   {
+    "type": "cam",
+    "focus": "player"
+   }
+  ]
+ },
+ {
+  "id": "cut_visita_pastel",
+  "trigger": {
+   "on": "step_started",
+   "mission": "m_visita_pastel",
+   "step": "saludar"
   },
-  {
-    "id": "cut_visita_fiesta",
-    "trigger": {
-      "on": "step_started",
-      "mission": "m_visita_fiesta",
-      "step": "saludar"
-    },
-    "beats": [
-      {
-        "type": "cam",
-        "focus": {
-          "block": "blk_p1_c",
-          "at": "door"
-        }
-      },
-      {
-        "type": "walk",
-        "who": "$role.visitante",
-        "to": {
-          "block": "blk_p1_c",
-          "at": "door"
-        }
-      },
-      {
-        "type": "line",
-        "who": "$role.visitante",
-        "text": "¡Maestro! Hielo, limón y malas ideas: ensayo general en tu salón.",
-        "gesture": "laugh",
-        "seconds": 3.4
-      },
-      {
-        "type": "line",
-        "who": "$role.anfitrion",
-        "text": "Entra, Kevin. Pero la batería duerme a las doce, que oigo desde 1998.",
-        "gesture": "talk",
-        "seconds": 3.6
-      },
-      {
-        "type": "walk",
-        "who": "$role.visitante",
-        "to": {
-          "block": "blk_p1_c",
-          "at": "center"
-        }
-      },
-      {
-        "type": "wait",
-        "seconds": 1.4
-      },
-      {
-        "type": "cam",
-        "focus": "player"
-      }
-    ]
+  "beats": [
+   {
+    "type": "cam",
+    "focus": {
+     "block": "blk_p2_c",
+     "at": "door"
+    }
+   },
+   {
+    "type": "walk",
+    "who": "$role.visitante",
+    "to": {
+     "block": "blk_p2_c",
+     "at": "door"
+    }
+   },
+   {
+    "type": "line",
+    "who": "$role.visitante",
+    "text": "¡Sorpresaaa! Tomás y su pastel al rescate del cumpleaños.",
+    "gesture": "laugh",
+    "seconds": 3.2
+   },
+   {
+    "type": "line",
+    "who": "$role.anfitrion",
+    "text": "Tomás, cariño, con que no fueras TÚ la sorpresa ya me vale.",
+    "gesture": "laugh",
+    "seconds": 3.4
+   },
+   {
+    "type": "walk",
+    "who": "$role.visitante",
+    "to": {
+     "block": "blk_p2_c",
+     "at": "center"
+    }
+   },
+   {
+    "type": "wait",
+    "seconds": 1.4
+   },
+   {
+    "type": "cam",
+    "focus": "player"
+   }
+  ]
+ },
+ {
+  "id": "cut_visita_fiesta",
+  "trigger": {
+   "on": "step_started",
+   "mission": "m_visita_fiesta",
+   "step": "saludar"
   },
-  {
-    "id": "cut_mañas_portal",
-    "trigger": {
-      "on": "mission_activated",
-      "mission": "m_negociar_obra"
-    },
-    "beats": [
-      {
-        "type": "cam",
-        "focus": {
-          "block": "portal",
-          "at": "door"
-        }
-      },
-      {
-        "type": "line",
-        "who": "$role.obra",
-        "text": "¿Ve? Polvo sé yo, pero trabajo FINO. El felpudo... eso ya es diplomacia de altos cargos.",
-        "gesture": "talk",
-        "seconds": 3.6
-      },
-      {
-        "type": "cam",
-        "focus": "player"
-      }
-    ]
+  "beats": [
+   {
+    "type": "cam",
+    "focus": {
+     "block": "blk_p1_c",
+     "at": "door"
+    }
+   },
+   {
+    "type": "walk",
+    "who": "$role.visitante",
+    "to": {
+     "block": "blk_p1_c",
+     "at": "door"
+    }
+   },
+   {
+    "type": "line",
+    "who": "$role.visitante",
+    "text": "¡Maestro! Hielo, limón y malas ideas: ensayo general en tu salón.",
+    "gesture": "laugh",
+    "seconds": 3.4
+   },
+   {
+    "type": "line",
+    "who": "$role.anfitrion",
+    "text": "Entra, Kevin. Pero la batería duerme a las doce, que oigo desde 1998.",
+    "gesture": "talk",
+    "seconds": 3.6
+   },
+   {
+    "type": "walk",
+    "who": "$role.visitante",
+    "to": {
+     "block": "blk_p1_c",
+     "at": "center"
+    }
+   },
+   {
+    "type": "wait",
+    "seconds": 1.4
+   },
+   {
+    "type": "cam",
+    "focus": "player"
+   }
+  ]
+ },
+ {
+  "id": "cut_mañas_portal",
+  "trigger": {
+   "on": "mission_activated",
+   "mission": "m_negociar_obra"
   },
-  {
-    "id": "cut_fin_obra",
-    "trigger": {
-      "on": "step_started",
-      "mission": "m_fin_de_obra",
-      "step": "celebrar"
-    },
-    "beats": [
-      {
-        "type": "cam",
-        "focus": {
-          "block": "portal",
-          "at": "door"
-        },
-        "viewH": 2.4
-      },
-      {
-        "type": "walk",
-        "who": "$role.obra",
-        "to": {
-          "block": "portal",
-          "at": "door"
-        }
-      },
-      {
-        "type": "line",
-        "who": "$role.obra",
-        "text": "¡Fin de la obra! Bajé a recibir los aplausos con una brocha en la mano, que es lo elegante.",
-        "gesture": "laugh",
-        "seconds": 3.4
-      },
-      {
-        "type": "line",
-        "who": "$role.invitada",
-        "text": "Yo solo bajé a preguntar la hora. Me quedo por el pastel y por el felpudo.",
-        "gesture": "laugh",
-        "seconds": 3.2
-      },
-      {
-        "type": "walk",
-        "who": "$role.obra",
-        "to": {
-          "block": "portal",
-          "at": "center"
-        }
-      },
-      {
-        "type": "wait",
-        "seconds": 1.2
-      },
-      {
-        "type": "cam",
-        "focus": "player"
-      }
-    ]
+  "beats": [
+   {
+    "type": "cam",
+    "focus": {
+     "block": "portal",
+     "at": "door"
+    }
+   },
+   {
+    "type": "line",
+    "who": "$role.obra",
+    "text": "¿Ve? Polvo sé yo, pero trabajo FINO. El felpudo... eso ya es diplomacia de altos cargos.",
+    "gesture": "talk",
+    "seconds": 3.6
+   },
+   {
+    "type": "cam",
+    "focus": "player"
+   }
+  ]
+ },
+ {
+  "id": "cut_fin_obra",
+  "trigger": {
+   "on": "step_started",
+   "mission": "m_fin_de_obra",
+   "step": "celebrar"
   },
-  {
-    "id": "cut_presidencia",
-    "trigger": {
-      "on": "mission_completed",
-      "mission": "m_presidencia_voto"
+  "beats": [
+   {
+    "type": "cam",
+    "focus": {
+     "block": "portal",
+     "at": "door"
     },
-    "beats": [
-      {
-        "type": "cam",
-        "focus": "wide",
-        "hold": 1.4
-      },
-      {
-        "type": "line",
-        "who": "res_jubilada_01",
-        "speaker": "Espera · 2C",
-        "text": "Yo soy Espera. Vigilo el rellano desde 1997. El bizcocho es pillable; la información, no gratis.",
-        "gesture": "talk",
-        "seconds": 4.2
-      },
-      {
-        "type": "line",
-        "who": "res_cotilla_01",
-        "speaker": "Dolores · 1B",
-        "text": "Dolores, la 1B. Mi afición son las juntas; mi talento, saberlo TODO antes de que pase.",
-        "gesture": "talk",
-        "seconds": 4.2
-      },
-      {
-        "type": "line",
-        "who": "res_fiestero_01",
-        "speaker": "Kevin · 2B",
-        "text": "Kevin, 2B. Si oyes música los viernes no es una fiesta: es un estilo de vida.",
-        "gesture": "laugh",
-        "seconds": 4
-      },
-      {
-        "type": "line",
-        "who": "res_estudiante_01",
-        "speaker": "Laia · 1A",
-        "text": "Laia, 1A. Estudio de noche. Los taladros del domingo me los cobro con intereses.",
-        "gesture": "talk",
-        "seconds": 4
-      },
-      {
-        "type": "line",
-        "who": "res_musico_01",
-        "speaker": "Teo · 1C",
-        "text": "Teo, 1C. Músico. Ensayo de 20 a 23. El amplificador es un instrumento de paz interior.",
-        "gesture": "talk",
-        "seconds": 4
-      },
-      {
-        "type": "line",
-        "who": "res_presidente_01",
-        "speaker": "Ex presidente · 1D",
-        "text": "Yo volveré a presidir. Nací para la presidencia. ¡Esto no se acaba aquí, RECUÉRDALO!",
-        "gesture": "argue",
-        "seconds": 4.6
-      },
-      {
-        "type": "line",
-        "who": "res_player_01",
-        "speaker": "Tú",
-        "text": "Yo solo pedía un piso tranquilo...",
-        "gesture": "talk",
-        "seconds": 3.4
-      },
-      {
-        "type": "cam",
-        "focus": "player",
-        "hold": 1.6
-      }
-    ]
-  }
+    "viewH": 2.4
+   },
+   {
+    "type": "walk",
+    "who": "$role.obra",
+    "to": {
+     "block": "portal",
+     "at": "door"
+    }
+   },
+   {
+    "type": "line",
+    "who": "$role.obra",
+    "text": "¡Fin de la obra! Bajé a recibir los aplausos con una brocha en la mano, que es lo elegante.",
+    "gesture": "laugh",
+    "seconds": 3.4
+   },
+   {
+    "type": "line",
+    "who": "$role.invitada",
+    "text": "Yo solo bajé a preguntar la hora. Me quedo por el pastel y por el felpudo.",
+    "gesture": "laugh",
+    "seconds": 3.2
+   },
+   {
+    "type": "walk",
+    "who": "$role.obra",
+    "to": {
+     "block": "portal",
+     "at": "center"
+    }
+   },
+   {
+    "type": "wait",
+    "seconds": 1.2
+   },
+   {
+    "type": "cam",
+    "focus": "player"
+   }
+  ]
+ },
+ {
+  "id": "cut_presidencia",
+  "trigger": {
+   "on": "mission_completed",
+   "mission": "m_presidencia_voto"
+  },
+  "beats": [
+   {
+    "type": "cam",
+    "focus": "wide",
+    "hold": 1.4
+   },
+   {
+    "type": "line",
+    "who": "res_jubilada_01",
+    "speaker": "Espera · {viviendaDe:res_jubilada_01}",
+    "text": "Yo soy Espera. Vigilo el rellano desde 1997. El bizcocho es pillable; la información, no gratis.",
+    "gesture": "talk",
+    "seconds": 4.2
+   },
+   {
+    "type": "line",
+    "who": "res_cotilla_01",
+    "speaker": "Dolores · {viviendaDe:res_cotilla_01}",
+    "text": "Dolores, la 1B. Mi afición son las juntas; mi talento, saberlo TODO antes de que pase.",
+    "gesture": "talk",
+    "seconds": 4.2
+   },
+   {
+    "type": "line",
+    "who": "res_fiestero_01",
+    "speaker": "Kevin · {viviendaDe:res_fiestero_01}",
+    "text": "Kevin, 2B. Si oyes música los viernes no es una fiesta: es un estilo de vida.",
+    "gesture": "laugh",
+    "seconds": 4
+   },
+   {
+    "type": "line",
+    "who": "res_estudiante_01",
+    "speaker": "Laia · {viviendaDe:res_estudiante_01}",
+    "text": "Laia, 1A. Estudio de noche. Los taladros del domingo me los cobro con intereses.",
+    "gesture": "talk",
+    "seconds": 4
+   },
+   {
+    "type": "line",
+    "who": "res_musico_01",
+    "speaker": "Teo · {viviendaDe:res_musico_01}",
+    "text": "Teo, 1C. Músico. Ensayo de 20 a 23. El amplificador es un instrumento de paz interior.",
+    "gesture": "talk",
+    "seconds": 4
+   },
+   {
+    "type": "line",
+    "who": "res_presidente_01",
+    "speaker": "Ex presidente · {viviendaDe:res_presidente_01}",
+    "text": "Yo volveré a presidir. Nací para la presidencia. ¡Esto no se acaba aquí, RECUÉRDALO!",
+    "gesture": "argue",
+    "seconds": 4.6
+   },
+   {
+    "type": "line",
+    "who": "res_player_01",
+    "speaker": "Tú",
+    "text": "Yo solo pedía un piso tranquilo...",
+    "gesture": "talk",
+    "seconds": 3.4
+   },
+   {
+    "type": "cam",
+    "focus": "player",
+    "hold": 1.6
+   }
+  ]
+ }
 ]

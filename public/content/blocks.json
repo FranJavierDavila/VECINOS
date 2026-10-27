@@ -185,7 +185,11 @@
   "view": {
    "color": "#6d6875"
   },
-  "label": "el garaje"
+  "label": "el garaje",
+  "container": {
+   "childKind": "room",
+   "layout": "layout_garaje_comunal"
+  }
  },
  {
   "id": "local_comercial",
@@ -245,7 +249,11 @@
   "view": {
    "color": "#84a59d"
   },
-  "label": "la lavandería"
+  "label": "la lavandería",
+  "container": {
+   "childKind": "room",
+   "layout": "layout_lavanderia_comunal"
+  }
  },
  {
   "id": "trasteros_planta",

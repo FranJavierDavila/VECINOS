@@ -40,7 +40,24 @@ export interface TokenCtx {
   /** Residentes del evento (para {a}/{b}); null si el evento no los tiene. */
   a?: string;
   b?: string;
+  /** v1.34 — vivienda del JUGADOR (para {home}); null si no aplica. */
+  home?: string;
 }
+
+/** Datos estructurales del mundo que alimentan los tokens de EDIFICIO.
+ *  «Plantas» = PLANTAS DE VIVIENDA (el edificio_3p_3v dice 3 aunque tenga ático y locales:
+ *  es lo que la gente llama «un edificio de 3 plantas»); «viviendas» = dwellings reales. */
+const buildingFacts = (world: World): { plantas: number; viviendas: number; topFloor: number } => {
+  let topFloor = 0;
+  let viviendas = 0;
+  for (const b of Object.values(world.blocks)) {
+    if (b.kind === 'dwelling') {
+      if (b.cell.floor > topFloor) topFloor = b.cell.floor;
+      viviendas++;
+    }
+  }
+  return { plantas: topFloor, viviendas, topFloor };
+};
 
 /** Sustituye los tokens del catálogo con los datos reales del mundo. */
 export function resolveTokens(text: string, world: World, content: Content, ctx: TokenCtx): string {
@@ -56,11 +73,79 @@ export function resolveTokens(text: string, world: World, content: Content, ctx:
     const m = /^blk_p(\d+)_/.exec(home);
     return m ? floorWord(Number(m[1]), content) : '?';
   };
+  const facts = buildingFacts(world);
+  const blockLabel = (id: string): string => {
+    const b = world.blocks[id];
+    if (!b) return id;
+    if (b.kind === 'dwelling') return apartmentLabel(id);
+    return content.blocks[b.defId]?.label ?? id;
+  };
   return text
     .replaceAll('{a}', apply(ctx.a, 'a'))
     .replaceAll('{b}', apply(ctx.b, 'b'))
+    // v1.34 — el JUGADOR y su vivienda: los avisos ya no citan pisos que no son los suyos.
+    .replaceAll('{home}', ctx.home ? apartmentLabel(ctx.home) : '?home?')
+    // v1.34 — el EDIFICIO entero: los textos se adaptan al nº de plantas y viviendas real
+    // («{plantas} PLANTAS A PIE» con un edificio de 3 dice 3; con uno de 9, 9).
+    .replaceAll('{plantas}', String(facts.plantas))
+    .replaceAll('{viviendas}', String(facts.viviendas))
+    .replaceAll('{plantaTop}', floorWord(facts.topFloor, content))
+    .replaceAll(/\{blk:([\w_]+)\}/g, (_s, id: string) => blockLabel(id))
+    .replaceAll(/\{viviendaDe:([\w_]+)\}/g, (_s, who: string) => {
+      const r = world.residents[who];
+      return r ? apartmentLabel(r.home ?? '') : `?${who}?`;
+    })
+    .replaceAll(/\{plantaDe:([\w_]+)\}/g, (_s, who: string) => {
+      const r = world.residents[who];
+      const m = r ? /^blk_p(\d+)_/.exec(r.home ?? '') : null;
+      return m ? floorWord(Number(m[1]), content) : '?';
+    })
     .replaceAll(/\{planta:([ab])\}/g, (_s, who: string) => apply(ctx[who as 'a' | 'b'], 'planta'))
     .replaceAll(/\{vivienda:([ab])\}/g, (_s, who: string) => apply(ctx[who as 'a' | 'b'], 'vivienda'));
+}
+
+/**
+ * v1.34 — PASO ESTÁTICO DE ARRANQUE: expande los tokens ESTRUCTURALES ({plantas},
+ * {viviendas}, {blk:id}) en los catálogos narrativos ANTES de que la UI los lea. Así un
+ * título de misión («El piso de al lado ({blk:blk_p1_a})») muestra la vivienda REAL aunque
+ * el jugador nunca abra un evento. Los tokens con contexto ({a}, {planta:x}, {home}…)
+ * siguen resolviéndose en caliente donde hay evento.
+ */
+export function applyStaticTokens(content: Content, world: World): void {
+  const facts = buildingFacts(world);
+  const blockLabel = (id: string): string => {
+    const b = world.blocks[id];
+    if (!b) return id;
+    if (b.kind === 'dwelling') return apartmentLabel(id);
+    return content.blocks[b.defId]?.label ?? id;
+  };
+  const expand = (s: string): string =>
+    s
+      .replaceAll('{plantas}', String(facts.plantas))
+      .replaceAll('{viviendas}', String(facts.viviendas))
+      .replaceAll(/\{blk:([\w_]+)\}/g, (_s, id: string) => blockLabel(id));
+  const walk = (o: unknown): void => {
+    if (typeof o === 'string') return; // las cadenas se mutan desde su contenedor
+    if (Array.isArray(o)) {
+      for (let i = 0; i < o.length; i++) {
+        if (typeof o[i] === 'string') o[i] = expand(o[i] as string);
+        else walk(o[i]);
+      }
+    } else if (o && typeof o === 'object') {
+      for (const [k, x] of Object.entries(o as Record<string, unknown>)) {
+        if (typeof x === 'string') (o as Record<string, unknown>)[k] = expand(x);
+        else walk(x);
+      }
+    }
+  };
+  walk(content.missions);
+  walk(content.dialogs);
+  walk(content.cutscenes);
+  walk(content.street);
+  walk(content.ecosystem);
+  walk(content.influences);
+  walk(content.achievements);
+  walk(content.crossings);
 }
 
 // ── Auditoría: menciones literales que deben existir en los datos ──────────────────
@@ -116,6 +201,13 @@ export function scanFloorReferences(world: World, content: Content): FloorRefVio
   const out: FloorRefViolation[] = [];
   const ordinalRe = /(baja|primera|segunda|tercera|cuarta|quinta|sexta|s[eé]ptima)\s+planta/gi;
   const aptRe = /\b(\d+)([A-Da-d])\b/g;
+  // v1.34 — el edificio de verdad tiene X plantas: «9 PISOS A PIE» con un bloque de 3 es
+  // exactamente la mentira del vecino («hablan del vecino del cuarto»). Estos avisos deben
+  // llevar {plantas} para adaptarse solos.
+  const countRe = /(\d+)\s*(pisos|plantas)\b/gi;
+  // v1.34 — «plantas» del edificio = plantas de VIVIENDA (la convención del catálogo:
+  // edificio_3p_3v = 3 plantas), no los niveles técnicos (ático/tejado cuentan aparte).
+  const plantas = Math.max(...Object.values(world.blocks).filter((b) => b.kind === 'dwelling').map((b) => b.cell.floor), 0);
   for (const { text, where } of strings) {
     for (const m of text.matchAll(ordinalRe)) {
       const floor = ORDINAL_TO_FLOOR[m[1]!.toLowerCase()];
@@ -126,12 +218,17 @@ export function scanFloorReferences(world: World, content: Content): FloorRefVio
     for (const m of text.matchAll(aptRe)) {
       const floor = Number(m[1]);
       const letter = m[2]!.toLowerCase();
-      // Solo cuenta como mención de vivienda si la letra es una columna real del
-      // edificio, la planta está en el rango verosímil y no es parte de un número largo.
-      if (letters.has(letter) && floor > 0 && floor <= maxFloor + 2 && !/\d{4}/.test(text)) {
+      // v1.34 — la letra TAMBIÉN debe existir: «el Ex presidente · 1D» en un edificio sin
+      // columna D es una mención imposible (antes se dejaba pasar y ahí quedó).
+      if (floor > 0 && floor <= maxFloor + 2 && !/\d{4}/.test(text)) {
         if (!world.blocks[`blk_p${floor}_${letter}`]) {
           out.push({ where, text, mention: m[0] });
         }
+      }
+    }
+    for (const m of text.matchAll(countRe)) {
+      if (Number(m[1]) !== plantas) {
+        out.push({ where, text, mention: m[0] });
       }
     }
   }
