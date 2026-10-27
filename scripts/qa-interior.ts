@@ -36,20 +36,22 @@ const logic = new PlayerLogic(world, content);
 // Misma fuente de verdad para el jugador (PlayerLogic) y los vecinos (actors.ts).
 const geo0 = layoutGeometryOf(content, homeBlock)!;
 check('geometría del layout: 4 estancias (con el cuarto trasero v1.19)', geo0.rooms.length === 4);
-check('accesos vivos: salón abierto, dormitorio y baño cerrados', geo0.rooms.find((r) => r.key === 'salon')!.locked === false && geo0.rooms.find((r) => r.key === 'dormitorio')!.locked && geo0.rooms.find((r) => r.key === 'bano')!.locked);
+// v1.29/v1.30 (petición del vecino): UN solo bloque sin pared divisoria y el interior
+// transitable de lado a lado — TODAS las estancias nacen abiertas (la reforma sobra).
+check('accesos vivos: todo abierto (plan abierto, sin tabiques)', geo0.rooms.every((r) => !r.locked), geo0.rooms.map((r) => `${r.key}:${r.locked ? 'cerrada' : 'abierta'}`).join(' '));
 check('roomAt tesela los rects (trasera incluida, detrás del bloque principal)', roomAt(geo0, 1.0, 1.0).key === 'salon' && roomAt(geo0, 3.0, 0.5).key === 'dormitorio' && roomAt(geo0, 3.0, 3.0).key === 'bano' && roomAt(geo0, 4.0, 5.0).key === 'trasera');
 check('walkable: misma estancia siempre', walkable(geo0, roomAt(geo0, 1, 1), 2.0, 2.0));
-check('walkable: NO entra al dormitorio cerrado (ni por su hueco)', !walkable(geo0, roomAt(geo0, 1, 1), 3.0, 0.8));
+check('walkable: plan abierto — se entra al dormitorio por su hueco', walkable(geo0, roomAt(geo0, 1, 1), 3.0, 0.8));
 const dpDorm = doorwayPoint(geo0, 'salon', 'dormitorio');
 const dpBano = doorwayPoint(geo0, 'salon', 'bano');
 check('doorwayPoint salón↔dormitorio = centro del borde abierto (2.3, 1.25)', !!dpDorm && close(dpDorm.x, 2.3) && close(dpDorm.z, 1.25), JSON.stringify(dpDorm)); // v1.24: sin tabique central
 check('doorwayPoint salón↔baño = centro del borde abierto (2.3, 3.35)', !!dpBano && close(dpBano.x, 2.3) && close(dpBano.z, 3.35), JSON.stringify(dpBano)); // v1.24
 const dpTras = doorwayPoint(geo0, 'salon', 'trasera');
 check('doorwayPoint salón↔trasera = puerta en la pared del FONDO (1.15, 4.2)', !!dpTras && close(dpTras.x, 1.15) && close(dpTras.z, content.rules.view.depth), JSON.stringify(dpTras));
-check('roomRoute a baño cerrado = null', roomRoute(geo0, 'salon', 'bano') === null);
-check('interiorRoute a baño cerrado = null', interiorRoute(geo0, { x: 0.5, z: 0.5 }, { x: 3.5, z: 2.2 }) === null);
+check('roomRoute salón→baño (todo abierto)', JSON.stringify(roomRoute(geo0, 'salon', 'bano')) === '["bano"]');
+check('interiorRoute al baño cruza por el borde abierto (x=2.3)', (() => { const rt = interiorRoute(geo0, { x: 0.5, z: 0.5 }, { x: 3.5, z: 2.2 }); return !!rt && rt.some((pt) => close(pt.x, 2.3)); })());
 const tCama0 = interiorTarget(content, geo0, 'bed', 'qa_vecino', 0);
-check('ancla cama con dormitorio cerrado → deambula por el salón', !!tCama0 && tCama0.x < 2.3 && tCama0.z < 4.2, JSON.stringify(tCama0));
+check('ancla cama accesible DESDE EL ARRANQUE (sin reforma) = (4.05, 0.8)', !!tCama0 && close(tCama0.x, 4.05) && close(tCama0.z, 0.8), JSON.stringify(tCama0));
 const tWanderA = interiorTarget(content, geo0, undefined, 'qa_vecino', 0);
 const tWanderB = interiorTarget(content, geo0, undefined, 'qa_vecino', 0);
 check('deambulación determinista por (residente, vuelta)', !!tWanderA && tWanderA.x === tWanderB!.x && tWanderA.z === tWanderB!.z, JSON.stringify(tWanderA));
@@ -61,25 +63,27 @@ logic.teleportTo(HOME);
 check('teleport coloca delante de la puerta', logic.position().mode === 'corridor' && close(logic.position().x, X0 + 2.4), `x=${logic.position().x.toFixed(2)}`);
 const entered = logic.interact();
 check('E entra en la vivienda', entered.type === 'entered', JSON.stringify(entered));
-check('aterriza en el salón (la puerta cae en el dormitorio, cerrado)', close(logic.position().x, X0 + 1.15), `x=${logic.position().x.toFixed(2)}`);
+check('aterriza donde cae la puerta (dormitorio, todo abierto)', close(logic.position().x, X0 + 2.4), `x=${logic.position().x.toFixed(2)}`);
 check('profundidad de entrada = 0.45', close(logic.position().z, 0.45), `z=${logic.position().z.toFixed(2)}`);
 
-// ── Tabiques: andar a la derecha con el dormitorio cerrado NO cruza (ni por el hueco)
+// ── Plan abierto: andar a la derecha CRUZA al dormitorio (no hay tabique desde v1.29)
 for (let i = 0; i < 240; i++) logic.update(1 / 60, { left: false, right: true, up: false, down: false, run: false });
-check('tabique bloquea hacia el dormitorio cerrado', logic.position().x < X0 + 2.31, `x=${logic.position().x.toFixed(2)}`);
+check('plan abierto: se cruza andando al dormitorio (sin tabiques)', logic.position().x > X0 + 2.31, `x=${logic.position().x.toFixed(2)}`);
 
-// ── Profundidad: la pared del FONDO (puerta a la trasera) frena al jugador fuera del hueco
+// ── Profundidad: desde el centro (dentro del hueco dormitorio↔baño) se llega al fondo;
+// la trasera solo se entra por SU hueco (x 0.675..1.625).
+logic.x = X0 + 3.4;
 for (let i = 0; i < 600; i++) logic.update(1 / 60, { left: false, right: false, up: true, down: false, run: false });
-check('la pared del fondo frena en view.depth (la trasera solo se entra por su puerta)', logic.position().z > content.rules.view.depth - 0.2 && logic.position().z <= content.rules.view.depth, `z=${logic.position().z.toFixed(2)}`);
+check('la pared del fondo frena en view.depth (la trasera solo se entra por su hueco)', logic.position().z > content.rules.view.depth - 0.2 && logic.position().z <= content.rules.view.depth, `z=${logic.position().z.toFixed(2)}`);
 for (let i = 0; i < 600; i++) logic.update(1 / 60, { left: false, right: true, up: false, down: false, run: false });
-check('tampoco cruza al baño cerrado por el fondo', logic.position().x < X0 + 2.31, `x=${logic.position().x.toFixed(2)}`);
+check('plan abierto: el fondo del baño se recorre entero (sin tabique este)', logic.position().x > X0 + 2.31, `x=${logic.position().x.toFixed(2)}`);
 
-// ── Reformar el baño (sim) abre el hueco del fondo: se cruza andando
+// ── Reformar una estancia YA ABIERTA ya no procede (el plan abierto la dejó abierta)
 const rBano = dispatch(world, content, { type: 'renovate_room', block: HOME, room: 'bano' });
-check('reforma del baño aceptada (cartera 800 €)', rBano.ok);
-logic.z = 3.3; // plantado en el hueco salón↔baño (v1.19: el hueco vive a z 3.3)
+check('reforma del baño sobra (ya abierta: room_open)', !rBano.ok && (rBano as { reason?: string }).reason === 'room_open', JSON.stringify(rBano));
+logic.z = 3.3; // plantado en el hueco salón↔baño
 for (let i = 0; i < 240; i++) logic.update(1 / 60, { left: false, right: true, up: false, down: false, run: false });
-check('cruza por el hueco del fondo al baño reformado', logic.position().x > X0 + 2.4, `x=${logic.position().x.toFixed(2)}`);
+check('cruza andando al baño por el hueco del fondo (sin reforma)', logic.position().x > X0 + 2.4, `x=${logic.position().x.toFixed(2)}`);
 
 // ── Rutas interiores de los vecinos: con el baño abierto ya hay ruta por el hueco ──
 const geoB = layoutGeometryOf(content, homeBlock)!;
@@ -97,7 +101,7 @@ check('E usa el portátil (work del sim)', used.type === 'used' && (used as { ki
 check('work paga +120 €', world.residents[world.playerId]!.wallet === wallet0 + content.rules.sim.work.pay, `${wallet0}→${world.residents[world.playerId]!.wallet}`);
 
 const rDorm = dispatch(world, content, { type: 'renovate_room', block: HOME, room: 'dormitorio' });
-check('reforma del dormitorio aceptada', rDorm.ok);
+check('reforma del dormitorio sobra (ya abierta: room_open)', !rDorm.ok && (rDorm as { reason?: string }).reason === 'room_open', JSON.stringify(rDorm));
 logic.x = X0 + 2.3 + 1.75; // cama del dormitorio en local [1.75, 0.8]
 logic.z = 0.8;
 check('cama detectada en el dormitorio', logic.interactTarget()?.kind === 'bed');

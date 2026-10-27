@@ -27,7 +27,7 @@ const DICT: Record<string, { es: string; en: string }> = {
     es: 'Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.',
     en: 'Move-ins, noise, smells, wifi, pests, smoke and levies: the neighborhood simulator.',
   },
-  'header.version': { es: 'v1.30 · los locales de todos', en: 'v1.30 · the community halls' },
+  'header.version': { es: 'v1.31 · tráfico con oficio', en: 'v1.31 · traffic with craft' },
   // ── Post-its (v1.23: mandos agrupados dibujados a bolígrafo) ──
   'postit.time': { es: 'Tiempo', en: 'Time' },
   'postit.options': { es: 'Opciones', en: 'Options' },

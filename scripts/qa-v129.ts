@@ -61,7 +61,9 @@ const storeTs = srcOf('src/game/client/store.ts');
 const toastTs = srcOf('src/components/game/ToastStack.tsx');
 
 console.log('── 1. Pozo del ascensor gris oscuro como el zócalo ──');
-check('elevator.wallColor en el catálogo', v.elevator.wallColor === '#a3a19b', v.elevator.wallColor);
+// v1.30: el vecino pidió unificar TODAS las paredes de pasillo al mismo gris (#dbd8d2,
+// el de las viviendas) — el pozo incluye ese muro, así que cambia de #a3a19b a #dbd8d2.
+check('elevator.wallColor en el catálogo', v.elevator.wallColor === '#dbd8d2', v.elevator.wallColor);
 check('building fija el color sobre el arte glTF (fixedDiffuse del pozo)', buildingTs.includes('view.fixedDiffuse = Color3.FromHexString(v.elevator.wallColor)'));
 
 console.log('── 2. Interior del ascensor (se ve y se entra) ──');

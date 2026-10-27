@@ -803,8 +803,9 @@ class GameController {
     this.exterior = createExterior(this.scene, this.world, this.content, this.backdrop);
     // La calle vive (v1.22): tráfico y viandantes — solo presentación, solo vista "edificio".
     // (Las manifestaciones se crean más abajo, tras los bocadillos, para poder comentarlas.)
+    // v1.31: los vehículos leen la luz de día del cielo para encender y apagar los faros.
     this.traffic?.dispose();
-    this.traffic = createTraffic(this.scene, this.world, this.content);
+    this.traffic = createTraffic(this.scene, this.world, this.content, () => this.backdrop?.daylight ?? 1);
     this.pedestrians?.dispose();
     this.pedestrians = createPedestrians(this.scene, this.world, this.content);
     // Ecosistema del edificio (v1.14): cerebro data-driven + teatro de extras. Se recrea con

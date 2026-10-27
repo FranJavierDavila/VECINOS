@@ -1338,6 +1338,15 @@ export interface Rules {
         cabin: number;
         colors: string[];
         siren: boolean;
+        /** v1.31 — detalle por vehículo: matrícula (textura a canvas), rótulos pintados
+         *  en los costados (empresa, línea, POLICÍA), rótulo destino del bus, cartel de
+         *  tejado (TAXI), parrilla de techo (furgoneta) y ejes traseros (2 o 3). */
+        plate?: string;
+        sideText?: string;
+        destSign?: string;
+        roofSign?: string;
+        roofRack?: boolean;
+        axles?: number;
       }[];
     };
     /** ── Viandantes (v1.22) ── paseantes por las aceras; algunos entran al portal. */

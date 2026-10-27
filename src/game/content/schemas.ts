@@ -1389,6 +1389,15 @@ export const rulesSchema = z.object({
             colors: z.array(z.string()).min(1),
             /** Patrulla: barra de luces roja/azul alternando. */
             siren: z.boolean().default(false),
+            /** v1.31 — detalle: matrícula pintada (delante/detrás), rótulos laterales,
+             *  rótulo destino del bus, cartel de tejado (TAXI), parrilla de techo y
+             *  ejes traseros (bus y reparto llevan rueda doble = 3 ejes). */
+            plate: z.string().default(''),
+            sideText: z.string().default(''),
+            destSign: z.string().default(''),
+            roofSign: z.string().default(''),
+            roofRack: z.boolean().default(false),
+            axles: z.number().int().min(2).max(3).default(2),
           }),
         ),
       })
