@@ -68,11 +68,11 @@
     "id": "dlg_laia",
     "lines": [
       {
-        "speaker": "Laia (4A, nueva)",
-        "text": "¡Hola! Soy Laia, la del 4A. Me acaban de dar las llaves y el wifi no va. ¿El password es \"derrama2026\"? Porque lo he probado."
+        "speaker": "Laia (1A, nueva)",
+        "text": "¡Hola! Soy Laia, la del 1A. Me acaban de dar las llaves y el wifi no va. ¿El password es \"derrama2026\"? Porque lo he probado."
       },
       {
-        "speaker": "Laia (4A, nueva)",
+        "speaker": "Laia (1A, nueva)",
         "text": "Prometo estudiar de noche. Bueno, estudiar. El volumen lo pone Mozart. En techno. Más o menos."
       }
     ]
@@ -138,7 +138,7 @@
     "lines": [
       {
         "speaker": "Don Ramón (presidente)",
-        "text": "El cartero ha mezclado la correspondencia del edificio. TODA. Hay un sobre del banco en el buzón del 4D. Y una carta de amor en el mío. No es de mi mujer."
+        "text": "El cartero ha mezclado la correspondencia del edificio. TODA. Hay un sobre del banco en el buzón del 1C. Y una carta de amor en el mío. No es de mi mujer."
       },
       {
         "speaker": "Don Ramón (presidente)",
@@ -207,7 +207,7 @@
     "lines": [
       {
         "speaker": "Administrador de fincas",
-        "text": "Tres quejas esta noche sobre El Rincón. La 3A, la 4C y el Sr. Vulture, que ha escrito un acta de 14 páginas sobre 'vibraciones estructurales'."
+        "text": "Tres quejas esta noche sobre El Rincón. La 3A, la 2C y el Sr. Vulture, que ha escrito un acta de 14 páginas sobre 'vibraciones estructurales'."
       },
       {
         "speaker": "Administrador de fincas",
@@ -220,7 +220,7 @@
     "lines": [
       {
         "speaker": "Contestador de la junta",
-        "text": "Mensaje de Esperanza (4C): 'Los días impares la lavadora comunal es MÍA. Que conste en acta. Que conste en HIERRO.'"
+        "text": "Mensaje de Esperanza (2C): 'Los días impares la lavadora comunal es MÍA. Que conste en acta. Que conste en HIERRO.'"
       },
       {
         "speaker": "Contestador de la junta",
@@ -270,15 +270,15 @@
     "id": "dlg_wifi",
     "lines": [
       {
-        "speaker": "Nico (4A)",
+        "speaker": "Nico (3A)",
         "text": "¿Tienes cinco segundos? Mi wifi se cae cada vez que lavo los platos. He cronometrado: la señal y yo no nos respetamos."
       },
       {
-        "speaker": "Nico (4A)",
+        "speaker": "Nico (3A)",
         "text": "La antena es de los noventa. Envía la señal a través de un hámster que corre dentro, según el de la tienda."
       },
       {
-        "speaker": "Nico (4A)",
+        "speaker": "Nico (3A)",
         "text": "Sube al portal, mira la antena conmigo y decidimos: antena nueva, junta o que aprenda a vivir del 3G como un hombre."
       }
     ]
@@ -339,7 +339,7 @@
     "lines": [
       {
         "speaker": "Contestador del edificio",
-        "text": "📧 Aviso de la administración: «de nuevo una carta con ventana para el 4D. El cartero insiste. El 4D también en que no la espera. Resolvedlo como pueblo»."
+        "text": "📧 Aviso de la administración: «de nuevo una carta con ventana para el 1C. El cartero insiste. Rita también en que no la espera. Resolvedlo como pueblo»."
       }
     ]
   },
@@ -378,7 +378,7 @@
     "lines": [
       {
         "speaker": "Administrador",
-        "text": "Buenas. Queja oficial en el acta: 'guitarra festiva a deshoras en la cuarta planta'. Firmas: varias. Aplausos: dos."
+        "text": "Buenas. Queja oficial en el acta: 'guitarra festiva a deshoras en la tercera planta'. Firmas: varias. Aplausos: dos."
       },
       {
         "speaker": "Administrador",
@@ -421,7 +421,7 @@
       },
       {
         "speaker": "Vecina del 1B",
-        "text": "Entre la tarta del 2A, el pastel del 4C y el hielo del 4D, este edificio necesita un cronista. ¿Se ofrece?"
+        "text": "Entre la tarta del 2A, el pastel del 2C y el hielo del 1C, este edificio necesita un cronista. ¿Se ofrece?"
       }
     ]
   },
@@ -430,7 +430,7 @@
     "lines": [
       {
         "speaker": "Presidente",
-        "text": "Vecino. Siento decirle que el del 5B está taladrando con una alegría que no le corresponde. El polvo ya pide asiento en la junta."
+        "text": "Vecino. Siento decirle que el del 3B está taladrando con una alegría que no le corresponde. El polvo ya pide asiento en la junta."
       },
       {
         "speaker": "Presidente",
@@ -477,7 +477,7 @@
     "lines": [
       {
         "speaker": "Juana Lebrato · Administración de Fincas",
-        "text": "Juana, de nuevo. Baje la voz: la tubería del 4B gotea en el 3B, y el fontanero cobra lo que pesa."
+        "text": "Juana, de nuevo. Baje la voz: la tubería del 3B gotea en el 2B, y el fontanero cobra lo que pesa."
       },
       {
         "speaker": "Juana Lebrato · Administración de Fincas",

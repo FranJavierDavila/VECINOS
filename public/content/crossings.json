@@ -268,5 +268,81 @@
         }
       ]
     }
-  ]
+  ],
+  "escalation": {
+    "argueChance": 0.22,
+    "fightChance": 0.1,
+    "injuredChance": 0.55,
+    "hurtSeconds": 9,
+    "fightLinesSeconds": 0.9,
+    "argueGroups": {
+      "mild": [
+        {
+          "id": "ruido_guitarra",
+          "lines": [
+            "{b}, otra vez la guitarra a las doce de la noche. ¡DOCE!",
+            "Es que a las doce es cuando me sale el blues, {a}.",
+            "Pues el blues me lo vas a tocar al ayuntamiento."
+          ]
+        },
+        {
+          "id": "cultivo_macetas",
+          "lines": [
+            "Alguien riega mis macetas sin permiso. Esto es un allanamiento botánico.",
+            "¡Estaban secas! ¿Prefieres un herbario o una planta viva?",
+            "Prefieres METISQUIR. Que quede claro."
+          ]
+        },
+        {
+          "id": "ascensor_piso",
+          "lines": [
+            "¿Otra vez apretaste todos los botones del ascensor, {b}?",
+            "Fue un experimento científico de gran alcance.",
+            "Pues el laboratorio lo pagas tú: ahora tarda una eternidad."
+          ]
+        }
+      ],
+      "hot": [
+        {
+          "id": "aparcamiento",
+          "lines": [
+            "¡Ese sitio de garaje es MÍO desde 2019, {b}!",
+            "¡Papeles, {a}, PAPELES! Yo solo veo una mancha de aceite con opiniones.",
+            "¡La mancha es TU coche mal aparcado!"
+          ]
+        },
+        {
+          "id": "fiestas",
+          "lines": [
+            "¡Sábado 3:40 de la mañana y ¡OLÉ! gritado catorce veces!",
+            "¡Catorce por lo menos, {a}! Y tú aplaudiste en la doce, te he VISTO.",
+            "¡Eso era un estornudo!"
+          ]
+        },
+        {
+          "id": "basura",
+          "lines": [
+            "El cubo orgánico, {b}. ¿El ORGÁNICO. ¿Tanto cuesta?",
+            "Es que el envase de yogur es... ¿orgánico? ¿inorgánico? ¿espiritual?",
+            "¡Es PLÁSTICO!"
+          ]
+        }
+      ]
+    },
+    "fightFight": [
+      "¡Toma!",
+      "¡Y esa!",
+      "¡¿Quieres más?!"
+    ],
+    "injuryLines": [
+      "¡Ay, mi lumbar!",
+      "Me retiro del boxeo de portal...",
+      "Llámenme... a alguien..."
+    ],
+    "witnessLines": [
+      "¡Que vienen sanitarios! Que alguien aparte las macetas.",
+      "Esto en mi época se arreglaba a base de paellas.",
+      "Yo esto NO lo he visto. Bueno, sí, pero no lo digo."
+    ]
+  }
 }

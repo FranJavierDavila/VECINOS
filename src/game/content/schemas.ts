@@ -1195,6 +1195,10 @@ export const rulesSchema = z.object({
               [1.15, 2.28], [2.34, 2.28], [3.53, 2.28],
               [0.6, 1.5], [4.08, 1.5],
             ]),
+            /** v1.32 — puestos DE PIE (coords locales) para los asistentes sin silla. */
+            standSpots: z.array(z.tuple([z.number(), z.number()])).default([
+              [1.0, 2.62], [1.85, 2.62], [2.7, 2.62], [3.55, 2.62], [0.5, 0.5], [4.18, 0.5],
+            ]),
             wood: z.string().default('#8a5a33'),
             woodDark: z.string().default('#6f4926'),
           })
@@ -1202,8 +1206,19 @@ export const rulesSchema = z.object({
             doorW: 1.05, sign: 'SALA DE JUNTAS', signBg: '#3b3129', signText: '#ffd166',
             tableW: 2.6, tableD: 0.95, tableZ: 1.5,
             seats: [[1.15, 0.72], [2.34, 0.72], [3.53, 0.72], [1.15, 2.28], [2.34, 2.28], [3.53, 2.28], [0.6, 1.5], [4.08, 1.5]],
+            standSpots: [[1.0, 2.62], [1.85, 2.62], [2.7, 2.62], [3.55, 2.62], [0.5, 0.5], [4.18, 0.5]],
             wood: '#8a5a33', woodDark: '#6f4926',
           }),
+        /** v1.30 — PUERTAS BATIENTES de los locales de planta 0 (v1.32): trastero común y
+         *  sala de juntas abren al acercarse cualquiera (movers), como el resto de puertas. */
+        hallDoors: z
+          .object({
+            enabled: z.boolean().default(true),
+            openAhead: z.number().positive().default(1.15),
+            openSeconds: z.number().positive().default(0.45),
+            openAngle: z.number().positive().default(1.0),
+          })
+          .default({ enabled: true, openAhead: 1.15, openSeconds: 0.45, openAngle: 1.0 }),
         /** v1.30 — LAVANDERÍA comunitaria: local ABIERTO (sin pared frontal) con las
          *  máquinas de lavado comunes dentro (recortes billboard del catálogo). */
         lavanderia: z
@@ -1224,10 +1239,12 @@ export const rulesSchema = z.object({
         portalDoors: { slide: 0.96, openAhead: 1.7, openSeconds: 0.8, frame: '#8fa3ad', glass: '#cfe3ea', sheen: '#ffffff', handle: '#5d6b7a', alpha: 0.72 },
         garaje: { panel: '#c9ced6', panelShade: '#9aa2ad', rail: '#6d747d', window: '#dfe9ee', sign: 'GARAJES', signBg: '#3b3129', signText: '#ffd166', rampDepth: 1.1, rampColor: '#8f8d86' },
         trasteroComunal: { doorArt: '/art/interiors/raw/door_comunal.png', doorW: 0.85, doorH: 1.72, doorDx: 0.55, shelfTiers: 3, sign: 'TRASTERO COMÚN', signBg: '#3b3129', signText: '#ffd166' },
+        hallDoors: { enabled: true, openAhead: 1.15, openSeconds: 0.45, openAngle: 1.0 },
         juntaHall: {
           doorW: 1.05, sign: 'SALA DE JUNTAS', signBg: '#3b3129', signText: '#ffd166',
           tableW: 2.6, tableD: 0.95, tableZ: 1.5,
           seats: [[1.15, 0.72], [2.34, 0.72], [3.53, 0.72], [1.15, 2.28], [2.34, 2.28], [3.53, 2.28], [0.6, 1.5], [4.08, 1.5]],
+          standSpots: [[1.0, 2.62], [1.85, 2.62], [2.7, 2.62], [3.55, 2.62], [0.5, 0.5], [4.18, 0.5]],
           wood: '#8a5a33', woodDark: '#6f4926',
         },
         lavanderia: { machines: 4, art: '/art/interiors/raw/f_lavadora.png', artH: 1.02, machineColor: '#e8e6e0', sign: 'LAVANDERÍA', signBg: '#3b3129', signText: '#ffd166' },
@@ -1240,6 +1257,32 @@ export const rulesSchema = z.object({
         blurKernelSize: z.number().int().min(8).default(32),
       })
       .default({ enabled: true, intensity: 0.75, blurKernelSize: 32 }),
+    /** v1.32 — SOMBRAS DE VERDAD: un ShadowGenerator sobre el sol del catálogo. Las listas
+     *  son patrones de NOMBRE de malla (data-driven): quién proyecta, quién recibe y qué
+     *  planos quedan fuera (alpha-test que proyectarían rectángulos, cristales, arte 2D). */
+    shadows: z
+      .object({
+        enabled: z.boolean().default(true),
+        mapSize: z.number().int().min(256).default(2048),
+        darkness: z.number().min(0).max(1).default(0.32),
+        bias: z.number().default(0.0008),
+        normalBias: z.number().default(0.012),
+        casters: z.array(z.string()).default([]),
+        receivers: z.array(z.string()).default([]),
+        excluded: z.array(z.string()).default([]),
+      })
+      .default({ enabled: false, mapSize: 2048, darkness: 0.32, bias: 0.0008, normalBias: 0.012, casters: [], receivers: [], excluded: [] }),
+    /** v1.32 — TEXTOS data-driven: palabras ordinales de planta por idioma (los textos
+     *  del catálogo las usan con tokens {planta:a} — si el edificio cambia de plantas,
+     *  los mensajes se adaptan solos). */
+    texts: z
+      .object({
+        ordinals: z.array(z.string()).default(['baja', 'primera', 'segunda', 'tercera', 'cuarta', 'quinta', 'sexta']),
+        ordinalsEn: z.array(z.string()).default(['ground', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth']),
+        floorTemplateEs: z.string().default('{ordinal} planta'),
+        floorTemplateEn: z.string().default('{ordinal} floor'),
+      })
+      .default({ ordinals: ['baja', 'primera', 'segunda', 'tercera', 'cuarta', 'quinta', 'sexta'], ordinalsEn: ['ground', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth'], floorTemplateEs: '{ordinal} planta', floorTemplateEn: '{ordinal} floor' }),
     /** Módulo de profundidad (v1.19): TODOS los bloques crecen 1 módulo hacia el fondo
      *  (viviendas depth+module; comunes commonDepth+module; naves y tejado igual). */
     depthModule: z.number().min(0).default(0),
@@ -1400,6 +1443,32 @@ export const rulesSchema = z.object({
             axles: z.number().int().min(2).max(3).default(2),
           }),
         ),
+        /** v1.32 — AMBULANCIA del teatro de emergencias (opcional): presente en el catálogo,
+         *  el director de la calle puede pedir el rig para recoger heridos del vecindario. */
+        ambulance: z
+          .object({
+            length: z.number().positive().default(4.8),
+            width: z.number().positive().default(1.9),
+            height: z.number().positive().default(1.9),
+            color: z.string().default('#f2f4f4'),
+            sideText: z.string().default('AMBULANCIA'),
+            stripe: z.string().default('#e8641b'),
+            cross: z.string().default('#c0392b'),
+            beaconA: z.string().default('#2f6fb8'),
+            beaconB: z.string().default('#e8b71b'),
+            /** Teatro: carril de parada, frenada frente al herido, lado de entrada y marcha. */
+            stopZ: z.number().default(-8.3),
+            stopAhead: z.number().positive().default(2.6),
+            enterFrom: z.enum(['left', 'right']).default('left'),
+            speed: z.number().positive().default(8),
+            doorSeconds: z.number().positive().default(0.8),
+            medicSpeed: z.number().positive().default(1.5),
+            carryHeight: z.number().positive().default(0.72),
+            medicColor: z.string().default('#f0f2f0'),
+            medicCapColor: z.string().default('#2e8b6e'),
+            medicLegColor: z.string().default('#3a4750'),
+          })
+          .optional(),
       })
       .default({ enabled: false, lanes: [], spawnEveryMin: 8, spawnEveryMax: 24, maxAlive: 4, xMin: -60, xMax: 60, passX: 13.1, passRadius: 22, vehicles: [] }),
     /** ── Viandantes (v1.22) ── paseantes por las aceras; algunos entran al edificio
@@ -1431,8 +1500,24 @@ export const rulesSchema = z.object({
         /** v1.25: arquetipos del catálogo de vecinos que prestan su cuerpo a los viandantes
          *  (misma estética). Vacío → todos los del manifiesto con clip de andar. */
         actorArchetypes: z.array(z.string()).default([]),
+        /** v1.32 — VIDA SOCIAL DE ACERA: dos viandantes que se cruzan pueden parar a
+         *  charlar, discutir o pelear; un herido llama al teatro de la ambulancia. */
+        social: z
+          .object({
+            enabled: z.boolean().default(true),
+            checkEvery: z.number().positive().default(1.6),
+            distance: z.number().positive().default(1.3),
+            maxConcurrent: z.number().int().min(1).default(1),
+            talkSeconds: z.number().positive().default(4.5),
+            argueChance: z.number().min(0).max(1).default(0.2),
+            fightChance: z.number().min(0).max(1).default(0.12),
+            injuredChance: z.number().min(0).max(1).default(0.75),
+            hurtSeconds: z.number().positive().default(4),
+            pairCooldown: z.number().min(0).default(240),
+          })
+          .default({ enabled: true, checkEvery: 1.6, distance: 1.3, maxConcurrent: 1, talkSeconds: 4.5, argueChance: 0.2, fightChance: 0.12, injuredChance: 0.75, hurtSeconds: 4, pairCooldown: 240 }),
       })
-      .default({ enabled: false, maxAlive: 6, spawnEveryMin: 5, spawnEveryMax: 16, speedMin: 0.9, speedMax: 1.5, enterChance: 0.25, exitChance: 0.3, enterX: 13.1, enterZ: -1.7, paths: [], colors: ['#5d6b7a'], hatChance: 0.3, hatColors: ['#3b3129'], actorArchetypes: [] }),
+      .default({ enabled: false, maxAlive: 6, spawnEveryMin: 5, spawnEveryMax: 16, speedMin: 0.9, speedMax: 1.5, enterChance: 0.25, exitChance: 0.3, enterX: 13.1, enterZ: -1.7, paths: [], colors: ['#5d6b7a'], hatChance: 0.3, hatColors: ['#3b3129'], actorArchetypes: [], social: { enabled: true, checkEvery: 1.6, distance: 1.3, maxConcurrent: 1, talkSeconds: 4.5, argueChance: 0.2, fightChance: 0.12, injuredChance: 0.75, hurtSeconds: 4, pairCooldown: 240 } }),
     /** ── Fondo urbano (v1.20) ── cielo dinámico (sol/luna/estrellas/nubes según la hora)
      *  + capas de fachadas 2D a distintas distancias (parallax natural: planos 3D reales
      *  tras el edificio). Luz global (ambiente + sol) evoluciona con los keyframes. */
@@ -2081,6 +2166,22 @@ export const crossingsCatalogSchema = z.object({
       topics: z.array(z.object({ id: z.string(), lines: z.array(z.string()).min(1) })),
     }),
   ),
+  /** v1.32 — ESCALACIÓN SOCIAL: un cruce puede terminar en discusión (gesture 'argue',
+   *  líneas airadas) o en pelea (clips 'fight' nuevos) que puede dejar a uno en el suelo
+   *  (clip 'hurt') hasta que se recupera… o sale a la calle a esperar la ambulancia. */
+  escalation: z
+    .object({
+      argueChance: z.number().min(0).max(1).default(0.22),
+      fightChance: z.number().min(0).max(1).default(0.1),
+      injuredChance: z.number().min(0).max(1).default(0.55),
+      hurtSeconds: z.number().positive().default(9),
+      fightLinesSeconds: z.number().positive().default(0.9),
+      argueGroups: z.record(z.string(), z.array(z.object({ id: z.string(), lines: z.array(z.string()).min(1) }))).default({}),
+      fightFight: z.array(z.string()).default(['¡Toma!', '¡Y esa!']),
+      injuryLines: z.array(z.string()).default([]),
+      witnessLines: z.array(z.string()).default([]),
+    })
+    .optional(),
 });
 
 export type CrossingsCatalogParsed = z.infer<typeof crossingsCatalogSchema>;

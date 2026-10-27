@@ -1,5 +1,6 @@
 import type { Content, World } from '@/game/core/types';
 import { hash01 } from '@/game/interior';
+import { resolveTokens } from '@/game/support/texts';
 import { playSoundAt } from './audio';
 import type { ActorsDirector } from './actors';
 import type { BubblesDirector } from './bubbles';
@@ -100,7 +101,7 @@ export function createVoices(world: World, content: Content, actors: ActorsDirec
       actors.setGesture(best.id, 'talk', prox.gestureSeconds);
       const caption = cfg.captions[key];
       if (caption && bubbles && hash01('voz_pie', roll) < prox.captionChance) {
-        bubbles.sayText(best.id, caption, 1.9);
+        bubbles.sayText(best.id, resolveTokens(caption, world, content, { a: best.id }), 1.9);
       }
     },
     recentCount: () => recent.length,

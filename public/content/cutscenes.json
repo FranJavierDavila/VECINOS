@@ -715,16 +715,16 @@
       {
         "type": "line",
         "who": "res_estudiante_01",
-        "speaker": "Laia · 4A",
-        "text": "Laia, 4A. Estudio de noche. Los taladros del domingo me los cobro con intereses.",
+        "speaker": "Laia · 1A",
+        "text": "Laia, 1A. Estudio de noche. Los taladros del domingo me los cobro con intereses.",
         "gesture": "talk",
         "seconds": 4
       },
       {
         "type": "line",
         "who": "res_musico_01",
-        "speaker": "Teo · 4D",
-        "text": "Teo, 4D. Músico. Ensayo de 20 a 23. El amplificador es un instrumento de paz interior.",
+        "speaker": "Teo · 1C",
+        "text": "Teo, 1C. Músico. Ensayo de 20 a 23. El amplificador es un instrumento de paz interior.",
         "gesture": "talk",
         "seconds": 4
       },

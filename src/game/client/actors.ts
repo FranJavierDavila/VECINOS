@@ -162,6 +162,10 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
           rig.dispose(); // el residente se fue (o ya llegó otro rig): no dejar basura
           return;
         }
+        // v1.32 — NOMBRE DE MALLA CON EL RESIDENTE: las sombras data-driven (rules.view.
+        // shadows.casters con patrón 'res_') reconocen así a cada vecino sin tocar el
+        // catálogo; el resto del juego no lee nombres de malla glTF (la pose va por nodos).
+        for (const m of rig.root.getChildMeshes(false)) m.name = `${id}_${m.name}`;
         // PRESERVAR POSE (v1.10): el modelo puede terminar de cargar EN PLENO paseo (los assets
         // llegan async). Sin esto, el swap cápsula→rig recolocaba el nodo a origen y el actor
         // "saltaba" (el guard antiguo lo enmascaraba con OTRO teletransporte al objetivo: la

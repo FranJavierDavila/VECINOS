@@ -20,6 +20,8 @@ import { createBackdrop, type BackdropDirector } from './backdrop';
 import { createExterior, type ExteriorDirector } from './exterior';
 import { createChats, type ChatsDirector } from './chats';
 import { createTraffic, type TrafficDirector } from './traffic';
+import { createShadows, type ShadowsDirector } from './shadows';
+import { createAmbulanceTheater, type AmbulanceTheater } from './ambulance';
 import { createPedestrians, type PedestriansDirector } from './pedestrians';
 import { createStreetlife, type StreetlifeDirector } from './streetlife';
 import { createVoices, type VoicesDirector } from './voices';
@@ -63,11 +65,15 @@ class GameController {
   private chats: ChatsDirector | null = null;
   /** La calle vive (v1.22): tráfico, viandantes, manifestaciones y voces de proximidad. */
   private traffic: TrafficDirector | null = null;
+  private shadows: ShadowsDirector | null = null;
+  private ambulance: AmbulanceTheater | null = null;
   private pedestrians: PedestriansDirector | null = null;
   private streetlife: StreetlifeDirector | null = null;
   private voices: VoicesDirector | null = null;
   /** Bloom/glow de las luces (v1.28): halo realista sobre materiales emisivos (catálogo). */
   private glowLayer: { dispose(): void } | null = null;
+  /** Cuenta atrás del refresco de sombras (v1.32): cazamallas nuevas cada 2 s. */
+  private shadowRefreshT = 2;
 
   private get content(): Content {
     if (!this._content) throw new Error('El catálogo de contenido todavía no se ha cargado');
@@ -409,27 +415,39 @@ class GameController {
       if (r.id === world.playerId) continue; // el jugador camina solo (es humano)
       attendees.push(r.id);
     }
-    // Reparto de asientos determinista por orden de id (los que sobran, de pie detrás).
+    // Reparto determinista por orden de id: 1 asistente por silla libre; los que sobran
+    // DE PIE dentro del local (puestos del catálogo), nunca apilados sobre una silla.
     attendees.sort((a, z) => (a < z ? -1 : 1));
+    const locals = this.content.rules.view.locals;
+    const standCells = locals.juntaHall.standSpots ?? [];
     attendees.forEach((id, i) => {
       const seated = i < hall.seats.length;
-      const seat = hall.seats[seated ? i : i % hall.seats.length]!;
+      const standIdx = i - hall.seats.length;
+      const spot = seated ? hall.seats[i]! : hall.stands[standIdx] ?? { x: hall.seats[0]!.x, z: (locals.juntaHall.tableZ ?? 1.5) + 1.0, yaw: Math.PI / 2 };
       if (!this.actors!.director.take(id)) return;
       const ok = this.actors!.director.walkTo(id, {
-        x: seat.x,
-        z: seat.z,
+        x: spot.x,
+        z: spot.z,
         floor: 0,
-        inside: { block: hall.id, local: { x: seat.x - (world.blocks[hall.id]!.cell.col * (this.content!.rules.view.cellW)), z: seat.z - (this.content!.rules.view.roomZ - this.content!.rules.view.commonDepth / 2) } },
+        inside: { block: hall.id, local: { x: spot.x - (world.blocks[hall.id]!.cell.col * (this.content!.rules.view.cellW)), z: spot.z - (this.content!.rules.view.roomZ - this.content!.rules.view.commonDepth / 2) } },
       });
       if (!ok) {
         this.actors!.director.release(id);
         return;
       }
-      if (seated) this.actors!.director.seatWhenIdle(id, seat); // los que sobran, de pie detrás
+      if (seated) this.actors!.director.seatWhenIdle(id, spot); // los que sobran, de pie detrás
+      else if (standCells.length > 0 && standIdx % 3 === 0) this.actors!.director.setGesture(id, 'talk', 6);
     });
     this.juntaAttendees = attendees;
     if (attendees.length > 0) {
-      useGameStore.getState().pushLog(`🗳️ ${attendees.length} vecinos entran en la sala de juntas y toman asiento.`, 'info');
+      const seatedN = Math.min(attendees.length, hall.seats.length);
+      const standingN = attendees.length - seatedN;
+      useGameStore.getState().pushLog(
+        standingN > 0
+          ? `🗳️ Junta convocada: ${seatedN} vecinos toman asiento y ${standingN} se quedan de pie en la sala.`
+          : `🗳️ Junta convocada: ${seatedN} vecinos entran en la sala y toman asiento.`,
+        'info',
+      );
     }
   }
 
@@ -769,6 +787,11 @@ class GameController {
     if (view.ambient.ground) hemi.groundColor = Color3.FromHexString(view.ambient.ground);
     const dirLight = new DirectionalLight('sun', new Vector3(...view.sun.dir), this.scene);
     dirLight.intensity = view.sun.intensity;
+    // v1.32 — SOMBRAS DE VERDAD (catálogo): un ShadowGenerator sobre el sol; quién proyecta
+    // y quién recibe lo deciden los patrones de nombre del rules.json. Los rigs glTF que
+    // llegan tarde y los vehículos nuevos los caza el refresco periódico del pase.
+    this.shadows?.dispose();
+    this.shadows = createShadows(this.scene, dirLight, view.shadows);
 
     this.building = createBuilding(this.scene, this.world, this.content);
     // v1.21: los rects de obstáculos del interior del trastero (estanterías/trastos que pinta
@@ -806,8 +829,12 @@ class GameController {
     // v1.31: los vehículos leen la luz de día del cielo para encender y apagar los faros.
     this.traffic?.dispose();
     this.traffic = createTraffic(this.scene, this.world, this.content, () => this.backdrop?.daylight ?? 1);
+    // v1.32 — TEATRO DE EMERGENCIAS: la ambulancia (rig del catálogo) que recoge heridos
+    // de las peleas de acera. Se crea ANTES que los viandantes (ellos la llaman).
+    this.ambulance?.dispose();
+    this.ambulance = createAmbulanceTheater(this.scene, this.content, this.traffic);
     this.pedestrians?.dispose();
-    this.pedestrians = createPedestrians(this.scene, this.world, this.content);
+    this.pedestrians = createPedestrians(this.scene, this.world, this.content, this.ambulance);
     // Ecosistema del edificio (v1.14): cerebro data-driven + teatro de extras. Se recrea con
     // cada mundo (referencia al World vivo) y sigue la posición del jugador para las luces.
     this.ecosystem?.dispose();
@@ -984,6 +1011,13 @@ class GameController {
 
     const pos = this.logic.position();
     this.actors.update(dt, pos, this.actorId());
+    // v1.32 — SOMBRAS: refresco perezoso de participantes (rigs glTF tardíos, pool de
+    // tráfico, celadores…): escaneo barato cada 2 s contra un Set de vistas.
+    this.shadowRefreshT -= dt;
+    if (this.shadows && this.shadowRefreshT <= 0) {
+      this.shadowRefreshT = 2;
+      this.shadows.refresh();
+    }
     // Fondo urbano (v1.20): el cielo, el sol y las nubes siguen la hora del sim; las farolas
     // de la calle leen la luz de día resultante. Los modales no paran el ambiente (solo el reloj).
     this.backdrop?.update(dt);
@@ -995,10 +1029,12 @@ class GameController {
     const streetView = store.camMode === 'edificio' || store.camMode === 'planta';
     this.exterior?.setPropsVisible(streetView);
     this.traffic?.setVisible(streetView);
+    this.ambulance?.setVisible(streetView);
     this.pedestrians?.setVisible(streetView);
     this.streetlife?.setVisible(streetView);
     if (streetView) {
       this.traffic?.update(dt);
+      this.ambulance?.update(dt);
       this.pedestrians?.update(dt);
       this.streetlife?.update(dt);
     }

@@ -1,23 +1,23 @@
-import type { Mesh, Scene, TransformNode } from '@babylonjs/core';
+import type { DynamicTexture as BDynamicTexture, Mesh, Scene, StandardMaterial as BStandardMaterial, TransformNode } from '@babylonjs/core';
 import type { Content, World } from '@/game/core/types';
 import { hash01 } from '@/game/interior';
 import { B } from './babylon';
 import { instantiateActorAsset, type ActorRig } from './assets';
 import { MODEL_YAW_OFFSET } from './actors';
+import { playSoundAt } from './audio';
+import type { AmbulanceTheater } from './ambulance';
 
 /**
- * VIANDANTES (v1.22→v1.25) — paseantes anónimos por las aceras: caminan, algunos ENTRAN al
- * edificio (se desvanecen en el portal) y otros SALEN de él. Solo presentación (el sim
- * no sabe de ellos) y solo visibles en la vista "edificio" — en planta/estancia se apagan
- * para no estorbar ni cargar recursos.
+ * VIANDANTES (v1.22→v1.32 «el vecindario respira») — paseantes anónimos por las aceras:
+ * caminan, algunos ENTRAN al edificio (se desvanecen en el portal) y otros SALEN de él.
+ * v1.32 — VIDA SOCIAL DE ACERA: dos viandantes que se cruzan PUEDEN parar (catálogo
+ * pedestrians.social): CHARLA (clip talk + 💬), DISCUSIÓN (argue + ❗) o PELEA (clips
+ * fight nuevos + 💥 con sonido de golpe). Si alguien sale HERIDO se queda en el suelo
+ * (clip hurt) y el TEATRO DE LA AMBULANCIA (ambulance.ts) viene a recogerlo: celadores,
+ * camilla entre los dos y traslado. Si el teatro está ocupado, el herido se recupera
+ * solo (se levanta) y sigue su camino.
  *
- * v1.25 — MISMA ESTÉTICA QUE LOS VECINOS + ORIENTACIÓN CORRECTA:
- *  · Los viandantes SON ahora vecinos de verdad: rigs glTF del mismo catálogo de arquetipos
- *    (jubilada, estudiante, repartidor, musico…) con el clip de andar sincronizado a la
- *    velocidad real (animSync del catálogo). El rig primitivo de cilindros queda como
- *    fallback si un modelo falla (el juego nunca se rompe por un asset).
- *  · ORIENTACIÓN: el rig mira hacia donde anda (la misma convención yaw=atan2(−dz,dx)
- *    verificada de actors.ts — antes patinaban de lado: piernas al aire y cuerpo cruzado).
+ * Solo presentación (el sim no sabe de ellos) y solo visibles en la vista "edificio".
  */
 
 export interface PedRig {
@@ -132,6 +132,7 @@ export function createPedFactory(scene: Scene) {
 
 /** Un viandante: rig glTF del catálogo de vecinos (o primitivo de fallback) + su paseo. */
 interface Walker {
+  id: number;
   gltf: ActorRig | null;
   prim: PedRig | null;
   pathIndex: number;
@@ -145,6 +146,21 @@ interface Walker {
   scale: number;
   /** Última orientación aplicada (rad) — solo se escribe si cambia (cero escrituras ociosas). */
   yaw: number;
+  /** v1.32 — encuentro social en curso (los dos viandantes se referencian mutuamente). */
+  social: Social | null;
+}
+
+/** v1.32 — Estado del encuentro social de acera (fases del catálogo pedestrians.social). */
+interface Social {
+  other: Walker;
+  kind: 'talk' | 'argue' | 'fight';
+  phase: 'meet' | 'exchange' | 'after' | 'hurt' | 'carried';
+  t: number;
+  idx: number;
+  /** Golpes dados en la pelea (para la tirada de herido al acabar). */
+  rounds: number;
+  injured: boolean;
+  hurtLeft: number;
 }
 
 export interface PedestriansDirector {
@@ -154,14 +170,18 @@ export interface PedestriansDirector {
   /** v1.30 — posiciones vivas de los viandantes (entrando/saliendo incluidos): el portal
    *  abre sus puertas correderas también para ellos y el controlador los manda en `movers`. */
   positions(): { x: number; z: number }[];
+  /** v1.32 — encuentros sociales en curso (QA/E2E). */
+  socialCount(): number;
+  /** v1.32 — fuerza un encuentro social YA entre los dos viandantes más cercanos (QA/E2E). */
+  forceEncounter(kind?: 'talk' | 'argue' | 'fight'): boolean;
   dispose(): void;
 }
 
-export function createPedestrians(scene: Scene, world: World, content: Content): PedestriansDirector {
-  const { TransformNode } = B();
+export function createPedestrians(scene: Scene, world: World, content: Content, ambulance?: AmbulanceTheater | null): PedestriansDirector {
+  const { Color3, DynamicTexture, Mesh, MeshBuilder, StandardMaterial, TransformNode, Vector3 } = B();
   const cfg = content.rules.view.pedestrians;
   if (!cfg.enabled || cfg.paths.length === 0) {
-    return { update() {}, setVisible() {}, aliveCount: () => 0, positions: () => [], dispose() {} };
+    return { update() {}, setVisible() {}, aliveCount: () => 0, positions: () => [], socialCount: () => 0, forceEncounter: () => false, dispose() {} };
   }
   // Límites de la calle derivados de las rutas (sin duplicar datos en el catálogo).
   const bounds = {
@@ -174,6 +194,7 @@ export function createPedestrians(scene: Scene, world: World, content: Content):
   const walkers = new Set<Walker>();
   let nextSpawn = 2;
   let roll = 0;
+  let walkerSeq = 0;
 
   // ── POOL de rigs glTF (misma estética que los vecinos): instancias del catálogo de
   // arquetipos con clip de andar. Asíncrono: hasta que llega el primero, la acera queda
@@ -198,6 +219,9 @@ export function createPedestrians(scene: Scene, world: World, content: Content):
             if (def) {
               const rig = await instantiateActorAsset(scene, def, base, `viandante_${i}`);
               if (rig) {
+                // v1.32 — nombre con el viandante: las sombras data-driven (patrón
+                // 'viandante') lo reconocen como caster sin tocar el catálogo.
+                for (const m of rig.root.getChildMeshes(false)) m.name = `viandante_${i}_${m.name}`;
                 rig.root.parent = root;
                 rig.root.setEnabled(false);
                 free.push({ gltf: rig, prim: null });
@@ -248,7 +272,7 @@ export function createPedestrians(scene: Scene, world: World, content: Content):
       x = dir > 0 ? bounds.min : bounds.max;
     }
     const z = mode === 'enter' || mode === 'exit' ? cfg.paths[0]!.z : path.z;
-    const w: Walker = { gltf: slot.gltf, prim: slot.prim, pathIndex, x, z, speed, phase: hash01('viandante_fase', roll) * 6, mode, scale: mode === 'exit' ? 0.05 : 1, yaw: dir > 0 ? 0 : Math.PI };
+    const w: Walker = { id: walkerSeq++, gltf: slot.gltf, prim: slot.prim, pathIndex, x, z, speed, phase: hash01('viandante_fase', roll) * 6, mode, scale: mode === 'exit' ? 0.05 : 1, yaw: dir > 0 ? 0 : Math.PI, social: null };
     const node = w.gltf ? w.gltf.root : w.prim!.root;
     node.setEnabled(visible);
     node.scaling.setAll(w.scale);
@@ -266,6 +290,211 @@ export function createPedestrians(scene: Scene, world: World, content: Content):
     free.push({ gltf: w.gltf, prim: w.prim });
   };
 
+  // ── v1.32 — VIDA SOCIAL DE ACERA ────────────────────────────────────────────
+  const soc = cfg.social;
+  const emojiTex = new Map<string, { tex: BDynamicTexture; mat: BStandardMaterial; meshes: { m: Mesh; t: number }[] }>();
+  /** Bocadillo flotante cartoon (plane billboard con emoji/letra del catálogo visual). */
+  const emote = (w: Walker, label: string, seconds = 1.1): void => {
+    let entry = emojiTex.get(label);
+    if (!entry) {
+      const tex = new DynamicTexture(`viandante_emote_${emojiTex.size}`, { width: 96, height: 96 }, scene, false);
+      tex.hasAlpha = true;
+      const c = tex.getContext() as unknown as CanvasRenderingContext2D;
+      c.clearRect(0, 0, 96, 96);
+      c.fillStyle = 'rgba(255,252,240,0.94)';
+      c.beginPath();
+      c.arc(48, 48, 42, 0, Math.PI * 2);
+      c.fill();
+      c.font = '52px "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText(label, 48, 52);
+      tex.update(true);
+      const mat = new StandardMaterial(`viandante_emote_mat_${emojiTex.size}`, scene);
+      mat.diffuseTexture = tex;
+      mat.emissiveColor = new Color3(1, 1, 1);
+      mat.useAlphaFromDiffuseTexture = true;
+      mat.disableLighting = true;
+      mat.specularColor = new Color3(0, 0, 0);
+      entry = { tex, mat, meshes: [] };
+      emojiTex.set(label, entry);
+    }
+    const m = MeshBuilder.CreatePlane(`viandante_emote_${emojiTex.size}_${entry.meshes.length}`, { width: 0.5, height: 0.5 }, scene);
+    m.material = entry.mat;
+    m.billboardMode = Mesh.BILLBOARDMODE_ALL;
+    m.isPickable = false;
+    const node = w.gltf ? w.gltf.root : w.prim!.root;
+    m.position.set(node.position.x, node.position.y + (w.gltf ? 1.75 : 1.62), node.position.z);
+    m.scaling.setAll(w.scale);
+    entry.meshes.push({ m, t: seconds });
+  };
+
+  const pairUntilSoc = new Map<string, number>();
+  const pairKey = (a: Walker, b: Walker): string => `${Math.min(a.id, b.id)}|${Math.max(a.id, b.id)}`;
+
+  const playSocial = (w: Walker, clip: string, rate = 1): void => {
+    if (w.gltf) w.gltf.play(clip, rate);
+  };
+
+  const faceEachOther = (a: Walker, b: Walker): void => {
+    const set = (w: Walker, tx: number, tz: number): void => {
+      const yaw = Math.atan2(-(tz - w.z), tx - w.x);
+      w.yaw = yaw;
+      (w.gltf ? w.gltf.root : w.prim!.root).rotation.y = yaw + MODEL_YAW_OFFSET;
+    };
+    set(a, b.x, b.z);
+    set(b, a.x, a.z);
+  };
+
+  /** Encuentro entre dos viandantes (kind forzado solo para QA/E2E). */
+  const startEncounter = (a: Walker, b: Walker, forced?: 'talk' | 'argue' | 'fight'): void => {
+    if (!soc?.enabled || a.social || b.social) return;
+    const now = performance.now() / 1000;
+    pairUntilSoc.set(pairKey(a, b), now + soc.pairCooldown);
+    let kind: Social['kind'] = forced ?? 'talk';
+    if (!forced) {
+      const roll = hash01('viandante_social', world.tick + a.phase + b.phase);
+      kind = roll < soc.fightChance ? 'fight' : roll < soc.fightChance + soc.argueChance ? 'argue' : 'talk';
+    }
+    const sA: Social = { other: b, kind, phase: 'meet', t: 0.45, idx: 0, rounds: 0, injured: false, hurtLeft: 0 };
+    const sB: Social = { other: a, kind, phase: 'meet', t: 0.45, idx: 0, rounds: 0, injured: false, hurtLeft: 0 };
+    a.social = sA;
+    b.social = sB;
+    faceEachOther(a, b);
+    emote(a, kind === 'talk' ? '\u{1F4AC}' : kind === 'argue' ? '\u2757' : '\u{1F4A2}');
+    emote(b, kind === 'talk' ? '\u{1F4AC}' : kind === 'argue' ? '\u{1F4A2}' : '\u26A0\uFE0F');
+    playSocial(a, 'idle');
+    playSocial(b, 'idle');
+  };
+
+  const endEncounter = (w: Walker): void => {
+    const s = w.social;
+    w.social = null;
+    if (s && s.other.social && s.other.social.other === w) {
+      // El otro solo queda libre si NO es un herido esperando su turno (hurt/carried).
+      const op = s.other.social.phase;
+      if (op !== 'hurt' && op !== 'carried') s.other.social = null;
+    }
+    playSocial(w, 'walk', walkRate(w.speed));
+  };
+
+  /** Actualiza un lado del encuentro; devuelve true si el walker sigue ocupado. */
+  const updateSocial = (w: Walker, dt: number): boolean => {
+    const s = w.social;
+    if (!s) return false;
+    const other = s.other;
+    const node = w.gltf ? w.gltf.root : w.prim!.root;
+    switch (s.phase) {
+      case 'meet': {
+        s.t -= dt;
+        if (s.t <= 0) {
+          s.phase = 'exchange';
+          s.idx = 0;
+          s.t = s.kind === 'fight' ? 0.9 : soc!.talkSeconds;
+          playSocial(w, s.kind === 'talk' ? 'talk' : s.kind === 'argue' ? 'argue' : 'fight');
+        }
+        return true;
+      }
+      case 'exchange': {
+        s.t -= dt;
+        if (s.t <= 0) {
+          if (s.kind === 'fight' && s.rounds < 5) {
+            s.rounds += 1;
+            s.idx = s.rounds;
+            s.t = 0.9;
+            playSocial(w, 'fight');
+            if (s.idx % 2 === 1) {
+              emote(w, '\u{1F4A5}');
+              playSoundAt('golpe_pelea', 0.5);
+            }
+            return true;
+          }
+          // Fin del intercambio → tirada de herido (solo la decide el lado 'a' de la pareja).
+          s.phase = 'after';
+          s.t = 1.0;
+          if (s.kind === 'fight' && s.idx === s.rounds && s.rounds >= 3 && other.social && other.social.other === w && !other.social.injured && !s.injured) {
+            // un solo lado tira: el de clave menor (determinista)
+            if (w.gltf && (w.gltf.root.name < (other.gltf?.root.name ?? ''))) {
+              const injured = hash01('viandante_herido', world.tick + w.phase) < soc!.injuredChance;
+              if (injured) {
+                s.injured = true;
+                other.social.injured = true;
+              }
+            }
+          }
+        }
+        return true;
+      }
+      case 'after': {
+        s.t -= dt;
+        if (s.t <= 0) {
+          if (s.injured && w.gltf) {
+            // HERIDO: al suelo (clip hurt) y llamada de la ambulancia (teatro).
+            s.phase = 'hurt';
+            s.hurtLeft = soc!.hurtSeconds;
+            playSocial(w, 'hurt');
+            emote(w, '\u2691');
+            const pickedUp = ambulance?.requestPickup({ node: w.gltf.root, play: (c, r) => w.gltf!.play(c, r), height: 1.35 }, node.position.x, node.position.z);
+            if (pickedUp) {
+              s.phase = 'carried';
+            }
+            return true;
+          }
+          if (s.injured && !w.gltf) s.injured = false; // primitivos sin clip: se levantan
+          if (s.injured && other.social && other.social.phase === 'carried') return true; // espera su turno
+          endEncounter(w);
+          return false;
+        }
+        return true;
+      }
+      case 'hurt': {
+        s.hurtLeft -= dt;
+        if (s.hurtLeft <= 0) {
+          playSocial(w, 'walk', walkRate(w.speed));
+          endEncounter(w);
+          return false;
+        }
+        return true;
+      }
+      case 'carried': {
+        // El teatro mueve el nodo; cuando termina (teatro libre otra vez), el paseo acaba.
+        if (!ambulance?.busy()) {
+          recycle(w);
+          walkers.delete(w);
+        }
+        return true;
+      }
+    }
+  };
+
+  /** Empareja los dos viandantes más cercanos en modo 'walk' (o fuerza el encuentro). */
+  const tryEncounter = (forced?: 'talk' | 'argue' | 'fight'): boolean => {
+    if (!soc?.enabled) return false;
+    let count = 0;
+    for (const w of walkers) if (w.social) count++;
+    if (count >= soc.maxConcurrent * 2) return false;
+    const candidates = [...walkers].filter((w) => !w.social && w.mode === 'walk' && w.gltf !== null);
+    if (candidates.length < 2) return false;
+    let best: [Walker, Walker] | null = null;
+    let bestD = Infinity;
+    for (let i = 0; i < candidates.length; i++) {
+      for (let j = i + 1; j < candidates.length; j++) {
+        const a = candidates[i]!;
+        const b = candidates[j]!;
+        if ((pairUntilSoc.get(pairKey(a, b)) ?? 0) > performance.now() / 1000) continue;
+        const d = Math.hypot(a.x - b.x, a.z - b.z);
+        if (d < bestD) {
+          bestD = d;
+          best = [a, b];
+        }
+      }
+    }
+    if (!best || bestD > (forced ? 30 : soc.distance)) return false;
+    startEncounter(best[0]!, best[1]!, forced);
+    return true;
+  };
+
+  let socialAcc = 0;
   return {
     update(dt: number) {
       nextSpawn -= dt;
@@ -273,7 +502,33 @@ export function createPedestrians(scene: Scene, world: World, content: Content):
         nextSpawn = cfg.spawnEveryMin + hash01('viandante_t', world.tick + roll) * (cfg.spawnEveryMax - cfg.spawnEveryMin);
         if (walkers.size < cfg.maxAlive) spawn();
       }
+      // v1.32 — detección de cruces sociales a cadencia (solo viandantes glTF con clips).
+      if (soc?.enabled) {
+        socialAcc -= dt;
+        if (socialAcc <= 0) {
+          socialAcc = soc.checkEvery;
+          tryEncounter();
+        }
+      }
+      // Bocadillos flotantes: envejecer y apagar.
+      for (const entry of emojiTex.values()) {
+        for (const it of [...entry.meshes]) {
+          it.t -= dt;
+          if (it.t <= 0) {
+            it.m.dispose();
+            entry.meshes.splice(entry.meshes.indexOf(it), 1);
+          } else if (it.t < 0.35) {
+            (it.m.material as BStandardMaterial).alpha = it.t / 0.35;
+          }
+        }
+      }
       for (const w of [...walkers]) {
+        // v1.32 — los viandantes en encuentro social no pasean: su estado lo gobierna
+        // updateSocial (charla, discusión, pelea, herido, traslado en ambulancia).
+        if (w.social) {
+          updateSocial(w, dt);
+          continue;
+        }
         const path = cfg.paths[w.pathIndex]!;
         const dir = path.dir >= 0 ? 1 : -1;
         // v1.30 — el UMBRAL del portal (enterZ del catálogo): entrar/salir pasa POR LAS
@@ -357,6 +612,8 @@ export function createPedestrians(scene: Scene, world: World, content: Content):
       root.setEnabled(v);
     },
     aliveCount: () => walkers.size,
+    socialCount: () => [...walkers].filter((w) => w.social).length,
+    forceEncounter: (kind?: 'talk' | 'argue' | 'fight') => tryEncounter(kind),
     positions(): { x: number; z: number }[] {
       const out: { x: number; z: number }[] = [];
       for (const w of walkers) out.push({ x: w.x, z: w.z });

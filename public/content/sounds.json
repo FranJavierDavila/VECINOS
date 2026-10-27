@@ -692,6 +692,79 @@
           "atMs": 230
         }
       ]
+    },
+    "sirena_ambulancia": {
+      "kind": "seq",
+      "steps": [
+        {
+          "wave": "sine",
+          "freq": 660,
+          "freqEnd": 990,
+          "durMs": 380,
+          "gain": 0.055,
+          "atMs": 0
+        },
+        {
+          "wave": "sine",
+          "freq": 990,
+          "freqEnd": 660,
+          "durMs": 380,
+          "gain": 0.055,
+          "atMs": 380
+        },
+        {
+          "wave": "sine",
+          "freq": 660,
+          "freqEnd": 990,
+          "durMs": 380,
+          "gain": 0.05,
+          "atMs": 760
+        },
+        {
+          "wave": "sine",
+          "freq": 990,
+          "freqEnd": 660,
+          "durMs": 380,
+          "gain": 0.05,
+          "atMs": 1140
+        },
+        {
+          "wave": "sine",
+          "freq": 660,
+          "freqEnd": 990,
+          "durMs": 380,
+          "gain": 0.04,
+          "atMs": 1520
+        },
+        {
+          "wave": "sine",
+          "freq": 990,
+          "freqEnd": 660,
+          "durMs": 380,
+          "gain": 0.04,
+          "atMs": 1900
+        }
+      ]
+    },
+    "golpe_pelea": {
+      "kind": "seq",
+      "steps": [
+        {
+          "kind": "noise",
+          "durMs": 70,
+          "gain": 0.09,
+          "filterHz": 900,
+          "atMs": 0
+        },
+        {
+          "wave": "sine",
+          "freq": 150,
+          "freqEnd": 70,
+          "durMs": 70,
+          "gain": 0.06,
+          "atMs": 0
+        }
+      ]
     }
   },
   "events": {

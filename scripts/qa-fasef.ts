@@ -64,16 +64,16 @@ world.residents['res_musico_01']!.location = 'blk_p0_local';
 world.residents['res_musico_01']!.activity = 'concierto_bar';
 const em = emissionsFromActivities(world, content);
 check('Rita emite ruido DESDE el local', (em.noise?.['blk_p0_local'] ?? 0) > 0, `noise local = ${em.noise?.['blk_p0_local'] ?? 0}`);
-check('Rita NO emite desde su vivienda (4D)', (em.noise?.['blk_p4_d'] ?? 0) === 0);
+check('Rita NO emite desde su vivienda (1C)', (em.noise?.['blk_p1_c'] ?? 0) === 0);
 world.residents['res_musico_01']!.activity = 'bateria'; // at:'home' → sí desde casa
 const emHome = emissionsFromActivities(world, content);
-check('bateria (at:home) emite desde 4D', (emHome.noise?.['blk_p4_d'] ?? 0) > 0);
+check('bateria (at:home) emite desde 1C', (emHome.noise?.['blk_p1_c'] ?? 0) > 0);
 
 // ── 4. soundproofing del local atenúa la propagación de ruido a vecinos
 const probe = () => {
   const w2 = createWorld(content, content.rules.startScenario);
   propagate(w2, content, { noise: { blk_p0_local: 0.9 } });
-  return w2.channels.noise?.['blk_p0_nucleo'] ?? 0;
+  return w2.channels.noise?.['blk_p0_lavanderia'] ?? 0;
 };
 const sinObra = probe();
 applyEffect(world, content, { op: 'setParam', target: 'blk_p0_local', param: 'soundproofing', delta: 0.3 });
@@ -84,7 +84,7 @@ const conObra = (() => {
   return w3.channels.noise?.['blk_p0_nucleo'] ?? 0;
 })();
 check('setParam aplicado (0.15 + 0.3 ≈ 0.45)', Math.abs(world.blocks['blk_p0_local']!.params.soundproofing as number - 0.45) < 1e-9, `${world.blocks['blk_p0_local']!.params.soundproofing}`);
-check('con obra acústica el núcleo recibe MENOS ruido', conObra < sinObra, `${sinObra.toFixed(3)} → ${conObra.toFixed(3)}`);
+check('con obra acústica la lavandería recibe MENOS ruido', conObra < sinObra, `${sinObra.toFixed(3)} → ${conObra.toFixed(3)}`);
 
 // ── 5. Cadena: m_bar_inaugura done → m_lavanderia_pelea se activa el día 2; roles resuelven
 const w4 = createWorld(content, content.rules.startScenario);

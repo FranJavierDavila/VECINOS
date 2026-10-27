@@ -5,6 +5,7 @@ import { B } from './babylon';
 import { playSoundAt } from './audio';
 import { createPedFactory, type PedRig } from './pedestrians';
 import { MODEL_YAW_OFFSET, type ActorsDirector } from './actors';
+import { resolveTokens } from '@/game/support/texts';
 import type { BubblesDirector } from './bubbles';
 
 /**
@@ -263,7 +264,8 @@ export function createStreetlife(
           if (p.at <= 0) {
             m.pending.splice(m.pending.indexOf(p), 1);
             if (world.residents[p.who] && actors && bubbles && !actors.isRiding(p.who) && !actors.isDirected(p.who)) {
-              bubbles.sayText(p.who, p.text, 4.5);
+              // v1.32 — tokens data-driven (nombres de vecinos, plantas, viviendas reales).
+              bubbles.sayText(p.who, resolveTokens(p.text, world, content, { a: p.who }), 4.5);
               actors.setGesture(p.who, 'talk', 3);
             }
           }

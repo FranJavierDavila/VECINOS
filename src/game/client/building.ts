@@ -51,8 +51,9 @@ interface BlockView {
   lodHiddenPanels: boolean;
   /** Segunda pared con edges (v1.19): la pared del fondo se parte si hay puerta a sala trasera. */
   edgesMesh2: Mesh | null;
-  /** v1.24: decoración de la puerta de privacidad (marco + aplique) — se activa junto a view.door. */
-  doorDecor: Mesh[];
+  /** v1.24: decoración de la puerta de privacidad (marco + aplique) — se activa junto a view.door.
+   *  v1.32: también las BISAGRAS de las hojas de los locales de planta 0 (TransformNode). */
+  doorDecor: (Mesh | TransformNode)[];
   /** v1.25: color FIJO de la vivienda (pared gris clarito) — el tintado de estado no la repinta;
    *  el emissive de canales (ruido/agua) sigue funcionando. null = tintado clásico. */
   fixedDiffuse: Color3 | null;
@@ -127,6 +128,12 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
   //  bloques con interior que siguen la regla de privacidad de las viviendas.
   const loc = v.locals;
   const tr = v.trasteros;
+  /** v1.32 — HOJAS DE LOS LOCALES con bisagra (trastero común y sala de juntas): se abren
+   *  al acercarse cualquiera (los mismos movers que el resto de puertas del edificio) y se
+   *  cierran solas. La fachada del local SOLO se desvanece cuando el jugador entra (o con
+   *  la junta activa): las paredes del pasillo ya no se levantan porque un vecino pase
+   *  por dentro. */
+  const hallDoors: { hinge: TransformNode; openT: number; doorX: number; doorZ: number; floorY: number; side: 1 | -1 }[] = [];
   /** Hojas de cristal del portal: nodo vivo del arte + baseX + sentido de deslizamiento. */
   const portalLeaves: { mesh: Mesh; baseX: number; dir: number }[] = [];
   let portalDoorX = 0;
@@ -137,8 +144,10 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
   const halls = new Set<string>();
   /** Sala de juntas activa (junta convocada): fachada abierta y asientos ocupados. */
   let juntaHallId: string | null = null;
-  /** Asientos de la sala por bloque (mundo): el controlador manda a los vecinos aquí. */
-  const hallSeats = new Map<string, { x: number; z: number; yaw: number }[]>();
+  /** Asientos y PUESTOS DE PIE de la sala por bloque (mundo): el controlador manda a los
+   *  vecinos aquí. v1.32: los que no caben en silla quedan DE PIE en puntos del catálogo
+   *  (nunca apilados sobre una silla ocupada). */
+  const hallSeats = new Map<string, { seats: { x: number; z: number; yaw: number }[]; stands: { x: number; z: number; yaw: number }[] }>();
   /** Rótulos texturizados (garaje/trasteros/sala): DynamicTexture reutilizable. */
   const signTex = (name: string, text: string, bg: string, fg: string): DynamicTexture => {
     const dt = new (B().DynamicTexture)(`${name}_tex`, { width: 512, height: 96 }, scene, true);
@@ -971,6 +980,8 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       }
       if (!isLaundry) fp(`${b.id}_frente_d`, cx + w / 2 - prevEdge, H, (prevEdge + cx + w / 2) / 2, baseY + H / 2);
       // Hoja/S de puerta con arte (solo trastero y sala — la lavandería no cierra).
+      // v1.32: las hojas cuelgan de BISAGRAS y se abren al acercarse (mismos movers que
+      // las puertas de escalera y el portal) — ya no son planos fijos pegados al hueco.
       if (!isLaundry) {
         const leafWs = b.defId === 'trasteros' ? [tc.doorW, tc.doorW] : [jh.doorW];
         const leafHs = b.defId === 'trasteros' ? [tc.doorH, tc.doorH] : [v.privacy.doorH];
@@ -978,14 +989,21 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         leafWs.forEach((lw, li) => {
           const gx = gapWs[li]!;
           const lh = leafHs[li]!;
+          // Bisagra alternada: primer hueco por la izquierda, segundo por la derecha
+          // (las puertas dobles del trastero se abren hacia dentro como una de verdad).
+          const side: 1 | -1 = li % 2 === 0 ? 1 : -1;
+          const hinge = new TransformNode(`${b.id}_hoja_hinge_${li}`, scene);
+          hinge.position.set(side > 0 ? gx - lw / 2 : gx + lw / 2, baseY, doorZHall);
           const leaf = MeshBuilder.CreatePlane(`${b.id}_hoja_${li}`, { width: lw, height: lh }, scene);
           const lmat = mat(`${b.id}_hoja_${li}_mat`);
           lmat.specularColor = new Color3(0, 0, 0);
           lmat.diffuseTexture = doorArtTexSized(scene, arts[li]!, lw, lh);
           leaf.material = lmat;
           leaf.isPickable = true; // v1.29: la hoja cerrada oculta bocadillos (rayo de oclusión)
-          leaf.position.set(gx, baseY + lh / 2, doorZHall);
-          view.doorDecor.push(leaf);
+          leaf.position.set((side > 0 ? 1 : -1) * (lw / 2), lh / 2, 0);
+          leaf.parent = hinge;
+          view.doorDecor.push(hinge);
+          hallDoors.push({ hinge, openT: 0, doorX: gx, doorZ: doorZHall, floorY: baseY, side });
         });
       }
       // Interiores 2D + diorama + carcaso (las mismas tripas que una vivienda: suelos
@@ -1093,7 +1111,18 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
               }
             }
           });
-          hallSeats.set(b.id, seatsW);
+          // v1.32 — PUESTOS DE PIE del catálogo (mundo, mirando a la mesa): los asistentes
+          // sin silla se reparten por aquí dentro del local, sin solapar a los sentados.
+          const standsW: { x: number; z: number; yaw: number }[] = [];
+          for (const [sx, sz] of jh.standSpots ?? []) {
+            const wx = x0 + sx;
+            const wz = frontZ + sz;
+            const fx = cx - wx;
+            const fz = tableZ - wz;
+            const len = Math.max(0.001, Math.hypot(fx, fz));
+            standsW.push({ x: wx, z: wz, yaw: Math.atan2(-fz / len, fx / len) });
+          }
+          hallSeats.set(b.id, { seats: seatsW, stands: standsW });
         } else {
           // LAVANDERÍA: las máquinas comunes contra el muro del fondo (recortes billboard
           // del catálogo, tocando el suelo) + una cuerda con prendas ya no hace falta:
@@ -2358,13 +2387,19 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
    *  paint() la fija por el acceso y el LOD puede ocultarlos encima. */
   function applyPanels(view: BlockView, b: BlockInstance, occ?: Set<string>) {
     const locked = b.kind === 'dwelling' && b.access === 'locked';
-    // v1.30 — los locales con interior (trastero comunitario, sala de juntas) siguen la
-    // MISMA regla de privacidad que las viviendas: fachada cerrada si no hay nadie dentro.
+    // v1.30 — los locales con interior (trastero comunitario, sala de juntas) usaban la
+    // MISMA regla de privacidad que las viviendas. v1.32 — REGLA PROPIA (petición del
+    // vecino): las paredes del pasillo de los bloques inferiores SOLO se desvanecen cuando
+    // ENTRAMOS por la puerta (jugador dentro) o con la junta activa — que un vecino esté
+    // dentro ya no levanta la fachada; la puerta, eso sí, se abre con el resto.
     const isHall = halls.has(b.id);
     let privacyClosed = false;
-    if (privacyOn && (b.kind === 'dwelling' || isHall)) {
-      const set = occ ?? computeOccupancy();
-      privacyClosed = !set.has(b.id);
+    if (privacyOn) {
+      if (b.kind === 'dwelling') {
+        privacyClosed = !(occ ?? computeOccupancy()).has(b.id);
+      } else if (isHall) {
+        privacyClosed = playerInside !== b.id && juntaHallId !== b.id;
+      }
     }
     const wall = (locked || privacyClosed) && !view.lodHiddenPanels;
     view.front?.setEnabled(wall);
@@ -2507,12 +2542,12 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     setJuntaHall(blockId: string | null): void {
       juntaHallId = blockId;
     },
-    /** v1.30 — info de la sala de juntas para el teatro del controlador: bloque y asientos
-     *  (mundo, con el yaw hacia la mesa). null si la plantilla no trae local. */
-    juntaHallInfo(): { id: string; seats: { x: number; z: number; yaw: number }[] } | null {
+    /** v1.30 — info de la sala de juntas para el teatro del controlador: bloque, asientos y
+     *  puestos de pie (mundo, con el yaw hacia la mesa). null si la plantilla no trae local. */
+    juntaHallInfo(): { id: string; seats: { x: number; z: number; yaw: number }[]; stands: { x: number; z: number; yaw: number }[] } | null {
       for (const id of hallSeats.keys()) {
-        const seats = hallSeats.get(id)!;
-        if (seats.length > 0) return { id, seats };
+        const h = hallSeats.get(id)!;
+        if (h.seats.length > 0) return { id, seats: h.seats, stands: h.stands };
       }
       return null;
     },
@@ -2598,6 +2633,28 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
             // hacia el interior del cubo; espejo para hinge 'right'.
             const sign = stF.hinge === 'left' ? 1 : -1;
             d.hinge.rotation.y = sign * stF.openAngle * d.openT;
+          }
+        }
+        // v1.32 — PUERTAS DE LOS LOCALES (trastero común y sala de juntas): se abren al
+        // acercarse cualquiera, con el mismo oficio que las de escalera (catálogo local).
+        const hd = loc.hallDoors;
+        if (hd?.enabled) {
+          for (const d of hallDoors) {
+            let near = false;
+            for (const mv of movers) {
+              if (
+                Math.abs(mv.x - d.doorX) < 0.9 &&
+                Math.abs(mv.z - d.doorZ) < hd.openAhead &&
+                Math.abs(mv.y - d.floorY) < v.cellH * 0.6
+              ) {
+                near = true;
+                break;
+              }
+            }
+            const nextT = d.openT + (near ? dt : -dt * 0.8) / Math.max(0.05, hd.openSeconds);
+            d.openT = Math.min(1, Math.max(0, nextT));
+            // La bisagra izquierda suelta la hoja hacia dentro (+z) con −θ; la derecha, espejo.
+            d.hinge.rotation.y = -d.side * hd.openAngle * d.openT;
           }
         }
         if (al.enabled && stairLightMats.length > 0) {

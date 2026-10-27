@@ -826,6 +826,18 @@ export interface CrossingsCatalog {
   mood: { goodMin: number; okMin: number; needs: Record<string, number> };
   /** Temas por cubo de ánimo; al cruzarse se elige el grupo del ánimo medio. */
   groups: { id: string; mood: 'good' | 'ok' | 'bad'; topics: CrossingTopic[] }[];
+  /** v1.32 — escalación social: charla → discusión → pelea (herido + ambulancia). */
+  escalation?: {
+    argueChance: number;
+    fightChance: number;
+    injuredChance: number;
+    hurtSeconds: number;
+    fightLinesSeconds: number;
+    argueGroups: Record<string, CrossingTopic[]>;
+    fightFight: string[];
+    injuryLines: string[];
+    witnessLines: string[];
+  };
 }
 
 export interface Content {
@@ -1233,8 +1245,17 @@ export interface Rules {
         tableZ: number;
         /** Asientos en coords LOCALES del bloque (x desde el borde izquierdo, z desde frontZ). */
         seats: [number, number][];
+        /** v1.32 — puestos DE PIE para los asistentes sin silla (coords locales). */
+        standSpots?: [number, number][];
         wood: string;
         woodDark: string;
+      };
+      /** v1.32 — puertas batientes de los locales de planta 0 (trastero común y sala). */
+      hallDoors?: {
+        enabled: boolean;
+        openAhead: number;
+        openSeconds: number;
+        openAngle: number;
       };
       lavanderia: {
         machines: number;
@@ -1248,6 +1269,25 @@ export interface Rules {
     };
     /** Bloom/glow de las luces (v1.28): halo realista de los materiales emisivos. */
     glow?: { enabled: boolean; intensity: number; blurKernelSize?: number };
+    /** Sombras de verdad (v1.32): un solo ShadowGenerator sobre el sol del catálogo con
+     *  listas de patrones de nombre para casters / receptores / excluidos. */
+    shadows?: {
+      enabled: boolean;
+      mapSize: number;
+      darkness: number;
+      bias: number;
+      normalBias: number;
+      casters: string[];
+      receivers: string[];
+      excluded: string[];
+    };
+    /** v1.32 — palabras ordinales de planta por idioma para los textos data-driven. */
+    texts?: {
+      ordinals: string[];
+      ordinalsEn: string[];
+      floorTemplateEs: string;
+      floorTemplateEn: string;
+    };
     /** Calado (profundidad en Z) de las viviendas: doblado en v0.6-b para mobiliario interior. */
     depth: number;
     /** Módulo de profundidad (v1.19): TODOS los bloques crecen 1 módulo hacia el fondo. */
@@ -1348,6 +1388,28 @@ export interface Rules {
         roofRack?: boolean;
         axles?: number;
       }[];
+      /** v1.32 — AMBULANCIA del teatro de emergencias (opcional). */
+      ambulance?: {
+        length: number;
+        width: number;
+        height: number;
+        color: string;
+        sideText: string;
+        stripe: string;
+        cross: string;
+        beaconA: string;
+        beaconB: string;
+        stopZ: number;
+        stopAhead: number;
+        enterFrom: 'left' | 'right';
+        speed: number;
+        doorSeconds: number;
+        medicSpeed: number;
+        carryHeight: number;
+        medicColor: string;
+        medicCapColor: string;
+        medicLegColor: string;
+      };
     };
     /** ── Viandantes (v1.22) ── paseantes por las aceras; algunos entran al portal. */
     pedestrians: {
@@ -1368,6 +1430,20 @@ export interface Rules {
       hatColors: string[];
       /** v1.25: arquetipos del catálogo de vecinos que prestan su cuerpo a los viandantes. */
       actorArchetypes?: string[];
+      /** v1.32 — vida social de acera: charlas, discusiones y peleas entre viandantes
+       *  (un herido activa el teatro de la ambulancia del catálogo). */
+      social?: {
+        enabled: boolean;
+        checkEvery: number;
+        distance: number;
+        maxConcurrent: number;
+        talkSeconds: number;
+        argueChance: number;
+        fightChance: number;
+        injuredChance: number;
+        hurtSeconds: number;
+        pairCooldown: number;
+      };
     };
     /** ── Fondo urbano (v1.20) ── cielo dinámico por hora + capas de fachadas 2D con
      *  parallax natural (planos 3D a distintas z tras el edificio). */

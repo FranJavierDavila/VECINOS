@@ -95,7 +95,7 @@ check('Geo.sideHalf por estilo (el semiancho real del cuerpo)', trafficTs.includ
 check('plano lateral PROUD del casco (+14 mm, nada coplanar)', trafficTs.includes('const sideOff = geo.sideHalf + 0.014;'));
 check('costado pintado a canvas por (tipo, color) con caché', trafficTs.includes('sideTex') && trafficTs.includes('`side:${def.kind}:${hex}`'));
 check('ventanas pintadas #2e3a44 con brillo', trafficTs.includes("'#2e3a44'") && trafficTs.includes('rgba(255,255,255,0.16)'));
-check('arcos de rueda pintados tras el neumático', trafficTs.includes("'#1d1a17'") && trafficTs.includes('geo.R * 1.3 * S'));
+check('arcos de rueda RECORTADOS del costado (v1.32: agujero real, rueda dentro)', trafficTs.includes("c.globalCompositeOperation = 'destination-out'") && trafficTs.includes('geo.R * 1.3 * S'));
 check('cotas compartidas geometría ↔ pintado (una sola verdad)', trafficTs.includes('const geos = cfg.vehicles.map((d) => geoOf(d));'));
 check('bus: banda de ventanas con pilares y puerta doble', /nWin = 7/.test(trafficTs) && trafficTs.includes('Puerta doble'));
 check('patrulla: banda azul con POLICÍA en el costado', trafficTs.includes("'#286090'"));
@@ -117,9 +117,9 @@ check('sirena rojo/azul alternando (patrulla)', trafficTs.includes("Color3.FromH
 check('matrícula sin emissive pero con textura (sin negros de alpha)', trafficTs.includes('pm.diffuseTexture = plateTex(def.plate)'));
 
 console.log('── 7. Versiones ──');
-check('insignia v1.31 en i18n (es/en)', i18nTs.includes('v1.31 · tráfico con oficio') && i18nTs.includes('v1.31 · traffic with craft'));
-check('sw.js bump a vecinos-v1.31', swJs.includes("vecinos-v1.31"));
-check('PwaRegister espera vecinos-v1.31', pwaTsx.includes('vecinos-v1.31'));
+check('insignia actual en i18n (v1.32, la 1.31 fue sustituida por la nueva)', i18nTs.includes('v1.32 · el vecindario respira') && i18nTs.includes('v1.32 · the neighborhood breathes'));
+check('sw.js bump a vecinos-v1.32 (sigue subiendo)', swJs.includes('vecinos-v1.32'));
+check('PwaRegister espera vecinos-v1.32', pwaTsx.includes('vecinos-v1.32'));
 
 console.log('── Sim intacto ──');
 const world = createWorld(content, 'slice');
