@@ -161,9 +161,9 @@ check('contenido real SIN menciones de plantas/viviendas imposibles', violations
 }
 
 console.log('── 9. Versiones ──');
-check('insignia v1.32 en i18n (es/en)', i18nTs.includes('v1.32 · el vecindario respira') && i18nTs.includes('v1.32 · the neighborhood breathes'));
-check('sw.js bump a vecinos-v1.32', swJs.includes('vecinos-v1.32'));
-check('PwaRegister espera vecinos-v1.32', pwaTsx.includes('vecinos-v1.32'));
+check('insignia v1.33 en i18n (es/en, la 1.32 fue sustituida por la nueva)', i18nTs.includes('v1.33 · cristales en su sitio') && i18nTs.includes('v1.33 · glass in its place'));
+check('sw.js bump a vecinos-v1.33 (sigue subiendo)', swJs.includes('vecinos-v1.33'));
+check('PwaRegister espera vecinos-v1.33', pwaTsx.includes('vecinos-v1.33'));
 
 console.log('── Sim intacto ──');
 const hashes: string[] = [];

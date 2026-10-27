@@ -109,6 +109,10 @@ export function scanFloorReferences(world: World, content: Content): FloorRefVio
   collect(content.influences, strings, 'influences');
   collect(content.street, strings, 'street');
   collect(content.achievements, strings, 'achievements');
+  // v1.33: los AVISOS del ecosistema y las CUTSCENES también narran el edificio
+  // (se coló «la gata de la 4C» porque estos catálogos no se auditaban).
+  collect(content.ecosystem, strings, 'ecosystem');
+  collect(content.cutscenes, strings, 'cutscenes');
   const out: FloorRefViolation[] = [];
   const ordinalRe = /(baja|primera|segunda|tercera|cuarta|quinta|sexta|s[eé]ptima)\s+planta/gi;
   const aptRe = /\b(\d+)([A-Da-d])\b/g;

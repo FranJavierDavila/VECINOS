@@ -8,6 +8,7 @@ import { loadContent } from '@/game/content';
 import { layoutGeometryOf, roomAt } from '@/game/interior';
 import { evaluateAchievements, type AchievementSnapshot } from '@/game/support/achievements';
 import { syncCampaign } from '@/game/support/campaign';
+import { resolveTokens } from '@/game/support/texts';
 import { activeObjective, applyEffects, buildCirculation, createWorld, dispatch, drainEvents, migrateRooms, tick, travelMinutes, visibleParams } from '@/game/sim';
 import { PlayerLogic } from '@/game/player-logic';
 import { createEngine } from './engine';
@@ -1282,7 +1283,15 @@ class GameController {
           break;
         }
         case 'ui_toast':
-          store.pushToast(String(d.text), (d.tone as Tone | undefined) ?? 'info');
+          // v1.33: los avisos del catálogo (ecosistema incluido) admiten tokens
+          // data-driven si el evento trae vecinos {a}/{b}; sin contexto, texto tal cual.
+          store.pushToast(
+            resolveTokens(String(d.text), this.world, this.content, {
+              a: typeof d.a === 'string' ? d.a : undefined,
+              b: typeof d.b === 'string' ? d.b : undefined,
+            }),
+            (d.tone as Tone | undefined) ?? 'info',
+          );
           break;
         case 'finale':
           store.setFinale(String(d.text));

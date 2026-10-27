@@ -520,10 +520,12 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
       const cab = body('cabina', geo.cabinL, geo.cabinH, W * 0.86);
       place(cab, -L * 0.05, y0 + hullH + geo.cabinH / 2 - 0.04);
       // Parabrisas y luneta inclinados (cristal propio, pilar A del catálogo).
-      const ws = box(def.kind, 'parabrisas', W * 0.8, geo.cabinH * 0.92, 0.035, glass);
+      // v1.33: panel TRANSVERSAL — fino en X (largo), ancho en Z (anchura del coche).
+      // Antes iba con ejes permutados y sobresalían del techo como aletas longitudinales.
+      const ws = box(def.kind, 'parabrisas', 0.035, geo.cabinH * 0.92, W * 0.8, glass);
       ws.rotation.z = -0.5;
       place(ws, -L * 0.05 + geo.cabinL / 2 - 0.02, y0 + hullH + geo.cabinH * 0.52);
-      const rw = box(def.kind, 'luneta', W * 0.8, geo.cabinH * 0.88, 0.035, glass);
+      const rw = box(def.kind, 'luneta', 0.035, geo.cabinH * 0.88, W * 0.8, glass);
       rw.rotation.z = 0.52;
       place(rw, -L * 0.05 - geo.cabinL / 2 + 0.02, y0 + hullH + geo.cabinH * 0.5);
     } else if (def.kind === 'furgoneta') {
@@ -531,7 +533,8 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
       place(body('cuerpo', L * 0.98, hullH, W * 0.92), -L * 0.01, y0 + hullH / 2);
       const nose = body('morro', L * 0.12, hullH * 0.42, W * 0.92);
       place(nose, L * 0.47, y0 + hullH * 0.21);
-      const ws = box(def.kind, 'parabrisas', W * 0.84, hullH * 0.5, 0.04, glass);
+      // v1.33: parabrisas transversal (fino en X, ancho en Z) — antes era una aleta longitudinal.
+      const ws = box(def.kind, 'parabrisas', 0.04, hullH * 0.5, W * 0.84, glass);
       ws.rotation.z = -0.3;
       place(ws, L * 0.42, y0 + hullH * 0.78);
     } else if (def.kind === 'reparto') {
@@ -539,17 +542,19 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
       place(cab, L * 0.35, y0 + geo.cabH / 2);
       const cargo = body('caja', geo.boxL, def.height * 1.02, W * 0.98);
       place(cargo, -L * 0.13, y0 + 0.06 + (def.height * 1.02) / 2);
-      const ws = box(def.kind, 'parabrisas', W * 0.84, geo.cabH * 0.42, 0.04, glass);
+      // v1.33: parabrisas transversal (fino en X, ancho en Z).
+      const ws = box(def.kind, 'parabrisas', 0.04, geo.cabH * 0.42, W * 0.84, glass);
       ws.rotation.z = -0.22;
       place(ws, L * 0.44, y0 + geo.cabH * 0.72);
     } else {
       // Bus: cuerpo largo a un agua con panza; el costado pintado trae las ventanas.
       place(body('cuerpo', L, hullH, W * 0.94), 0, y0 + hullH / 2);
       place(body('tejadillo', L * 0.99, 0.1, W * 0.9), 0, y0 + hullH + 0.05);
-      const ws = box(def.kind, 'parabrisas', W * 0.86, hullH * 0.42, 0.04, glass);
+      // v1.33: parabrisas y luneta transversales (finos en X, anchos en Z).
+      const ws = box(def.kind, 'parabrisas', 0.04, hullH * 0.42, W * 0.86, glass);
       ws.rotation.z = -0.16;
       place(ws, L * 0.49, y0 + hullH * 0.8);
-      const rw = box(def.kind, 'luneta', W * 0.8, hullH * 0.3, 0.04, glass);
+      const rw = box(def.kind, 'luneta', 0.04, hullH * 0.3, W * 0.8, glass);
       place(rw, -L * 0.49, y0 + hullH * 0.82);
       // Climatizador de techo.
       place(box(def.kind, 'ac', L * 0.26, 0.14, W * 0.5, dark), -L * 0.05, y0 + hullH + 0.16);
@@ -773,7 +778,8 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
     place(box('ambulancia', 'bajos', L * 0.94, y0 - 0.02, W * 0.5, chassis), 0, (y0 - 0.02) / 2 + 0.02);
     place(box('ambulancia', 'cuerpo', L * 0.98, hullH, W * 0.92, white), -L * 0.01, y0 + hullH / 2);
     place(box('ambulancia', 'morro', L * 0.12, hullH * 0.42, W * 0.92, white), L * 0.47, y0 + hullH * 0.21);
-    const ws = box('ambulancia', 'parabrisas', W * 0.84, hullH * 0.5, 0.04, glass);
+    // v1.33: parabrisas transversal (fino en X, ancho en Z) — antes era una aleta longitudinal.
+    const ws = box('ambulancia', 'parabrisas', 0.04, hullH * 0.5, W * 0.84, glass);
     ws.rotation.z = -0.3;
     place(ws, L * 0.42, y0 + hullH * 0.78);
     // Costados pintados con librea (arcos recortados; NO proyectan sombra).
