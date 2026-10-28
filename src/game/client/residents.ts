@@ -47,6 +47,18 @@ export function loc(text: LocalizedText | undefined, lang: 'es' | 'en'): string 
   return text[lang] ?? text.es;
 }
 
+/**
+ * v1.40 — LÍNEA DE SALUDO de un vecino (timbre en su puerta o charla en el pasillo):
+ * su banco `reactions.greet` (personalidad por id → arquetipo → defaults), ya en el
+ * idioma del chrome. Null si el catálogo no trae saludos (el llamador usa su fallback).
+ */
+export function greetLineOf(content: Content, resident: { id: string; archetype: string }, lang: 'es' | 'en'): string | null {
+  const pool = personalityOf(content, resident).reactions.greet;
+  if (!pool || pool.length === 0) return null;
+  const line = loc(pool[Math.floor(hash01(resident.id, 7) * pool.length) % pool.length], lang);
+  return line.length > 0 ? line : null;
+}
+
 export interface ResidentsDirector {
   update(dt: number): void;
   /** El controlador avisa: se completó una misión (contexto «mission» unos segundos). */

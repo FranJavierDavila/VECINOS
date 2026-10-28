@@ -27,7 +27,7 @@ const DICT: Record<string, { es: string; en: string }> = {
     es: 'Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.',
     en: 'Move-ins, noise, smells, wifi, pests, smoke and levies: the neighborhood simulator.',
   },
-  'header.version': { es: 'v1.39 · vida, música y accesibilidad', en: 'v1.39 · life, music & accessibility' },
+  'header.version': { es: 'v1.40 · timbre, charla y linterna', en: 'v1.40 · doorbells, chats & a flashlight' },
   // ── Post-its (v1.23: mandos agrupados dibujados a bolígrafo) ──
   'postit.time': { es: 'Tiempo', en: 'Time' },
   'postit.options': { es: 'Opciones', en: 'Options' },
@@ -107,6 +107,47 @@ const DICT: Record<string, { es: string; en: string }> = {
   'elev.unreachable': { es: 'El ascensor no llega hasta esa planta.', en: 'The elevator does not reach that floor.' },
   'door.vacant': { es: 'Nadie vive ahí: no puedes entrar en una vivienda vacía.', en: 'Nobody lives there: you cannot enter an empty home.' },
   'door.lockedGeneric': { es: 'Puerta con candado: no puedes pasar.', en: 'Locked door: you cannot enter.' },
+  // ── v1.40 — timbre, charla y linterna ──
+  'door.noAnswer': {
+    es: '🔔 Timbre sonado… y silencio. No hay nadie dentro que pueda abrir.',
+    en: '🔔 Doorbell rung… and silence. Nobody inside to answer it.',
+  },
+  'chat.fallback': { es: '¡Buenas! ¿Todo en orden por aquí?', en: 'Hey! All quiet around here?' },
+  'lost.title': {
+    es: 'Se fue la luz del portal (y del navegador)',
+    en: 'The lights went out — in the lobby and in the browser',
+  },
+  'lost.text': {
+    es: 'El navegador nos quitó el motor gráfico (suele pasar por memoria, o con la pestaña en segundo plano). Tu partida está a salvo: recarga y sigues donde estabas.',
+    en: 'The browser took the graphics engine away (usually memory, or a backgrounded tab). Your save is safe: reload and carry on where you were.',
+  },
+  'lost.reload': { es: 'Encender las luces (recargar)', en: 'Lights back on (reload)' },
+  // ── v1.40 — avisos del sim que antes vivían en duro (ahora EN/ES por clave) ──
+  'ev.doorLocked': { es: 'puerta con candado', en: 'locked door' },
+  'ev.forSale': { es: '(a la venta por {n} €)', en: '(for sale for €{n})' },
+  'ev.neighborArrived': { es: 'Nuevo vecino en {block}: {name}', en: 'New neighbor in {block}: {name}' },
+  'ev.neighborArrivedLog': {
+    es: '{name} se muda a {block}. El edificio ya no es lo que era. Era mejor.',
+    en: '{name} moves into {block}. The building is not what it used to be. It was better.',
+  },
+  'ev.missionDone': { es: 'Misión completada: {m}', en: 'Mission complete: {m}' },
+  'ev.missionDoneLog': { es: '✔ Misión completada: {m}', en: '✔ Mission complete: {m}' },
+  'ev.missionFailed': { es: 'Misión fallida: {m}', en: 'Mission failed: {m}' },
+  'ev.missionFailedLog': { es: '✘ Misión fallida: {m}', en: '✘ Mission failed: {m}' },
+  'ev.blockUnlocked': { es: '{block} desbloqueado', en: '{block} unlocked' },
+  'ev.rentCollected': { es: '+{n} € de alquiler ({block})', en: '+€{n} rent collected ({block})' },
+  'ev.workDone': {
+    es: '💻 Cerrada una "reunión que podía ser un correo": +{n} €',
+    en: '💻 Closed a "meeting that could have been an email": +€{n}',
+  },
+  'ev.juntaPresidentOnly': {
+    es: 'Solo la presidencia convoca juntas. De momento, eres un vecino más (con suerte).',
+    en: 'Only the presidency calls meetings. For now, you are just another neighbor (good luck).',
+  },
+  'ev.juntaCooldown': {
+    es: 'Juana dice que la última junta fue hace poco. Próxima disponible en {n} min. La democracia necesita descansos.',
+    en: 'Juana says the last meeting was recent. Next slot in {n} min. Democracy needs rest.',
+  },
   'hud.homeAria': { es: 'Tu piso', en: 'Your flat' },
   'weather.sunny': { es: 'Soleado', en: 'Sunny' },
   'weather.cloudy': { es: 'Nublado', en: 'Cloudy' },

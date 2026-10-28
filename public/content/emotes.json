@@ -3,6 +3,7 @@
     "offsetY": 0.5,
     "sizePx": 26,
     "maxDistance": 72,
+    "nearRadius": 4,
     "popMs": 160,
     "decisionMs": 250,
     "buildingMaxGlyphs": 0

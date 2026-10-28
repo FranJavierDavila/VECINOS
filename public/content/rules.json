@@ -1540,6 +1540,12 @@
    "boxW": 0.52,
    "boxH": 0.34,
    "boxD": 0.4
+  },
+  "flashlight": {
+   "range": 4,
+   "intensity": 1.1,
+   "height": 1.25,
+   "color": "#ffdca8"
   }
  },
  "demo": {
@@ -1621,6 +1627,8 @@
   "doorEnter": "E · entrar en {block}",
   "doorLocked": "E · {block}: candado",
   "greet": "E · saludar a {name}",
+  "doorbell": "E · timbre de {name}",
+  "chat": "E · charlar con {name}",
   "laptop": "E · conectarse al portátil",
   "bed": "E · echar una siesta",
   "storageEnter": "E · abrir TU trastero (el de la puerta dorada)",

@@ -30,12 +30,12 @@ import { createStreetlife, type StreetlifeDirector } from './streetlife';
 import { createPaseo, type PaseoDirector } from './paseo';
 import { createVoices, type VoicesDirector } from './voices';
 import { createMusicDirector, type MusicDirector } from './music';
-import { createResidents, residentsUiSnapshot, residentName, type ResidentsDirector } from './residents';
+import { createResidents, greetLineOf, residentsUiSnapshot, residentName, type ResidentsDirector } from './residents';
 import { createTutorial, createNullTutorial, setCurrentTutorial, type TutorialDirector } from './tutorial';
 import { CameraRig, type CamMode } from './camera';
 import { CutscenePlayer, type CutsceneEventCtx } from './cutscene';
 import { B } from './babylon';
-import { eventSound, preloadSounds } from './audio';
+import { eventSound, playSound, preloadSounds } from './audio';
 import { translate } from './i18n';
 import { QUALITY_SCALE, loadOptions, type PerfTarget, type QualityLevel } from './options';
 import { PerfDirector } from './perf';
@@ -93,6 +93,9 @@ class GameController {
   private lastMovePos: { x: number; z: number } | null = null;
   /** Bloom/glow de las luces (v1.28): halo realista sobre materiales emisivos (catálogo). */
   private glowLayer: { dispose(): void } | null = null;
+  /** v1.40 — LINTERNA: PointLight que llevas encima cuando se va la luz (apagón).
+   *  Radio corto del catálogo (view.flashlight.range): es una linterna, no un estadio. */
+  private flashlight: { light: unknown; update: (pos: { x: number; y: number; z: number }) => void; dispose: () => void } | null = null;
   /** Cuenta atrás del refresco de sombras (v1.32): cazamallas nuevas cada 2 s. */
   private shadowRefreshT = 2;
   // ── v1.38 — PASE DE OPTIMIZACIÓN: auto-ajuste de rendimiento ──
@@ -185,6 +188,15 @@ class GameController {
       this.perf.setBaseQuality(opts.quality);
       this.perf.configure(opts.perfAuto, opts.perfTarget);
       window.addEventListener('resize', this.onResize);
+      // v1.40 — PANTALLA NEGRA CAZADA: si el navegador pierde el contexto gráfico
+      // (WebGL "context lost" / WebGPU "device lost", típico bajo presión de memoria), el
+      // lienzo se queda negro mientras los bocadillos (DOM) siguen vivos — el síntoma
+      // exacto que veía el vecino. Lo detectamos por las tres vías y avisamos con un
+      // overlay amable y botón de recarga en vez de un juego muerto silencioso.
+      canvas.addEventListener('webglcontextlost', this.onContextLost);
+      engine.onContextLostObservable?.add?.(this.onContextLost);
+      const gpuDevice = (engine as unknown as { _device?: { lost?: Promise<unknown> } })._device;
+      gpuDevice?.lost?.then(() => this.onContextLost());
       await this.restart();
       useGameStore.getState().markReady(backend);
       startGamepadPolling();
@@ -216,6 +228,7 @@ class GameController {
 
   destroy(): void {
     window.removeEventListener('resize', this.onResize);
+    this.canvas?.removeEventListener('webglcontextlost', this.onContextLost); // v1.40
     this.net?.disconnect();
     this.net = null;
     this.perf = null;
@@ -461,6 +474,28 @@ class GameController {
       const s = useGameStore.getState();
       s.pushToast(translate(s.lang, r.reason === 'vacant' ? 'door.vacant' : 'door.lockedGeneric'), 'info');
     }
+    // v1.40 — TIMBRE en vivienda ajena: suena el timbre del catálogo; si el vecino está
+    // dentro se acerca a abrir y os entra; si no hay nadie, nadie puede abrir.
+    if (r.type === 'doorbell') {
+      const opened = this.ringDoorbell(r.block);
+      if (opened && this.logic && this.world) {
+        const er = this.logic.enterBlock(r.block);
+        if (er.type === 'entered') this.setCamMode('estancia');
+        else if (er.type === 'locked') {
+          const s = useGameStore.getState();
+          s.pushToast(translate(s.lang, er.reason === 'vacant' ? 'door.vacant' : 'door.lockedGeneric'), 'info');
+        }
+      }
+      this.pump();
+      return;
+    }
+    // v1.40 — CHARLA con un vecino cruzado en el pasillo: cara a cara y su saludo del
+    // catálogo de personalidades (reactions.greet), en el idioma del chrome.
+    if (r.type === 'chat') {
+      this.chatWith(r.residentId);
+      this.pump();
+      return;
+    }
     if (r.type === 'rearEnter') {
       // Apilamiento 3D (v1.19): el swap lo ejecuta building.update por fases; aquí solo
       // encuadra la cámara dentro del bloque trasero.
@@ -502,6 +537,49 @@ class GameController {
   }
 
   /**
+   * v1.40 — TIMBRE de una vivienda ajena: sonido del catálogo (sounds.json: doorbell) y
+   * vecino dentro abre (el sim registra el toque; knock_result acerca al vecino y saluda).
+   * Devuelve true cuando hay alguien en casa y el paso está servido.
+   */
+  private ringDoorbell(blockId: string): boolean {
+    if (!this.world) return false;
+    const store = useGameStore.getState();
+    const block = this.world.blocks[blockId];
+    const ownerId = block?.ownerId ?? null;
+    const owner = ownerId ? this.world.residents[ownerId] : undefined;
+    playSound('doorbell');
+    const home = !!owner && owner.present && owner.location === blockId;
+    if (!owner || !home) {
+      // Nadie dentro: nadie puede abrir. (Las vacías ya avisan aparte como candado.)
+      store.pushToast(translate(store.lang, 'door.noAnswer'), 'info');
+      return false;
+    }
+    this.logic?.knockAt(blockId);
+    return true;
+  }
+
+  /** v1.40 — CHARLA con un vecino en circulación: os plantáis cara a cara, él suelta su
+   *  saludo (bocadillo) y los dos gesticuláis la conversación. Pura presentación: el sim
+   *  no cambia por charlar (las afinidades las mueven las misiones y los cruces). */
+  private chatWith(residentId: string): void {
+    if (!this.world || !this.logic) return;
+    const store = useGameStore.getState();
+    const other = this.world.residents[residentId];
+    if (!other) return;
+    const line = greetLineOf(this.content, other, store.lang) ?? translate(store.lang, 'chat.fallback');
+    this.bubbles?.sayText(residentId, line, 2.8);
+    const me = this.actors?.director.nodeOf(this.actorId());
+    const them = this.actors?.director.nodeOf(residentId);
+    if (me && them) {
+      this.actors?.director.faceToward(residentId, me.x, me.z);
+      this.actors?.director.faceToward(this.actorId(), them.x, them.z);
+    }
+    this.actors?.director.setGesture(residentId, 'talk', 3.4);
+    this.actors?.director.setGesture(this.actorId(), 'talk', 3.4);
+    this.tutorial.notify('used:resident'); // conocer gente también es esto
+  }
+
+  /**
    * Lecturas sin estado (buzón/tablón): texto del catálogo aquí; work/sleep/knock llegan como
    * eventos del sim (ui_toast / knock_result) y no se tratan en esta vía.
    */
@@ -536,12 +614,12 @@ class GameController {
     const cfg = this.content.rules.sim.campaign;
     if (!world || !cfg || world.junta) return;
     if (!useGameStore.getState().campaign?.active) {
-      useGameStore.getState().pushToast('Solo la presidencia convoca juntas. De momento, eres un vecino más (con suerte).', 'info');
+      useGameStore.getState().pushToast(translate(useGameStore.getState().lang, 'ev.juntaPresidentOnly'), 'info');
       return;
     }
     if (world.tick - this.lastConvocaTick < cfg.convocationCooldownMinutes) {
       const left = Math.ceil(cfg.convocationCooldownMinutes - (world.tick - this.lastConvocaTick));
-      useGameStore.getState().pushToast(`Juana dice que la última junta fue hace poco. Próxima disponible en ${left} min. La democracia necesita descansos.`, 'info');
+      useGameStore.getState().pushToast(translate(useGameStore.getState().lang, 'ev.juntaCooldown', { n: left }), 'info');
       return;
     }
     this.lastConvocaTick = world.tick;
@@ -912,7 +990,7 @@ class GameController {
     // Ninguna cutscene sobrevive a un cambio de mundo: cola fuera y teatro desmontado.
     this.cutsceneQueue = [];
     this.cutscenePlayer?.abort();
-    const { Color3, Color4, DirectionalLight, HemisphericLight, Scene, UniversalCamera, Vector3 } = B();
+    const { Color3, Color4, DirectionalLight, HemisphericLight, PointLight, Scene, UniversalCamera, Vector3 } = B();
     const view = this.content.rules.view;
     useGameStore.getState().resetUi();
 
@@ -938,6 +1016,7 @@ class GameController {
 
     this.scene?.dispose();
     this.scene = new Scene(this.engine);
+    this.flashlight = null; // v1.40 — la linterna nueva nace con la escena nueva
     this.scene.clearColor = new Color4(view.sky.r, view.sky.g, view.sky.b, 1);
     // Pase de calidad FPS (v1.22): el puntero no necesita picking por movimiento (la
     // interacción va por zonas/teclado) y los materiales congelables del decorado lo
@@ -949,6 +1028,28 @@ class GameController {
     // que miran ABAJO (techos de los interiores, forjados) — antes negro puro, ahora un
     // gris cálido que se lee como techo en sombra. Data-driven (view.ambient.ground).
     if (view.ambient.ground) hemi.groundColor = Color3.FromHexString(view.ambient.ground);
+    // v1.40 — LINTERNA (apagón): PointLight cálida que sigue al jugador; APAGADA por
+    // defecto y encendida solo mientras dura el apagón del ecosistema. Su radio corto
+    // (catálogo) hace el resto: solo vé lo que tienes delante en tu planta.
+    {
+      const fl = view.flashlight;
+      if (fl) {
+        const light = new PointLight('linterna', new Vector3(0, fl.height, 0), this.scene);
+        light.diffuse = Color3.FromHexString(fl.color);
+        light.specular = Color3.FromHexString(fl.color).scale(0.35);
+        light.intensity = 0;
+        light.range = fl.range;
+        this.flashlight = {
+          light,
+          update: (pos) => {
+            light.position.set(pos.x, pos.y + fl.height, pos.z);
+            const on = this.ecosystem?.isBlackout() === true;
+            light.intensity = on ? fl.intensity : 0;
+          },
+          dispose: () => light.dispose(),
+        };
+      }
+    }
     const dirLight = new DirectionalLight('sun', new Vector3(...view.sun.dir), this.scene);
     dirLight.intensity = view.sun.intensity;
     this.sunLight = dirLight;
@@ -1118,7 +1219,17 @@ class GameController {
   }
 
   private onResize = (): void => {
+    // v1.40 — resize con tamaño cero (rotación móvil, pestaña oculta): evita un buffer de
+    // dibujo de 0×0 que deja el lienzo negro hasta el próximo resize de verdad.
+    if (!this.canvas || this.canvas.clientWidth === 0 || this.canvas.clientHeight === 0) return;
     this.engine?.resize();
+  };
+
+  /** v1.40 — contexto gráfico perdido: overlay de recarga (solo marca; idempotente). */
+  private onContextLost = (): void => {
+    if (useGameStore.getState().engineLost) return;
+    console.warn('VECINOS: contexto gráfico perdido (el navegador recuperará o toca recargar)');
+    useGameStore.getState().setEngineLost();
   };
 
   // ───────────────────────── Bucle de render ─────────────────────────
@@ -1135,6 +1246,11 @@ class GameController {
     let ticked = false;
     if (!frozen) {
       this.logic.update(dt, this.readInput());
+      // v1.40 — acciones automáticas (entrar/salir de TU vivienda sin E): la cámara sigue.
+      for (const ar of this.logic.drainAuto()) {
+        if (ar.type === 'entered') this.setCamMode('estancia');
+        else if (ar.type === 'exited') this.setCamMode('planta');
+      }
       // Ascensor (v1.5): el director mueve cabinas y puertas; el jugador llama con W/S en el
       // núcleo y su escalada EXTERNA la gobierna la cabina (espera → embarco → viaje → salida).
       this.elevators.update(dt);
@@ -1307,6 +1423,8 @@ class GameController {
       // v1.24: movers → puertas de escalera + su luz compartida nocturna.
       { daylight: this.backdrop ? this.backdrop.daylight : 1, movers },
     );
+    // v1.40 — la LINTERNA viaja con el jugador (posición pies del HUD de posición).
+    this.flashlight?.update({ x: pos.x, y: (pos.floor ?? 0) * this.content.rules.view.cellH, z: pos.z });
     this.rig.update(dt, pos);
     this.scene.render();
   };
@@ -1409,12 +1527,17 @@ class GameController {
         case 'door_locked': {
           this.building?.shake(String(d.block));
           const price = typeof d.price === 'number' ? d.price : null;
-          store.pushToast(`${blockLabel(String(d.block))}: puerta con candado${d.reason === 'for_sale' && price !== null ? ` (a la venta por ${price} €)` : ''}`, 'info');
+          store.pushToast(
+            `${blockLabel(String(d.block))}: ${translate(store.lang, 'ev.doorLocked')}${
+              d.reason === 'for_sale' && price !== null ? ` ${translate(store.lang, 'ev.forSale', { n: price })}` : ''
+            }`,
+            'info',
+          );
           break;
         }
         case 'neighbor_arrived':
-          store.pushToast(`Nuevo vecino en ${blockLabel(String(d.block))}: ${this.nameOf(d.resident)}`, 'good');
-          store.pushLog(`${this.nameOf(d.resident)} se muda a ${blockLabel(String(d.block))}. El edificio ya no es lo que era. Era mejor.`, 'info');
+          store.pushToast(translate(store.lang, 'ev.neighborArrived', { block: blockLabel(String(d.block)), name: this.nameOf(d.resident) }), 'good');
+          store.pushLog(translate(store.lang, 'ev.neighborArrivedLog', { name: this.nameOf(d.resident), block: blockLabel(String(d.block)) }), 'info');
           break;
         case 'mission_activated':
           store.pushLog(`📋 Nueva misión: ${String(d.title)}`, 'info');
@@ -1422,19 +1545,19 @@ class GameController {
         case 'mission_completed':
           // v1.30 — post-it de CELEBRACIÓN: se pliega como origami y suelta estrellitas que
           // caen al suelo (ToastStack) — sobre la fanfarria, como pidió el vecino.
-          store.pushToast(`Misión completada: ${this.titleOf(d.mission)}`, 'good', { celebrate: true });
-          store.pushLog(`✔ Misión completada: ${this.titleOf(d.mission)}`, 'good');
+          store.pushToast(translate(store.lang, 'ev.missionDone', { m: this.titleOf(d.mission) }), 'good', { celebrate: true });
+          store.pushLog(translate(store.lang, 'ev.missionDoneLog', { m: this.titleOf(d.mission) }), 'good');
           this.syncAchievements(); // una misión caída puede cerrar varios logros a la vez
           syncCampaign(this.world!, this.content); // la misión del cargo activa el chip de presidencia
           this.tutorial.notify('mission_completed'); // v1.39 — paso «completa una tarea»
           this.residents?.onMissionDone(); // v1.39 — los vecinos comentan la buena noticia
           break;
         case 'mission_failed':
-          store.pushToast(`Misión fallida: ${this.titleOf(d.mission)}`, 'bad');
-          store.pushLog(`✘ Misión fallida: ${this.titleOf(d.mission)}`, 'bad');
+          store.pushToast(translate(store.lang, 'ev.missionFailed', { m: this.titleOf(d.mission) }), 'bad');
+          store.pushLog(translate(store.lang, 'ev.missionFailedLog', { m: this.titleOf(d.mission) }), 'bad');
           break;
         case 'block_unlocked':
-          store.pushToast(`${blockLabel(String(d.block))} desbloqueado`, 'good');
+          store.pushToast(translate(store.lang, 'ev.blockUnlocked', { block: blockLabel(String(d.block)) }), 'good');
           break;
         case 'block_bought':
           store.pushLog(`🔑 ${blockLabel(String(d.block))} comprado por ${String(d.price)} €`, 'good');
@@ -1442,12 +1565,37 @@ class GameController {
         case 'block_for_sale':
           store.pushLog(`🪧 Cartel de "SE VENDE" en ${blockLabel(String(d.block))} (${String(d.price)} €)`, 'info');
           break;
-        case 'knock_result':
-          store.pushToast(`🗣️ ${String(d.name)}: «${String(d.line)}»`, d.asleep ? 'info' : 'good');
-          // El vecino que responde gesticula la réplica unos segundos (v1.2).
-          if (typeof d.resident === 'string') this.actors?.director.setGesture(d.resident, 'talk', 3.5);
+        case 'knock_result': {
+          // v1.40 — el timbre lo atiende la PERSONALIDAD: saludo del catálogo de personajes
+          // (reactions.greet, en el idioma del chrome); fallback a la línea del sim.
+          const rid = typeof d.resident === 'string' ? d.resident : null;
+          const other = rid ? this.world?.residents[rid] : undefined;
+          const greet = other ? greetLineOf(this.content, other, store.lang) : null;
+          if (d.asleep) {
+            store.pushToast(`😴 ${String(d.name)}: «${String(d.line)}»`, 'info');
+          } else {
+            const line = greet ?? String(d.line);
+            store.pushToast(`🗣️ ${String(d.name)}: «${line}»`, 'good');
+            if (rid) this.bubbles?.sayText(rid, line, 2.8);
+            // v1.40 — abre de VERDAD: el vecino camina hasta el interior de su puerta.
+            if (rid && other?.home && this.world) {
+              const b = this.world.blocks[other.home];
+              if (b) {
+                const v = this.content.rules.view;
+                const frontZ = v.roomZ - v.commonDepth / 2;
+                this.actors?.director.walkTo(rid, {
+                  x: (b.cell.col + b.size.w / 2) * v.cellW,
+                  z: frontZ + 0.45,
+                  floor: b.cell.floor,
+                  inside: { block: b.id, local: { x: (b.size.w * v.cellW) / 2, z: 0.45 } },
+                });
+              }
+            }
+          }
+          if (rid) this.actors?.director.setGesture(rid, 'talk', 3.5);
           this.tutorial.notify('used:resident'); // v1.39 — paso «conoce a un vecino»
           break;
+        }
         case 'noise_complaint': // texto data-driven: lo pinta el uiLog del catálogo (case mantenido por compatibilidad de eventos antiguos)
           if (d.uiLog === true) break;
           store.pushLog(`🔊 Ruido por encima del límite en ${blockLabel(String(d.block))}. Alguien aprieta los dientes.`, 'bad');
@@ -1469,10 +1617,10 @@ class GameController {
           store.pushLog(`El cielo cambia: ${this.content.rules.labels.weather[String(d.state)] ?? String(d.state)}`, 'info');
           break;
         case 'rent_collected':
-          store.pushToast(`+${String(d.amount)} € de alquiler (${blockLabel(String(d.block))})`, 'good');
+          store.pushToast(translate(store.lang, 'ev.rentCollected', { n: String(d.amount), block: blockLabel(String(d.block)) }), 'good');
           break;
         case 'work_done':
-          store.pushLog(`💻 Cerrada una "reunión que podía ser un correo": +${String(d.amount)} €`, 'info');
+          store.pushLog(translate(store.lang, 'ev.workDone', { n: String(d.amount) }), 'info');
           break;
         case 'activity_started':
           if (d.activity !== 'idle') store.pushLog(`${this.nameOf(d.resident)} ${this.activityLabel(d.resident, String(d.activity))}`, 'info');
@@ -1666,13 +1814,25 @@ class GameController {
       switch (t.kind) {
         case 'door': {
           const door = world.blocks[t.blockId]!;
-          if (logic.position().mode === 'inside') return ic.exit;
+          if (logic.position().mode === 'inside') {
+            // v1.40 — en TU vivienda, en el marco de la puerta la salida es automática:
+            // el prompt se calla justo cuando va a saltar (lo que ves es lo que pasa).
+            if (door.ownerId === this.actorId() && logic.nearOwnDoor()) return null;
+            return ic.exit;
+          }
+          // v1.40 — TU puerta ya no pide E: entras al plantarte (como el núcleo).
+          if (door.kind === 'dwelling' && door.ownerId === this.actorId()) return null;
+          // v1.40 — vivienda ajena ocupada: la E es el TIMBRE de su vecino.
+          if (door.kind === 'dwelling' && door.access !== 'locked' && door.occupancy === 'occupied' && door.ownerId && world.residents[door.ownerId]) {
+            return (ic.doorbell ?? ic.greet).replace('{name}', this.nameOf(door.ownerId));
+          }
           return door.access === 'locked'
             ? ic.doorLocked.replace('{block}', this.blockName(door.id))
             : ic.doorEnter.replace('{block}', this.blockName(door.id));
         }
         case 'resident':
-          return ic.greet.replace('{name}', this.nameOf(t.residentId));
+          // v1.40 — cruzarte con un vecino = charla (ya no es llamar a su puerta).
+          return (ic.chat ?? ic.greet).replace('{name}', this.nameOf(t.residentId));
         case 'mailbox':
           return ic.mailbox.prompt;
         case 'noticeboard':

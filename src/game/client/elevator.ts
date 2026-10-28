@@ -296,12 +296,20 @@ export function createElevators(scene: Scene, world: World, content: Content): E
   }
   // ── v1.35 — MURAL DE LA CABINA (graffiti data-driven): texto en spray + dibujo gracioso
   //  del catálogo (rules.view.graffiti). Un solo arte compartido por todos los pozos.
+  //  v1.40 — alpha de VERDAD: canvas suelto + TEXTURE(dataURL) (los DynamicTexture desde
+  //  canvas pierden el canal alpha en WebGPU/CDN → caja negra alrededor del mural).
   const graCfg = content.rules.view.graffiti;
   let graffitiMat: StandardMaterial | null = null;
   const buildGraffitiMat = (): StandardMaterial | null => {
     if (!graCfg || graffitiMat) return graffitiMat;
-    const dt = new (B().DynamicTexture)('asc_grafiti_tex', { width: 512, height: 512 }, scene, true) as DynamicTexture;
-    const c = dt.getContext() as unknown as CanvasRenderingContext2D;
+    const cv = document.createElement('canvas');
+    cv.width = 512;
+    cv.height = 512;
+    const c = cv.getContext('2d', { willReadFrequently: true });
+    if (!c) return null;
+    const tex = new (B().Texture)(cv.toDataURL('image/png'), scene, false, true);
+    tex.name = 'asc_grafiti_tex';
+    tex.hasAlpha = true;
     const text = graCfg.texts[0] ?? 'AQUÍ PINTÓ PINTURILLAS';
     const colHex = graCfg.colors[0] ?? '#c77dff';
     const col = Color3.FromHexString(colHex);
@@ -384,10 +392,8 @@ export function createElevators(scene: Scene, world: World, content: Content): E
     c.closePath();
     c.fill();
     c.stroke();
-    dt.update(true);
-    dt.hasAlpha = true;
     graffitiMat = new StandardMaterial('asc_grafiti_mat', scene);
-    graffitiMat.diffuseTexture = dt;
+    graffitiMat.diffuseTexture = tex;
     graffitiMat.specularColor = new Color3(0, 0, 0);
     graffitiMat.emissiveColor = new Color3(0.3, 0.3, 0.3);
     graffitiMat.alpha = 0;

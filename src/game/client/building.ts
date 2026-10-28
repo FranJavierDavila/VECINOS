@@ -1697,7 +1697,12 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
    *  nivel de cabin_graffiti del núcleo (spillToWalls del catálogo). */
   const graffitiWalls: Array<(alpha: number) => void> = [];
   if (graffitiCfg || decayCfg) {
-    const decalMat = (name: string, tex: DynamicTexture, alpha: number): StandardMaterial => {
+    // v1.40 — RECORTE DE VERDAD: los decals se pintan en un canvas SUELTO y suben por
+    // TEXTURE(dataURL) con hasAlpha. Los DynamicTexture desde canvas pierden el canal alpha
+    // en esta config (WebGPU/CDN: píxeles alpha=0 → NEGRO, bug documentado en el candado
+    // v1.26) — por eso los grafitis y las manchas se veían con «caja negra» alrededor.
+    // El patrón bueno ya estaba en casa: padlockTex() lo usa desde v1.26.
+    const decalMat = (name: string, tex: Texture, alpha: number): StandardMaterial => {
       const m = mat(name);
       m.diffuseTexture = tex;
       m.specularColor = new Color3(0, 0, 0);
@@ -1706,10 +1711,21 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       m.backFaceCulling = false;
       return m;
     };
+    /** Canvas 2D suelto (nada de DynamicTexture: ver nota v1.40 arriba). */
+    const decalCanvas = (name: string, w: number, h: number): { c: HTMLCanvasElement; ctx: CanvasRenderingContext2D } | null => {
+      const cv = document.createElement('canvas');
+      cv.width = w;
+      cv.height = h;
+      const ctx = cv.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return null;
+      return { c: cv, ctx };
+    };
     /** Manchas de HUMEDAD: placas marrones superpuestas con chorretones hacia abajo. */
-    const humidityTex = (): DynamicTexture => {
-      const dt = new (B().DynamicTexture)('decal_humedad_tex', { width: 256, height: 256 }, scene, true);
-      const c = dt.getContext() as unknown as CanvasRenderingContext2D;
+    const humidityTex = (): Texture => {
+      const got = decalCanvas('decal_humedad', 256, 256);
+      const fallback = canvasTex('decal_humedad_vacio', document.createElement('canvas'));
+      if (!got) return fallback;
+      const c = got.ctx;
       for (let i = 0; i < 5; i++) {
         const bx = 60 + hash01('hum', i) * 130;
         const by = 40 + hash01('hum', 20 + i) * 60;
@@ -1728,14 +1744,14 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           c.fillRect(dx, by + r * 0.4, 3 + hash01('chor', i * 9 + d) * 3, 40 + hash01('chor', i * 11 + d) * 70);
         }
       }
-      dt.update(true);
-      dt.hasAlpha = true;
-      return dt;
+      return canvasTex('decal_humedad_tex', got.c);
     };
     /** GRIETAS: trazos oscuros ramificados con tramos en zigzag. */
-    const crackTex = (): DynamicTexture => {
-      const dt = new (B().DynamicTexture)('decal_grieta_tex', { width: 256, height: 256 }, scene, true);
-      const c = dt.getContext() as unknown as CanvasRenderingContext2D;
+    const crackTex = (): Texture => {
+      const got = decalCanvas('decal_grieta', 256, 256);
+      const fallback = canvasTex('decal_grieta_vacio', document.createElement('canvas'));
+      if (!got) return fallback;
+      const c = got.ctx;
       c.lineCap = 'round';
       const branch = (x: number, y: number, dir: number, len: number, w: number, depth: number): void => {
         c.strokeStyle = `rgba(30,26,22,${0.55 + depth * 0.1})`;
@@ -1758,14 +1774,14 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       };
       branch(128, 24, Math.PI / 2 + 0.15, 200, 5, 0);
       branch(70, 120, Math.PI / 2 - 0.5, 110, 3.4, 1);
-      dt.update(true);
-      dt.hasAlpha = true;
-      return dt;
+      return canvasTex('decal_grieta_tex', got.c);
     };
     /** HOLLÍN: penacho gris oscuro que sube (humo viejo sobre fogones/chimenea). */
-    const sootTex = (): DynamicTexture => {
-      const dt = new (B().DynamicTexture)('decal_hollin_tex', { width: 256, height: 256 }, scene, true);
-      const c = dt.getContext() as unknown as CanvasRenderingContext2D;
+    const sootTex = (): Texture => {
+      const got = decalCanvas('decal_hollin', 256, 256);
+      const fallback = canvasTex('decal_hollin_vacio', document.createElement('canvas'));
+      if (!got) return fallback;
+      const c = got.ctx;
       for (let i = 0; i < 7; i++) {
         const bx = 128 + (hash01('hol', i) - 0.5) * 70;
         const by = 210 - i * 26;
@@ -1778,14 +1794,14 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         c.arc(bx, by, Math.max(8, r), 0, Math.PI * 2);
         c.fill();
       }
-      dt.update(true);
-      dt.hasAlpha = true;
-      return dt;
+      return canvasTex('decal_hollin_tex', got.c);
     };
     /** Mugre del pasillo: charcos grises/verdosos en el suelo. */
-    const grimeTex = (): DynamicTexture => {
-      const dt = new (B().DynamicTexture)('decal_mugre_tex', { width: 256, height: 256 }, scene, true);
-      const c = dt.getContext() as unknown as CanvasRenderingContext2D;
+    const grimeTex = (): Texture => {
+      const got = decalCanvas('decal_mugre', 256, 256);
+      const fallback = canvasTex('decal_mugre_vacio', document.createElement('canvas'));
+      if (!got) return fallback;
+      const c = got.ctx;
       for (let i = 0; i < 4; i++) {
         const bx = 50 + hash01('mug', i) * 156;
         const by = 50 + hash01('mug', 30 + i) * 156;
@@ -1798,15 +1814,20 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         c.arc(bx, by, r, 0, Math.PI * 2);
         c.fill();
       }
-      dt.update(true);
-      dt.hasAlpha = true;
-      return dt;
+      return canvasTex('decal_mugre_tex', got.c);
     };
     /** GRAFITI: texto en spray con contorno, goteos y un dibujo (corona, estrella, gato,
-     *  flecha, carita, rayo) — todo gracioso y del catálogo. */
-    const graffitiTex = (text: string, colorHex: string, doodle: string, gCfg: NonNullable<typeof v.graffiti>): DynamicTexture => {
-      const dt = new (B().DynamicTexture)(`decal_grafiti_tex`, { width: 512, height: 256 }, scene, true);
-      const c = dt.getContext() as unknown as CanvasRenderingContext2D;
+     *  flecha, carita, rayo) — todo gracioso y del catálogo. Cache por variante: el dataURL
+     *  solo se calcula una vez aunque la mancha se repita en varios muros. */
+    const graffitiCache = new Map<string, Texture>();
+    const graffitiTex = (text: string, colorHex: string, doodle: string, gCfg: NonNullable<typeof v.graffiti>): Texture => {
+      const key = `${text}|${colorHex}|${doodle}`;
+      const hit = graffitiCache.get(key);
+      if (hit) return hit;
+      const got = decalCanvas('decal_grafiti', 512, 256);
+      const fallback = canvasTex('decal_grafiti_vacio', document.createElement('canvas'));
+      if (!got) return fallback;
+      const c = got.ctx;
       c.lineCap = 'round';
       c.lineJoin = 'round';
       // Nube de spray de fondo (halo del color).
@@ -1930,9 +1951,9 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         c.moveTo(dx0 - 6, dy0 + 8); c.lineTo(dx0 - 2, dy0 + 12); c.moveTo(dx0, dy0 + 9); c.lineTo(dx0 + 4, dy0 + 13);
         c.stroke();
       }
-      dt.update(true);
-      dt.hasAlpha = true;
-      return dt;
+      const out = canvasTex('decal_grafiti_tex', got.c);
+      graffitiCache.set(key, out);
+      return out;
     };
     const humTex = decayCfg?.humidity ? humidityTex() : null;
     const grTex = decayCfg?.cracks ? crackTex() : null;

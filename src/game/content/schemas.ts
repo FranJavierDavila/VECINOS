@@ -582,6 +582,17 @@ export const rulesSchema = z.object({
     elevatorSeconds: z.number(),
     margin: z.number(),
     nearRadius: z.number(),
+    /** v1.40 — LINTERNA del vecino: luz real (PointLight) que llevas encima cuando se va
+     *  la luz (apagón del ecosistema). Radio corto y planta única: es una linterna, no un
+     *  estadio. undefined = sin linterna (comportamiento de siempre). */
+    flashlight: z
+      .object({
+        range: z.number().positive().default(4),
+        intensity: z.number().positive().default(1.1),
+        height: z.number().positive().default(1.25),
+        color: z.string().default('#ffdca8'),
+      })
+      .optional(),
     /** @deprecated sustituido por interactables del catálogo de estancias (Fase C). */
     laptopOffset: z.number().optional(),
     /** @deprecated sustituido por interactables del catálogo de estancias (Fase C). */
@@ -1921,6 +1932,10 @@ export const rulesSchema = z.object({
     doorEnter: z.string(),
     doorLocked: z.string(),
     greet: z.string(),
+    /** v1.40 — timbre y charla: prompt de la E en la puerta ajena y con un vecino de
+     *  paseo por el pasillo. {name} = nombre propio del vecino. */
+    doorbell: z.string().optional(),
+    chat: z.string().optional(),
     laptop: z.string(),
     bed: z.string(),
     /** Trastero propio y bloques traseros (v1.19, apilamiento 3D). */
@@ -2102,6 +2117,9 @@ export const emotesCatalogSchema = z.object({
     offsetY: z.number().min(0),
     sizePx: z.number().min(8),
     maxDistance: z.number().positive(),
+    /** v1.40 — PROXIMIDAD: radio (metros) dentro del cual lucen los emoticonos de un
+     *  vecino, siempre en tu misma planta. undefined = sin filtro (comportamiento antiguo). */
+    nearRadius: z.number().positive().optional(),
     popMs: z.number().min(0),
     decisionMs: z.number().min(50),
     /** Vista EDIFICIO (v1.17): sin texto y con tope de glifos — el plano general no se

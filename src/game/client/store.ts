@@ -294,6 +294,9 @@ interface GameState {
   minigame: MinigameState | null;
   finale: string | null;
   engineError: boolean;
+  /** v1.40 — el motor perdió el contexto gráfico (WebGL/WebGPU): el lienzo se queda negro
+   *  mientras el DOM sigue vivo. Overlay amable con botón de recarga (ver GameStage). */
+  engineLost: boolean;
   saveState: 'idle' | 'saving' | 'saved' | 'error';
   savedAt: string | null;
 
@@ -349,6 +352,8 @@ interface GameState {
   setMinigame: (m: MinigameState | null) => void;
   setFinale: (text: string | null) => void;
   setEngineError: (v: boolean) => void;
+  /** v1.40 — contexto gráfico perdido (sin argumento: idempotente). */
+  setEngineLost: () => void;
   setSaveState: (s: GameState['saveState'], at?: string) => void;
   setMpStatus: (v: MpStatus) => void;
   setMpSession: (s: MpSessionInfo | null) => void;
@@ -418,6 +423,7 @@ export const useGameStore = create<GameState>((set) => ({
   minigame: null,
   finale: null,
   engineError: false,
+  engineLost: false,
   saveState: 'idle',
   savedAt: null,
   mpStatus: 'off',
@@ -484,6 +490,8 @@ export const useGameStore = create<GameState>((set) => ({
   setMinigame: (m) => set({ minigame: m }),
   setFinale: (text) => set({ finale: text }),
   setEngineError: (v) => set({ engineError: v }),
+  /** v1.40 — solo se marca una vez; la recuperación es recargar (overlay con botón). */
+  setEngineLost: () => set((s) => (s.engineLost ? s : { engineLost: true })),
   setSaveState: (saveState, at) => set({ saveState, savedAt: at ?? null }),
   setMpStatus: (mpStatus) => set({ mpStatus }),
   setMpSession: (s) =>

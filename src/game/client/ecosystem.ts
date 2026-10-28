@@ -77,6 +77,8 @@ export interface EcosystemDirector {
   readonly report: EcosystemReport | null;
   /** Estado interno del cerebro (serializable; vive AQUÍ, no en World). */
   readonly state: EcosystemState;
+  /** v1.40 — ¿hay un APAGÓN activo ahora mismo? (la linterna del jugador lo lee). */
+  isBlackout(): boolean;
   /** Posiciones de los extras en escena (v1.26): abren puertas de escalera y encienden
    *  su luz compartida igual que los vecinos — el repartidor ya no llega a puertas cerradas. */
   extraPositions(): { x: number; y: number; z: number }[];
@@ -91,7 +93,7 @@ export function createEcosystem(
   const eco: EcosystemContent | undefined = content.ecosystem;
   if (!eco) {
     // Sin catálogo: director nulo funcional (la partida no depende del ecosistema).
-    return { update() {}, dispose() {}, report: null, state: createEcosystemState(), extraPositions: () => [] };
+    return { update() {}, dispose() {}, report: null, state: createEcosystemState(), extraPositions: () => [], isBlackout: () => false };
   }
 
   const { Color3, Mesh, MeshBuilder, Quaternion, StandardMaterial, TransformNode, Vector3 } = B();
@@ -733,6 +735,11 @@ export function createEcosystem(
       return lastReport;
     },
     state: brain,
+    /** v1.40 — apagón vigente: el cerebro guarda el tick de restauración; mientras el
+     *  tick del mundo no lo alcance, se considera que la luz está fuera. */
+    isBlackout() {
+      return brain.blackoutUntilTick !== null && world.tick < brain.blackoutUntilTick;
+    },
     extraPositions() {
       const out: { x: number; y: number; z: number }[] = [];
       for (const e of extras.values()) {

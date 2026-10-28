@@ -12,7 +12,11 @@ export type InteractResult =
   | { type: 'locked'; block: string; reason: string | null; price: number | null }
   | { type: 'used'; kind: 'laptop' | 'bed' | 'mailbox' | 'noticeboard' | 'resident' }
   | { type: 'rearEnter'; block: string }
-  | { type: 'rearExit'; block: string };
+  | { type: 'rearExit'; block: string }
+  /** v1.40 — vivienda ajena: E toca el TIMBRE (el controlador hace sonar y decide quién abre). */
+  | { type: 'doorbell'; block: string }
+  /** v1.40 — cruzarte con un vecino en circulación: E = pararse a charlar (sin puerta). */
+  | { type: 'chat'; residentId: string };
 
 /**
  * Firma de la vía de salida de comandos. En partida clásica el controlador devuelve el
@@ -52,6 +56,15 @@ export class PlayerLogic {
   private rearPos: { x: number; z: number } | null = null;
   /** Rects de obstáculos del interior (estanterías/trastos) que aporta building.ts. */
   private cellObstacles: { x0: number; z0: number; w: number; d: number }[] = [];
+  /** v1.40 — auto-entrada en TU vivienda (sin E, como el núcleo de escaleras):
+   *  última puerta que disparó la entrada automática (transición, no presión continua). */
+  private autoEnterLast: string | null = null;
+  /** v1.40 — auto-salida de tu vivienda: se arma al adentrarse (z > 0.9) y salta al
+   *  volver al marco de la puerta (z ≤ 0.5). Evita el bucle entrar/salir en el umbral. */
+  private exitArmed = false;
+  /** v1.40 — resultados de acciones automáticas (entrar/salir sin E) para el controlador
+   *  (cambia de cámara con ellos). Se consumen con drainAuto(). */
+  readonly autoEvents: InteractResult[] = [];
   private readonly width: number;
   private readonly topFloor: number;
   private readonly view;
@@ -540,6 +553,16 @@ export class PlayerLogic {
       const cur2 = roomAt(geo, this.x - x0, this.z);
       const nz = clampZ(this.z + dz);
       if (walkable(geo, cur2, this.x - x0, nz) && !hitsSolid(this.x, nz)) this.z = nz;
+      // v1.40 — SALIDA DIRECTA DE TU VIVIENDA: te acercas al marco de la puerta y sales
+      // sin E (la misma regla de cortesía que al entrar). Se arma al adentrarse de verdad
+      // (z > 0.9) para no salir recién entrado; la E sigue saliendo desde cualquier punto.
+      if (home.ownerId === this.actorId) {
+        if (this.z > 0.9) this.exitArmed = true;
+        else if (this.exitArmed && this.z <= 0.5) {
+          const r = this.tryExitHome();
+          if (r.type === 'exited') this.autoEvents.push(r);
+        }
+      }
       return;
     }
     // Pasillo (v1.19): DOS carriles. A/D avanza en X; W/S, si no arrancan escalada (no hay
@@ -560,6 +583,45 @@ export class PlayerLogic {
       this.approached = door;
       if (door) this.exec({ type: 'approach', resident: this.actorId, block: door });
     }
+    // v1.40 — ENTRADA DIRECTA A TU VIVIENDA (sin E, como el núcleo de escaleras): al
+    // plantarte por primera vez delante de tu puerta, entras. Transición, no presión
+    // continua: al alejarte se rearma (autoEnterLast se limpia), así que volver a
+    // acercarse vuelve a entrar. La E sigue funcionando igual para todo lo demás.
+    const ahead = this.doorInFront();
+    if (this.autoEnterLast && this.autoEnterLast !== (ahead?.id ?? null)) this.autoEnterLast = null;
+    if (ahead && ahead.kind === 'dwelling' && ahead.ownerId === this.actorId && this.autoEnterLast !== ahead.id) {
+      this.autoEnterLast = ahead.id;
+      const r = this.tryEnterDoor(ahead);
+      if (r.type === 'entered') this.autoEvents.push(r);
+    }
+  }
+
+  /** v1.40 — el controlador consume los resultados de las acciones automáticas (entrada
+   *  en tu vivienda sin E, salida al marco de la puerta) para ajustar la cámara. */
+  drainAuto(): InteractResult[] {
+    return this.autoEvents.splice(0, this.autoEvents.length);
+  }
+
+  /** v1.40 — ¿estás en el marco de la puerta de TU vivienda (interior)? Para callar el
+   *  prompt «E · salir» justo cuando la salida automática está a punto de saltar. */
+  nearOwnDoor(): boolean {
+    if (this.mode !== 'inside' || !this.insideBlock) return false;
+    const b = this.world.blocks[this.insideBlock]!;
+    return b.ownerId === this.actorId && this.z <= 0.6;
+  }
+
+  /** v1.40 — timbre atendido (el vecino está dentro): el sim registra el toque social
+   *  (afinidad + línea del saludo). El evento knock_result hace el resto en presentación. */
+  knockAt(blockId: string): void {
+    this.exec({ type: 'knock', block: blockId, actor: this.actorId });
+  }
+
+  /** v1.40 — entrar en un bloque por su puerta (el vecino acaba de abrir): misma vía que
+   *  la E, con candados y norma del barrio. Devuelve el resultado para la cámara. */
+  enterBlock(blockId: string): InteractResult {
+    const door = this.onFloor(this.floor).find((b) => b.id === blockId) ?? this.world.blocks[blockId];
+    if (!door) return { type: 'none' };
+    return this.tryEnterDoor(door);
   }
 
   /** Movimiento libre DENTRO del interior del trastero propio (v1.21): límites de la sala
@@ -705,41 +767,64 @@ export class PlayerLogic {
     if (t?.kind === 'mailbox') return { type: 'used', kind: 'mailbox' }; // lectura: texto del catálogo en la presentación
     if (t?.kind === 'noticeboard') return { type: 'used', kind: 'noticeboard' };
     if (t?.kind === 'resident') {
-      const other = this.world.residents[t.residentId]!;
-      if (other.location) this.exec({ type: 'knock', block: other.location, actor: this.actorId });
-      return { type: 'used', kind: 'resident' };
+      // v1.40 — CRUZARSE CON UN VECINO = CHARLA (regla del barrio): está fuera, en
+      // circulación; la E os planta cara a cara y el controlador saca su línea de saludo.
+      // Ya no se llama a su puerta por accidente: los timbres viven en las puertas.
+      return { type: 'chat', residentId: t.residentId };
     }
     if (this.mode === 'inside') {
-      const home = this.insideBlock!;
-      // Apilamiento 3D (v1.19): delante de la puerta de TU celda, E entra al trastero
-      // (swap de bloques) en vez de salir del bloque — solo sale quien no está en SU puerta.
-      const homeBlock = this.world.blocks[home]!;
-      if (this.content.blocks[homeBlock.defId]!.features?.innerCorridor) {
-        const cell = this.ownCellDoor(homeBlock);
-        const worldZ = this.frontZ + this.z;
-        if (cell && Math.abs(this.x - cell.x) < this.view.itemRadius * 0.75 && Math.abs(worldZ - cell.z) < this.view.itemRadius) {
-          this.rearCell = { block: homeBlock.id, side: cell.side, floor: cell.floor };
-          this.rearHold = true;
-          // v1.21: aterrizaje junto a la puerta (por dentro); desde ahí, movimiento libre.
-          this.rearPos = { x: cell.x, z: this.frontZ + 0.75 };
-          return { type: 'rearEnter', block: homeBlock.id };
-        }
-      }
-      const corridorId = this.corridor().id;
-      const res = this.exec({ type: 'move', resident: this.actorId, to: corridorId });
-      if (res && !res.ok) return { type: 'none' };
-      this.mode = 'corridor';
-      this.insideBlock = null;
-      this.z = this.view.corridorZ;
-      this.lastMoveTarget = corridorId; // ya está en vuelo este move
-      this.approached = home; // sigue delante de la misma puerta, sin repetir el aviso
-      return { type: 'exited', block: home };
+      return this.interactInside();
     }
     const door = this.doorInFront();
     if (!door) return { type: 'none' };
-    // v1.26 — NORMA DEL BARRIO: no se entra en una vivienda VACÍA (nadie vive ahí, nadie
-    // abre). Se aplica en presentación (el sim no cambia: dispatch es intocable) y el
-    // controlador avisa con bocadillo. Las misiones solo piden $home y portales: sin ruido.
+    // v1.40 — TU VIVIENDA se entra sin E (auto en update); la E aquí es un atajo válido.
+    if (door.kind === 'dwelling' && door.ownerId === this.actorId) return this.tryEnterDoor(door);
+    // v1.40 — VIVIENDA AJENA: la E toca el TIMBRE. El controlador hace sonar, y si el
+    // vecino está dentro se acerca a abrir (y nos deja pasar). Vacías ni se plantean:
+    // nadie abriría (el controlador lo dice con su bocadillo de siempre).
+    if (door.kind === 'dwelling') return { type: 'doorbell', block: door.id };
+    return this.tryEnterDoor(door);
+  }
+
+  /** v1.40 — E dentro de un bloque: trastero propio (celda), o salir por la puerta. */
+  private interactInside(): InteractResult {
+    const home = this.insideBlock!;
+    // Apilamiento 3D (v1.19): delante de la puerta de TU celda, E entra al trastero
+    // (swap de bloques) en vez de salir del bloque — solo sale quien no está en SU puerta.
+    const homeBlock = this.world.blocks[home]!;
+    if (this.content.blocks[homeBlock.defId]!.features?.innerCorridor) {
+      const cell = this.ownCellDoor(homeBlock);
+      const worldZ = this.frontZ + this.z;
+      if (cell && Math.abs(this.x - cell.x) < this.view.itemRadius * 0.75 && Math.abs(worldZ - cell.z) < this.view.itemRadius) {
+        this.rearCell = { block: homeBlock.id, side: cell.side, floor: cell.floor };
+        this.rearHold = true;
+        // v1.21: aterrizaje junto a la puerta (por dentro); desde ahí, movimiento libre.
+        this.rearPos = { x: cell.x, z: this.frontZ + 0.75 };
+        return { type: 'rearEnter', block: homeBlock.id };
+      }
+    }
+    return this.tryExitHome();
+  }
+
+  /** v1.40 — salir del bloque interior al pasillo (compartido por la E y la auto-salida). */
+  private tryExitHome(): InteractResult {
+    const home = this.insideBlock!;
+    const corridorId = this.corridor().id;
+    const res = this.exec({ type: 'move', resident: this.actorId, to: corridorId });
+    if (res && !res.ok) return { type: 'none' };
+    this.mode = 'corridor';
+    this.insideBlock = null;
+    this.z = this.view.corridorZ;
+    this.lastMoveTarget = corridorId; // ya está en vuelo este move
+    this.approached = home; // sigue delante de la misma puerta, sin repetir el aviso
+    this.autoEnterLast = home; // delante de tu puerta: la auto-entrada NO re-dispara
+    return { type: 'exited', block: home };
+  }
+
+  /** v1.40 — entrar por la puerta delante (compartido por la E y la auto-entrada).
+   *  v1.26 — NORMA DEL BARRIO: no se entra en una vivienda VACÍA (nadie vive ahí, nadie
+   *  abre); el candado lo dice el sim o la puerta. */
+  private tryEnterDoor(door: BlockInstance): InteractResult {
     if (door.kind === 'dwelling' && door.occupancy !== 'occupied') {
       return { type: 'locked', block: door.id, reason: 'vacant', price: null };
     }
@@ -750,6 +835,7 @@ export class PlayerLogic {
       return { type: 'locked', block: door.id, reason: door.lockReason, price: door.availability?.price ?? null };
     }
     this.lastMoveTarget = door.id; // ya está en vuelo este move
+    this.exitArmed = false; // recién entrado: la auto-salida espera a que te adentres
     if (door.kind === 'dwelling') {
       this.landInside(door);
     } else if (this.content.blocks[door.defId]!.features?.innerCorridor) {
@@ -788,6 +874,8 @@ export class PlayerLogic {
     this.z = this.view.corridorZ;
     this.approached = null;
     this.externalRequested = false;
+    this.autoEnterLast = null; // v1.40
+    this.exitArmed = false; // v1.40
     this.floor = target.cell.floor;
     this.x = this.centerOf(target);
     for (let guard = 0; guard < 24; guard++) {
@@ -815,6 +903,8 @@ export class PlayerLogic {
     this.rearCell = null;
     this.rearHold = false;
     this.rearPos = null;
+    this.autoEnterLast = null; // v1.40
+    this.exitArmed = false; // v1.40
     if (!target) {
       const c = this.corridor(this.floor);
       this.mode = 'corridor';

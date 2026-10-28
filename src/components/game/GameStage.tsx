@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { getController } from '@/game/client/bridge';
 import { loadBabylonScript } from '@/game/client/babylon';
 import { selectModalOpen, useGameStore } from '@/game/client/store';
+import { useT } from '@/game/client/i18n';
 import { TEXT_SCALE_PCT } from '@/game/client/options';
 import { PhoneModal } from './PhoneModal';
 import { ChoicesModal } from './ChoicesModal';
@@ -17,6 +18,33 @@ import { ToastStack } from './ToastStack';
 import { TouchControls } from './TouchControls';
 import { PauseMenu } from './PauseMenu';
 import { TutorialCard } from './TutorialCard';
+
+/**
+ * v1.40 — Overlay de CONTEXTO GRÁFICO PERDIDO: el navegador nos quitó el WebGL/WebGPU
+ * (presión de memoria, pestaña en segundo plano…) y el lienzo se quedó negro. En vez de
+ * un juego muerto silencioso, un aviso del tono del barrio + botón de recargar. La partida
+ * ya quedó guardada por autoguardado; recargar retoma desde ahí.
+ */
+function LostOverlay() {
+  const t = useT();
+  return (
+    <div className="absolute inset-0 z-30 grid place-items-center bg-neutral-950/90 p-4" role="alert">
+      <div className="max-w-sm space-y-3 rounded-xl border border-amber-500/30 bg-neutral-900/95 p-5 text-center">
+        <p className="text-2xl" aria-hidden>
+          🔦
+        </p>
+        <p className="text-sm font-bold text-amber-300">{t('lost.title')}</p>
+        <p className="text-xs leading-relaxed text-neutral-300">{t('lost.text')}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="rounded-md bg-amber-500 px-4 py-2 text-xs font-bold text-neutral-900 hover:bg-amber-400"
+        >
+          {t('lost.reload')}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 /**
  * Lienzo Babylon con overlays: aviso contextual, modales y toasts. Conecta el teclado.
@@ -35,6 +63,9 @@ export default function GameStage() {
   const textScale = useGameStore((s) => s.textScale);
   const colorblind = useGameStore((s) => s.colorblind);
   const reduceMotion = useGameStore((s) => s.reduceMotion);
+  // v1.40 — contexto gráfico perdido: overlay amable con recarga (el lienzo negro ya no
+  // se queda mudo: dice qué pasó y cómo salir).
+  const engineLost = useGameStore((s) => s.engineLost);
 
   // Tamaño de texto: escala el font-size RAÍZ — toda la partida (chrome y overlays)
   // crece o baja proporcionalmente, como pedía la accesibilidad.
@@ -132,6 +163,8 @@ export default function GameStage() {
           </div>
         </div>
       )}
+
+      {engineLost && <LostOverlay />}
 
       {ready && fpsVisible && (
         <div className="pointer-events-none absolute left-2 top-2 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-amber-200" role="status" aria-live="off">

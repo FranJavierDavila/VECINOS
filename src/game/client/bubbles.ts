@@ -465,6 +465,12 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
         : bubbleList;
       occlCursor = bubbleList.length > 0 ? (occlCursor + 1) % bubbleList.length : 0;
       const nowMs = performance.now();
+      // v1.40 — PROXIMIDAD: los emoticonos son de CERCA (regla del barrio). Solo lucen los
+      // de vecinos a ≤ bubble.nearRadius metros (catálogo) en TU MISMA planta; el tuyo
+      // propio siempre pasa. Sin catálogo de radio (undefined), comportamiento de siempre.
+      const nearRadius = cfg.bubble.nearRadius ?? null;
+      const meHead = nearRadius !== null ? actors.headOf(localActorId) : null;
+      const floorH = content.rules.view.cellH;
       for (const [id, b] of rotated) {
         const head = actors.headOf(id);
         const capped = cappedIds !== null && !cappedIds.has(id);
@@ -474,6 +480,18 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
             b.inner.style.opacity = '0';
           }
           continue;
+        }
+        if (nearRadius !== null && meHead && id !== localActorId) {
+          const dxp = head.x - meHead.x;
+          const dzp = head.z - meHead.z;
+          const sameFloor = Math.abs(head.y - meHead.y) < floorH * 0.55;
+          if (!sameFloor || dxp * dxp + dzp * dzp > nearRadius * nearRadius) {
+            if (!b.hidden) {
+              b.hidden = true;
+              b.inner.style.opacity = '0';
+            }
+            continue;
+          }
         }
         worldPt.set(head.x, head.y + cfg.bubble.offsetY, head.z);
         toPt.copyFrom(worldPt).subtractInPlace(cam.position);

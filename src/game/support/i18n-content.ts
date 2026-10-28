@@ -16,7 +16,10 @@ type Lang = 'es' | 'en';
  * El sim solo lee textos aquí vivos: traducir no toca gameplay ni determinismo.
  */
 
-let originals: Pick<Content, 'missions' | 'dialogs' | 'influences' | 'ecosystem'> | null = null;
+let originals: Pick<
+  Content,
+  'missions' | 'dialogs' | 'influences' | 'ecosystem' | 'archetypes' | 'rules' | 'crossings' | 'street' | 'cutscenes' | 'minigames'
+> | null = null;
 let appliedLang: Lang = 'es';
 
 type Dict = Record<string, string>;
@@ -72,6 +75,12 @@ export function applyContentLanguage(content: Content, lang: Lang): void {
       content.dialogs = originals.dialogs;
       content.influences = originals.influences;
       content.ecosystem = originals.ecosystem;
+      content.archetypes = originals.archetypes;
+      content.rules = originals.rules;
+      content.crossings = originals.crossings;
+      content.street = originals.street;
+      content.cutscenes = originals.cutscenes;
+      content.minigames = originals.minigames;
       originals = null;
     }
     appliedLang = 'es';
@@ -84,6 +93,12 @@ export function applyContentLanguage(content: Content, lang: Lang): void {
       dialogs: content.dialogs,
       influences: content.influences,
       ecosystem: content.ecosystem,
+      archetypes: content.archetypes,
+      rules: content.rules,
+      crossings: content.crossings,
+      street: content.street,
+      cutscenes: content.cutscenes,
+      minigames: content.minigames,
     };
   }
   if (dict === null) {
@@ -95,6 +110,16 @@ export function applyContentLanguage(content: Content, lang: Lang): void {
   walk(content.dialogs);
   walk(content.influences);
   walk(content.ecosystem);
+  // v1.40 — «los bocadillos y avisos también en inglés»: los textos que se DICEN y se
+  // AVISAN viven en más catálogos (frases de actividades, timbre/chat, avisos de misiones
+  // y del ecosistema, charlas de cruce, calle, cutscenes y minijuegos). El diccionario es
+  // ES→EN exacto: lo que no está traducido pasa intacto (paths, colores, ids).
+  walk(content.archetypes);
+  walk(content.rules);
+  walk(content.crossings);
+  walk(content.street);
+  walk(content.cutscenes);
+  walk(content.minigames);
   appliedLang = 'en';
 }
 
