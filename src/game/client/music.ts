@@ -189,9 +189,9 @@ export function createMusicDirector(catalog: MusicCatalog): MusicDirector {
         const target = weather === 'storm' ? catalog.rain.stormGain : weather === 'rain' ? catalog.rain.gain : 0;
         rainGain.gain.setTargetAtTime(target, ctx.currentTime, 1.2);
       }
-      const wet = weather === 'rain' || weather === 'storm';
       const base = targetBusGain();
-      const goal = wet ? base : ducked ? base * catalog.duckGain : base;
+      // El ducking (pausa/modal) manda siempre: lluvia incluida, que vive dentro del bus.
+      const goal = ducked ? base * catalog.duckGain : base;
       bus.gain.setTargetAtTime(goal, ctx.currentTime, 0.8);
     },
     setEnabled(v: boolean) {
