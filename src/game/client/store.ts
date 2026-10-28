@@ -4,7 +4,7 @@ import { create } from 'zustand';
 import type { Access, MinigameDef, Weather } from '@/game/core/types';
 import { isMuted } from './audio';
 import { loadOptions } from './options';
-import type { Lang, PerfTarget } from './options';
+import type { ColorblindMode, Lang, PerfTarget, TextScale } from './options';
 
 // ───────────────────────── Tipos de la interfaz ─────────────────────────
 
@@ -49,13 +49,56 @@ export interface CampaignHud {
   over: boolean;
 }
 
-/** Chip de presidencia del HUD (v1.18, support/campaign): día de mandato y término. */
-export interface CampaignHud {
-  active: boolean;
-  dayOfTerm: number;
-  termDays: number;
+/** ── v1.39: tutorial guiado (onboarding) tal y como lo pinta la tarjeta ── */
+export interface TutorialUi {
+  /** 'welcome' = tarjeta de bienvenida; 'step' = paso activo; 'done' = cierre. */
+  mode: 'welcome' | 'step' | 'done';
+  index: number;
+  total: number;
+  icon: string;
+  title: string;
+  text: string;
+  cta: string | null;
+}
+
+/** ── v1.39: proyecto comunitario del edificio (meta de largo plazo) ── */
+export interface ProjectGoalUi {
   label: string;
-  over: boolean;
+  have: number;
+  need: number;
+  done: boolean;
+}
+
+export interface ProjectUi {
+  icon: string;
+  title: string;
+  /** Nivel CONSEGUIDO (0 = ninguno aún). */
+  level: number;
+  totalLevels: number;
+  levelTitle: string;
+  /** Objetivos del nivel en curso (o vacío si todo completado). */
+  goals: ProjectGoalUi[];
+  /** 0..1 del nivel en curso. */
+  progress: number;
+  reward: string | null;
+  completed: boolean;
+}
+
+/** Claves de objetivo (para iconografía/aria); los textos ya llegan traducidos. */
+export type ProjectGoalKey = 'missions' | 'funds' | 'reputation';
+
+/** ── v1.39: vecinos como personajes (pestaña «Vecinos» del dock) ── */
+export interface ResidentUi {
+  id: string;
+  name: string;
+  tagline: string;
+  home: string;
+  present: boolean;
+  activity: string | null;
+  /** Afinidad con el jugador (0..100) o null si aún no hay relación. */
+  affinity: number | null;
+  tastes: string[];
+  quote: string | null;
 }
 
 export interface LogItem {
@@ -200,6 +243,9 @@ interface GameState {
   soundMuted: boolean;
   /** Menú de opciones abierto (pulido Steam). */
   optionsOpen: boolean;
+  /** v1.39 — menú de pausa a pantalla completa (Reanudar/Opciones/Guardar/Salir). */
+  pauseMenuOpen: boolean;
+  setPauseMenuOpen: (v: boolean) => void;
   /** Contador de FPS visible (opción de gráficos) y último valor medido. */
   fpsVisible: boolean;
   /** Idioma de la interfaz (localización del chrome; persistido en opciones). */
@@ -212,6 +258,15 @@ interface GameState {
   /** Peldaño vigente de la escalera de optimización (0 = calidad completa). */
   perfLevel: number;
   fps: number;
+  // ── v1.39 — preferencias nuevas (espejo de options; la UI las conmuta en vivo) ──
+  music: boolean;
+  textScale: TextScale;
+  colorblind: ColorblindMode;
+  reduceMotion: boolean;
+  // ── v1.39 — onboarding / proyecto / vecinos ──
+  tutorial: TutorialUi | null;
+  project: ProjectUi | null;
+  residentsUi: ResidentUi[];
   /** Aviso del catálogo al activar los mandos a mano (rules.touch.hint). */
   touchHint: string;
   clock: { day: number; minute: number };
@@ -273,6 +328,15 @@ interface GameState {
   setPerfTarget: (t: PerfTarget) => void;
   setPerfLevel: (n: number) => void;
   setFps: (n: number) => void;
+  // ── v1.39 — setters de preferencias nuevas ──
+  setMusic: (v: boolean) => void;
+  setTextScale: (v: TextScale) => void;
+  setColorblind: (v: ColorblindMode) => void;
+  setReduceMotion: (v: boolean) => void;
+  // ── v1.39 — datos de sistemas de presentación ──
+  setTutorial: (t: TutorialUi | null) => void;
+  setProject: (p: ProjectUi | null) => void;
+  setResidentsUi: (r: ResidentUi[]) => void;
   syncHud: (h: HudSnapshot) => void;
   pushToast: (text: string, tone?: Tone, opts?: { celebrate?: boolean }) => void;
   dropToast: (id: number) => void;
@@ -314,12 +378,20 @@ export const useGameStore = create<GameState>((set) => ({
   touchVisible: false,
   soundMuted: isMuted(),
   optionsOpen: false,
+  pauseMenuOpen: false,
   fpsVisible: loadOptions().fpsVisible,
   lang: loadOptions().lang,
   perfAuto: loadOptions().perfAuto,
   perfTarget: loadOptions().perfTarget,
   perfLevel: 0,
   fps: 0,
+  music: loadOptions().music,
+  textScale: loadOptions().textScale,
+  colorblind: loadOptions().colorblind,
+  reduceMotion: loadOptions().reduceMotion,
+  tutorial: null,
+  project: null,
+  residentsUi: [],
   touchHint: '',
   clock: { day: 1, minute: 480 },
   weather: 'sunny',
@@ -372,12 +444,20 @@ export const useGameStore = create<GameState>((set) => ({
   },
   setSoundMuted: (v) => set({ soundMuted: v }),
   setOptionsOpen: (optionsOpen) => set({ optionsOpen }),
+  setPauseMenuOpen: (pauseMenuOpen) => set({ pauseMenuOpen }),
   setFpsVisible: (fpsVisible) => set({ fpsVisible }),
   setLang: (lang) => set({ lang }),
   setPerfAuto: (perfAuto) => set({ perfAuto }),
   setPerfTarget: (perfTarget) => set({ perfTarget }),
   setPerfLevel: (perfLevel) => set({ perfLevel }),
   setFps: (fps) => set({ fps }),
+  setMusic: (music) => set({ music }),
+  setTextScale: (textScale) => set({ textScale }),
+  setColorblind: (colorblind) => set({ colorblind }),
+  setReduceMotion: (reduceMotion) => set({ reduceMotion }),
+  setTutorial: (tutorial) => set({ tutorial }),
+  setProject: (project) => set({ project }),
+  setResidentsUi: (residentsUi) => set({ residentsUi }),
   syncHud: (h) => set(h),
   pushToast: (text, tone = 'info', opts) => {
     const id = nextId++;

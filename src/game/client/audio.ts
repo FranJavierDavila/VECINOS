@@ -189,3 +189,14 @@ export function getVolume(): number {
 export function preloadSounds(): void {
   void loadCatalog();
 }
+
+/**
+ * v1.39 — BUS DE AUDIO para capas de sonido de alto nivel (música procedural).
+ * Devuelve el AudioContext y el gain maestro: lo que se conecte aquí hereda VOLUMEN
+ * y SILENCIO del jugador sin duplicar preferencias. Null si aún no hay contexto.
+ */
+export function audioBus(): { ctx: AudioContext; master: GainNode } | null {
+  const c = ensureCtx();
+  if (!c || !master) return null;
+  return { ctx: c, master };
+}

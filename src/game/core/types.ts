@@ -853,6 +853,111 @@ export interface CrossingsCatalog {
   };
 }
 
+/** Texto bilingüe ES/EN (el español es el idioma de origen del proyecto). */
+export interface LocalizedText {
+  es: string;
+  en: string;
+}
+
+/** ── v1.39: Música procedural (music.json, opcional) ───────────────────────────── */
+export interface MusicDayPart {
+  from: number;
+  to: number;
+}
+
+export type MusicWave = 'sine' | 'triangle' | 'sawtooth' | 'square';
+
+export interface MusicContext {
+  tempo: number;
+  root: number;
+  scale: number[];
+  chords: number[][];
+  bassGain: number;
+  padGain: number;
+  leadGain: number;
+  leadDensity: number;
+  waves: { pad: MusicWave; lead: MusicWave; bass: MusicWave };
+}
+
+export interface MusicCatalog {
+  version: 1;
+  masterGain: number;
+  duckGain: number;
+  fadeSeconds: number;
+  dayParts: { morning: MusicDayPart; afternoon: MusicDayPart; evening: MusicDayPart; night: MusicDayPart };
+  contexts: Record<string, MusicContext>;
+  rain: { gain: number; stormGain: number; filterHz: number };
+  melodyOctaves: number[];
+}
+
+/** ── v1.39: Onboarding «primer día» (onboarding.json, opcional) ───────────────── */
+export interface OnboardingStep {
+  id: string;
+  icon: string;
+  title: LocalizedText;
+  text: LocalizedText;
+}
+
+export interface OnboardingTip {
+  id: string;
+  icon: string;
+  text: LocalizedText;
+}
+
+export interface OnboardingCatalog {
+  version: 1;
+  enabled: boolean;
+  welcome: { title: LocalizedText; text: LocalizedText; cta: LocalizedText };
+  steps: OnboardingStep[];
+  tips: OnboardingTip[];
+  doneText: LocalizedText;
+}
+
+/** ── v1.39: Proyecto comunitario del edificio (project.json, opcional) ────────── */
+export interface ProjectGoal {
+  missions?: number;
+  funds?: number;
+  reputation?: number;
+}
+
+export interface ProjectLevel {
+  id: string;
+  title: LocalizedText;
+  goal: ProjectGoal;
+  reward: LocalizedText;
+}
+
+export interface ProjectCatalog {
+  version: 1;
+  id: string;
+  title: LocalizedText;
+  icon: string;
+  levels: ProjectLevel[];
+}
+
+/** ── v1.39: Personalidades vecinales (personalities.json, opcional) ───────────── */
+export interface PersonalityDef {
+  name?: string;
+  tastes: LocalizedText[];
+  signature?: LocalizedText;
+  reactions: Record<string, LocalizedText[]>;
+}
+
+export interface PersonalitiesCatalog {
+  version: 1;
+  defaults: PersonalityDef;
+  byArchetype: Record<string, PersonalityDef>;
+  byResident: Record<string, PersonalityDef>;
+  ambient: {
+    checkEvery: number;
+    radius: number;
+    cooldownPerResident: number;
+    maxPerMinute: number;
+    lineSeconds: number;
+    chance: number;
+  };
+}
+
 export interface Content {
   rules: Rules;
   blocks: Record<string, BlockDef>;
@@ -886,6 +991,14 @@ export interface Content {
   /** Dioramas interiores (v1.23, opcional): arte por tipo de estancia para los billboards
    *  con paralaje; sin catálogo, los interiores siguen greybox. */
   interiors?: InteriorsCatalog;
+  /** Música ambiental procedural (v1.39, opcional): contextos por franja horaria + lluvia. */
+  music?: MusicCatalog;
+  /** Onboarding «primer día» (v1.39, opcional): tutorial guiado data-driven. */
+  onboarding?: OnboardingCatalog;
+  /** Proyecto comunitario de largo plazo (v1.39, opcional): «mejorar el edificio». */
+  project?: ProjectCatalog;
+  /** Personalidades vecinales (v1.39, opcional): nombres, gustos y reacciones por contexto. */
+  personalities?: PersonalitiesCatalog;
 }
 
 // ───────────────────────── Reglas y ajustes (catálogo rules.json) ─────────────────────────

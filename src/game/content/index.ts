@@ -1,4 +1,4 @@
-import type { AchievementsCatalog, AssetsCatalog, Content, CrossingsCatalog, EcosystemContent, Effect, EmotesCatalog, InteriorsCatalog, StreetCatalog, SoundsCatalog } from '@/game/core/types';
+import type { AchievementsCatalog, AssetsCatalog, Content, CrossingsCatalog, EcosystemContent, Effect, EmotesCatalog, InteriorsCatalog, StreetCatalog, SoundsCatalog, MusicCatalog, OnboardingCatalog, ProjectCatalog, PersonalitiesCatalog } from '@/game/core/types';
 import {
   achievementsCatalogSchema,
   blockListSchema,
@@ -21,6 +21,10 @@ import {
   interiorsCatalogSchema,
   templateListSchema,
   assetsCatalogSchema,
+  musicCatalogSchema,
+  onboardingCatalogSchema,
+  projectCatalogSchema,
+  personalitiesCatalogSchema,
 } from './schemas';
 
 export interface Issue {
@@ -145,6 +149,42 @@ export async function loadContent(baseUrl: string = '/content/'): Promise<{ cont
       throw new Error(`interiors.json (dioramas) inválido: ${e instanceof Error ? e.message : String(e)}`);
     }
 
+    // Música procedural (v1.39, OPCIONAL): sin el fichero, la partida corre sin banda sonora.
+    let music: MusicCatalog | undefined;
+    try {
+      const res = await fetch(`${baseUrl}music.json`);
+      if (res.ok) music = musicCatalogSchema.parse(await res.json()) as MusicCatalog;
+    } catch (e) {
+      throw new Error(`music.json (música procedural) inválido: ${e instanceof Error ? e.message : String(e)}`);
+    }
+
+    // Onboarding «primer día» (v1.39, OPCIONAL): sin el fichero, no hay tutorial.
+    let onboarding: OnboardingCatalog | undefined;
+    try {
+      const res = await fetch(`${baseUrl}onboarding.json`);
+      if (res.ok) onboarding = onboardingCatalogSchema.parse(await res.json()) as OnboardingCatalog;
+    } catch (e) {
+      throw new Error(`onboarding.json (tutorial) inválido: ${e instanceof Error ? e.message : String(e)}`);
+    }
+
+    // Proyecto comunitario (v1.39, OPCIONAL): sin el fichero, no hay meta de largo plazo.
+    let project: ProjectCatalog | undefined;
+    try {
+      const res = await fetch(`${baseUrl}project.json`);
+      if (res.ok) project = projectCatalogSchema.parse(await res.json()) as ProjectCatalog;
+    } catch (e) {
+      throw new Error(`project.json (proyecto del edificio) inválido: ${e instanceof Error ? e.message : String(e)}`);
+    }
+
+    // Personalidades vecinales (v1.39, OPCIONAL): sin el fichero, nombres de arquetipo tal cual.
+    let personalities: PersonalitiesCatalog | undefined;
+    try {
+      const res = await fetch(`${baseUrl}personalities.json`);
+      if (res.ok) personalities = personalitiesCatalogSchema.parse(await res.json()) as PersonalitiesCatalog;
+    } catch (e) {
+      throw new Error(`personalities.json (personalidades) inválido: ${e instanceof Error ? e.message : String(e)}`);
+    }
+
     const content: Content = {
       rules,
       blocks: indexById(blocks),
@@ -167,6 +207,10 @@ export async function loadContent(baseUrl: string = '/content/'): Promise<{ cont
       street,
       sounds,
       interiors,
+      music,
+      onboarding,
+      project,
+      personalities,
     };
 
     const issues = validateContent(content);
@@ -369,6 +413,19 @@ export function validateContent(c: Content): Issue[] {
   // Vida de calle (v1.22): la manifestación necesita gente suficiente para parecerlo.
   if (c.street && c.street.manifestation.maxPeople < c.street.manifestation.minPeople)
     err('street', 'maxPeople debe ser ≥ minPeople');
+
+  // v1.39 — música: los contextos de las franjas horarias deben existir.
+  if (c.music) {
+    for (const part of ['morning', 'afternoon', 'evening', 'night'] as const) {
+      if (!c.music.contexts[part]) err('music', `el contexto de la franja ${part} no existe`);
+    }
+  }
+
+  // v1.39 — personalidades: los arquetipos nombrados deben existir (los residentes son libres).
+  if (c.personalities) {
+    for (const id of Object.keys(c.personalities.byArchetype))
+      if (!c.archetypes[id]) err('personalities/byArchetype', `arquetipo desconocido: ${id}`);
+  }
 
   return issues;
 }

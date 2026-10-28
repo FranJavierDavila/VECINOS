@@ -29,6 +29,9 @@ export interface GameControllerApi {
   /** v1.38 — pase de optimización: auto-ajuste de rendimiento y objetivo de FPS desde Opciones. */
   applyPerfAuto(v: boolean): void;
   applyPerfTarget(t: 30 | 45 | 60 | 'max'): void;
+  /** v1.39 — música procedural on/off (Opciones) y menú de pausa de verdad. */
+  applyMusic(v: boolean): void;
+  togglePauseMenu(): void;
   /** Editor de interiores: colocar, quitar y reformar estancias. */
   placeFurniture(block: string, room: string, slot: string, item: string): void;
   removeFurniture(block: string, room: string, slot: string): void;

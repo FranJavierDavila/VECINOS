@@ -9,6 +9,8 @@ import { layoutGeometryOf, roomAt } from '@/game/interior';
 import { evaluateAchievements, type AchievementSnapshot } from '@/game/support/achievements';
 import { syncCampaign } from '@/game/support/campaign';
 import { resolveTokens, applyStaticTokens } from '@/game/support/texts';
+import { evaluateProject, projectSnapshot } from '@/game/support/project';
+import { applyContentLanguage, applyContentLanguageAsync, preloadTranslations } from '@/game/support/i18n-content';
 import { activeObjective, applyEffects, buildCirculation, createWorld, dispatch, drainEvents, migrateRooms, tick, travelMinutes, visibleParams } from '@/game/sim';
 import { PlayerLogic } from '@/game/player-logic';
 import { createEngine } from './engine';
@@ -27,6 +29,9 @@ import { createPedestrians, type PedestriansDirector } from './pedestrians';
 import { createStreetlife, type StreetlifeDirector } from './streetlife';
 import { createPaseo, type PaseoDirector } from './paseo';
 import { createVoices, type VoicesDirector } from './voices';
+import { createMusicDirector, type MusicDirector } from './music';
+import { createResidents, residentsUiSnapshot, residentName, type ResidentsDirector } from './residents';
+import { createTutorial, createNullTutorial, setCurrentTutorial, type TutorialDirector } from './tutorial';
 import { CameraRig, type CamMode } from './camera';
 import { CutscenePlayer, type CutsceneEventCtx } from './cutscene';
 import { B } from './babylon';
@@ -76,6 +81,16 @@ class GameController {
    *  van al parque de calistenia del jardín de enfrente (solo presentación). */
   private paseo: PaseoDirector | null = null;
   private voices: VoicesDirector | null = null;
+  /** v1.39 — MÚSICA PROCEDURAL: banda sonora generativa por franja horaria + lluvia. */
+  private music: MusicDirector | null = null;
+  /** v1.39 — ONBOARDING «primer día»: tutorial guiado no bloqueante. */
+  private tutorial: TutorialDirector = createNullTutorial();
+  /** v1.39 — VECINOS COMO PERSONAJES: comentarios ambientales con carácter. */
+  private residents: ResidentsDirector | null = null;
+  /** v1.39 — nivel del proyecto del edificio ya anunciado (para celebrar subidas). */
+  private projectLevelSeen = 0;
+  /** v1.39 — posición previa del jugador (para el paso «muévete» del tutorial). */
+  private lastMovePos: { x: number; z: number } | null = null;
   /** Bloom/glow de las luces (v1.28): halo realista sobre materiales emisivos (catálogo). */
   private glowLayer: { dispose(): void } | null = null;
   /** Cuenta atrás del refresco de sombras (v1.32): cazamallas nuevas cada 2 s. */
@@ -140,9 +155,18 @@ class GameController {
       this._content = content;
       this.cutscenePlayer = new CutscenePlayer(content);
       preloadSounds();
+      preloadTranslations();
       useGameStore.setState({ touchHint: content.rules.touch.hint });
       if (issues.length > 0) {
         useGameStore.getState().pushToast(`Contenido inválido: ${issues.length} errores de validación`, 'bad');
+      }
+      // v1.39 — tutorial del primer día: director + registro para la UI.
+      this.tutorial = createTutorial(content.onboarding, () => useGameStore.getState().lang);
+      setCurrentTutorial(this.tutorial);
+      // v1.39 — música procedural (sin catálogo, partida en silencio musical como siempre).
+      if (content.music) {
+        this.music = createMusicDirector(content.music);
+        this.music.setEnabled(loadOptions().music);
       }
 
       // 2) Motor de render (WebGPU con fallback WebGL2). La calidad la elige el jugador en Opciones.
@@ -166,8 +190,20 @@ class GameController {
       startGamepadPolling();
       // Logros (v1.17): si el jugador cambia el idioma de la interfaz, los textos ya
       // resueltos de los logros se re-pintan con el catálogo (los desbloqueos se quedan).
+      // v1.39 — y el CONTENIDO narrativo también se re-traduce (overlay ES→EN).
       useGameStore.subscribe((s, prev) => {
-        if (s.lang !== prev.lang) this.rebuildAchievementTexts();
+        if (s.lang !== prev.lang) {
+          void (async () => {
+            if (!this._content) return;
+            await applyContentLanguageAsync(this._content, s.lang);
+            if (this.world) applyStaticTokens(this._content, this.world);
+            this.rebuildAchievementTexts();
+            this.syncProject(true);
+            this.syncResidentsUi();
+            this.tutorial.refresh();
+            this.syncHud();
+          })();
+        }
       });
       engine.runRenderLoop(this.frame);
       // Gancho de depuración/pruebas E2E (no lo usa la UI).
@@ -183,6 +219,10 @@ class GameController {
     this.net?.disconnect();
     this.net = null;
     this.perf = null;
+    this.music?.dispose();
+    this.music = null;
+    this.residents?.dispose();
+    this.residents = null;
     this.bubbles?.dispose();
     this.bubbles = null;
     this.chats?.dispose();
@@ -216,6 +256,14 @@ class GameController {
     // Cutscene en curso: E/Espacio/Enter/Escape saltan el espectáculo; nada más pasa.
     if (this.cutscenePlayer?.active) {
       if (code === 'KeyE' || code === 'Space' || code === 'Enter' || code === 'Escape') this.cutsceneSkip();
+      return;
+    }
+    // v1.39 — ESCAPE = menú de pausa de verdad (si no lo está gestionando un modal o un
+    // post-it desplegado: cada cosa cierra lo suyo).
+    if (code === 'Escape') {
+      if (selectModalOpen(useGameStore.getState())) return;
+      if (typeof document !== 'undefined' && document.querySelector('[data-postit-panel]')) return;
+      this.togglePauseMenu();
       return;
     }
     if (this.keys.has(code)) return;
@@ -259,6 +307,23 @@ class GameController {
   togglePause(): void {
     const store = useGameStore.getState();
     store.setPaused(!store.paused);
+  }
+
+  /**
+   * v1.39 — MENÚ DE PAUSA de verdad: abrirlo congela el mundo (paused = true) y muestra el
+   * overlay (Reanudar/Opciones/Guardar/Salir); cerrarlo lo reanuda. Todos los accesos
+   * (Escape, botón de pausa de la barra, Start del mando) pasan por aquí.
+   */
+  togglePauseMenu(): void {
+    const store = useGameStore.getState();
+    const open = !store.pauseMenuOpen;
+    store.setPauseMenuOpen(open);
+    store.setPaused(open);
+  }
+
+  /** v1.39 — opción «Música» del menú de opciones (persistida; el director solo obedece). */
+  applyMusic(v: boolean): void {
+    this.music?.setEnabled(v);
   }
 
   setSpeed(speed: Speed): void {
@@ -381,10 +446,15 @@ class GameController {
       const panel = this.logic.elevatorPanelTarget();
       if (panel) {
         useGameStore.getState().setElevatorPanel(panel);
+        this.tutorial.tip('elevator'); // v1.39 — consejo contextual one-shot
         return;
       }
     }
     const r = this.logic.interact();
+    // v1.39 — onboarding: la interacción usada alimenta los pasos del tutorial.
+    if (r.type === 'used' && (r.kind === 'noticeboard' || r.kind === 'resident')) {
+      this.tutorial.notify(`used:${r.kind}`);
+    }
     // v1.26: el bloqueo en seco (norma de vivienda vacía / candado) AVISA con un bocadillo —
     // antes la E moría en silencio y parecía un botón roto.
     if (r.type === 'locked') {
@@ -847,6 +917,9 @@ class GameController {
     useGameStore.getState().resetUi();
 
     this.world = state ?? createWorld(this.content, this.activeScenarioId());
+    // v1.39 — IDIOMA DEL CONTENIDO: el overlay ES→EN se aplica ANTES de expandir tokens
+    // estructurales, para que las traducciones también las reciban.
+    await applyContentLanguageAsync(this.content, useGameStore.getState().lang);
     // v1.34 — TEXTOS 100% DATA-DRIVEN: los catálogos narrativos admiten tokens estructurales
     // ({plantas}, {viviendas}, {blk:id}) que se expanden UNA vez con el mundo real — un
     // título de misión dice la vivienda que existe, un cartel dice las plantas que hay.
@@ -974,6 +1047,9 @@ class GameController {
       const cm = useGameStore.getState().camMode;
       return cm === 'edificio' || cm === 'planta';
     });
+    // v1.39 — VECINOS COMO PERSONAJES: reacciones ambientales con carácter (bocadillos).
+    this.residents?.dispose();
+    this.residents = this.actors ? createResidents(this.world, this.content, this.actors.director, this.bubbles) : null;
     const blocks = Object.values(this.world.blocks);
     // El cubo de escalera (v1.4) sobresale spanW−1 celdas por la derecha del edificio:
     // el encuadre lo incluye para que la torre no se corte en cámara.
@@ -1031,6 +1107,11 @@ class GameController {
     this.syncAchievements();
     // Campaña (v1.18): primer estado del mandato (sobrevive a Cargar vía localStorage).
     syncCampaign(this.world!, this.content);
+    // v1.39 — proyecto del edificio: foto inicial (sin celebrar niveles ya alcanzados al cargar).
+    this.projectLevelSeen = this.content.project ? evaluateProject(this.content.project, projectSnapshot(this.world!, this.actorId())).level : 0;
+    this.syncProject(true);
+    this.syncResidentsUi();
+    this.tutorial.refresh();
     // v1.38 — el optimizador se reata a la escena nueva y re-aplica su nivel vigente
     // (monta el glow si toca, re-espacia sombras, re-escala): un solo punto de verdad.
     this.perf?.bind();
@@ -1120,7 +1201,27 @@ class GameController {
       this.syncAchievements();
       // Campaña (v1.18): el día de mandato avanza con el reloj — misma cadencia.
       syncCampaign(this.world!, this.content);
+      // v1.39 — proyecto del edificio: progreso y celebración de niveles (misma cadencia).
+      this.syncProject(false);
+      // v1.39 — vecinos como personajes: foto del vecindario para la pestaña «Vecinos».
+      this.syncResidentsUi();
     }
+
+    // v1.39 — MÚSICA PROCEDURAL: el contexto lo manda la hora del sim, la capa de lluvia
+    // el clima y el ducking la pausa/los modales. Los modales no paran el ambiente (como el cielo).
+    const frozenMusic = selectModalOpen(store) || store.paused;
+    this.music?.update(this.world.clock.minute, this.world.weather.state, frozenMusic);
+    // v1.39 — tutorial «muévete»: distancia real caminada por el jugador.
+    if (!frozen && !this.logic.position().climbing) {
+      const p = this.logic.position();
+      if (this.lastMovePos) {
+        const d = Math.hypot(p.x - this.lastMovePos.x, p.z - this.lastMovePos.z);
+        if (d > 0.001 && d < 1) this.tutorial.moved(d);
+      }
+      this.lastMovePos = { x: p.x, z: p.z };
+    }
+    // v1.39 — vecinos como personajes: comentarios ambientales (como las voces, sin red).
+    if (!this.net) this.residents?.update(dt);
 
     const pos = this.logic.position();
     this.actors.update(dt, pos, this.actorId());
@@ -1273,7 +1374,9 @@ class GameController {
 
   private nameOf(residentId: unknown): string {
     const r = this.world?.residents[String(residentId)];
-    return r ? this.content.archetypes[r.archetype]?.name ?? r.id : String(residentId);
+    if (!r) return String(residentId);
+    // v1.39 — vecinos como personajes: nombre propio del catálogo de personalidades.
+    return residentName(this.content, r.id, r.archetype);
   }
 
   private titleOf(missionId: unknown): string {
@@ -1323,6 +1426,8 @@ class GameController {
           store.pushLog(`✔ Misión completada: ${this.titleOf(d.mission)}`, 'good');
           this.syncAchievements(); // una misión caída puede cerrar varios logros a la vez
           syncCampaign(this.world!, this.content); // la misión del cargo activa el chip de presidencia
+          this.tutorial.notify('mission_completed'); // v1.39 — paso «completa una tarea»
+          this.residents?.onMissionDone(); // v1.39 — los vecinos comentan la buena noticia
           break;
         case 'mission_failed':
           store.pushToast(`Misión fallida: ${this.titleOf(d.mission)}`, 'bad');
@@ -1341,6 +1446,7 @@ class GameController {
           store.pushToast(`🗣️ ${String(d.name)}: «${String(d.line)}»`, d.asleep ? 'info' : 'good');
           // El vecino que responde gesticula la réplica unos segundos (v1.2).
           if (typeof d.resident === 'string') this.actors?.director.setGesture(d.resident, 'talk', 3.5);
+          this.tutorial.notify('used:resident'); // v1.39 — paso «conoce a un vecino»
           break;
         case 'noise_complaint': // texto data-driven: lo pinta el uiLog del catálogo (case mantenido por compatibilidad de eventos antiguos)
           if (d.uiLog === true) break;
@@ -1376,6 +1482,7 @@ class GameController {
           store.setJunta(agenda.map((i) => ({ id: i.id, title: i.title, description: i.description, cost: i.cost })));
           this.actors?.director.setGesture(this.actorId(), 'talk'); // defensa del orden del día
           this.marchJunta(); // v1.30: los presentes entran en la sala de juntas y se sientan
+          this.tutorial.tip('junta'); // v1.39 — consejo contextual one-shot
           break;
         }
         case 'junta_result':
@@ -1398,6 +1505,7 @@ class GameController {
         case 'minigame_requested': {
           const def = this.content.minigames[String(d.minigame)];
           if (!def) break;
+          this.tutorial.tip('minigame'); // v1.39 — consejo contextual one-shot
           // Overrides numéricos del escenario activo (QA/E2E): solo config, nunca efectos ni textos.
           const ov = this.scenarioOverrides[def.id];
           const effective = ov ? ({ ...def, config: { ...def.config, ...ov } } as MinigameDef) : def;
@@ -1494,6 +1602,7 @@ class GameController {
   private openPhone(mission: string, dialogId: string): void {
     const dlg = this.content.dialogs[dialogId];
     if (!dlg || dlg.lines.length === 0) return;
+    this.tutorial.tip('phone'); // v1.39 — consejo contextual one-shot (idempotente)
     // Si ya hay una llamada en pantalla, la nueva espera en cola (dedupe por misión).
     if (this.phoneMission) {
       if (this.phoneMission !== mission && !this.phoneQueue.some((q) => q.mission === mission)) {
@@ -1525,20 +1634,21 @@ class GameController {
 
   private objectiveUi(): { title: string; text: string } | null {
     if (!this.world) return null;
+    const lang = useGameStore.getState().lang;
     const o = activeObjective(this.world, this.content);
     if (!o) return null;
-    if (o.state === 'awaiting_choice') return { title: o.title, text: 'El edificio contiene la respiración. Decide qué hacer.' };
+    if (o.state === 'awaiting_choice') return { title: o.title, text: translate(lang, 'obj.awaiting') };
     const s = o.step!;
-    const left = o.untilTick !== null ? ` · quedan ${Math.max(0, o.untilTick - this.world.tick)} min` : '';
+    const left = o.untilTick !== null ? translate(lang, 'obj.remaining', { n: Math.max(0, o.untilTick - this.world.tick) }) : '';
     switch (s.type) {
       case 'phone_call':
-        return { title: o.title, text: 'Suena el teléfono. Atiéndelo.' };
+        return { title: o.title, text: translate(lang, 'obj.phone') };
       case 'reach':
-        return { title: o.title, text: `Llega a la puerta (${this.blockName(s.block ?? '')}).` };
+        return { title: o.title, text: translate(lang, 'obj.reach', { b: this.blockName(s.block ?? '') }) };
       case 'enter':
-        return { title: o.title, text: 'Entra en tu piso con E.' };
+        return { title: o.title, text: translate(lang, 'obj.enter') };
       case 'catch_in_act':
-        return { title: o.title, text: `Pilla al responsable in fraganti${left}.` };
+        return { title: o.title, text: `${translate(lang, 'obj.catch')}${left}.` };
       default:
         return { title: o.title, text: o.title };
     }
@@ -1634,7 +1744,7 @@ class GameController {
         title: def.title,
         state: m.state,
         hint: step?.hint ?? null,
-        remaining: m.until !== null ? `quedan ${Math.max(0, m.until - world.tick)} min` : null,
+        remaining: m.until !== null ? translate(useGameStore.getState().lang, 'hud.remaining', { n: Math.max(0, m.until - world.tick) }) : null,
       };
     });
     const travel = travelMinutes(buildCirculation(world, this.content), world.entry, home);
@@ -1647,7 +1757,7 @@ class GameController {
       reputation: player.reputation,
       elevator: String(elevatorBlock?.params.elevator_status ?? 'ok'),
       homeLabel: blockLabel(home),
-      travelText: Number.isFinite(travel) ? `del portal a tu puerta: ${travel} min` : null,
+      travelText: Number.isFinite(travel) ? translate(useGameStore.getState().lang, 'hud.travel', { n: travel }) : null,
       objective: this.objectiveUi(),
       prompt: this.promptText(),
       params,
@@ -1736,6 +1846,60 @@ class GameController {
       const first = catalog.achievements.find((a) => a.id === fresh[0]);
       if (first) useGameStore.getState().setAchievementPopup(this.achievementUi(first, true));
     }
+  }
+
+  // ───────────────────── v1.39 — Proyecto del edificio y vecinos-personaje ─────────────────────
+
+  /**
+   * Proyecto comunitario «mejorar el edificio»: evaluación SOLO LECTURA a la misma
+   * cadencia que los logros. Al subir de nivel: fanfarria + post-it de celebración +
+   * registro. `quiet` = primera foto tras (re)crear el mundo (no celebra nada).
+   */
+  private syncProject(quiet: boolean): void {
+    const catalog = this._content?.project;
+    const world = this.world;
+    if (!catalog || !world) return;
+    const store = useGameStore.getState();
+    const snap = projectSnapshot(world, this.actorId());
+    const state = evaluateProject(catalog, snap);
+    const lang = store.lang;
+    const current = state.current;
+    const levelTitle = current ? current.title[lang] ?? current.title.es : catalog.levels[catalog.levels.length - 1]!.title[lang] ?? '';
+    store.setProject({
+      icon: catalog.icon,
+      title: catalog.title[lang] ?? catalog.title.es,
+      level: state.level,
+      totalLevels: catalog.levels.length,
+      levelTitle,
+      goals: state.goals.map((g) => ({
+        label: translate(lang, g.key === 'missions' ? 'project.goal.missions' : g.key === 'funds' ? 'project.goal.funds' : 'project.goal.reputation'),
+        have: g.have,
+        need: g.need,
+        done: g.done,
+      })),
+      progress: state.progress,
+      reward: current ? null : (() => {
+        const last = catalog.levels[catalog.levels.length - 1]!;
+        return last.reward[lang] ?? last.reward.es;
+      })(),
+      completed: state.completed,
+    });
+    if (!quiet && state.level > this.projectLevelSeen) {
+      const lv = catalog.levels[state.level - 1];
+      if (lv) {
+        store.pushToast(`🏗️ ${lv.title[lang] ?? lv.title.es}: ${lv.reward[lang] ?? lv.reward.es}`, 'good', { celebrate: true });
+        store.pushLog(`🏗️ Proyecto del edificio: ${lv.title[lang] ?? lv.title.es}`, 'good');
+      }
+    }
+    this.projectLevelSeen = Math.max(this.projectLevelSeen, state.level);
+  }
+
+  /** Foto de los vecinos (nombre, gustos, afinidad…) para la pestaña «Vecinos» del dock. */
+  private syncResidentsUi(): void {
+    const world = this.world;
+    const content = this._content;
+    if (!world || !content) return;
+    useGameStore.getState().setResidentsUi(residentsUiSnapshot(world, content, this.actorId(), useGameStore.getState().lang));
   }
 }
 

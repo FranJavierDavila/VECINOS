@@ -27,25 +27,13 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
-import { Label } from '@/components/ui/label';
-import { Slider } from '@/components/ui/slider';
-import { Switch } from '@/components/ui/switch';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { MultiplayerPanel } from '@/components/game/MultiplayerPanel';
 import { HelpCard } from '@/components/game/HelpCard';
+import { OptionsPanel } from '@/components/game/OptionsPanel';
 import { useGameStore } from '@/game/client/store';
 import type { CamMode, Speed } from '@/game/client/store';
 import { getController } from '@/game/client/bridge';
-import { getVolume, setMuted, setVolume } from '@/game/client/audio';
-import { loadOptions, saveOptionsPartial, type QualityLevel, type Lang, type PerfTarget } from '@/game/client/options';
-import { PERF_LADDER_SIZE } from '@/game/client/perf';
-import { useT, LANGUAGES } from '@/game/client/i18n';
+import { useT } from '@/game/client/i18n';
 import { cn } from '@/lib/utils';
 
 // ── Tinta a bolígrafo: iconos SVG garabateados a mano (trazo azul, remates redondos) ──
@@ -123,33 +111,9 @@ function InkPeople({ className }: InkProps) {
   );
 }
 
-/** Altavoz con ondas (sonido dentro de opciones). */
-function InkSpeaker({ muted, className }: InkProps & { muted?: boolean }) {
-  return (
-    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
-      <path d="M4 9.6l4.2-.3 4.6-3.8c.3 4.4.3 8.7 0 13.1L8.3 14.7 4 14.4c-.3-1.6-.3-3.2 0-4.8z" />
-      {muted ? (
-        <path d="M16 9.4l5 5.2m0-5.2l-5 5.2" />
-      ) : (
-        <>
-          <path d="M15.8 9.2c1.5 1.6 1.5 4 0 5.6" />
-          <path d="M18.4 7c2.7 2.9 2.7 7.1 0 10" />
-        </>
-      )}
-    </svg>
-  );
-}
+/** Altavoz con ondas (sonido dentro de opciones) — vive en OptionsPanel desde v1.39. */
 
-/** Mano abierta (mandos táctiles dentro de opciones). */
-function InkHand({ className }: InkProps) {
-  return (
-    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
-      <path d="M8 12.5V5.8c0-1.9 2.9-1.9 2.9 0V11m0-6.2c0-1.8 2.8-1.8 2.8 0V11m0-5.1c0-1.7 2.7-1.7 2.7 0v6.8m0-3.9c1.8-.4 2.7.6 2.5 2.4-.3 2.8-.9 5-2 6.9-1 1.7-2.6 2.5-4.9 2.5-2.1 0-3.6-.6-4.7-2.1L4.6 15c-1.1-1.6.9-3.4 2.4-2.1l1 1" />
-    </svg>
-  );
-}
-
-/** Pausa (dos barras temblorosas). */
+// ── Pausa (dos barras temblorosas) ──
 function InkPause({ className }: InkProps) {
   return (
     <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth={2.1} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
@@ -187,26 +151,9 @@ function InkCoin({ className }: InkProps) {
   );
 }
 
-/** Velocímetro garabateado (v1.38: rendimiento/auto-ajuste). */
-function InkGauge({ className }: InkProps) {
-  return (
-    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
-      <path d="M4.3 17.6a8.3 8.3 0 1 1 15.4 0" />
-      <path d="M12 15.8l4.4-5.6" />
-      <circle cx="12" cy="16.4" r="1.5" />
-      <path d="M5.2 17.4h1.6m10.4 0h1.6" />
-    </svg>
-  );
-}
+/** Velocímetro garabateado — vive en OptionsPanel desde v1.39. */
 
-/** Rajita de hucha rota (efecto de pérdida). */
-function InkCrack({ className }: InkProps) {
-  return (
-    <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
-      <path d="M13 2.5l-3.5 6 4.2 1.6-3.9 6.2 4.6 1.7-2.5 4" />
-    </svg>
-  );
-}
+/* Rajita de hucha rota — vive en MoneyOverlay desde v1.23. */
 
 // ── Post-it base ──
 
@@ -262,6 +209,7 @@ function PostIt({
         <div
           role="group"
           aria-label={label}
+          data-postit-panel="1"
           className={cn('postit-panel sketchy', panelSide === 'right' && 'postit-panel-right')}
           style={{ background: PAPER[paper], width: panelWidth }}
         >
@@ -307,25 +255,9 @@ function DoodleButton({
 }
 
 /**
- * v1.38 — Línea de estado del rendimiento en el post-it de opciones: FPS medidos y
- * peldaño del optimizador. Vive en un componente aparte para que el contador (que se
- * actualiza cada ~200 ms) no re-renderice la barra entera de post-its.
+ * v1.38 — Línea de estado del rendimiento y el resto de controles viven en OptionsPanel
+ * desde v1.39 (compartido con el menú de pausa).
  */
-function PerfStatus() {
-  const t = useT();
-  const ready = useGameStore((s) => s.ready);
-  const fps = useGameStore((s) => s.fps);
-  const perfAuto = useGameStore((s) => s.perfAuto);
-  const perfLevel = useGameStore((s) => s.perfLevel);
-  if (!ready) return null;
-  return (
-    <p className="mt-2.5 border-t border-dashed pt-1.5 text-[10px] opacity-70" role="status" aria-live="off">
-      {perfAuto
-        ? t('opt.perf.status', { n: fps, s: t(`opt.perf.level.${Math.min(perfLevel, PERF_LADDER_SIZE - 1)}`) })
-        : t('opt.perf.statusManual')}
-    </p>
-  );
-}
 
 // ── Cámara desplegada en línea (acceso rápido, estética a bolígrafo) ──
 
@@ -382,23 +314,6 @@ export function PostItControls() {
   const weather = useGameStore((s) => s.weather);
   const saveState = useGameStore((s) => s.saveState);
   const savedAt = useGameStore((s) => s.savedAt);
-  const touchVisible = useGameStore((s) => s.touchVisible);
-  const setTouchControls = useGameStore((s) => s.setTouchControls);
-  const muted = useGameStore((s) => s.soundMuted);
-  const setSoundMuted = useGameStore((s) => s.setSoundMuted);
-  const fpsVisible = useGameStore((s) => s.fpsVisible);
-  const setFpsVisible = useGameStore((s) => s.setFpsVisible);
-  const lang = useGameStore((s) => s.lang);
-  const setLang = useGameStore((s) => s.setLang);
-  // v1.38 — pase de optimización: preferencias espejo + conmutación en vivo vía controlador.
-  const perfAuto = useGameStore((s) => s.perfAuto);
-  const perfTarget = useGameStore((s) => s.perfTarget);
-  const setPerfAuto = useGameStore((s) => s.setPerfAuto);
-  const setPerfTarget = useGameStore((s) => s.setPerfTarget);
-  const backend = useGameStore((s) => s.backend);
-
-  const [vol, setVol] = useState(() => Math.round(getVolume() * 100));
-  const [quality, setQuality] = useState<QualityLevel>(() => loadOptions().quality);
 
   const hh = String(Math.floor(clock.minute / 60)).padStart(2, '0');
   const mm = String(clock.minute % 60).padStart(2, '0');
@@ -425,7 +340,7 @@ export function PostItControls() {
           </p>
           <div className="flex flex-wrap gap-1.5">
             <DoodleButton
-              onClick={() => getController()?.togglePause()}
+              onClick={() => getController()?.togglePauseMenu()}
               disabled={!ready}
               ariaLabel={paused ? t('ctrl.pauseAria') : t('ctrl.pauseAriaOn')}
               active={paused}
@@ -474,7 +389,8 @@ export function PostItControls() {
           ))}
         </div>
 
-        {/* ── POST-IT: OPCIONES (engranaje; absorbe sonido/táctil/calidad/fps/idioma) ── */}
+        {/* ── POST-IT: OPCIONES (engranaje) — el panel completo vive en OptionsPanel (v1.39:
+            compartido con el menú de pausa, que añade música y accesibilidad) ── */}
         <PostIt
           id="opciones"
           openId={openId}
@@ -483,176 +399,13 @@ export function PostItControls() {
           label={t('postit.options')}
           paper="pink"
           tilt={1.6}
-          panelWidth={330}
+          panelWidth={430}
         >
           <p className="mb-2 flex items-center gap-1.5 text-xs font-bold">
             <InkGear className="size-4" />
             {t('postit.options')}
           </p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {/* Sonido */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const v = !muted;
-                    setSoundMuted(v);
-                    setMuted(v);
-                  }}
-                  className="ink flex items-center gap-1.5 text-xs font-semibold"
-                  aria-pressed={muted}
-                  aria-label={muted ? t('ctrl.soundAriaOn') : t('ctrl.soundAriaOff')}
-                >
-                  <InkSpeaker muted={muted} />
-                  {muted ? t('ctrl.soundOff') : t('ctrl.soundOn')}
-                </button>
-                <span className="text-xs tabular-nums opacity-70">{vol}%</span>
-              </div>
-              <Slider
-                value={[vol]}
-                min={0}
-                max={100}
-                step={5}
-                onValueChange={(v) => {
-                  const pct = v[0] ?? Math.round(getVolume() * 100);
-                  setVol(pct);
-                  setVolume(pct / 100);
-                }}
-                disabled={muted}
-                aria-label={t('opt.volumeAria')}
-              />
-              <div className="flex items-center justify-between rounded-md border border-dashed px-2 py-1.5">
-                <Label htmlFor="pt-tactil" className="ink flex cursor-pointer items-center gap-1.5 text-xs font-semibold">
-                  <InkHand />
-                  {t('ctrl.touch')}
-                </Label>
-                <Switch
-                  id="pt-tactil"
-                  checked={touchVisible}
-                  onCheckedChange={(v) => {
-                    setTouchControls(v);
-                    if (v) {
-                      const hint = useGameStore.getState().touchHint;
-                      if (hint) useGameStore.getState().pushToast(hint, 'info');
-                    }
-                  }}
-                  aria-label={touchVisible ? t('ctrl.touchHide') : t('ctrl.touchShow')}
-                />
-              </div>
-            </div>
-            {/* Gráficos e idioma */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between rounded-md border border-dashed px-2 py-1.5">
-                <Label htmlFor="pt-fps" className="ink cursor-pointer text-xs font-semibold">
-                  {t('opt.fps')}
-                </Label>
-                <Switch
-                  id="pt-fps"
-                  checked={fpsVisible}
-                  onCheckedChange={(v) => {
-                    setFpsVisible(v);
-                    saveOptionsPartial({ fpsVisible: v });
-                  }}
-                  aria-label={t('opt.fpsAria')}
-                />
-              </div>
-              <div className="space-y-1">
-                <p className="ink text-[11px] font-semibold opacity-80">{t('opt.quality')}</p>
-                <Select
-                  value={quality}
-                  onValueChange={(q) => {
-                    const next = q as QualityLevel;
-                    setQuality(next);
-                    saveOptionsPartial({ quality: next });
-                    getController()?.applyQuality(next);
-                  }}
-                >
-                  <SelectTrigger className="h-7 text-xs" aria-label={t('opt.quality')}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(['alta', 'normal', 'eco'] as QualityLevel[]).map((q) => (
-                      <SelectItem key={q} value={q}>
-                        {t(`opt.quality.${q}`)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {/* v1.38 — AUTO-AJUSTE DE RENDIMIENTO + OBJETIVO DE FPS (pase de optimización) */}
-              <div className="flex items-center justify-between rounded-md border border-dashed px-2 py-1.5">
-                <Label
-                  htmlFor="pt-perf"
-                  className="ink flex cursor-pointer items-center gap-1.5 text-xs font-semibold"
-                  title={t('opt.perfAutoHelp')}
-                >
-                  <InkGauge />
-                  {t('opt.perfAuto')}
-                </Label>
-                <Switch
-                  id="pt-perf"
-                  checked={perfAuto}
-                  onCheckedChange={(v) => {
-                    setPerfAuto(v);
-                    saveOptionsPartial({ perfAuto: v });
-                    getController()?.applyPerfAuto(v);
-                  }}
-                  aria-label={t('opt.perfAutoAria')}
-                />
-              </div>
-              <div className="space-y-1">
-                <p className="ink text-[11px] font-semibold opacity-80">{t('opt.perfTarget')}</p>
-                <Select
-                  value={String(perfTarget)}
-                  disabled={!perfAuto}
-                  onValueChange={(v) => {
-                    const next = (v === 'max' ? 'max' : Number(v)) as PerfTarget;
-                    setPerfTarget(next);
-                    saveOptionsPartial({ perfTarget: next });
-                    getController()?.applyPerfTarget(next);
-                  }}
-                >
-                  <SelectTrigger className="h-7 text-xs" aria-label={t('opt.perfTargetAria')}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(['max', 60, 45, 30] as const).map((v) => (
-                      <SelectItem key={String(v)} value={String(v)}>
-                        {t(`opt.perf.${v}`)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <p className="ink text-[11px] font-semibold opacity-80">{t('opt.language')}</p>
-                <Select
-                  value={lang}
-                  onValueChange={(l) => {
-                    setLang(l as Lang);
-                    saveOptionsPartial({ lang: l as Lang });
-                  }}
-                >
-                  <SelectTrigger className="h-7 text-xs" aria-label={t('opt.languageAria')}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {LANGUAGES.map((l) => (
-                      <SelectItem key={l.value} value={l.value}>
-                        {l.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-          {backend && (
-            <p className="mt-2.5 border-t border-dashed pt-1.5 text-[10px] opacity-70">{t('opt.backend', { b: backend })}</p>
-          )}
-          {/* v1.38 — FPS medidos + peldaño del optimizador, en vivo */}
-          <PerfStatus />
+          <OptionsPanel />
         </PostIt>
 
         {/* ── POST-IT: PARTIDA (guardar / cargar) ── */}

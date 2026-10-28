@@ -13,6 +13,7 @@ import { HelpCard } from './HelpCard';
 import { MissionsPanel } from './MissionsPanel';
 import { ObjectiveCard } from './ObjectiveCard';
 import { ParamsPanel } from './ParamsPanel';
+import { ResidentsPanel } from './ResidentsPanel';
 
 /**
  * Dock de información (v1.17): toda la partida organizada en pestañas para que tanta
@@ -51,6 +52,9 @@ export function InfoDock() {
               <TabsTrigger value="edificio" className="flex-none whitespace-nowrap">
                 {t('dock.tab.building')}
               </TabsTrigger>
+              <TabsTrigger value="vecinos" className="flex-none whitespace-nowrap">
+                {t('dock.tab.neighbors')}
+              </TabsTrigger>
               <TabsTrigger value="casa" className="flex-none whitespace-nowrap">
                 {t('dock.tab.home')}
               </TabsTrigger>
@@ -71,6 +75,9 @@ export function InfoDock() {
           <TabsContent value="edificio" className="flex flex-col gap-4">
             <ParamsPanel />
             <EventLog />
+          </TabsContent>
+          <TabsContent value="vecinos" className="flex flex-col gap-4">
+            <ResidentsPanel />
           </TabsContent>
           <TabsContent value="casa" className="flex flex-col gap-3">
             <p className="flex items-start gap-2 rounded-md border border-dashed bg-muted/30 p-3 text-xs leading-relaxed text-muted-foreground">

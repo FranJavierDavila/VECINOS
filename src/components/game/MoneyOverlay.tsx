@@ -37,6 +37,8 @@ export function MoneyOverlay() {
   const t = useT();
   const funds = useGameStore((s) => s.funds);
   const wallet = useGameStore((s) => s.wallet);
+  // v1.39 — accesibilidad: sin animación de monedas (el importe y el sonido se quedan)
+  const reduceMotion = useGameStore((s) => s.reduceMotion);
   const boxRef = useRef<HTMLDivElement>(null);
   const chips = useRef<ChipRefs>({ funds: null, wallet: null });
   const prev = useRef<{ funds: number; wallet: number } | null>(null);
@@ -59,7 +61,7 @@ export function MoneyOverlay() {
       const chipR = chip.getBoundingClientRect();
       const tx = chipR.left - boxR.left + chipR.width * 0.5;
       const ty = chipR.top - boxR.top + chipR.height * 0.5;
-      const n = Math.min(9, Math.max(3, Math.round(Math.abs(delta) / 30) + 3));
+      const n = reduceMotion ? 0 : Math.min(9, Math.max(3, Math.round(Math.abs(delta) / 30) + 3));
       // Origen: las arcas cobran desde las ventanas del edificio (mitad izquierda del
       // encuadre); la hucha cobra desde abajo (el jugador y la calle).
       for (let i = 0; i < n; i++) {
@@ -109,7 +111,7 @@ export function MoneyOverlay() {
 
     if (dF !== 0) burst('funds', dF);
     if (dW !== 0) burst('wallet', dW);
-  }, [funds, wallet]);
+  }, [funds, wallet, reduceMotion]);
 
   // Limpieza del marcador de hucha rota (solo informativo para el aria-live).
   useEffect(() => {

@@ -1,0 +1,325 @@
+{
+  "version": 1,
+  "defaults": {
+    "tastes": [],
+    "reactions": {
+      "rain": [
+        { "es": "Agua hasta en el abrigo…", "en": "Water even inside my coat…" },
+        { "es": "Qué cielo, ¿eh? Más mojado.", "en": "Some sky, huh? Wetter." }
+      ],
+      "sunny": [
+        { "es": "¡Qué día tan bueno para el balcón!", "en": "Such a nice day for the balcony!" }
+      ],
+      "night": [
+        { "es": "Shhh… que el edificio duerme.", "en": "Shhh… the building is sleeping." }
+      ],
+      "greet": [
+        { "es": "¡Buenas! ¿Todo en orden por aquí?", "en": "Hey! All quiet around here?" }
+      ],
+      "mission": [
+        { "es": "Buen trabajo, la verdad.", "en": "Good work, honestly." }
+      ]
+    }
+  },
+  "byArchetype": {
+    "cotilla": {
+      "name": "Dolores",
+      "tastes": [
+        { "es": "Los concursos de la tele", "en": "TV quiz shows" },
+        { "es": "El chisme recién calentito", "en": "Fresh, hot gossip" },
+        { "es": "Vigilar desde el mirador", "en": "Watching from her lookout" }
+      ],
+      "signature": { "es": "Lo sabe todo. Y lo cuenta.", "en": "She knows everything. And tells it." },
+      "reactions": {
+        "rain": [
+          { "es": "Con esta lluvia nadie asoma: el pasillo será mío.", "en": "With this rain nobody steps out: the corridor will be mine." },
+          { "es": "Lluvia y en la 3A se discute. Ya os contaré.", "en": "Rain and there's an argument in 3A. I'll tell you later." }
+        ],
+        "sunny": [
+          { "es": "Sol: todas las colgadas del balcón, a la vista. Qué información.", "en": "Sun: every balcony hanger out on display. What intel." }
+        ],
+        "night": [
+          { "es": "A las tantas se enciende una luz en la 2B… apunto la hora.", "en": "A light just went on in 2B at this hour… noting the time." }
+        ],
+        "greet": [
+          { "es": "¡Ven, ven! Que te cuento algo que no es secreto… mucho.", "en": "Come, come! Let me tell you something that's not a secret… much." }
+        ],
+        "mission": [
+          { "es": "Ya lo decía yo: con gente nueva, el edificio camina.", "en": "I said it before: with new people, this building moves." }
+        ]
+      }
+    },
+    "fiestero": {
+      "name": "Kevin",
+      "tastes": [
+        { "es": "Los sábados a todo volumen", "en": "Saturdays at full volume" },
+        { "es": "Los altavoces prestados", "en": "Borrowed speakers" }
+      ],
+      "signature": { "es": "La fiesta empieza cuando llego.", "en": "The party starts when I arrive." },
+      "reactions": {
+        "rain": [
+          { "es": "¿Lluvia? Perfecto: fiesta en casa y no se entera nadie.", "en": "Rain? Perfect: house party and nobody finds out." }
+        ],
+        "sunny": [
+          { "es": "¡Sol! Botellón legal en el jardín (legal-ish).", "en": "Sun! A very legal park hangout." }
+        ],
+        "night": [
+          { "es": "¿Dormir? Ahora no, que empieza lo bueno.", "en": "Sleep? Now? The good part is just starting." }
+        ],
+        "greet": [
+          { "es": "¡Tío! Esta noche hay plan. Tú ya sabes dónde.", "en": "Dude! There's a plan tonight. You know where." }
+        ],
+        "mission": [
+          { "es": "He ayudado… ¿vale que fue sin querer, pero he ayudado.", "en": "I helped… okay, accidentally, but still helped." }
+        ]
+      }
+    },
+    "jubilada": {
+      "name": "Amparo",
+      "tastes": [
+        { "es": "La verbena del barrio", "en": "The neighborhood street fair" },
+        { "es": "Sus geranios del balcón", "en": "Her balcony geraniums" }
+      ],
+      "signature": { "es": "Conozco este portal desde antes de que tuvieras dientes.", "en": "I've known this lobby since before you had teeth." },
+      "reactions": {
+        "rain": [
+          { "es": "Lluvia buena: los geranios lo agradecen y yo, la siesta.", "en": "Good rain: the geraniums thank it, and so does my nap." },
+          { "es": "Con este tiempo, ni escaleras: que me sube la tele.", "en": "In this weather, no stairs: the TV keeps me company." }
+        ],
+        "sunny": [
+          { "es": "Sácale la silla al portal, que hoy se charla afuera.", "en": "Bring a chair to the lobby: today we chat outside." }
+        ],
+        "night": [
+          { "es": "A dormir, que mañana hay mercado.", "en": "Bedtime: the market waits for no one." }
+        ],
+        "greet": [
+          { "es": "¡Qué gusto ver caras nuevas por el portal!", "en": "New faces in the lobby! What a treat." }
+        ],
+        "mission": [
+          { "es": "Así da gusto: jóvenes que arreglan cosas sin que se lo pidan diez veces.", "en": "Now that's nice: young folks fixing things without being asked ten times." }
+        ]
+      }
+    },
+    "presidente": {
+      "name": "Juana",
+      "tastes": [
+        { "es": "Las actas bien firmadas", "en": "Properly signed minutes" },
+        { "es": "Un presupuesto sin sorpresas", "en": "A budget with no surprises" }
+      ],
+      "signature": { "es": "Hay una junta para cada problema. Y un acta.", "en": "There's a meeting for every problem. And minutes." },
+      "reactions": {
+        "rain": [
+          { "es": "Lluvia: revisen desagües. Lo digo en la próxima junta.", "en": "Rain: check the drains. I'm putting it on the next agenda." }
+        ],
+        "sunny": [
+          { "es": "Buen día para pintar la valla de la comunidad.", "en": "Good day to paint the community fence." }
+        ],
+        "night": [
+          { "es": "Ruidos nocturnos: la grúa de mi paciencia arranca.", "en": "Nighttime noises: the tow truck of my patience is warming up." }
+        ],
+        "greet": [
+          { "es": "¿Todo en orden? El fondo de reserva lo agradece.", "en": "All in order? The reserve fund appreciates it." }
+        ],
+        "mission": [
+          { "es": "Tarea completada y anotada. El acta no se escribe sola.", "en": "Task done and minuted. Minutes don't write themselves." }
+        ]
+      }
+    },
+    "estudiante": {
+      "name": "Nerea",
+      "tastes": [
+        { "es": "Los cafés de sobremesa larga", "en": "Long-afternoon coffees" },
+        { "es": "Estudiar con ruido de fondo", "en": "Studying with background noise" }
+      ],
+      "signature": { "es": "Si me ves en el pasillo, es que el examen es mañana.", "en": "If you see me in the corridor, the exam is tomorrow." },
+      "reactions": {
+        "rain": [
+          { "es": "Lluvia y café: el plan de estudio definitivo.", "en": "Rain and coffee: the ultimate study setup." }
+        ],
+        "sunny": [
+          { "es": "Sol, terraza y apuntes que no leo. Felicidad.", "en": "Sun, a terrace and notes I'm not reading. Bliss." }
+        ],
+        "night": [
+          { "es": "Otra noche de apuntes… susurra: dos más y duermo.", "en": "Another night of notes… whispering: two more pages and I sleep." }
+        ],
+        "greet": [
+          { "es": "¡Shh! Bueno, no tan shh, que estaba descansando la vista.", "en": "Shh! Well, not that shh, my eyes were resting." }
+        ],
+        "mission": [
+          { "es": "Anotado en la agenda. Eso ya es medio éxito.", "en": "Written in my planner. That's half a win." }
+        ]
+      }
+    },
+    "nino_grafitero": {
+      "name": "Pinturillas",
+      "tastes": [
+        { "es": "Los rotuladores nuevos", "en": "Brand-new markers" },
+        { "es": "Las paredes que aún no conoce", "en": "Walls he hasn't met yet" }
+      ],
+      "signature": { "es": "El ascensor es mi galería de arte.", "en": "The elevator is my art gallery." },
+      "reactions": {
+        "rain": [
+          { "es": "¡Lluvia! Mis obras al aire libre se tocan… ¡se borran!", "en": "Rain! My outdoor masterpieces… they're dissolving!" }
+        ],
+        "sunny": [
+          { "es": "Con este sol la pintura seca rapidísimo. Casi como si lo planeara.", "en": "This sun dries paint super fast. Almost like I planned it." }
+        ],
+        "night": [
+          { "es": "De noche no pinto nada. NADA. Que lo sepas.", "en": "At night I don't paint. NOTHING. Just so you know." }
+        ],
+        "greet": [
+          { "es": "¿Has visto mi firma nueva en la cabina? Es abstracta.", "en": "Seen my new signature in the cabin? It's abstract." }
+        ],
+        "mission": [
+          { "es": "Si necesitas un equipo, mi bocadillo… digo, mi bandeja, está lista.", "en": "If you need a crew, my toolbox… I mean, my tray, is ready." }
+        ]
+      }
+    },
+    "fondo_buitre": {
+      "name": "Sr. Voss",
+      "tastes": [
+        { "es": "Los rendimientos trimestrales", "en": "Quarterly returns" },
+        { "es": "Los pasillos silenciosos", "en": "Silent corridors" }
+      ],
+      "signature": { "es": "Todo edificio es un activo. Todo vecino, una variable.", "en": "Every building is an asset. Every neighbor, a variable." },
+      "reactions": {
+        "rain": [
+          { "es": "La lluvia degrada la fachada. Eso es coste, no poesía.", "en": "Rain degrades the facade. That's cost, not poetry." }
+        ],
+        "sunny": [
+          { "es": "Buen sol: menos humedades, menos reclamaciones.", "en": "Good sun: less damp, fewer claims." }
+        ],
+        "night": [
+          { "es": "Mis activos duermen. Yo reviso números en otra franja horaria.", "en": "My assets sleep. I review numbers in another time zone." }
+        ],
+        "greet": [
+          { "es": "Saludos. Si tocas algo, que suba el valor del inmueble.", "en": "Greetings. If you touch anything, make it raise the property value." }
+        ],
+        "mission": [
+          { "es": "Resultado aceptable. Lo anotaré… en alguna parte.", "en": "Acceptable outcome. I'll note it… somewhere." }
+        ]
+      }
+    },
+    "inquilino": {
+      "name": "Óscar",
+      "tastes": [
+        { "es": "Los contratos claros", "en": "Clear contracts" },
+        { "es": "No moverse de casa nunca", "en": "Never moving again" }
+      ],
+      "signature": { "es": "Yo pago puntual. Que conste.", "en": "I pay on time. Let the record show." },
+      "reactions": {
+        "rain": [
+          { "es": "Gotera nueva otra vez… foto al techo y correo al administrador.", "en": "A new drip again… photo of the ceiling and mail to the manager." }
+        ],
+        "sunny": [
+          { "es": "Con sol hasta la ropa seca más contenta.", "en": "Even the laundry dries happier in the sun." }
+        ],
+        "night": [
+          { "es": "Mañana madrugo. Ojalá el vecindario también.", "en": "Early start tomorrow. I hope the neighborhood agrees." }
+        ],
+        "greet": [
+          { "es": "Si buscas al casero, no está. Nunca está.", "en": "Looking for the landlord? Not here. Never here." }
+        ],
+        "mission": [
+          { "es": "Hecho. ¿Se puede poner por escrito que lo hice?", "en": "Done. Can we get that in writing?" }
+        ]
+      }
+    },
+    "okupa": {
+      "name": "Bruno",
+      "tastes": [
+        { "es": "Las puertas sin cerradura", "en": "Doors without locks" },
+        { "es": "La sopa compartida", "en": "Shared soup" }
+      ],
+      "signature": { "es": "Donde hay techo, hay hogar.", "en": "Where there's a roof, there's a home." },
+      "reactions": {
+        "rain": [
+          { "es": "Lluvia en el tejado: música gratis.", "en": "Rain on the roof: free music." }
+        ],
+        "sunny": [
+          { "es": "Sol de patio: se lava todo y se seca el ánimo.", "en": "Courtyard sun: wash everything, dry the mood." }
+        ],
+        "night": [
+          { "es": "La noche es larga para quien vigila el portal… digo, cuida el portal.", "en": "Nights are long for whoever watches the lobby… I mean, takes care of it." }
+        ],
+        "greet": [
+          { "es": "Pasa, que el salón es de todos y la tetera también.", "en": "Come in: the living room belongs to everyone, and so does the kettle." }
+        ],
+        "mission": [
+          { "es": "Cuenta conmigo, pero sin papeleo.", "en": "Count me in, but zero paperwork." }
+        ]
+      }
+    },
+    "musico": {
+      "name": "Leo",
+      "tastes": [
+        { "es": "Los acordes en si bemol", "en": "B-flat chords" },
+        { "es": "Ensayar de madrugada", "en": "Late-night rehearsals" }
+      ],
+      "signature": { "es": "No es ruido, es una progresión.", "en": "It's not noise, it's a progression." },
+      "reactions": {
+        "rain": [
+          { "es": "Lluvia en sol menor… escucha, tiene swing.", "en": "Rain in G minor… listen, it swings." }
+        ],
+        "sunny": [
+          { "es": "Este sol pide trompeta. Lo siento, vecinos.", "en": "This sun calls for a trumpet. Sorry, neighbors." }
+        ],
+        "night": [
+          { "es": "A esta hora el saxofón suena mejor. Es física.", "en": "At this hour the sax sounds better. It's physics." }
+        ],
+        "greet": [
+          { "es": "¿Me pides una canción? Tengo una para cada vecino.", "en": "Requesting a song? I have one for every neighbor." }
+        ],
+        "mission": [
+          { "es": "Tarea completada… en compás de 4/4, como debe ser.", "en": "Task complete… in 4/4 time, as it should be." }
+        ]
+      }
+    },
+    "pintora": {
+      "name": "Vera",
+      "tastes": [
+        { "es": "Los ocres de atardecer", "en": "Sunset ochres" },
+        { "es": "Los lienzos grandes", "en": "Big canvases" }
+      ],
+      "signature": { "es": "Este edificio tiene la mejor luz del barrio.", "en": "This building has the best light in the neighborhood." },
+      "reactions": {
+        "rain": [
+          { "es": "Lluvia: grises bonitos si sabes mirar.", "en": "Rain: beautiful grays if you know how to look." }
+        ],
+        "sunny": [
+          { "es": "¡Esa luz! La fachada está pidiendo ser pintada.", "en": "That light! The facade is begging to be painted." }
+        ],
+        "night": [
+          { "es": "Azules de noche… guardo la paleta y sueño en color.", "en": "Nighttime blues… palette away, I dream in color." }
+        ],
+        "greet": [
+          { "es": "Si te hago un retrato, no parpadees tanto.", "en": "If I paint your portrait, blink less." }
+        ],
+        "mission": [
+          { "es": "Trabajo bien hecho: eso también es arte.", "en": "A job well done: that's art too." }
+        ]
+      }
+    }
+  },
+  "byResident": {
+    "res_nino_01": {
+      "name": "Pinturillas",
+      "tastes": [
+        { "es": "Los rotuladores nuevos", "en": "Brand-new markers" }
+      ],
+      "reactions": {
+        "mission": [
+          { "es": "¡Bingo! Firmo el acta con rotulador plateado.", "en": "Bingo! I'll sign the minutes with the silver marker." }
+        ]
+      }
+    }
+  },
+  "ambient": {
+    "checkEvery": 7,
+    "radius": 9,
+    "cooldownPerResident": 150,
+    "maxPerMinute": 4,
+    "lineSeconds": 2.8,
+    "chance": 0.6
+  }
+}

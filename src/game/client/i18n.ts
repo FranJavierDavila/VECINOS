@@ -27,7 +27,7 @@ const DICT: Record<string, { es: string; en: string }> = {
     es: 'Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.',
     en: 'Move-ins, noise, smells, wifi, pests, smoke and levies: the neighborhood simulator.',
   },
-  'header.version': { es: 'v1.38 · pase de optimización', en: 'v1.38 · optimization pass' },
+  'header.version': { es: 'v1.39 · vida, música y accesibilidad', en: 'v1.39 · life, music & accessibility' },
   // ── Post-its (v1.23: mandos agrupados dibujados a bolígrafo) ──
   'postit.time': { es: 'Tiempo', en: 'Time' },
   'postit.options': { es: 'Opciones', en: 'Options' },
@@ -116,14 +116,61 @@ const DICT: Record<string, { es: string; en: string }> = {
   // ── Dock de información (v1.17) ──
   'dock.tab.missions': { es: 'Misiones', en: 'Missions' },
   'dock.tab.building': { es: 'Edificio', en: 'Building' },
+  'dock.tab.neighbors': { es: 'Vecinos', en: 'Neighbors' },
   'dock.tab.home': { es: 'Mi casa', en: 'My flat' },
   'dock.tab.achievements': { es: 'Logros', en: 'Achievements' },
   'dock.tab.help': { es: 'Ayuda', en: 'Help' },
+
+  // ── v1.39 — Vecinos como personajes ──
+  'neighbors.empty': { es: 'El vecindario se está mudando… pronto habrá fichas.', en: 'The neighborhood is moving in… profiles coming soon.' },
+  'neighbors.moving': { es: 'en camino', en: 'on the way' },
+  'neighbors.affinity': { es: 'Afinidad contigo', en: 'Affinity with you' },
+  'neighbors.tastes': { es: 'Le gusta', en: 'Likes' },
+  'neighbors.unknown': { es: 'sin conocer', en: 'not met yet' },
+  'neighbors.home': { es: 'Vive en', en: 'Lives at' },
+
+  // ── v1.39 — Proyecto del edificio (meta de largo plazo) ──
+  'project.goal.missions': { es: 'misiones', en: 'missions' },
+  'project.goal.funds': { es: 'arcas', en: 'funds' },
+  'project.goal.reputation': { es: 'reputación', en: 'reputation' },
+  'project.completed': { es: 'proyecto completado', en: 'project completed' },
+  'project.goalsAria': { es: 'Objetivos del nivel en curso', en: 'Current level goals' },
+
+  // ── v1.39 — Menú de pausa ──
+  'pause.title': { es: 'Menú de pausa', en: 'Pause menu' },
+  'pause.gamePaused': { es: 'Partida en pausa', en: 'Game paused' },
+  'pause.subtitle': { es: 'El vecindario contiene la respiración.', en: 'The neighborhood is holding its breath.' },
+  'pause.resume': { es: 'Reanudar', en: 'Resume' },
+  'pause.options': { es: 'Opciones', en: 'Options' },
+  'pause.exit': { es: 'Guardar y salir', en: 'Save & quit' },
+  'pause.exitFallback': {
+    es: 'Partida guardada. Cierra la pestaña cuando quieras (tu navegador decide si deja).',
+    en: 'Game saved. Close the tab whenever you like (your browser decides if it lets you).',
+  },
+  'pause.hint': { es: 'Escape o Start del mando abren y cierran este menú.', en: 'Escape or the gamepad Start button open and close this menu.' },
+
+  // ── v1.39 — Tutorial «primer día» ──
+  'tutorial.aria': { es: 'Tutorial del primer día', en: 'First-day tutorial' },
+  'tutorial.stepOf': { es: 'Paso {n} de {total}', en: 'Step {n} of {total}' },
+  'tutorial.skip': { es: 'omitir', en: 'skip' },
 
   // ── Tracker de misión (v1.17) ──
   'tracker.noMission': { es: 'Sin misión activa', en: 'No active mission' },
   'tracker.active': { es: '{n} en curso', en: '{n} in progress' },
   'tracker.decisions': { es: '{n} decisión(es) pendiente(s)', en: '{n} pending decision(s)' },
+
+  // ── v1.39 — objetivo y HUD (antes hardcodeados en el controlador) ──
+  'obj.awaiting': {
+    es: 'El edificio contiene la respiración. Decide qué hacer.',
+    en: 'The building is holding its breath. Decide what to do.',
+  },
+  'obj.remaining': { es: ' · quedan {n} min', en: ' · {n} min left' },
+  'obj.phone': { es: 'Suena el teléfono. Atiéndelo.', en: 'The phone is ringing. Answer it.' },
+  'obj.reach': { es: 'Llega a la puerta ({b}).', en: 'Get to the door ({b}).' },
+  'obj.enter': { es: 'Entra en tu piso con E.', en: 'Enter your flat with E.' },
+  'obj.catch': { es: 'Pilla al responsable in fraganti', en: 'Catch the culprit red-handed' },
+  'hud.remaining': { es: 'quedan {n} min', en: '{n} min left' },
+  'hud.travel': { es: 'del portal a tu puerta: {n} min', en: 'from lobby to your door: {n} min' },
 
   // ── Logros tipo Steam (v1.17) ──
   'ach.title': { es: 'Logros', en: 'Achievements' },
@@ -230,6 +277,28 @@ const DICT: Record<string, { es: string; en: string }> = {
   'opt.perf.level.6': { es: 'sin sombras', en: 'no shadows' },
   'opt.perf.level.7': { es: 'resolución ×1.95 · sin sombras', en: 'resolution ×1.95 · no shadows' },
   'opt.perf.level.8': { es: 'resolución mínima ×2.3 · sin sombras', en: 'min resolution ×2.3 · no shadows' },
+  // ── v1.39 — música + accesibilidad ──
+  'opt.music': { es: 'Música', en: 'Music' },
+  'opt.musicAria': { es: 'Activar la música ambiental procedural', en: 'Enable the procedural ambient music' },
+  'opt.musicHelp': {
+    es: 'Banda sonora generada en vivo: cambia con la hora del día y suena lluvia cuando llueve.',
+    en: 'Live-generated soundtrack: it changes with the time of day and rain plays when it rains.',
+  },
+  'opt.accessibility': { es: 'Accesibilidad', en: 'Accessibility' },
+  'opt.textScale': { es: 'Tamaño de texto', en: 'Text size' },
+  'opt.textScaleAria': { es: 'Tamaño del texto de toda la partida', en: 'Text size for the whole game' },
+  'opt.textScale.small': { es: 'Pequeño', en: 'Small' },
+  'opt.textScale.normal': { es: 'Normal', en: 'Normal' },
+  'opt.textScale.large': { es: 'Grande', en: 'Large' },
+  'opt.textScale.huge': { es: 'Enorme', en: 'Huge' },
+  'opt.colorblind': { es: 'Modo daltónico', en: 'Colorblind mode' },
+  'opt.colorblindAria': { es: 'Filtro de daltonismo sobre el juego', en: 'Colorblind filter over the game' },
+  'opt.colorblind.off': { es: 'Desactivado', en: 'Off' },
+  'opt.colorblind.protanopia': { es: 'Protanopía', en: 'Protanopia' },
+  'opt.colorblind.deuteranopia': { es: 'Deuteranopía', en: 'Deuteranopia' },
+  'opt.colorblind.tritanopia': { es: 'Tritanopía', en: 'Tritanopia' },
+  'opt.reduceMotion': { es: 'Reducir animaciones', en: 'Reduce motion' },
+  'opt.reduceMotionAria': { es: 'Reducir las animaciones de la interfaz', en: 'Reduce interface animations' },
 };
 
 /** Interpola {vars} simples sobre una plantilla. */

@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { getController } from '@/game/client/bridge';
 import { loadBabylonScript } from '@/game/client/babylon';
 import { selectModalOpen, useGameStore } from '@/game/client/store';
+import { TEXT_SCALE_PCT } from '@/game/client/options';
 import { PhoneModal } from './PhoneModal';
 import { ChoicesModal } from './ChoicesModal';
 import { JuntaModal } from './JuntaModal';
@@ -14,6 +15,8 @@ import { ElevatorPanelModal } from './ElevatorPanelModal';
 import { MoneyOverlay } from './MoneyOverlay';
 import { ToastStack } from './ToastStack';
 import { TouchControls } from './TouchControls';
+import { PauseMenu } from './PauseMenu';
+import { TutorialCard } from './TutorialCard';
 
 /**
  * Lienzo Babylon con overlays: aviso contextual, modales y toasts. Conecta el teclado.
@@ -28,6 +31,19 @@ export default function GameStage() {
   const modalOpen = useGameStore(selectModalOpen);
   const fpsVisible = useGameStore((s) => s.fpsVisible);
   const fps = useGameStore((s) => s.fps);
+  // v1.39 — accesibilidad: tamaño de texto, daltónico y reducir animaciones
+  const textScale = useGameStore((s) => s.textScale);
+  const colorblind = useGameStore((s) => s.colorblind);
+  const reduceMotion = useGameStore((s) => s.reduceMotion);
+
+  // Tamaño de texto: escala el font-size RAÍZ — toda la partida (chrome y overlays)
+  // crece o baja proporcionalmente, como pedía la accesibilidad.
+  useEffect(() => {
+    document.documentElement.style.fontSize = `${TEXT_SCALE_PCT[textScale]}%`;
+    return () => {
+      document.documentElement.style.fontSize = '';
+    };
+  }, [textScale]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -71,8 +87,30 @@ export default function GameStage() {
   }, []);
 
   return (
-    <div className="relative w-full overflow-hidden rounded-xl border bg-neutral-900 shadow-sm" style={{ aspectRatio: '16 / 10' }}>
-      <canvas ref={canvasRef} className="absolute inset-0 h-full w-full touch-none" aria-label="Vista del edificio en Babylon.js" />
+    <div
+      className={'relative w-full overflow-hidden rounded-xl border bg-neutral-900 shadow-sm' + (reduceMotion ? ' game-no-anim' : '')}
+      style={{ aspectRatio: '16 / 10' }}
+    >
+      {/* v1.39 — Filtros de daltonismo (SVG): se aplican sobre el LIENZO vía CSS filter url(). */}
+      <svg className="absolute h-0 w-0" aria-hidden="true" focusable="false">
+        <defs>
+          <filter id="cb-protanopia">
+            <feColorMatrix in="SourceGraphic" type="matrix" values="0.567 0.433 0 0 0  0.558 0.442 0 0 0  0 0.242 0.758 0 0  0 0 0 1 0" />
+          </filter>
+          <filter id="cb-deuteranopia">
+            <feColorMatrix in="SourceGraphic" type="matrix" values="0.625 0.375 0 0 0  0.7 0.3 0 0 0  0 0.3 0.7 0 0  0 0 0 1 0" />
+          </filter>
+          <filter id="cb-tritanopia">
+            <feColorMatrix in="SourceGraphic" type="matrix" values="0.95 0.05 0 0 0  0 0.433 0.567 0 0  0 0.475 0.525 0 0  0 0 0 1 0" />
+          </filter>
+        </defs>
+      </svg>
+      <canvas
+        ref={canvasRef}
+        className="absolute inset-0 h-full w-full touch-none"
+        style={colorblind === 'off' ? undefined : { filter: `url(#cb-${colorblind})` }}
+        aria-label="Vista del edificio en Babylon.js"
+      />
 
       {!ready && !engineError && (
         <div className="absolute inset-0 grid place-items-center bg-neutral-900 text-neutral-100">
@@ -119,6 +157,9 @@ export default function GameStage() {
       <FinaleModal onClose={() => getController()?.finaleClose()} />
       <ToastStack onDismiss={(id) => useGameStore.getState().dropToast(id)} />
       <TouchControls />
+      {/* v1.39 — tutorial del primer día + menú de pausa de verdad */}
+      <TutorialCard />
+      <PauseMenu />
     </div>
   );
 }

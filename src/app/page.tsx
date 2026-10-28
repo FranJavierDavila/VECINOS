@@ -4,6 +4,7 @@ import GameStage from '@/components/game/GameStage';
 import { PostItControls } from '@/components/game/PostItControls';
 import { HudBar } from '@/components/game/HudBar';
 import { MissionTracker } from '@/components/game/MissionTracker';
+import { ProjectCard } from '@/components/game/ProjectCard';
 import { InfoDock } from '@/components/game/InfoDock';
 import { AchievementPopup } from '@/components/game/AchievementPopup';
 import { PwaRegister } from '@/components/game/PwaRegister';
@@ -34,6 +35,8 @@ export default function Home() {
         <HudBar />
 
         <div className="mt-4 flex flex-col gap-2">
+          {/* v1.39 — meta de largo plazo: el proyecto del edificio, siempre visible */}
+          <ProjectCard />
           <MissionTracker />
           <InfoDock />
         </div>

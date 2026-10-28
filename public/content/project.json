@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "id": "proyecto_edificio",
+  "title": { "es": "Mejorar el edificio", "en": "Fix up the building" },
+  "icon": "🏗️",
+  "levels": [
+    {
+      "id": "acogedor",
+      "title": { "es": "Nivel 1 · Portal acogedor", "en": "Level 1 · A welcoming lobby" },
+      "goal": { "missions": 3, "funds": 1200 },
+      "reward": {
+        "es": "La comunidad aplaude en el portal: plantas nuevas, luz cálida y el ascensor con menos ruidos raros.",
+        "en": "The community applauds in the lobby: new plants, warm lighting and an elevator with fewer weird noises."
+      }
+    },
+    {
+      "id": "querido",
+      "title": { "es": "Nivel 2 · Edificio querido", "en": "Level 2 · A well-loved building" },
+      "goal": { "missions": 8, "funds": 2500, "reputation": 60 },
+      "reward": {
+        "es": "El vecindario ya recomienda el portal: faenas hechas, escalera limpia y la junta firma tu propuesta sin discutir.",
+        "en": "The neighborhood now recommends the building: chores done, clean staircase and the meeting signs off your proposal without arguing."
+      }
+    },
+    {
+      "id": "orgullo",
+      "title": { "es": "Nivel 3 · Orgullo del barrio", "en": "Level 3 · Neighborhood pride" },
+      "goal": { "missions": 15, "funds": 4500, "reputation": 70 },
+      "reward": {
+        "es": "El edificio brilla: hasta el fondo buitre pregunta si quedan pisos. La comunidad te nombra vecino del año.",
+        "en": "The building shines: even the vulture fund asks if any flats are left. The community names you neighbor of the year."
+      }
+    }
+  ]
+}

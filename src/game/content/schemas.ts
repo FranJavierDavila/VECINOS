@@ -2286,7 +2286,7 @@ export const scenarioListSchema = z.array(scenarioDefSchema);
 // una función pura sobre un snapshot del mundo; aquí solo declaramos la forma del JSON.
 
 /** Texto localizable del chrome de logros: el par de idiomas que viaja en el JSON. */
-const localizedTextSchema = z.object({ es: z.string().min(1), en: z.string().min(1) });
+export const localizedTextSchema = z.object({ es: z.string().min(1), en: z.string().min(1) });
 
 export const achievementConditionSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('mission_done'), mission: z.string().min(1) }),
@@ -2457,3 +2457,155 @@ export const interiorsCatalogSchema = z.object({
 });
 
 export type InteriorsCatalog = z.infer<typeof interiorsCatalogSchema>;
+
+// ───────────── Música procedural (v1.39, opcional) ─────────────
+// Banda sonora generativa 100% Web Audio: contexto musical por franja horaria
+// (mañana/tarde/evening/noche) + capa de lluvia. Sin ficheros de audio: el JSON define
+// tempo, escala, acordes y ganancias; el director (client/music.ts) solo ejecuta.
+
+export const musicCatalogSchema = z.object({
+  version: z.literal(1),
+  /** Ganancia general del bus de música (hereda volumen y silencio del bus de audio). */
+  masterGain: z.number().min(0).max(1),
+  /** Ganancia a la que se queda la música con el juego en pausa o con modal (ducking). */
+  duckGain: z.number().min(0).max(1).default(0.35),
+  /** Desvanecido entre contextos (segundos). */
+  fadeSeconds: z.number().positive().default(2.5),
+  /** Franjas horarias (minutos del día 0..1440; `to` puede ser < `from` cuando cruza medianoche). */
+  dayParts: z.object({
+    morning: z.object({ from: z.number().min(0).max(1440), to: z.number().min(0).max(1440) }),
+    afternoon: z.object({ from: z.number().min(0).max(1440), to: z.number().min(0).max(1440) }),
+    evening: z.object({ from: z.number().min(0).max(1440), to: z.number().min(0).max(1440) }),
+    night: z.object({ from: z.number().min(0).max(1440), to: z.number().min(0).max(1440) }),
+  }),
+  contexts: z.record(
+    z.string(),
+    z.object({
+      /** Pulsos por minuto de la base rítmica generativa. */
+      tempo: z.number().min(40).max(160),
+      root: z.number().min(36).max(84),
+      /** Grados de la escala (semitonos desde la tónica) sobre los que improvisa la melodía. */
+      scale: z.array(z.number().int().min(-24).max(24)).min(3),
+      /** Progresión: cada acorde es una lista de semitonos desde la tónica. */
+      chords: z.array(z.array(z.number().int().min(-24).max(24)).min(2)).min(1),
+      /** Ganancias por capa (0..0.5). */
+      bassGain: z.number().min(0).max(0.5),
+      padGain: z.number().min(0).max(0.5),
+      leadGain: z.number().min(0).max(0.5),
+      /** Densidad de la melodía (0..1): probabilidad de nota en cada corchea. */
+      leadDensity: z.number().min(0).max(1),
+      waves: z.object({
+        pad: z.enum(['sine', 'triangle', 'sawtooth', 'square']).default('triangle'),
+        lead: z.enum(['sine', 'triangle', 'sawtooth', 'square']).default('triangle'),
+        bass: z.enum(['sine', 'triangle', 'sawtooth', 'square']).default('sine'),
+      }),
+    }),
+  ).refine((c) => ['morning', 'afternoon', 'evening', 'night'].every((k) => k in c), {
+    message: 'necesita contextos morning/afternoon/evening/night',
+  }),
+  /** Capa ambiental de lluvia (ruido filtrado en bucle) + extra con tormenta. */
+  rain: z.object({
+    gain: z.number().min(0).max(0.5),
+    stormGain: z.number().min(0).max(0.5),
+    filterHz: z.number().min(100).max(4000),
+  }),
+  /** Desviaciones de octava con las que la melodía salta (plucks agudos/graves). */
+  melodyOctaves: z.array(z.number().int()).default([0, 12]),
+});
+
+export type MusicCatalogParsed = z.infer<typeof musicCatalogSchema>;
+
+// ───────────── Onboarding «primer día» (v1.39, opcional) ─────────────
+// Tutorial guiado no bloqueante: pasos con condición de cumplimento (el director del
+// cliente las marca) + consejos contextuales one-shot al desbloquear sistemas.
+
+export const onboardingCatalogSchema = z.object({
+  version: z.literal(1),
+  enabled: z.boolean().default(true),
+  welcome: z.object({ title: localizedTextSchema, text: localizedTextSchema, cta: localizedTextSchema }),
+  steps: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        icon: z.string().min(1),
+        title: localizedTextSchema,
+        text: localizedTextSchema,
+      }),
+    )
+    .min(1),
+  tips: z.array(
+    z.object({
+      id: z.string().min(1),
+      icon: z.string().min(1),
+      text: localizedTextSchema,
+    }),
+  ),
+  doneText: localizedTextSchema,
+});
+
+export type OnboardingCatalogParsed = z.infer<typeof onboardingCatalogSchema>;
+
+// ───────────── Proyecto comunitario del edificio (v1.39, opcional) ─────────────
+// Meta de largo plazo: niveles de mejora del edificio por contribución medida SOLO LECTURA
+// del mundo (misiones completadas, arcas de la comunidad, reputación del jugador).
+
+export const projectGoalSchema = z.object({
+  missions: z.number().int().min(1).optional(),
+  funds: z.number().min(1).optional(),
+  reputation: z.number().min(1).max(100).optional(),
+});
+
+export const projectCatalogSchema = z.object({
+  version: z.literal(1),
+  id: z.string().min(1),
+  title: localizedTextSchema,
+  icon: z.string().min(1).default('🏗️'),
+  levels: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        title: localizedTextSchema,
+        goal: projectGoalSchema,
+        reward: localizedTextSchema,
+      }),
+    )
+    .min(1),
+});
+
+export type ProjectCatalogParsed = z.infer<typeof projectCatalogSchema>;
+
+// ───────────── Personalidades vecinales (v1.39, opcional) ─────────────
+// Vecinos como personajes: nombre corto, gustos y un banco de reacciones por contexto
+// (clima, noche, saludo…) que la presentación suelta como bocadillos. Puede definir
+// personalidades por ARQUETIPO (todos los de ese tipo) y por RESIDENTE (override).
+
+const personalityReactionPool = z.record(z.string(), z.array(localizedTextSchema).min(1));
+
+export const personalitySchema = z.object({
+  /** Nombre corto visible (bocadillos, toasts, panel de vecinos); si falta, el del arquetipo. */
+  name: z.string().min(1).optional(),
+  tastes: z.array(localizedTextSchema).default([]),
+  signature: localizedTextSchema.optional(),
+  reactions: personalityReactionPool.default({}),
+});
+
+export const personalitiesCatalogSchema = z.object({
+  version: z.literal(1),
+  /** Reacciones genéricas para cualquier vecino sin personalidad propia. */
+  defaults: personalitySchema.default({ tastes: [], reactions: {} }),
+  byArchetype: z.record(z.string(), personalitySchema).default({}),
+  byResident: z.record(z.string(), personalitySchema).default({}),
+  /** Cadencia de los comentarios ambientales (presentación). */
+  ambient: z
+    .object({
+      checkEvery: z.number().positive().default(7),
+      radius: z.number().positive().default(9),
+      cooldownPerResident: z.number().min(0).default(120),
+      maxPerMinute: z.number().int().min(1).default(4),
+      lineSeconds: z.number().positive().default(2.8),
+      chance: z.number().min(0).max(1).default(0.65),
+    })
+    .default({ checkEvery: 7, radius: 9, cooldownPerResident: 120, maxPerMinute: 4, lineSeconds: 2.8, chance: 0.65 }),
+});
+
+export type PersonalitiesCatalogParsed = z.infer<typeof personalitiesCatalogSchema>;

@@ -68,10 +68,10 @@ function poll(): void {
     else if (!b(0) && prevButtons[0]) c.onKeyUp('KeyE');
   }
 
-  // 3) Y/Triángulo: ciclar cámara. 4) Start: pausa. Solo con el mundo despejado de modales.
+  // 3) Y/Triángulo: ciclar cámara. 4) Start: menú de pausa (v1.39). Solo con el mundo despejado de modales.
   if (!modalOpen) {
     if (pressed(3)) c?.cycleCam();
-    if (pressed(9)) c?.togglePause();
+    if (pressed(9)) c?.togglePauseMenu();
   }
 
   prevButtons = pad.buttons.map((x) => x.pressed);

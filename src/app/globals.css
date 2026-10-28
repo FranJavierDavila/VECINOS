@@ -362,3 +362,14 @@
   15% { opacity: 1; }
   100% { opacity: 0; transform: translateY(-14px); }
 }
+
+/* ── v1.39 — ACCESIBILIDAD: «reducir animaciones» ──
+   Apagado de cortinas: los vuelos/plegados CSS de los overlays del lienzo (post-its,
+   bocadillos, monedas) se vuelven instantáneos. Las monedas JS ya se suprimen en el
+   componente; esta regla cubre el resto de animaciones decorativas. */
+.game-no-anim *,
+.game-no-anim {
+  animation-duration: 0.001s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001s !important;
+}
