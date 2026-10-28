@@ -109,8 +109,8 @@ check('el arte es 1344×768 PNG real (aspecto 1.75 = el muro de 4.56×2.6 del la
 })());
 
 console.log('── 7. Insignia y determinismo ──');
-check('insignia v1.36 en i18n', srcOf('src/game/client/i18n.ts').includes('v1.36 · se ve dentro y se anda derecho'));
-check('sw.js bump a vecinos-v1.36', srcOf('public/sw.js').includes('vecinos-v1.36'));
+check('insignia v1.36 en i18n', srcOf('src/game/client/i18n.ts').includes('v1.37 · se sale al parque'));
+check('sw.js bump a vecinos-v1.37', srcOf('public/sw.js').includes('vecinos-v1.37'));
 const baseUrl = new URL('../public/content/', import.meta.url).href;
 const { content, issues } = await loadContent(baseUrl);
 check('contenido carga sin errores de esquema', issues.length === 0, issues.slice(0, 2).map((i) => i.message).join(' | '));

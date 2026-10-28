@@ -268,6 +268,13 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
   /** v1.35 — estado de apertura de la basculante del garaje (0..1): revela el interior
    *  ANTES de entrar (el vecino: «al abrirse se ve cerrado por una pared oscura»). */
   let garajeLiftT = 0;
+  /** v1.37 — OBSTÁCULOS andables por bloque (mundo): las lavadoras/secadoras de la
+   *  lavandería no se atraviesan (ni el jugador ni los vecinos). Los registra el branch
+   *  que levanta las máquinas; player-logic y actors.ts los aplican. */
+  const blockObstacles = new Map<string, { x0: number; z0: number; w: number; d: number }[]>();
+  /** v1.37 — posición (mundo) del ATRIL del tablón de anuncios (planta 0, extremo del
+   *  pasillo): el interact 'noticeboard' se ancla aquí. null si el catálogo no lo activa. */
+  let noticeboardSpot: { x: number; z: number; floor: number } | null = null;
   /** v1.35 — textura de LOSETAS compartida (pasillos + locales + vestíbulo): 2×2 baldosas
    *  con alternancia ajedrezada, VARIACIÓN por baldosa (terrazo) y veteado/suciedad leve —
    *  el vecino: «se debe notar las losetas del suelo». Todo del catálogo (corridorFloor):
@@ -647,6 +654,125 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           box(`${b.id}_barandilla`, b.size.w * v.cellW, v.corridorRail, v.wall, cx, bottom + v.slab * 2 + v.corridorRail / 2, frontZ - d, m),
         );
       }
+      // ── v1.37 — ATRIL DEL TABLÓN DE ANUNCIOS (planta 0, extremo del pasillo) ──
+      // El vecino consulta el tablón AHÍ: tablón de corcho con notas fijadas y atril
+      // inclinado. Posición/orientación del catálogo (noticeboard.side/inset/z/yaw); la
+      // consulta (interact 'noticeboard') se ancla a esta posición del mundo.
+      const nbCfg = v.noticeboard;
+      if (nbCfg?.enabled && b.cell.floor === nbCfg.floor) {
+        const spanWc = b.size.w * v.cellW;
+        const nbX = cx - spanWc / 2 + (nbCfg.side === 'left' ? nbCfg.inset : spanWc - nbCfg.inset);
+        const nbZ = v.corridorZ + nbCfg.z; // offset desde la línea de paseo (negativo = hacia la calle)
+        noticeboardSpot = { x: nbX, z: nbZ, floor: nbCfg.floor };
+        const nbRoot = new (B().TransformNode)(`${b.id}_atril`, scene);
+        nbRoot.position.set(nbX, bottom + v.slab * 2, nbZ);
+        nbRoot.rotation.y = nbCfg.yaw;
+        nbRoot.parent = root;
+        const postM = mat(`${b.id}_atril_poste_mat`);
+        postM.diffuseColor = Color3.FromHexString(nbCfg.postColor);
+        const frameM = mat(`${b.id}_atril_marco_mat`);
+        frameM.diffuseColor = Color3.FromHexString(nbCfg.frameColor);
+        const capM = mat(`${b.id}_atril_tapa_mat`);
+        capM.diffuseColor = Color3.FromHexString(nbCfg.capColor);
+        const corkM = mat(`${b.id}_atril_corcho_mat`);
+        corkM.diffuseColor = Color3.FromHexString(nbCfg.corkColor);
+        corkM.specularColor = new Color3(0.02, 0.02, 0.02);
+        const deskM = mat(`${b.id}_atril_mesa_mat`);
+        deskM.diffuseColor = Color3.FromHexString(nbCfg.deskColor);
+        // Cara del corcho con el ARTE del tablón (titular + notas fijadas, del catálogo).
+        const corkW = nbCfg.boardW - nbCfg.frameW * 2;
+        const corkH = nbCfg.boardH - nbCfg.frameW * 2;
+        const texW = 512;
+        const texH = Math.max(128, Math.round((texW * corkH) / corkW));
+        const nbTex = new (B().DynamicTexture)(`${b.id}_atril_tex`, { width: texW, height: texH }, scene, true);
+        const nc = nbTex.getContext() as unknown as CanvasRenderingContext2D;
+        nc.fillStyle = nbCfg.corkColor;
+        nc.fillRect(0, 0, texW, texH);
+        for (let i = 0; i < 260; i++) {
+          // Moteado del corcho (determinista por bloque).
+          nc.fillStyle = hash01(b.id, 7100 + i) < 0.5 ? 'rgba(120,84,46,0.16)' : 'rgba(246,232,204,0.14)';
+          nc.fillRect(hash01(b.id, 5100 + i) * texW, hash01(b.id, 6100 + i) * texH, 3, 2);
+        }
+        const bandH = Math.round(texH * 0.2);
+        nc.fillStyle = nbCfg.headlineBg;
+        nc.fillRect(0, 0, texW, bandH);
+        nc.fillStyle = nbCfg.headlineFg;
+        nc.font = `bold ${Math.round(bandH * 0.5)}px Arial, sans-serif`;
+        nc.textAlign = 'center';
+        nc.textBaseline = 'middle';
+        nc.fillText(nbCfg.headline, texW / 2, bandH * 0.55);
+        // Notas fijadas (2×2, rotadas al azar determinista, con chincheta y garabatos).
+        const nbNotes = nbCfg.notes.slice(0, 4);
+        const cellWn = texW / 2;
+        const cellHn = (texH - bandH) / 2;
+        nbNotes.forEach((_note, i) => {
+          const pad = 14;
+          const wN = cellWn - pad * 2;
+          const hN = cellHn - pad * 2;
+          nc.save();
+          nc.translate((i % 2) * cellWn + pad + wN / 2, bandH + Math.floor(i / 2) * cellHn + pad + hN / 2);
+          nc.rotate((hash01(b.id, 8100 + i) - 0.5) * 0.12);
+          nc.fillStyle = nbCfg.paperColors[i % nbCfg.paperColors.length]!;
+          nc.fillRect(-wN / 2, -hN / 2, wN, hN);
+          nc.strokeStyle = 'rgba(60,52,40,0.55)';
+          nc.lineWidth = 3;
+          for (let li = 0; li < 3; li++) {
+            const ly = -hN / 2 + hN * (0.34 + (0.5 * li) / 3);
+            nc.beginPath();
+            nc.moveTo(-wN / 2 + 10, ly);
+            nc.lineTo(wN / 2 - 10 - (li === 2 ? wN * 0.28 : 0), ly);
+            nc.stroke();
+          }
+          nc.fillStyle = '#c9564c';
+          nc.beginPath();
+          nc.arc(0, -hN / 2 + 9, 6, 0, Math.PI * 2);
+          nc.fill();
+          nc.restore();
+        });
+        nbTex.update(true);
+        const faceM = mat(`${b.id}_atril_cara_mat`);
+        faceM.diffuseTexture = nbTex;
+        faceM.specularColor = new Color3(0.03, 0.03, 0.03);
+        faceM.backFaceCulling = false; // el dorso (que es lo que ven jugador y cámara) SÍ se pinta
+        // v1.37 — la cara es UN PLANO con culling OFF (la convención de la casa, como los
+        // carteles de las manifestaciones: la textura se lee CORRECTA desde su DORSO). El
+        // plano vive 2.5 mm por delante del dorso del corcho y mira al NOROESTE (yaw del
+        // catálogo π/2+0.4+π): jugador y cámara (ambos al SE) leen el tablón sin espejo.
+        const facePlane = MeshBuilder.CreatePlane(`${b.id}_atril_cara`, { width: corkW, height: corkH }, scene);
+        facePlane.position.set(0, nbCfg.boardY, -0.02);
+        facePlane.material = faceM;
+        facePlane.isPickable = false;
+        facePlane.parent = nbRoot;
+        const postH = nbCfg.boardY + nbCfg.boardH / 2;
+        const gnb = (name: string, w2: number, h2: number, d2: number, x2: number, y2: number, z2: number, mm: StandardMaterial): Mesh => {
+          const mesh = box(name, w2, h2, d2, 0, 0, 0, mm);
+          mesh.position.set(x2, y2, z2);
+          mesh.parent = nbRoot;
+          mesh.isPickable = false;
+          return mesh;
+        };
+        for (const sx of [-1, 1] as const) {
+          gnb(`${b.id}_atril_poste_${sx > 0 ? 'd' : 'i'}`, nbCfg.postW, postH, nbCfg.postW, sx * (nbCfg.boardW / 2 - nbCfg.postW / 2 + 0.03), postH / 2, 0, postM);
+        }
+        // Tablón: cuerpo de corcho + marco (canto 6 cm frente a los 3.5 cm del corcho:
+        // nada coplanar) + cara ilustrada 3 mm por delante del cuerpo.
+        gnb(`${b.id}_atril_corcho`, corkW, corkH, 0.035, 0, nbCfg.boardY, 0, corkM);
+        gnb(`${b.id}_atril_cara`, corkW, corkH, 0.002, 0, nbCfg.boardY, 0.02, faceM);
+        gnb(`${b.id}_atril_marco_sup`, nbCfg.boardW, nbCfg.frameW, 0.06, 0, nbCfg.boardY + corkH / 2 + nbCfg.frameW / 2, 0, frameM);
+        gnb(`${b.id}_atril_marco_inf`, nbCfg.boardW, nbCfg.frameW, 0.06, 0, nbCfg.boardY - corkH / 2 - nbCfg.frameW / 2, 0, frameM);
+        gnb(`${b.id}_atril_marco_i`, nbCfg.frameW, corkH, 0.06, -nbCfg.boardW / 2 + nbCfg.frameW / 2, nbCfg.boardY, 0, frameM);
+        gnb(`${b.id}_atril_marco_d`, nbCfg.frameW, corkH, 0.06, nbCfg.boardW / 2 - nbCfg.frameW / 2, nbCfg.boardY, 0, frameM);
+        const capNb = gnb(`${b.id}_atril_tapa`, nbCfg.boardW + 0.12, 0.05, 0.16, 0, postH + 0.025, 0, capM);
+        capNb.rotation.x = 0.1;
+        // ATRIL: tabla inclinada hacia el lector + panel frontal + dos patas.
+        const deskTop = gnb(`${b.id}_atril_mesa`, nbCfg.deskW, 0.04, nbCfg.deskD, 0, nbCfg.deskY, 0.17, deskM);
+        // Con el yaw del tablón al NO, la leyenda se inclina hacia el lector (el canto SE baja).
+        deskTop.rotation.x = -nbCfg.deskSlant;
+        gnb(`${b.id}_atril_mesa_frente`, nbCfg.deskW, Math.max(0.05, nbCfg.deskY - 0.62), 0.035, 0, (nbCfg.deskY + 0.62) / 2, -(0.17 + nbCfg.deskD / 2 + 0.018), deskM);
+        for (const sx of [-1, 1] as const) {
+          gnb(`${b.id}_atril_pata_${sx > 0 ? 'd' : 'i'}`, 0.05, nbCfg.deskY - 0.02, 0.05, sx * (nbCfg.deskW / 2 - 0.06), (nbCfg.deskY - 0.02) / 2, 0.17 - nbCfg.deskD / 4, deskM);
+        }
+      }
     } else if (b.kind === 'dwelling') {
       const y = bottom + v.cellH / 2;
       const pv = v.privacy;
@@ -1020,11 +1146,19 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       // runtime no duplica nada). Nada coplanar: la hoja vive delante del canto.
       const doorZHall = frontZ - v.wall / 2 - 0.035;
       const gapWs: number[] = [];
-      if (isLaundry || isGaraje || isPortal) {
-        // abierta (lavandería) o fachada del arte (garaje/portal): sin tramos ni hoja del runtime
+      // v1.37 — medidas del HUECO por bloque: trastero/sala usan sus puertas; el GARAJE usa
+      // el hueco REAL de la basculante (catálogo locals.garaje.doorW/doorH).
+      const gapDoorW = b.defId === 'trasteros' ? tc.doorW : isGaraje ? loc.garaje.doorW ?? 2.16 : jh.doorW;
+      const gapDoorH = b.defId === 'trasteros' ? tc.doorH : isGaraje ? loc.garaje.doorH ?? 1.92 : v.privacy.doorH;
+      if (isLaundry || isPortal) {
+        // abierta (lavandería) o fachada del arte (portal): sin tramos ni hoja del runtime
       } else if (b.defId === 'trasteros') {
         gapWs.push(cx - tc.doorDx, cx + tc.doorDx);
       } else {
+        // v1.37 — el GARAJE ENTRA AQUÍ (antes quedaba fuera y el frente final levantaba una
+        // pared ENTERA: la «pared oscura» que seguía viéndose con la basculante levantada).
+        // El frente se PARTE alrededor del hueco (jambas + dintel): la basculante del arte
+        // cubre el hueco al cerrarse y al LEVANTARSE se ve el interior AL INSTANTE.
         gapWs.push(cx);
       }
       let prevEdge = cx - w / 2;
@@ -1035,9 +1169,9 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         if (!view.front) view.front = mesh;
       };
       for (const gx of gapWs) {
-        const gL = gx - (b.defId === 'trasteros' ? tc.doorW : jh.doorW) / 2;
-        const gR = gx + (b.defId === 'trasteros' ? tc.doorW : jh.doorW) / 2;
-        const doorH = b.defId === 'trasteros' ? tc.doorH : v.privacy.doorH;
+        const gL = gx - gapDoorW / 2;
+        const gR = gx + gapDoorW / 2;
+        const doorH = gapDoorH;
         fp(`${b.id}_frente_${gx.toFixed(2)}`, gL - prevEdge, H, (prevEdge + gL) / 2, baseY + H / 2);
         fp(`${b.id}_dintel_${gx.toFixed(2)}`, gR - gL, H - doorH, gx, baseY + doorH + (H - doorH) / 2);
         prevEdge = gR;
@@ -1292,6 +1426,11 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           const usableW = w - 0.72;
           const colStep = usableW / stacks;
           const zBack = frontZ + d - v.wall - mD / 2 - 0.08;
+          // v1.37 — COLISIÓN: las máquinas son SÓLIDAS (el vecino: «que no puedan atravesar
+          // las lavadoras»). Rects en MUNDO que player-logic (jugador dentro) y actors.ts
+          // (vecinos) respetan — las mismas cajas que se ven son las que estorban.
+          const blockers = blockObstacles.get(b.id) ?? [];
+          blockObstacles.set(b.id, blockers);
           const bodyM = mat(`${b.id}_lav_cuerpo_mat`);
           bodyM.diffuseColor = Color3.FromHexString(lv.bodyColor ?? '#e8e6e0');
           const topM = mat(`${b.id}_lav_tapa_mat`);
@@ -1402,6 +1541,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           };
           for (let s = 0; s < stacks; s++) {
             const mx = x0 + 0.36 + colStep * (s + 0.5);
+            blockers.push({ x0: mx - mW / 2 - 0.02, z0: zBack - mD / 2 - 0.02, w: mW + 0.04, d: mD + 0.04 });
             // LAVADORA (abajo) + SECADORA (arriba): cuerpos, tapas y frontales mapeados.
             const bodies: { kind: 'washer' | 'dryer'; h: number; y0: number }[] = [
               { kind: 'washer', h: wH, y0: baseY },
@@ -3235,6 +3375,16 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
      *  registrados al levantar la geometría — player-logic los esquiva al moverse dentro. */
     cellObstacles(): { x0: number; z0: number; w: number; d: number }[] {
       return cellObstacleRects;
+    },
+    /** v1.37 — obstáculos andables POR BLOQUE (mundo): las lavadoras/secadoras de la
+     *  lavandería no se atraviesan (jugador dentro ni vecinos en ruta). */
+    walkObstacles(): { blockId: string; rects: { x0: number; z0: number; w: number; d: number }[] }[] {
+      return [...blockObstacles.entries()].map(([blockId, rects]) => ({ blockId, rects }));
+    },
+    /** v1.37 — posición (mundo) del atril del tablón de anuncios (planta 0, extremo del
+     *  pasillo): el interact 'noticeboard' se ancla aquí. null si el catálogo no lo activa. */
+    noticeboardSpot(): { x: number; z: number; floor: number } | null {
+      return noticeboardSpot;
     },
     hasRear(blockId: string): boolean {
       return rears.has(blockId);

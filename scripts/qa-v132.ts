@@ -163,8 +163,8 @@ check('contenido real SIN menciones de plantas/viviendas imposibles', violations
 }
 
 console.log('── 9. Versiones ──');
-check('insignia v1.34 en i18n (es/en, la 1.32 fue sustituida por la nueva)', i18nTs.includes('v1.36 · se ve dentro y se anda derecho') && i18nTs.includes('v1.36 · see inside, walk straight'));
-check('sw.js bump a vecinos-v1.34 (sigue subiendo)', swJs.includes('vecinos-v1.36'));
+check('insignia v1.34 en i18n (es/en, la 1.32 fue sustituida por la nueva)', i18nTs.includes('v1.37 · se sale al parque') && i18nTs.includes('v1.37 · out to the park'));
+check('sw.js bump a vecinos-v1.34 (sigue subiendo)', swJs.includes('vecinos-v1.37'));
 check('PwaRegister espera vecinos-v1.34', pwaTsx.includes('vecinos-v1.34'));
 
 console.log('── Sim intacto ──');

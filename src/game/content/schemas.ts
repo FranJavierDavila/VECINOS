@@ -1168,6 +1168,10 @@ export const rulesSchema = z.object({
             signText: z.string().default('#ffd166'),
             rampDepth: z.number().positive().default(1.1),
             rampColor: z.string().default('#8f8d86'),
+            /** v1.37 — hueco REAL de la basculante: el frente del runtime se parte alrededor
+             *  (jambas + dintel) y al levantarse la puerta se ve el interior AL INSTANTE. */
+            doorW: z.number().positive().optional(),
+            doorH: z.number().positive().optional(),
             furniture: z
               .object({
                 benchW: z.number().positive().default(1.35),
@@ -1504,8 +1508,85 @@ export const rulesSchema = z.object({
         forcedTrees: z
           .array(z.object({ x: z.number(), z: z.number(), art: z.string().optional(), s: z.number().positive().optional() }))
           .default([]),
+        /** v1.37 — PARQUE DE CALISTENIA en el jardín de enfrente: suelo de caucho, barra de
+         *  dominadas, paralelas, banco de abdominales y cartel — TODO del catálogo. */
+        calisthenics: z
+          .object({
+            enabled: z.boolean().default(true),
+            x: z.number(),
+            z: z.number(),
+            w: z.number().positive(),
+            d: z.number().positive(),
+            ground: z.string().default('#c26d4f'),
+            edge: z.string().default('#8f4a33'),
+            postColor: z.string().default('#6f4926'),
+            barColor: z.string().default('#b8bfc7'),
+            boardColor: z.string().default('#f2ead9'),
+            sign: z.string().default('CALISTENIA'),
+            signBg: z.string().default('#3b3129'),
+            signFg: z.string().default('#ffd166'),
+            barH: z.number().positive().default(2.15),
+            dipH: z.number().positive().default(1.22),
+          })
+          .optional(),
       })
       .default({ enabled: false, rows: [], ground: { color: '#a89a7c', size: 220, backZ: 0 }, treeArt: [], keepOut: [], forcedTrees: [] }),
+    /** v1.37 — ATRIL del tablón de anuncios (planta 0, extremo del pasillo): tablón con
+     *  corcho, notas fijadas y atril inclinado; la consulta del tablón vive ahí. */
+    noticeboard: z
+      .object({
+        enabled: z.boolean().default(true),
+        floor: z.number().int().default(0),
+        side: z.enum(['left', 'right']).default('left'),
+        inset: z.number().positive().default(0.82),
+        z: z.number().default(-0.72), // offset desde la línea del pasillo (negativo = hacia la calle)
+        yaw: z.number().default(5.11),
+        postColor: z.string().default('#6f4926'),
+        postW: z.number().positive().default(0.1),
+        frameColor: z.string().default('#8a5a33'),
+        frameW: z.number().positive().default(0.07),
+        corkColor: z.string().default('#c9a877'),
+        boardW: z.number().positive().default(1.5),
+        boardH: z.number().positive().default(1.04),
+        boardY: z.number().positive().default(1.68),
+        deskW: z.number().positive().default(0.7),
+        deskD: z.number().positive().default(0.44),
+        deskY: z.number().positive().default(1.04),
+        deskColor: z.string().default('#8a5a33'),
+        deskSlant: z.number().min(0).max(1).default(0.42),
+        capColor: z.string().default('#6f4926'),
+        headline: z.string().default('TABLÓN DE ANUNCIOS'),
+        headlineBg: z.string().default('#3b3129'),
+        headlineFg: z.string().default('#ffd166'),
+        paperColors: z.array(z.string()).min(1).default(['#f6f1e2']),
+        notes: z.array(z.string()).min(1).default(['TABLÓN DE ANUNCIOS']),
+      })
+      .optional(),
+    /** v1.37 — PASEO VECINAL: los vecinos salen a la calle, cruzan por el paso de peatones
+     *  mirando a ambos lados y van al jardín de enfrente a practicar algo de deporte. */
+    paseo: z
+      .object({
+        enabled: z.boolean().default(true),
+        everyMin: z.number().positive().default(40),
+        everyMax: z.number().positive().default(110),
+        maxOut: z.number().int().min(1).default(2),
+        chance: z.number().min(0).max(1).default(0.85),
+        lookSeconds: z.number().positive().default(0.95),
+        doorWait: z.number().min(0).default(1.1),
+        crossMargin: z.number().positive().default(17),
+        crossX: z.number().default(13),
+        curbNearZ: z.number().default(-5.6),
+        curbFarZ: z.number().default(-13.1),
+        parkX: z.number().default(12.3),
+        parkZ: z.number().default(-15.4),
+        exerciseMin: z.number().positive().default(9),
+        exerciseMax: z.number().positive().default(20),
+        gesture: z.string().default('dance'),
+        bob: z.number().min(0).default(0.085),
+        bobRate: z.number().positive().default(4.2),
+        lines: z.array(z.string()).min(1).default(['A estirar las piernas.']),
+      })
+      .optional(),
     /** ── Tráfico (v1.22) ── vehículos ocasionales por los carriles de la carretera:
      *  coches, furgonetas, autobús y patrulla con sirena. Solo presentación (nunca sim)
      *  y solo visibles en la vista "edificio". */

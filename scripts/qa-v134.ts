@@ -79,7 +79,7 @@ check('rooms de garaje y lavandería definidos', srcOf('public/content/rooms.jso
 check('layouts con sus rects (2.28 × 2.8)', srcOf('public/content/layouts.json').includes('layout_garaje_comunal') && srcOf('public/content/layouts.json').includes('layout_lavanderia_comunal'));
 check('el arte del garaje es OVERLAY (el interior sobrevive al modelo)', assetsJson.includes('"overlay": true') && /"garaje"[\s\S]{0,240}"overlay": true/.test(assetsJson));
 check('el garaje entra al branch de LOCALES del runtime', buildingTs.includes("b.defId === 'trasteros' || b.defId === 'local_comercial' || b.defId === 'lavanderia_comunal' || b.defId === 'garaje' || b.defId === 'portal'"));
-check('el runtime NO duplica la fachada del garaje (el arte manda)', buildingTs.includes('if (isLaundry || isGaraje || isPortal)'));
+check('el runtime NO levanta un frente entero en el garaje: se PARTE alrededor del hueco (v1.37)', buildingTs.includes('el GARAJE ENTRA AQUÍ') && buildingTs.includes('if (isLaundry || isPortal) {'));
 check('al entrar, la FACHADA glTF del garaje se desvanece (como viviendas)', buildingTs.includes("if (b.defId === 'garaje' || b.defId === 'portal') view.model?.setEnabled(wall);"));
 check('la basculante SE LEVANTA con bisagra en el canto superior', buildingTs.includes('basculante_hinge') && buildingTs.includes('d.hinge.rotation.x = hd.liftAngle * d.openT;'));
 check('mobiliario del garaje del catálogo (banco, tablero, estantería, ruedas, caja)', buildingTs.includes("b.defId === 'garaje'") && buildingTs.includes('_g_neumatico_') && buildingTs.includes('_g_banco_tapa'));
@@ -127,8 +127,8 @@ check('arbusto = racimo de esferas (3 piezas por lado)', !!nodeOf('arbusto_izq_a
 check('el resto del portal INTACTO (misma fachada verificada)', !!nodeOf('cristal_izq') && !!nodeOf('toldo') && !!nodeOf('rotulo') && !!nodeOf('farol_izq'));
 
 console.log('── 8. Versiones ──');
-check('insignia v1.34 en i18n (es/en)', i18nTs.includes('v1.36 · se ve dentro y se anda derecho') && i18nTs.includes('v1.36 · see inside, walk straight'));
-check('sw.js bump a vecinos-v1.35', srcOf('public/sw.js').includes('vecinos-v1.36'));
+check('insignia v1.34 en i18n (es/en)', i18nTs.includes('v1.37 · se sale al parque') && i18nTs.includes('v1.37 · out to the park'));
+check('sw.js bump a vecinos-v1.35', srcOf('public/sw.js').includes('vecinos-v1.37'));
 check('PwaRegister espera vecinos-v1.34', srcOf('src/components/game/PwaRegister.tsx').includes('vecinos-v1.34'));
 
 console.log('── 9. Contenido, resolver y sim intactos ──');

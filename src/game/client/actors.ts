@@ -85,6 +85,8 @@ interface Actor {
   carryManual: 'box' | 'parcel' | null;
   /** v1.35 — true mientras la pose TUMBADA ('sleep') está aplicada (para restaurar al soltar). */
   lying: boolean;
+  /** v1.37 — base Y del rebote de ejercicio (parque de calistenia); null = sin rebote. */
+  bobBase: number | null;
 }
 
 /**
@@ -126,6 +128,10 @@ export interface ActorsDirector {
   setHold(id: string, seconds: number): void;
   /** v1.35 — llevar algo ENCIMA (caja de mudanza/paquete): el teatro manda; null lo suelta. */
   setCarrying(id: string, kind: 'box' | 'parcel' | null): void;
+  /** v1.37 — ruta LIBRE del paseo vecinal: tramos crudos del mundo para un actor dirigido. */
+  strollPath(id: string, pts: { x: number; y: number; z: number }[]): boolean;
+  /** v1.37 — sólidos del mundo (lavadoras de la lavandería): los tramos se resuelven contra ellos. */
+  setObstacles(rects: { x0: number; z0: number; w: number; d: number }[]): void;
   /** Gira el actor hacia un punto del mundo (charla de cruce: mirarse al hablar). */
   faceToward(id: string, x: number, z: number): void;
 }
@@ -154,7 +160,7 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
     m.emissiveColor = m.diffuseColor.scale(0.25);
     mesh.material = m;
     mesh.isPickable = false;
-    const a: Actor = { id, node: mesh, height, pivotY: height / 2, path: [], wanderT: 0, wanderLap: 0, targetLocal: null, lastLoc: null, directed: false, yaw: 0, targetYaw: null, gesture: null, gestureT: 0, seated: false, seatPending: null, elevatorReq: null, ridePhase: null, enabledPrev: false, stowedBlock: null, rig: null, chatT: 0, carry: null, carryKind: null, carryManual: null, lying: false };
+    const a: Actor = { id, node: mesh, height, pivotY: height / 2, path: [], wanderT: 0, wanderLap: 0, targetLocal: null, lastLoc: null, directed: false, yaw: 0, targetYaw: null, gesture: null, gestureT: 0, seated: false, seatPending: null, elevatorReq: null, ridePhase: null, enabledPrev: false, stowedBlock: null, rig: null, chatT: 0, carry: null, carryKind: null, carryManual: null, lying: false, bobBase: null };
     actors.set(id, a);
 
     // Arte final (opcional): modelo glTF del manifiesto; cualquier fallo → cápsula.
@@ -217,6 +223,22 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
     return f.elevator === true && b.params.elevator_status === 'ok';
   };
   const shaftXOf = (b: BlockInstance): number => (b.cell.col + b.size.w / 2) * v.cellW;
+  // v1.37 — SÓLIDOS DEL MUNDO (lavadoras de la lavandería): los vecinos tampoco las
+  // atraviesan. Los tramos horizontales se resuelven contra estos rects (mismo set que
+  // player-logic usa para el jugador: UNA verdad, building.walkObstacles()).
+  let solidRects: { x0: number; z0: number; w: number; d: number }[] = [];
+  const resolveSolids = (px: number, pz: number, nx: number, nz: number, y: number): { x: number; z: number } => {
+    if (solidRects.length === 0 || y > v.cellH * 0.6) return { x: nx, z: nz };
+    const r = v.actorRadius;
+    const hit = (x: number, z: number): boolean =>
+      solidRects.some((o) => x > o.x0 - r && x < o.x0 + o.w + r && z > o.z0 - r && z < o.z0 + o.d + r);
+    if (!hit(nx, nz)) return { x: nx, z: nz };
+    if (!hit(nx, pz)) return { x: nx, z: pz };
+    if (!hit(px, nz)) return { x: px, z: nz };
+    return { x: px, z: pz };
+  };
+  /** v1.37 — fase global del rebote de ejercicio (sentadillas del paseo). */
+  let exercisePhase = 0;
   /** Calado transitablo del bloque (vivienda 2×; naves del cierre v1.16 a calado de vivienda;
    *  trasteros por columna v1.18: depth × blockDepthFactor).
    *  v1.19: en vivienda manda el LAYOUT — las salas traseras viven más allá de view.depth. */
@@ -385,6 +407,8 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
   return {
     /** playerResidentId identifica al residente del jugador local (multijugador: puede ser un invitado). */
     update(dt: number, player: PlayerPosition, playerResidentId: string) {
+      // v1.37 — fase del rebote de ejercicio (sentadillas del paseo, ritmo del catálogo).
+      exercisePhase += dt * (v.paseo?.bobRate ?? 4);
       // Altas y bajas: residentes sin nodo → crear; nodos huérfanos → dispose + remove.
       for (const id in world.residents) {
         if (!actors.has(id)) ensureActor(id, world.residents[id]!.archetype);
@@ -606,8 +630,11 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
               // reparte X/Z/Y con la MISMA velocidad de crucero, así la subida es física.
               const step = Math.min(npcSpeed * dt, (0.35 + wdh * 2.5) * dt, wdh);
               const t = step / wdh;
-              node.x += (w.x - node.x) * t;
-              node.z += (w.z - node.z) * t;
+              // v1.37 — los sólidos del mundo (lavadoras) no se atraviesan: la posición
+              // tentativa se resuelve contra los rects (desliza por ejes, nunca atraviesa).
+              const solid = resolveSolids(node.x, node.z, node.x + (w.x - node.x) * t, node.z + (w.z - node.z) * t, node.y);
+              node.x = solid.x;
+              node.z = solid.z;
               node.y += wdy * t;
             }
             // Tramo terminado → siguiente tramo de la ruta.
@@ -654,6 +681,17 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
         const q = a.node.rotationQuaternion;
         if (q) Quaternion.RotationYawPitchRollToRef(a.yaw + MODEL_YAW_OFFSET, 0, 0, q);
         else a.node.rotation.y = a.yaw + MODEL_YAW_OFFSET;
+
+        // ── v1.37 — EJERCICIO DEL PASEO (parque de calistenia): con el gesto del catálogo
+        //  (paseo.gesture) el vecino hace sentadillas — rebote vertical sutil y determinista
+        //  (paseo.bob/bobRate) desde la altura a la que empezó el gesto.
+        const pc = v.paseo;
+        if (pc && pc.bob > 0 && a.gesture === pc.gesture && a.bobBase !== null && !a.lying) {
+          const phase = exercisePhase + (hash01(id, 9900) - 0.5) * 2.4;
+          node.y = a.bobBase + Math.max(0, Math.sin(phase)) * pc.bob;
+        } else if (a.bobBase !== null && a.gesture !== pc?.gesture) {
+          a.bobBase = null;
+        }
 
         // ── v1.35 — POSE TUMBADA (comedia del vecindario): con el gesto 'sleep' el vecino
         //  se queda FRITO en el suelo (boca arriba, donde esté) — situación cómica del
@@ -815,6 +853,19 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
         buildRoute(a, { x: dest.x, y: dest.floor * v.cellH + 0.14 + a.pivotY, z: dest.z, inside });
         return true;
       },
+      /** v1.37 — RUTA LIBRE (paseo vecinal): tramos crudos del mundo (acera, paso de
+       *  peatones, jardín de enfrente) para un actor DIRIGIDO — sin la ley del pasillo,
+       *  que ahí fuera no manda. El actor consume los tramos con su locomoción de siempre. */
+      strollPath(id: string, pts: { x: number; y: number; z: number }[]): boolean {
+        const a = actors.get(id);
+        if (!a || !a.directed) return false;
+        a.path = pts.map((p) => ({ ...p }));
+        return true;
+      },
+      /** v1.37 — sólidos del mundo (lavadoras de la lavandería): mismos rects que el jugador. */
+      setObstacles(rects: { x0: number; z0: number; w: number; d: number }[]): void {
+        solidRects = rects;
+      },
       idle(id: string): boolean {
         const a = actors.get(id);
         return !a || (a.path.length === 0 && !a.elevatorReq);
@@ -856,6 +907,9 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
         if (!a) return;
         a.gesture = state;
         a.gestureT = state && seconds > 0 ? seconds : 0;
+        // v1.37 — el ejercicio del paseo rebota desde la altura ACTUAL (base del rebote).
+        if (state && state === v.paseo?.gesture) a.bobBase = a.node.position.y;
+        else a.bobBase = null;
       },
       /** Pausa de charla (v1.20): congela la locomoción; 0 suelta. */
       setHold(id: string, seconds: number): void {

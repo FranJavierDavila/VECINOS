@@ -63,6 +63,10 @@ export interface TrafficDirector {
   setVisible(visible: boolean): void;
   /** Vehículos vivos (para QA/E2E). */
   aliveCount(): number;
+  /** v1.37 — ¿está DESPEJADO el paso de peatones? true si NINGÚN vehículo ronda la banda
+   *  [zMin..zMax] a menos de `margin` metros del punto x (por morro o por cola). Lo consulta
+   *  el paseo vecinal antes de cruzar («mirando a ambos lados para que no pasen coches»). */
+  crossingClear(x: number, zMin: number, zMax: number, margin: number): boolean;
   /** RIG de la ambulancia para el teatro de emergencias (ambulance.ts).
    *  null si el catálogo no trae view.traffic.ambulance. */
   buildAmbulance(): AmbulanceRig | null;
@@ -92,7 +96,7 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
   const { Color3, Mesh, MeshBuilder, StandardMaterial, TransformNode, Vector3 } = B();
   const cfg = content.rules.view.traffic;
   if (!cfg.enabled || cfg.vehicles.length === 0 || cfg.lanes.length === 0) {
-    return { update() {}, setVisible() {}, aliveCount: () => 0, dispose() {}, buildAmbulance: () => null };
+    return { update() {}, setVisible() {}, aliveCount: () => 0, crossingClear: () => true, dispose() {}, buildAmbulance: () => null };
   }
   // AMBULANCIA (opcional del catálogo): la librea lee franja/cruz del catálogo.
   const acfg = cfg.ambulance ?? { stripe: '#e8641b', cross: '#c0392b' };
@@ -851,6 +855,17 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
       root.setEnabled(v);
     },
     aliveCount: () => active.size,
+    /** v1.37 — ¿paso despejado? Un vehículo ocupa el cruce si su carril cae en la banda y
+     *  su cuerpo (morro o cola, length/2) está a menos de `margin` del punto x. */
+    crossingClear(x: number, zMin: number, zMax: number, margin: number): boolean {
+      for (const a of active) {
+        const laneZ = cfg.lanes[a.laneIndex]!.z;
+        if (laneZ < zMin || laneZ > zMax) continue;
+        const half = cfg.vehicles[a.defIndex]!.length / 2;
+        if (Math.abs(a.x - x) < half + margin) return false;
+      }
+      return true;
+    },
     buildAmbulance,
     dispose() {
       for (const a of active) a.rig.root.dispose(false, true);

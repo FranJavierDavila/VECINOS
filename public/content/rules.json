@@ -425,7 +425,24 @@
      "art": "/art/trees/tree_round.png",
      "s": 1.35
     }
-   ]
+   ],
+   "calisthenics": {
+    "enabled": true,
+    "x": 12.9,
+    "z": -15.4,
+    "w": 5.6,
+    "d": 2.8,
+    "ground": "#c26d4f",
+    "edge": "#8f4a33",
+    "postColor": "#6f4926",
+    "barColor": "#b8bfc7",
+    "boardColor": "#f2ead9",
+    "sign": "CALISTENIA",
+    "signBg": "#3b3129",
+    "signFg": "#ffd166",
+    "barH": 2.15,
+    "dipH": 1.22
+   }
   },
   "traffic": {
    "enabled": true,
@@ -831,6 +848,71 @@
    "estanciaWidthW": 2.9,
    "estanciaEdgeMargin": 2.4
   },
+  "noticeboard": {
+   "enabled": true,
+   "floor": 0,
+   "side": "left",
+   "inset": 0.82,
+   "z": -0.72,
+   "yaw": 5.11,
+   "postColor": "#6f4926",
+   "postW": 0.1,
+   "frameColor": "#8a5a33",
+   "frameW": 0.07,
+   "corkColor": "#c9a877",
+   "boardW": 1.5,
+   "boardH": 1.04,
+   "boardY": 1.68,
+   "deskW": 0.7,
+   "deskD": 0.44,
+   "deskY": 1.04,
+   "deskColor": "#8a5a33",
+   "deskSlant": 0.42,
+   "capColor": "#6f4926",
+   "headline": "TABLÓN DE ANUNCIOS",
+   "headlineBg": "#3b3129",
+   "headlineFg": "#ffd166",
+   "paperColors": [
+    "#f6f1e2",
+    "#fdd9e0",
+    "#eef3da",
+    "#fdf3cf"
+   ],
+   "notes": [
+    "SE BUSCA: vecino del karaoke nocturno. Recompensa: silencio.",
+    "La lavandería NO es un lavadero de fortunas: una colada por vecino.",
+    "Se busca gata llamada Bola. No responde… a nada, en realidad.",
+    "El parque de calistenia de enfrente ya está abierto. ¡A sudar!",
+    "El ascensor funciona. Crucemos los dedos hasta el próximo aviso."
+   ]
+  },
+  "paseo": {
+   "enabled": true,
+   "everyMin": 40,
+   "everyMax": 110,
+   "maxOut": 2,
+   "chance": 0.85,
+   "lookSeconds": 0.95,
+   "doorWait": 1.1,
+   "crossMargin": 17,
+   "crossX": 13.0,
+   "curbNearZ": -5.6,
+   "curbFarZ": -13.1,
+   "parkX": 12.6,
+   "parkZ": -14.9,
+   "exerciseMin": 9,
+   "exerciseMax": 20,
+   "gesture": "dance",
+   "bob": 0.085,
+   "bobRate": 4.2,
+   "lines": [
+    "Un rato de barras y vuelvo, que la paella no se remueve sola.",
+    "El médico dijo ejercicio. El médico no vive en un cuarto sin ascensor.",
+    "Cruzo al parque… mirando a los dos lados, que la calle es la calle.",
+    "Calistenia: gratis, al aire libre y con espectáculo de coches.",
+    "A estirar las piernas al jardín de enfrente."
+   ]
+  },
   "commonDepth": 2.8,
   "actorTurnSpeed": 10,
   "runSpeed": 3.9,
@@ -1190,6 +1272,8 @@
     "signText": "#ffd166",
     "rampDepth": 1.1,
     "rampColor": "#8f8d86",
+    "doorW": 2.16,
+    "doorH": 1.92,
     "furniture": {
      "benchW": 1.35,
      "benchH": 0.92,

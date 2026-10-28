@@ -256,6 +256,20 @@ export class PlayerLogic {
     this.cellObstacles = rects;
   }
 
+  /** v1.37 — obstáculos andables POR BLOQUE (mundo): las lavadoras/secadoras de la
+   *  lavandería son sólidas (el jugador no las atraviesa al moverse dentro). */
+  private blockObstacles: Map<string, { x0: number; z0: number; w: number; d: number }[]> = new Map();
+  setBlockObstacles(list: { blockId: string; rects: { x0: number; z0: number; w: number; d: number }[] }[]): void {
+    this.blockObstacles = new Map(list.map((o) => [o.blockId, o.rects]));
+  }
+
+  /** v1.37 — posición del ATRIL del tablón de anuncios (la pasa el controlador desde
+   *  building.noticeboardSpot()): el interact 'noticeboard' se consulta ahí. */
+  private noticeSpot: { x: number; floor: number } | null = null;
+  setNoticeboardSpot(spot: { x: number; floor: number } | null): void {
+    this.noticeSpot = spot;
+  }
+
   /** Posición (mundo) del cuerpo dentro del interior presentable del trastero propio. */
   private rearSeat(): { x: number; z: number } {
     if (this.rearPos) return this.rearPos;
@@ -513,12 +527,19 @@ export class PlayerLogic {
       const maxZ = Math.max(...geo.rooms.map((r) => r.rect.z + r.rect.d));
       const clampX = (x: number) => Math.min(b - this.view.margin, Math.max(a + this.view.margin, x));
       const clampZ = (z: number) => Math.min(maxZ - this.view.margin, Math.max(this.view.margin, z));
+      // v1.37 — SÓLIDOS del bloque (lavadoras de la lavandería): los mismos volúmenes que
+      // se ven (rects en mundo de building.walkObstacles) bloquean el paso, con el radio
+      // del actor. En vivienda no hay lista → no-op.
+      const obs = this.blockObstacles.get(this.insideBlock!);
+      const or_ = this.view.actorRadius;
+      const hitsSolid = (wx: number, lz: number): boolean =>
+        !!obs && obs.some((o) => wx > o.x0 - or_ && wx < o.x0 + o.w + or_ && lz > o.z0 - this.frontZ - or_ && lz < o.z0 - this.frontZ + o.d + or_);
       const cur = roomAt(geo, this.x - x0, this.z);
       const nx = clampX(this.x + dx);
-      if (walkable(geo, cur, nx - x0, this.z)) this.x = nx;
+      if (walkable(geo, cur, nx - x0, this.z) && !hitsSolid(nx, this.z)) this.x = nx;
       const cur2 = roomAt(geo, this.x - x0, this.z);
       const nz = clampZ(this.z + dz);
-      if (walkable(geo, cur2, this.x - x0, nz)) this.z = nz;
+      if (walkable(geo, cur2, this.x - x0, nz) && !hitsSolid(this.x, nz)) this.z = nz;
       return;
     }
     // Pasillo (v1.19): DOS carriles. A/D avanza en X; W/S, si no arrancan escalada (no hay
@@ -624,15 +645,18 @@ export class PlayerLogic {
       }
       return { kind: 'door', blockId: this.insideBlock! };
     }
-    // Prioridad (v1.18): las fijaciones del portal (buzones/tablón, proximidad exacta) van
+    // Prioridad (v1.18): las fijaciones del portal (buzones, proximidad exacta) van
     // delante de la puerta — el portal ahora también es puerta (approach de misiones) y sin
-    // esto su propia fachada se comería la E del tablón. Después: puerta → vecino.
-    // v1.19: desde el carril EXTERIOR nada de esto salta (ni buzones ni tablón ni puertas).
+    // esto su propia fachada se comería la E de los buzones. Después: puerta → vecino.
+    // v1.19: desde el carril EXTERIOR nada de esto salta (ni buzones ni puertas).
+    // v1.37 — el TABLÓN se consulta en el ATRIL del extremo del pasillo de planta 0:
+    // posición que pasa building.noticeboardSpot() (UNA sola verdad con lo que se ve).
     if (!this.onOuterLane()) {
+      const nb = this.noticeSpot;
+      if (nb && this.floor === nb.floor && Math.abs(this.x - nb.x) < this.view.itemRadius) return { kind: 'noticeboard' };
       const zoneFirst = this.zone();
-      const [za, zz] = this.rangeOf(zoneFirst);
+      const [za] = this.rangeOf(zoneFirst);
       if (this.content.blocks[zoneFirst.defId]!.features?.mailboxes && Math.abs(this.x - (za + 1.2)) < this.view.itemRadius) return { kind: 'mailbox' };
-      if (this.content.blocks[zoneFirst.defId]!.features?.noticeboard && Math.abs(this.x - (zz - 0.8)) < this.view.itemRadius) return { kind: 'noticeboard' };
       const door = this.doorInFront();
       if (door) return { kind: 'door', blockId: door.id };
     }

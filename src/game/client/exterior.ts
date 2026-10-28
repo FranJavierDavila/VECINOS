@@ -349,6 +349,84 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
     q.parent = propsNode;
   }
 
+  // ── PARQUE DE CALISTENIA (v1.37) — el jardín de enfrente gana su parque: suelo de
+  // caucho, barra de dominadas, paralelas, banco de abdominales y cartel. TODO del catálogo
+  // (rules.view.exterior.calisthenics) y fundido en las mallas de siempre (props: visible
+  // en vistas con calle). Las piezas nacen sobre la altura del `campo` (canto ex.height).
+  const cal = cfg.calisthenics;
+  if (cal?.enabled) {
+    const baseY = 0.14; // canto superior de la tira de campo (ex.height 0.16 − 0.02 de asiento)
+    const xC = cal.x;
+    const zC = cal.z;
+    // Suelo de caucho: losa color terrizo con borde perimetral más oscuro (nada coplanar:
+    // losa a +3 cm del campo y borde a +4 cm alrededor, sin solapar el rect interior).
+    const gM = matOf(cal.ground, 'cal_goma');
+    const eM = matOf(cal.edge, 'cal_borde');
+    box('cal_goma', statics, cal.w, 0.05, cal.d, xC, baseY + 0.005, zC, gM);
+    const ew = 0.12;
+    for (const [sx, sz] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) {
+      const wE = sx !== 0 ? ew : cal.w + ew * 2;
+      const dE = sx !== 0 ? cal.d + ew * 2 : ew;
+      box('cal_borde', statics, wE, 0.07, dE, xC + sx * (cal.w / 2 + ew / 2), baseY + 0.005, zC + sz * (cal.d / 2 + ew / 2), eM);
+    }
+    const pM = matOf(cal.postColor, 'cal_poste');
+    const bM = matOf(cal.barColor, 'cal_barra');
+    // v1.37 — los aparatos se AGRUPAN en el borde VISIBLE (el canto de la cámara de la calle
+    // corta hacia z≈-14.3): cartel y barra lo más cerca del edificio, paralelas y banco detrás.
+    const nearZ = zC + cal.d / 2; // borde del parque hacia el edificio (el que se ve en cuadro)
+    // BARRA DE DOMINADAS: dos postes con pata inclinada y barra superior.
+    const px = xC - cal.w * 0.22;
+    const pz = nearZ - 0.8;
+    for (const sz of [-1, 1] as const) {
+      box('cal_poste', props, 0.09, cal.barH, 0.09, px, baseY + 0.03 + cal.barH / 2, pz + sz * 0.62, pM).parent = propsNode;
+      box('cal_pata', props, 0.09, 0.5, 0.09, px + 0.18, baseY + 0.03 + 0.25, pz + sz * 0.62 + (sz > 0 ? -0.16 : 0.16), pM).parent = propsNode;
+    }
+    box('cal_barra', props, 0.06, 0.06, 1.34, px, baseY + 0.03 + cal.barH, pz, bM).parent = propsNode;
+    // PARALELAS: dos barras bajas en paralelo (fondos de pecho y fondos).
+    const dx = xC + cal.w * 0.12;
+    const dz = nearZ - 1.55;
+    for (const sz of [-1, 1] as const) {
+      box('cal_dip_pata_a', props, 0.08, cal.dipH, 0.08, dx - 0.55, baseY + 0.03 + cal.dipH / 2, dz + sz * 0.3, pM).parent = propsNode;
+      box('cal_dip_pata_b', props, 0.08, cal.dipH, 0.08, dx + 0.55, baseY + 0.03 + cal.dipH / 2, dz + sz * 0.3, pM).parent = propsNode;
+      box('cal_dip_barra', props, 1.22, 0.055, 0.055, dx, baseY + 0.03 + cal.dipH, dz + sz * 0.3, bM).parent = propsNode;
+    }
+    // BANCO DE ABDOMINALES: tabla inclinada sobre dos caballetes.
+    const bx = xC + cal.w * 0.34;
+    const bz = nearZ - 2.15;
+    const board = box('cal_banco_tabla', props, 1.15, 0.06, 0.4, bx, baseY + 0.03 + 0.36, bz, matOf(cal.boardColor, 'cal_tabla'));
+    board.rotation.z = -0.22;
+    board.parent = propsNode;
+    for (const sx of [-1, 1] as const) {
+      box('cal_banco_pata', props, 0.08, 0.36, 0.36, bx + sx * 0.42, baseY + 0.03 + 0.18, bz, pM).parent = propsNode;
+    }
+    // CARTEL del parque: poste + placa con el nombre (canvas, igual oficio que los rótulos).
+    const sxn = xC - cal.w * 0.42;
+    const szn = nearZ - 0.15;
+    box('cal_cartel_palo', props, 0.07, 1.5, 0.07, sxn, baseY + 0.03 + 0.75, szn, pM).parent = propsNode;
+    const signW = 1.06;
+    const signH = 0.42;
+    const signTexCal = new (B().DynamicTexture)('cal_cartel_tex', { width: 512, height: Math.round((512 * signH) / signW) }, scene, true);
+    const sc = signTexCal.getContext() as unknown as CanvasRenderingContext2D;
+    sc.fillStyle = cal.signBg;
+    sc.fillRect(0, 0, 512, Math.round((512 * signH) / signW));
+    sc.fillStyle = cal.signFg;
+    sc.font = 'bold 84px Arial, sans-serif';
+    sc.textAlign = 'center';
+    sc.textBaseline = 'middle';
+    sc.fillText(cal.sign, 256, Math.round((512 * signH) / signW) / 2 + 4);
+    signTexCal.update(true);
+    const signM = new StandardMaterial(`cal_cartel_mat_${mats.size}`, scene);
+    signM.diffuseTexture = signTexCal;
+    signM.specularColor = new Color3(0.05, 0.05, 0.05);
+    const signQuad = MeshBuilder.CreatePlane('cal_cartel', { width: signW, height: signH }, scene);
+    signQuad.position.set(sxn, baseY + 0.03 + 1.42, szn + 0.05);
+    signQuad.rotation.y = Math.PI; // la cara mira a la cámara (calle): el nombre se lee de frente
+    signQuad.material = signM;
+    signQuad.isPickable = false;
+    push(props, 'cal_cartel', signQuad);
+    signQuad.parent = propsNode;
+  }
+
   // ── COCINADO (v1.22): una malla por material y grupo. El mobiliario fusionado cuelga del
   // nodo de vista "edificio"; las estáticas se quedan sueltas en la escena. Bounding infos
   // congeladas (nada se mueve) y materiales estáticos congelados (menos trabajo por frame).

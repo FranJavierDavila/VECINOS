@@ -25,6 +25,7 @@ import { createShadows, type ShadowsDirector } from './shadows';
 import { createAmbulanceTheater, type AmbulanceTheater } from './ambulance';
 import { createPedestrians, type PedestriansDirector } from './pedestrians';
 import { createStreetlife, type StreetlifeDirector } from './streetlife';
+import { createPaseo, type PaseoDirector } from './paseo';
 import { createVoices, type VoicesDirector } from './voices';
 import { CameraRig, type CamMode } from './camera';
 import { CutscenePlayer, type CutsceneEventCtx } from './cutscene';
@@ -70,6 +71,9 @@ class GameController {
   private ambulance: AmbulanceTheater | null = null;
   private pedestrians: PedestriansDirector | null = null;
   private streetlife: StreetlifeDirector | null = null;
+  /** v1.37 — PASEO VECINAL: vecinos que salen, cruzan por el paso mirando ambos lados y
+   *  van al parque de calistenia del jardín de enfrente (solo presentación). */
+  private paseo: PaseoDirector | null = null;
   private voices: VoicesDirector | null = null;
   /** Bloom/glow de las luces (v1.28): halo realista sobre materiales emisivos (catálogo). */
   private glowLayer: { dispose(): void } | null = null;
@@ -163,6 +167,8 @@ class GameController {
     this.voices = null;
     this.streetlife?.dispose();
     this.streetlife = null;
+    this.paseo?.dispose();
+    this.paseo = null;
     this.pedestrians?.dispose();
     this.pedestrians = null;
     this.traffic?.dispose();
@@ -802,8 +808,15 @@ class GameController {
     // v1.21: los rects de obstáculos del interior del trastero (estanterías/trastos que pinta
     // building) alimentan la colisión del movimiento libre dentro de la celda — UNA verdad.
     this.logic.setCellObstacles(this.building.cellObstacles());
+    // v1.37 — los SÓLIDOS de los locales (lavadoras de la lavandería) y la posición del
+    // ATRIL del tablón salen del mismo building que los pinta: una sola verdad.
+    this.logic.setBlockObstacles(this.building.walkObstacles());
+    this.logic.setNoticeboardSpot(this.building.noticeboardSpot());
     this.elevators = createElevators(this.scene, this.world, this.content);
     this.actors = createActors(this.scene, this.world, this.content, this.elevators);
+    // v1.37 — los vecinos tampoco atraviesan las lavadoras: los tramos de su locomoción se
+    // resuelven contra los mismos rects que el jugador.
+    this.actors.director?.setObstacles(this.building.walkObstacles().flatMap((o) => o.rects));
     // Fondo urbano (v1.20): cielo dinámico por hora + fachadas parallax; la luz del catálogo
     // evoluciona con el sol (el edificio vive la misma hora que el cielo).
     this.backdrop?.dispose();
@@ -867,6 +880,7 @@ class GameController {
       pedestrians: () => this.pedestrians,
       streetlife: () => this.streetlife,
       voices: () => this.voices,
+      paseo: () => this.paseo,
     };
     // Bocadillos de expresión (v1.10): capa DOM sobre el canvas, recreada con el mundo
     // (referencia al World vivo). Sin emotes.json en el catálogo, director nulo sin capa.
@@ -882,6 +896,14 @@ class GameController {
     // streetlife necesita los bocadillos para los comentarios: reconstrúyelo con ellos.
     this.streetlife?.dispose();
     this.streetlife = createStreetlife(this.scene, this.world, this.content, this.actors?.director ?? null, this.bubbles);
+    // v1.37 — PASEO VECINAL: después de actores/bocadillos/tráfico (son sus tres clientes).
+    // Algunos vecinos salen a la calle, cruzan por el paso de peatones mirando a ambos lados
+    // y van al parque de calistenia del jardín de enfrente.
+    this.paseo?.dispose();
+    this.paseo = createPaseo(this.world, this.content, this.actors?.director ?? null, this.bubbles, this.traffic, () => {
+      const cm = useGameStore.getState().camMode;
+      return cm === 'edificio' || cm === 'planta';
+    });
     const blocks = Object.values(this.world.blocks);
     // El cubo de escalera (v1.4) sobresale spanW−1 celdas por la derecha del edificio:
     // el encuadre lo incluye para que la torre no se corte en cámara.
@@ -1052,6 +1074,7 @@ class GameController {
       this.ambulance?.update(dt);
       this.pedestrians?.update(dt);
       this.streetlife?.update(dt);
+      this.paseo?.update(dt);
     }
     // Charlas de cruce (v1.20): en multijugador quedan en pausa (mismo criterio que el ecosistema).
     if (!this.net) this.chats?.update(dt);

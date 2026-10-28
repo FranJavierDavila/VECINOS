@@ -14,7 +14,7 @@
  *     página se recarga UNA vez sola (guardada en PwaRegister). Adiós a la doble recarga manual.
  *   - Las peticiones que no son GET (save/load API) NUNCA se cachean.
  */
-const VERSION = 'vecinos-v1.36';
+const VERSION = 'vecinos-v1.37';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const SHELL_ASSETS = ['/', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];

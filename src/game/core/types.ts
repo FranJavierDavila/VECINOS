@@ -1238,6 +1238,10 @@ export interface Rules {
         signText: string;
         rampDepth: number;
         rampColor: string;
+        /** v1.37 — hueco REAL de la basculante: el frente del runtime se parte alrededor
+         *  (jambas + dintel) y al levantarse la puerta se ve el interior AL INSTANTE. */
+        doorW?: number;
+        doorH?: number;
         /** v1.34 — mobiliario del garaje comunitario (interior habitable). */
         furniture?: {
           benchW: number;
@@ -1338,6 +1342,61 @@ export interface Rules {
           floorColor: string;
         };
       };
+    };
+    /** v1.37 — ATRIL del tablón de anuncios (planta 0, extremo del pasillo): la consulta
+     *  del tablón vive ahí (interact 'noticeboard' anclado a su posición del mundo). */
+    noticeboard?: {
+      enabled: boolean;
+      floor: number;
+      side: 'left' | 'right';
+      inset: number;
+      /** offset desde la línea del pasillo (corridorZ): negativo = hacia la calle. */
+      z: number;
+      yaw: number;
+      postColor: string;
+      postW: number;
+      frameColor: string;
+      frameW: number;
+      corkColor: string;
+      boardW: number;
+      boardH: number;
+      boardY: number;
+      deskW: number;
+      deskD: number;
+      deskY: number;
+      deskColor: string;
+      deskSlant: number;
+      capColor: string;
+      headline: string;
+      headlineBg: string;
+      headlineFg: string;
+      paperColors: string[];
+      notes: string[];
+    };
+    /** v1.37 — PASEO VECINAL: los vecinos salen a la calle, cruzan por el paso de peatones
+     *  mirando a ambos lados y van al jardín de enfrente a practicar algo de deporte. */
+    paseo?: {
+      enabled: boolean;
+      everyMin: number;
+      everyMax: number;
+      maxOut: number;
+      /** probabilidad de que el vecino elegido acepte el paseo («algunos si quieren»). */
+      chance: number;
+      lookSeconds: number;
+      doorWait: number;
+      crossMargin: number;
+      crossX: number;
+      curbNearZ: number;
+      curbFarZ: number;
+      parkX: number;
+      parkZ: number;
+      exerciseMin: number;
+      exerciseMax: number;
+      /** clip de gesto del ejercicio (cae al default del rig si el arquetipo no lo tiene). */
+      gesture: string;
+      bob: number;
+      bobRate: number;
+      lines: string[];
     };
     /** v1.35 — GRAFITIS (cabina del ascensor + paredes del cubo/portal): textos y dibujos
      *  graciosos del catálogo; cabinMin = nivel en que aparece el mural de cabina,
@@ -1462,6 +1521,25 @@ export interface Rules {
        *  portal) y piezas COLOCADAS a mano (el árbol del portal, replantado a la derecha). */
       keepOut?: { x0: number; x1: number; z0: number; z1: number }[];
       forcedTrees?: { x: number; z: number; art?: string; s?: number }[];
+      /** v1.37 — PARQUE DE CALISTENIA en el jardín de enfrente: barras, paralelas,
+       *  banco de abdominales y suelo de caucho — todo del catálogo. */
+      calisthenics?: {
+        enabled: boolean;
+        x: number;
+        z: number;
+        w: number;
+        d: number;
+        ground: string;
+        edge: string;
+        postColor: string;
+        barColor: string;
+        boardColor: string;
+        sign: string;
+        signBg: string;
+        signFg: string;
+        barH: number;
+        dipH: number;
+      };
     };
     /** ── Tráfico (v1.22) ── vehículos ocasionales (coches, bus, patrulla) por carriles;
      *  solo presentación y solo vista "edificio". */
