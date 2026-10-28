@@ -27,7 +27,7 @@ const DICT: Record<string, { es: string; en: string }> = {
     es: 'Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.',
     en: 'Move-ins, noise, smells, wifi, pests, smoke and levies: the neighborhood simulator.',
   },
-  'header.version': { es: 'v1.37 · se sale al parque', en: 'v1.37 · out to the park' },
+  'header.version': { es: 'v1.38 · pase de optimización', en: 'v1.38 · optimization pass' },
   // ── Post-its (v1.23: mandos agrupados dibujados a bolígrafo) ──
   'postit.time': { es: 'Tiempo', en: 'Time' },
   'postit.options': { es: 'Opciones', en: 'Options' },
@@ -206,6 +206,30 @@ const DICT: Record<string, { es: string; en: string }> = {
     en: 'Gamepad: stick/d-pad moves · A interacts · Y switches camera · Start pauses',
   },
   'opt.backend': { es: 'Render: {b}', en: 'Render: {b}' },
+  // ── v1.38 — pase de optimización: auto-ajuste de rendimiento ──
+  'opt.perfAuto': { es: 'Auto-ajuste de rendimiento', en: 'Adaptive performance' },
+  'opt.perfAutoAria': { es: 'Activar el auto-ajuste de rendimiento', en: 'Enable adaptive performance' },
+  'opt.perfAutoHelp': {
+    es: 'Mide los FPS y ajusta sombras, brillo y resolución para cumplir el objetivo. Nunca toca la partida.',
+    en: 'Measures FPS and tunes shadows, glow and resolution to hit the target. Never touches the save.',
+  },
+  'opt.perfTarget': { es: 'Objetivo de FPS', en: 'FPS target' },
+  'opt.perfTargetAria': { es: 'Objetivo de FPS que el auto-ajuste garantiza', en: 'FPS target the optimizer guarantees' },
+  'opt.perf.max': { es: 'Máximo rendimiento', en: 'Max performance' },
+  'opt.perf.60': { es: '60 FPS', en: '60 FPS' },
+  'opt.perf.45': { es: '45 FPS', en: '45 FPS' },
+  'opt.perf.30': { es: '30 FPS (mínimo garantizado)', en: '30 FPS (guaranteed minimum)' },
+  'opt.perf.status': { es: 'Rendimiento: {n} FPS · {s}', en: 'Performance: {n} FPS · {s}' },
+  'opt.perf.statusManual': { es: 'Auto-ajuste desactivado — manda tu calidad elegida', en: 'Adaptive off — your chosen quality rules' },
+  'opt.perf.level.0': { es: 'calidad completa', en: 'full quality' },
+  'opt.perf.level.1': { es: 'sombras cada 2 fotogramas', en: 'shadows every 2 frames' },
+  'opt.perf.level.2': { es: 'sin halo de luces (glow off)', en: 'no light glow' },
+  'opt.perf.level.3': { es: 'resolución reducida ×1.2', en: 'reduced resolution ×1.2' },
+  'opt.perf.level.4': { es: 'resolución reducida ×1.4', en: 'reduced resolution ×1.4' },
+  'opt.perf.level.5': { es: 'resolución ×1.65 · sombras cada 3', en: 'resolution ×1.65 · shadows every 3' },
+  'opt.perf.level.6': { es: 'sin sombras', en: 'no shadows' },
+  'opt.perf.level.7': { es: 'resolución ×1.95 · sin sombras', en: 'resolution ×1.95 · no shadows' },
+  'opt.perf.level.8': { es: 'resolución mínima ×2.3 · sin sombras', en: 'min resolution ×2.3 · no shadows' },
 };
 
 /** Interpola {vars} simples sobre una plantilla. */

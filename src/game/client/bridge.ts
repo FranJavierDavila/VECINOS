@@ -26,6 +26,9 @@ export interface GameControllerApi {
   /** Pulido Steam: siguiente cámara de la rueda (mando Y); calidad de render desde Opciones. */
   cycleCam(): void;
   applyQuality(q: 'eco' | 'normal' | 'alta'): void;
+  /** v1.38 — pase de optimización: auto-ajuste de rendimiento y objetivo de FPS desde Opciones. */
+  applyPerfAuto(v: boolean): void;
+  applyPerfTarget(t: 30 | 45 | 60 | 'max'): void;
   /** Editor de interiores: colocar, quitar y reformar estancias. */
   placeFurniture(block: string, room: string, slot: string, item: string): void;
   removeFurniture(block: string, room: string, slot: string): void;

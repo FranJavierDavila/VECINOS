@@ -8,6 +8,9 @@
  *   · TIEMPO: pausa, 1x/3x/10x y +10 min (absorbe el botón suelto de +10).
  *   · Opciones (engranaje): absorbe Sonido, Táctil, calidad de render, contador FPS
  *     e idioma — el modal de opciones desaparece en favor de este post-it.
+ *     v1.38 — PASE DE OPTIMIZACIÓN: añade el AUTO-AJUSTE DE RENDIMIENTO (interruptor)
+ *     y su OBJETIVO DE FPS (Máximo/60/45/30), con línea de estado en vivo (FPS medidos
+ *     y peldaño del optimizador) — «asegurar al menos 30 FPS o más, cuanto más mejor».
  *   · Partida: guardar / cargar.
  *   · Ayuda (¿?), Jugadores (multijugador).
  * Las CÁMARAS quedan desplegadas en línea (se usan continuamente) con la misma
@@ -40,7 +43,8 @@ import { useGameStore } from '@/game/client/store';
 import type { CamMode, Speed } from '@/game/client/store';
 import { getController } from '@/game/client/bridge';
 import { getVolume, setMuted, setVolume } from '@/game/client/audio';
-import { loadOptions, saveOptionsPartial, type QualityLevel, type Lang } from '@/game/client/options';
+import { loadOptions, saveOptionsPartial, type QualityLevel, type Lang, type PerfTarget } from '@/game/client/options';
+import { PERF_LADDER_SIZE } from '@/game/client/perf';
 import { useT, LANGUAGES } from '@/game/client/i18n';
 import { cn } from '@/lib/utils';
 
@@ -183,6 +187,18 @@ function InkCoin({ className }: InkProps) {
   );
 }
 
+/** Velocímetro garabateado (v1.38: rendimiento/auto-ajuste). */
+function InkGauge({ className }: InkProps) {
+  return (
+    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+      <path d="M4.3 17.6a8.3 8.3 0 1 1 15.4 0" />
+      <path d="M12 15.8l4.4-5.6" />
+      <circle cx="12" cy="16.4" r="1.5" />
+      <path d="M5.2 17.4h1.6m10.4 0h1.6" />
+    </svg>
+  );
+}
+
 /** Rajita de hucha rota (efecto de pérdida). */
 function InkCrack({ className }: InkProps) {
   return (
@@ -290,6 +306,27 @@ function DoodleButton({
   );
 }
 
+/**
+ * v1.38 — Línea de estado del rendimiento en el post-it de opciones: FPS medidos y
+ * peldaño del optimizador. Vive en un componente aparte para que el contador (que se
+ * actualiza cada ~200 ms) no re-renderice la barra entera de post-its.
+ */
+function PerfStatus() {
+  const t = useT();
+  const ready = useGameStore((s) => s.ready);
+  const fps = useGameStore((s) => s.fps);
+  const perfAuto = useGameStore((s) => s.perfAuto);
+  const perfLevel = useGameStore((s) => s.perfLevel);
+  if (!ready) return null;
+  return (
+    <p className="mt-2.5 border-t border-dashed pt-1.5 text-[10px] opacity-70" role="status" aria-live="off">
+      {perfAuto
+        ? t('opt.perf.status', { n: fps, s: t(`opt.perf.level.${Math.min(perfLevel, PERF_LADDER_SIZE - 1)}`) })
+        : t('opt.perf.statusManual')}
+    </p>
+  );
+}
+
 // ── Cámara desplegada en línea (acceso rápido, estética a bolígrafo) ──
 
 const CAMS: ReadonlyArray<{ value: CamMode }> = [
@@ -314,10 +351,17 @@ export function PostItControls() {
   const toggle = useCallback((id: string) => setOpenId((cur) => (cur === id ? null : id)), []);
 
   // Clic fuera o Escape cierra el post-it abierto.
+  // v1.38 — CORRECCIÓN: los popups de Radix (Select de calidad/objetivo/idioma, diálogos,
+  // menús) viven en un PORTAL fuera de la barra — su pointerdown no es «clic fuera»:
+  // si lo contáramos, el panel se desmontaría ANTES de confirmar el valor elegido
+  // (cazado en E2E: elegir «60 FPS» no se comprometía nunca).
   useEffect(() => {
     if (!openId) return;
     const onDown = (ev: PointerEvent) => {
-      if (!barRef.current?.contains(ev.target as Node)) setOpenId(null);
+      const target = ev.target as Node | null;
+      if (barRef.current?.contains(target)) return;
+      if (target instanceof Element && target.closest('[data-radix-popper-content-wrapper], [role="dialog"], [role="listbox"], [role="menu"]')) return;
+      setOpenId(null);
     };
     const onKey = (ev: KeyboardEvent) => {
       if (ev.key === 'Escape') setOpenId(null);
@@ -346,6 +390,11 @@ export function PostItControls() {
   const setFpsVisible = useGameStore((s) => s.setFpsVisible);
   const lang = useGameStore((s) => s.lang);
   const setLang = useGameStore((s) => s.setLang);
+  // v1.38 — pase de optimización: preferencias espejo + conmutación en vivo vía controlador.
+  const perfAuto = useGameStore((s) => s.perfAuto);
+  const perfTarget = useGameStore((s) => s.perfTarget);
+  const setPerfAuto = useGameStore((s) => s.setPerfAuto);
+  const setPerfTarget = useGameStore((s) => s.setPerfTarget);
   const backend = useGameStore((s) => s.backend);
 
   const [vol, setVol] = useState(() => Math.round(getVolume() * 100));
@@ -531,6 +580,51 @@ export function PostItControls() {
                   </SelectContent>
                 </Select>
               </div>
+              {/* v1.38 — AUTO-AJUSTE DE RENDIMIENTO + OBJETIVO DE FPS (pase de optimización) */}
+              <div className="flex items-center justify-between rounded-md border border-dashed px-2 py-1.5">
+                <Label
+                  htmlFor="pt-perf"
+                  className="ink flex cursor-pointer items-center gap-1.5 text-xs font-semibold"
+                  title={t('opt.perfAutoHelp')}
+                >
+                  <InkGauge />
+                  {t('opt.perfAuto')}
+                </Label>
+                <Switch
+                  id="pt-perf"
+                  checked={perfAuto}
+                  onCheckedChange={(v) => {
+                    setPerfAuto(v);
+                    saveOptionsPartial({ perfAuto: v });
+                    getController()?.applyPerfAuto(v);
+                  }}
+                  aria-label={t('opt.perfAutoAria')}
+                />
+              </div>
+              <div className="space-y-1">
+                <p className="ink text-[11px] font-semibold opacity-80">{t('opt.perfTarget')}</p>
+                <Select
+                  value={String(perfTarget)}
+                  disabled={!perfAuto}
+                  onValueChange={(v) => {
+                    const next = (v === 'max' ? 'max' : Number(v)) as PerfTarget;
+                    setPerfTarget(next);
+                    saveOptionsPartial({ perfTarget: next });
+                    getController()?.applyPerfTarget(next);
+                  }}
+                >
+                  <SelectTrigger className="h-7 text-xs" aria-label={t('opt.perfTargetAria')}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(['max', 60, 45, 30] as const).map((v) => (
+                      <SelectItem key={String(v)} value={String(v)}>
+                        {t(`opt.perf.${v}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-1">
                 <p className="ink text-[11px] font-semibold opacity-80">{t('opt.language')}</p>
                 <Select
@@ -557,6 +651,8 @@ export function PostItControls() {
           {backend && (
             <p className="mt-2.5 border-t border-dashed pt-1.5 text-[10px] opacity-70">{t('opt.backend', { b: backend })}</p>
           )}
+          {/* v1.38 — FPS medidos + peldaño del optimizador, en vivo */}
+          <PerfStatus />
         </PostIt>
 
         {/* ── POST-IT: PARTIDA (guardar / cargar) ── */}

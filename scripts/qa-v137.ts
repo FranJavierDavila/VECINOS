@@ -249,8 +249,8 @@ if (laundryId) {
 check('las lavadoras son SÓLIDAS: el jugador no llega a atravesarlas', blocked);
 
 console.log('── 8. Insignia y determinismo ──');
-check('insignia v1.37 en i18n', srcOf('src/game/client/i18n.ts').includes('v1.37 · se sale al parque'));
-check('sw.js bump a vecinos-v1.37', srcOf('public/sw.js').includes('vecinos-v1.37'));
+check('insignia v1.37 en i18n', srcOf('src/game/client/i18n.ts').includes('v1.38 · pase de optimización'));
+check('sw.js bump a vecinos-v1.38', srcOf('public/sw.js').includes('vecinos-v1.38'));
 const w1 = createWorld(content, 'slice');
 for (let i = 0; i < 240; i++) tick(w1, content);
 check('sim determinista (240 ticks)', w1.tick === 240);

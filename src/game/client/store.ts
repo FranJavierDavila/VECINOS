@@ -4,7 +4,7 @@ import { create } from 'zustand';
 import type { Access, MinigameDef, Weather } from '@/game/core/types';
 import { isMuted } from './audio';
 import { loadOptions } from './options';
-import type { Lang } from './options';
+import type { Lang, PerfTarget } from './options';
 
 // ───────────────────────── Tipos de la interfaz ─────────────────────────
 
@@ -204,6 +204,13 @@ interface GameState {
   fpsVisible: boolean;
   /** Idioma de la interfaz (localización del chrome; persistido en opciones). */
   lang: Lang;
+  // ── v1.38 — pase de optimización: estado del auto-ajuste de rendimiento (solo lectura UI) ──
+  /** Auto-ajuste de rendimiento activo (persistido en opciones; la UI lo conmuta vía controlador). */
+  perfAuto: boolean;
+  /** Objetivo de FPS del auto-ajuste (persistido en opciones; la UI lo conmuta vía controlador). */
+  perfTarget: PerfTarget;
+  /** Peldaño vigente de la escalera de optimización (0 = calidad completa). */
+  perfLevel: number;
   fps: number;
   /** Aviso del catálogo al activar los mandos a mano (rules.touch.hint). */
   touchHint: string;
@@ -261,6 +268,10 @@ interface GameState {
   setOptionsOpen: (v: boolean) => void;
   setFpsVisible: (v: boolean) => void;
   setLang: (l: Lang) => void;
+  /** v1.38 — espejo de preferencias del optimizador (la UI las guarda además en localStorage). */
+  setPerfAuto: (v: boolean) => void;
+  setPerfTarget: (t: PerfTarget) => void;
+  setPerfLevel: (n: number) => void;
   setFps: (n: number) => void;
   syncHud: (h: HudSnapshot) => void;
   pushToast: (text: string, tone?: Tone, opts?: { celebrate?: boolean }) => void;
@@ -305,6 +316,9 @@ export const useGameStore = create<GameState>((set) => ({
   optionsOpen: false,
   fpsVisible: loadOptions().fpsVisible,
   lang: loadOptions().lang,
+  perfAuto: loadOptions().perfAuto,
+  perfTarget: loadOptions().perfTarget,
+  perfLevel: 0,
   fps: 0,
   touchHint: '',
   clock: { day: 1, minute: 480 },
@@ -360,6 +374,9 @@ export const useGameStore = create<GameState>((set) => ({
   setOptionsOpen: (optionsOpen) => set({ optionsOpen }),
   setFpsVisible: (fpsVisible) => set({ fpsVisible }),
   setLang: (lang) => set({ lang }),
+  setPerfAuto: (perfAuto) => set({ perfAuto }),
+  setPerfTarget: (perfTarget) => set({ perfTarget }),
+  setPerfLevel: (perfLevel) => set({ perfLevel }),
   setFps: (fps) => set({ fps }),
   syncHud: (h) => set(h),
   pushToast: (text, tone = 'info', opts) => {

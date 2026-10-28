@@ -9,6 +9,14 @@
 export type QualityLevel = 'eco' | 'normal' | 'alta';
 export type Lang = 'es' | 'en';
 
+/**
+ * v1.38 — Objetivo de FPS del auto-ajuste de rendimiento:
+ *  · 30/45/60 — el optimizador mantiene esa cadencia degradando detalles solo si hace falta.
+ *  · 'max'    — preset de máximo rendimiento: arranca sin glow y con sombras baratas,
+ *               y solo degrada resolución si no llega a 30 (el suelo mínimo garantizado).
+ */
+export type PerfTarget = 30 | 45 | 60 | 'max';
+
 export interface GameOptions {
   /** Volumen maestro 0..1 (multiplica el masterGain del catálogo de sonidos). */
   volume: number;
@@ -18,11 +26,22 @@ export interface GameOptions {
   fpsVisible: boolean;
   /** Idioma de la interfaz (chrome); el contenido JSON mantiene su idioma original. */
   lang: Lang;
+  /** v1.38 — auto-ajuste de rendimiento activo (degrada/recupera detalles para cumplir el objetivo). */
+  perfAuto: boolean;
+  /** v1.38 — cadencia objetivo que el auto-ajuste garantiza (30 mínimo prometido). */
+  perfTarget: PerfTarget;
 }
 
 const OPTIONS_KEY = 'vecinos.options';
 
-export const DEFAULT_OPTIONS: GameOptions = { volume: 0.7, quality: 'normal', fpsVisible: false, lang: 'es' };
+export const DEFAULT_OPTIONS: GameOptions = {
+  volume: 0.7,
+  quality: 'normal',
+  fpsVisible: false,
+  lang: 'es',
+  perfAuto: true,
+  perfTarget: 30,
+};
 
 /** Hardware scaling por calidad: >1 renderiza a menor resolución (menos píxeles, más FPS). */
 export const QUALITY_SCALE: Record<QualityLevel, number> = { alta: 1, normal: 1.35, eco: 1.75 };
@@ -38,6 +57,11 @@ export function loadOptions(): GameOptions {
       quality: parsed.quality === 'eco' || parsed.quality === 'alta' ? parsed.quality : 'normal',
       fpsVisible: parsed.fpsVisible === true,
       lang: parsed.lang === 'en' ? 'en' : 'es',
+      perfAuto: parsed.perfAuto !== false,
+      perfTarget:
+        parsed.perfTarget === 'max' || parsed.perfTarget === 45 || parsed.perfTarget === 60
+          ? parsed.perfTarget
+          : 30,
     };
   } catch {
     return { ...DEFAULT_OPTIONS };

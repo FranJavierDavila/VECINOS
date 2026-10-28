@@ -1,6 +1,6 @@
 'use client';
 
-import type { AbstractEngine, Scene } from '@babylonjs/core';
+import type { AbstractEngine, DirectionalLight, Scene } from '@babylonjs/core';
 import type { AchievementDef, Command, Content, CutsceneDef, GameEvent, Input, MinigameDef, ScenarioDef, World } from '@/game/core/types';
 import type { CommandResult } from '@/game/sim';
 import { blockLabel } from '@/game/core/types';
@@ -32,7 +32,8 @@ import { CutscenePlayer, type CutsceneEventCtx } from './cutscene';
 import { B } from './babylon';
 import { eventSound, preloadSounds } from './audio';
 import { translate } from './i18n';
-import { QUALITY_SCALE, loadOptions, type QualityLevel } from './options';
+import { QUALITY_SCALE, loadOptions, type PerfTarget, type QualityLevel } from './options';
+import { PerfDirector } from './perf';
 import { startGamepadPolling } from './gamepad';
 import { loadUnlocked, saveUnlocked } from './achievements-store';
 import { NetSession, type SessionStatePayload } from './net';
@@ -79,6 +80,17 @@ class GameController {
   private glowLayer: { dispose(): void } | null = null;
   /** Cuenta atrás del refresco de sombras (v1.32): cazamallas nuevas cada 2 s. */
   private shadowRefreshT = 2;
+  // ── v1.38 — PASE DE OPTIMIZACIÓN: auto-ajuste de rendimiento ──
+  /** Director que mide FPS y sube/baja la escalera de optimización (solo presentación). */
+  private perf: PerfDirector | null = null;
+  /** Sol del catálogo: el optimizador puede desmontar/remontar su generador de sombras. */
+  private sunLight: DirectionalLight | null = null;
+  /** Cadencia de sombras acordada con el optimizador (1 = cada fotograma). */
+  private desiredShadowEvery = 1;
+  /** El optimizador pidió sombras OFF (peldaños profundos): generador desmontado. */
+  private shadowsOff = false;
+  /** Noche/cielo muy cerrado: mapa de profundidad congelado (el sol de la escena no gira). */
+  private shadowsFrozen = false;
 
   private get content(): Content {
     if (!this._content) throw new Error('El catálogo de contenido todavía no se ha cargado');
@@ -136,7 +148,18 @@ class GameController {
       // 2) Motor de render (WebGPU con fallback WebGL2). La calidad la elige el jugador en Opciones.
       const { engine, backend } = await createEngine(canvas);
       this.engine = engine;
-      engine.setHardwareScalingLevel(QUALITY_SCALE[loadOptions().quality]);
+      const opts = loadOptions();
+      engine.setHardwareScalingLevel(QUALITY_SCALE[opts.quality]);
+      // v1.38 — AUTO-AJUSTE DE RENDIMIENTO (pase de optimización): mide FPS reales y
+      // degrada/recupera detalles (sombras, glow, resolución) para garantizar el objetivo
+      // del menú de opciones. El controlador sigue siendo dueño del render vía ganchos.
+      this.perf = new PerfDirector(engine, {
+        setGlowEnabled: (v) => (v ? this.setupGlow() : this.teardownGlow()),
+        setShadowEvery: (n) => this.setShadowPolicy(n),
+        onLevel: (level) => useGameStore.setState({ perfLevel: level }),
+      });
+      this.perf.setBaseQuality(opts.quality);
+      this.perf.configure(opts.perfAuto, opts.perfTarget);
       window.addEventListener('resize', this.onResize);
       await this.restart();
       useGameStore.getState().markReady(backend);
@@ -159,6 +182,7 @@ class GameController {
     window.removeEventListener('resize', this.onResize);
     this.net?.disconnect();
     this.net = null;
+    this.perf = null;
     this.bubbles?.dispose();
     this.bubbles = null;
     this.chats?.dispose();
@@ -262,6 +286,62 @@ class GameController {
   /** Calidad gráfica (pulido Steam): resolución de render vía hardware scaling. Solo presentación. */
   applyQuality(q: QualityLevel): void {
     this.engine?.setHardwareScalingLevel(QUALITY_SCALE[q]);
+    // v1.38 — la calidad manual es el SUELO del auto-ajuste: recalcula su escalado vigente.
+    this.perf?.setBaseQuality(q);
+  }
+
+  /** v1.38 — auto-ajuste de rendimiento on/off (menú de opciones; off = calidad manual tal cual). */
+  applyPerfAuto(v: boolean): void {
+    this.perf?.setAuto(v);
+  }
+
+  /** v1.38 — objetivo de FPS que el auto-ajuste garantiza (30/45/60 o máximo rendimiento). */
+  applyPerfTarget(t: PerfTarget): void {
+    this.perf?.setTarget(t);
+  }
+
+  // ────── v1.38 — ganchos del optimizador (glow y sombras on-demand) ──────
+
+  /** Monta la capa Glow del catálogo (idempotente; el estado lo decide el optimizador). */
+  private setupGlow(): void {
+    if (!this.scene || !this.building || this.glowLayer) return;
+    const glowCfg = this.content.rules.view.glow;
+    if (!glowCfg?.enabled) return;
+    const { GlowLayer } = B();
+    const gl = new GlowLayer('luz_bloom', this.scene, { blurKernelSize: glowCfg.blurKernelSize ?? 32 });
+    gl.intensity = glowCfg.intensity ?? 0.7;
+    // v1.29 — GLOW SUTIL EN LOS INTERIORES: las mallas interiores del building quedan
+    // excluidas; apliques, farolas, pantallitas y ventanas nocturnas conservan su bloom.
+    for (const mesh of this.building.glowExcluded()) gl.addExcludedMesh(mesh);
+    this.glowLayer = gl;
+  }
+
+  private teardownGlow(): void {
+    this.glowLayer?.dispose();
+    this.glowLayer = null;
+  }
+
+  /** Política de sombras del optimizador: 'off' desmonta el generador; N espacia su pase. */
+  private setShadowPolicy(n: number | 'off'): void {
+    this.shadowsOff = n === 'off';
+    this.desiredShadowEvery = n === 'off' ? 1 : n;
+    this.applyShadowPolicy();
+  }
+
+  /** Aplica la política vigente + el congelado nocturno (regalo del pase, cero coste visual). */
+  private applyShadowPolicy(): void {
+    if (!this.scene) return;
+    if (this.shadowsOff) {
+      if (this.shadows) {
+        this.shadows.dispose();
+        this.shadows = null;
+      }
+      return;
+    }
+    if (!this.shadows && this.sunLight) {
+      this.shadows = createShadows(this.scene, this.sunLight, this.content.rules.view.shadows);
+    }
+    this.shadows?.setUpdateEvery(this.shadowsFrozen ? 0 : this.desiredShadowEvery);
   }
 
   /** Botón "Fiesta demo": datos en rules.demo (residente, bloque y ruido) → canal de ruido en acción. */
@@ -798,11 +878,14 @@ class GameController {
     if (view.ambient.ground) hemi.groundColor = Color3.FromHexString(view.ambient.ground);
     const dirLight = new DirectionalLight('sun', new Vector3(...view.sun.dir), this.scene);
     dirLight.intensity = view.sun.intensity;
+    this.sunLight = dirLight;
     // v1.32 — SOMBRAS DE VERDAD (catálogo): un ShadowGenerator sobre el sol; quién proyecta
     // y quién recibe lo deciden los patrones de nombre del rules.json. Los rigs glTF que
     // llegan tarde y los vehículos nuevos los caza el refresco periódico del pase.
+    // v1.38 — la creación pasa por la política del optimizador (cadencia/ausencia vigentes).
     this.shadows?.dispose();
-    this.shadows = createShadows(this.scene, dirLight, view.shadows);
+    this.shadows = null;
+    this.applyShadowPolicy();
 
     this.building = createBuilding(this.scene, this.world, this.content);
     // v1.21: los rects de obstáculos del interior del trastero (estanterías/trastos que pinta
@@ -821,23 +904,10 @@ class GameController {
     // evoluciona con el sol (el edificio vive la misma hora que el cielo).
     this.backdrop?.dispose();
     this.backdrop = createBackdrop(this.scene, this.world, this.content, { hemi, dir: dirLight });
-    // V1.28 — BLOOM/GLOW (catálogo): los emisivos (apliques de puerta, farolas, ventanas
-    // nocturnas del fondo, pantallitas del ascensor, luz del cubo) ganan halo suave. Una
-    // capa GlowLayer por escena; intensidad y kernel del catálogo (rules.view.glow).
-    const glowCfg = this.content.rules.view.glow;
-    this.glowLayer?.dispose();
-    this.glowLayer = null;
-    if (glowCfg?.enabled) {
-      const { GlowLayer } = B();
-      const gl = new GlowLayer('luz_bloom', this.scene, { blurKernelSize: glowCfg.blurKernelSize ?? 32 });
-      gl.intensity = glowCfg.intensity ?? 0.7;
-      // v1.29 — GLOW SUTIL EN LOS INTERIORES: el vecino pidió que la luz simulada de las
-      // viviendas (diorama + suelos + lámparas de techo) sea autoiluminada SIN casi halo —
-      // «demasiado exagerado». El building entrega sus mallas interiores y la capa las
-      // excluye; apliques, farolas, pantallitas y ventanas nocturnas conservan su bloom.
-      for (const mesh of this.building.glowExcluded()) gl.addExcludedMesh(mesh);
-      this.glowLayer = gl;
-    }
+    // V1.28 — BLOOM/GLOW (catálogo): los emisivos ganan halo suave. v1.38: la capa la MONTA
+    // el optimizador de rendimiento (setupGlow, al final del arranque) según el nivel
+    // vigente; aquí solo garantizamos que la escena nueva no herede capas huérfanas.
+    this.teardownGlow();
     // Calle (v1.20): aceras, carretera y jardines con sus props; las farolas leen la luz
     // de día del fondo para encenderse al anochecer.
     this.exterior?.dispose();
@@ -961,6 +1031,9 @@ class GameController {
     this.syncAchievements();
     // Campaña (v1.18): primer estado del mandato (sobrevive a Cargar vía localStorage).
     syncCampaign(this.world!, this.content);
+    // v1.38 — el optimizador se reata a la escena nueva y re-aplica su nivel vigente
+    // (monta el glow si toca, re-espacia sombras, re-escala): un solo punto de verdad.
+    this.perf?.bind();
   }
 
   private onResize = (): void => {
@@ -972,6 +1045,9 @@ class GameController {
   private frame = (): void => {
     if (!this.engine || !this.scene || !this.world || !this.logic || !this.building || !this.actors || !this.rig || !this.elevators) return;
     const dt = Math.min(0.1, this.engine.getDeltaTime() / 1000);
+    // v1.38 — el optimizador muestrea los FPS reales (ventanas internas de 1.2 s con
+    // histéresis): barato — un sumo y un if por fotograma.
+    this.perf?.sample();
     const store = useGameStore.getState();
     const frozen = selectModalOpen(store) || store.paused;
 
@@ -1054,6 +1130,15 @@ class GameController {
     if (this.shadows && this.shadowRefreshT <= 0) {
       this.shadowRefreshT = 2;
       this.shadows.refresh();
+      // v1.38 — REGALO SIEMPRE ACTIVO del pase de optimización: con el sol apagado
+      // (noche o cielo muy cerrado) las sombras ni se ven, y como el sol de la escena
+      // NO gira, el mapa de profundidad congelado es idéntico píxel a píxel — nos
+      // ahorramos un pase entero de la escena por fotograma durante toda la noche.
+      const frozen = (this.backdrop?.daylight ?? 1) < 0.08;
+      if (frozen !== this.shadowsFrozen) {
+        this.shadowsFrozen = frozen;
+        this.applyShadowPolicy();
+      }
     }
     // Fondo urbano (v1.20): el cielo, el sol y las nubes siguen la hora del sim; las farolas
     // de la calle leen la luz de día resultante. Los modales no paran el ambiente (solo el reloj).

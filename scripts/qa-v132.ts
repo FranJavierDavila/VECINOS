@@ -92,7 +92,7 @@ check('el edificio proyecta y recibe', sh.casters.includes('blk_') && sh.receive
 check('la calle y el suelo reciben', sh.receivers.includes('suelo_mundo') && sh.receivers.includes('calle_'));
 check('excluidos: costados/cristales/arte 2D fuera', sh.excluded.includes('costado') && sh.excluded.includes('cristal'));
 check('shadows.ts: ShadowGenerator PCF + transparencyShadow', shadowsTs.includes('usePercentageCloserFiltering') && shadowsTs.includes('transparencyShadow = true'));
-check('controller crea el pase con la luz del sol del catálogo', controllerTs.includes('createShadows(this.scene, dirLight, view.shadows)'));
+check('controller crea el pase con la luz del sol del catálogo', controllerTs.includes('createShadows(this.scene, this.sunLight, this.content.rules.view.shadows)'));
 check('refresco perezoso de participantes (2 s)', controllerTs.includes('this.shadowRefreshT = 2'));
 check('actores renombrados para el patrón res_', actorsTs.includes('m.name = `${id}_${m.name}`'));
 check('viandantes renombrados para el patrón viandante', pedestriansTs.includes('m.name = `viandante_${i}_${m.name}`'));
@@ -163,8 +163,8 @@ check('contenido real SIN menciones de plantas/viviendas imposibles', violations
 }
 
 console.log('── 9. Versiones ──');
-check('insignia v1.34 en i18n (es/en, la 1.32 fue sustituida por la nueva)', i18nTs.includes('v1.37 · se sale al parque') && i18nTs.includes('v1.37 · out to the park'));
-check('sw.js bump a vecinos-v1.34 (sigue subiendo)', swJs.includes('vecinos-v1.37'));
+check('insignia v1.34 en i18n (es/en, la 1.32 fue sustituida por la nueva)', i18nTs.includes('v1.38 · pase de optimización') && i18nTs.includes('v1.38 · optimization pass'));
+check('sw.js bump a vecinos-v1.34 (sigue subiendo)', swJs.includes('vecinos-v1.38'));
 check('PwaRegister espera vecinos-v1.34', pwaTsx.includes('vecinos-v1.34'));
 
 console.log('── Sim intacto ──');

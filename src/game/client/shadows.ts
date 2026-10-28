@@ -26,6 +26,14 @@ import { B } from './babylon';
 export interface ShadowsDirector {
   /** Re-escanea la escena para apuntar mallas nuevas (idempotente, barato). */
   refresh(): void;
+  /**
+   * v1.38 — Cadencia del pase de profundidad: 1 = cada fotograma (por defecto),
+   * 2/3/4 = cada N fotogramas (el pase de sombras es un render de toda la escena:
+   * espaciarlo es el alivio más gordo sin tocar un píxel visible), 0 = congelado
+   * (REFRESHRATE_RENDER_ONCE: el sol de la escena no gira, de noche las sombras ni
+   * se ven — el optimizador lo usa y queda idéntico).
+   */
+  setUpdateEvery(n: number): void;
   dispose(): void;
 }
 
@@ -59,6 +67,10 @@ export function createShadows(scene: Scene, light: DirectionalLight, cfg: Conten
 
   return {
     refresh,
+    setUpdateEvery(n: number) {
+      const target = gen.getShadowMap();
+      if (target && target.refreshRate !== n) target.refreshRate = n;
+    },
     dispose() {
       gen.dispose();
     },

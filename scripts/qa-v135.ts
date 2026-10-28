@@ -161,7 +161,7 @@ if (issues.length > 0) {
 const world = createWorld(content, 'slice');
 for (let i = 0; i < 240; i++) tick(world, content);
 check('sim determinista (240 ticks)', world.tick === 240);
-check('la insignia es v1.37', srcOf('src/game/client/i18n.ts').includes('v1.37'));
+check('la insignia es v1.37', srcOf('src/game/client/i18n.ts').includes('v1.38'));
 
 console.log(`\n═══ QA v1.35: ${pass} ✓ / ${fail} ✗ ═══`);
 process.exit(fail > 0 ? 1 : 0);
