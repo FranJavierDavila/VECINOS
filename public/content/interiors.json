@@ -917,10 +917,9 @@
    ]
   },
   "estancia_portal": {
-   "wall": "wall_junta_a.png",
+   "wall": "wall_portal_hall.png",
    "walls": [
-    "wall_junta_a.png",
-    "wall_junta_b.png"
+    "wall_portal_hall.png"
    ],
    "floor": "floor_baldosa.png",
    "floors": [
@@ -930,33 +929,16 @@
    "sets": [
     [
      {
-      "art": "f_planta.png",
-      "w": 0.6,
-      "h": 1.05,
-      "u": 0.1,
-      "v": 0.8,
-      "layer": "back"
-     },
-     {
       "art": "f_alfombra.png",
-      "w": 1.3,
-      "h": 0.7,
-      "u": 0.55,
-      "v": 0.35,
-      "layer": "rug"
-     }
-    ],
-    [
-     {
-      "art": "f_alfombra.png",
-      "w": 1.4,
-      "h": 0.75,
-      "u": 0.45,
-      "v": 0.35,
+      "w": 1.5,
+      "h": 0.8,
+      "u": 0.5,
+      "v": 0.32,
       "layer": "rug"
      }
     ]
-   ]
+   ],
+   "wallTiles": 1
   }
  },
  "wallTints": [

@@ -254,9 +254,10 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
   hallGarajeMat.diffuseColor = Color3.FromHexString(loc.garaje.furniture?.wallColor ?? '#9aa2ad');
   hallGarajeMat.specularColor = new Color3(0.02, 0.02, 0.02);
   hallGarajeMat.emissiveColor = Color3.FromHexString(loc.garaje.furniture?.wallColor ?? '#9aa2ad').scale(0.18);
-  /** v1.35 — VESTÍBULO DEL PORTAL: el cuerpo cerrado del arte glTF se retira (hideNodes)
-   *  y el interior lo levanta el runtime — paredes cálidas del catálogo, buzones, banco y
-   *  tablón. A través del cristal del portal SE VE el vestíbulo (adiós a la «pared oscura»). */
+  /** v1.36 — VESTÍBULO DEL PORTAL: el cuerpo cerrado del arte glTF se retira (hideNodes)
+   *  y el interior es UNA IMAGEN del hall (diorama, wall_portal_hall.png — buzones, tablón,
+   *  banco, plantas, ascensor y escalera pintados). A través del cristal del portal SE VE
+   *  el vestíbulo (adiós a la «pared oscura»). */
   const hallPortalMat = mat('local_portal_mat');
   hallPortalMat.diffuseColor = Color3.FromHexString(loc.portal?.lobby?.wallColor ?? '#d8d3c8');
   hallPortalMat.specularColor = new Color3(0.02, 0.02, 0.02);
@@ -984,9 +985,9 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       //    al entrar, la fachada se desvanece entera y queda el interior con mesa de
       //    trabajo, estantería, pila de ruedas y caja de herramientas (todo del catálogo).
       //  · PORTAL (v1.35 — «al abrirse se ven cerradas por una especie de pared oscura»):
-      //    el cuerpo cerrado del arte glTF se RETIRA (hideNodes del catálogo) y el runtime
-      //    levanta el VESTÍBULO — paredes del catálogo, buzones, banco, tablón, lámpara y
-      //    diorama: a través del cristal (y con las puertas abiertas) SE VE DENTRO.
+      //    el cuerpo cerrado del arte glTF se RETIRA (hideNodes del catálogo) y el interior
+      //    es UNA IMAGEN del hall (v1.36: diorama estancia_portal → wall_portal_hall.png):
+      //    a través del cristal (y con las puertas abiertas) SE VE DENTRO.
       //  El arte glTF conserva zócalo/rótulo/faroles (hideNodes del catálogo retira el
       //  cuerpo cerrado); la fachada y el interior los levanta SIEMPRE el runtime con el
       //  gris de pasillo (locals.corridorWall) — mismo dialecto que las viviendas.
@@ -1210,60 +1211,12 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           }
           hallSeats.set(b.id, { seats: seatsW, stands: standsW });
         } else if (b.defId === 'portal') {
-          // v1.35 — VESTÍBULO HABITADO (todo del catálogo, locals.portal.lobby): fila de
-          // BUZONES en el muro del fondo (con puertas numeradas), BANCO de madera en el
-          // lateral y TABLÓN de anuncios — lo que la community espera ver al asomarse
-          // al cristal del portal. Las fijaciones siguen siendo interactuables por
-          // proximidad (features mailboxes/noticeboard/bench del bloque).
-          const lb = loc.portal?.lobby;
-          if (lb) {
-            const mbM = mat(`${b.id}_buzon_mat`);
-            mbM.diffuseColor = Color3.FromHexString(lb.mailboxColor);
-            mbM.emissiveColor = Color3.FromHexString(lb.mailboxColor).scale(0.13);
-            const mbDoorM = mat(`${b.id}_buzon_puerta_mat`);
-            mbDoorM.diffuseColor = Color3.FromHexString(lb.mailboxDoor);
-            const benchM = mat(`${b.id}_banco_mat`);
-            benchM.diffuseColor = Color3.FromHexString(lb.benchColor);
-            const legM = mat(`${b.id}_banco_pata_mat`);
-            legM.diffuseColor = Color3.FromHexString(lb.benchLegColor);
-            const boardM = mat(`${b.id}_tablon_mat`);
-            boardM.diffuseColor = Color3.FromHexString(lb.boardColor);
-            const faceM = mat(`${b.id}_tablon_cara_mat`);
-            faceM.diffuseColor = Color3.FromHexString(lb.boardFace);
-            faceM.emissiveColor = Color3.FromHexString(lb.boardFace).scale(0.14);
-            // Buzones: columna de casillas contra el fondo, lado IZQUIERDO (visibles
-            // desde la calle a través del cristal). Nada coplanar: el cuerpo sale 3 cm
-            // del muro y cada puerta 6 mm del cuerpo.
-            const mbBackZ = frontZ + d - v.wall - 0.03;
-            const mbX = x0 + 0.62;
-            for (let i = 0; i < lb.mailboxes; i++) {
-              const colI = i % 2;
-              const rowI = Math.floor(i / 2);
-              const mx = mbX + colI * (lb.mailboxW + 0.04);
-              const my = baseY + 1.28 - rowI * (lb.mailboxH + 0.045);
-              view.greybox.push(
-                box(`${b.id}_buzon_${i}`, lb.mailboxW, lb.mailboxH, 0.16, mx, my, mbBackZ, mbM),
-                box(`${b.id}_buzon_puerta_${i}`, lb.mailboxW - 0.05, lb.mailboxH - 0.05, 0.012, mx, my, mbBackZ - 0.086, mbDoorM),
-              );
-            }
-            // Banco de madera contra la pared DERECHA (asiento + respaldo + 4 patas).
-            const benchX = x0 + w - v.wall - 0.3;
-            const benchZ = frontZ + 1.55;
-            view.greybox.push(
-              box(`${b.id}_banco_asiento`, 0.42, 0.05, 1.15, benchX, baseY + 0.44, benchZ, benchM),
-              box(`${b.id}_banco_resp`, 0.05, 0.42, 1.15, benchX + 0.17, baseY + 0.66, benchZ, benchM),
-            );
-            for (const dz of [-0.5, 0.5]) {
-              view.greybox.push(
-                box(`${b.id}_banco_pata_a_${dz}`, 0.36, 0.42, 0.05, benchX, baseY + 0.21, benchZ + dz, legM),
-              );
-            }
-            // Tablón de anuncios en el fondo, lado derecho (marco + cara de corcho).
-            view.greybox.push(
-              box(`${b.id}_tablon`, 1.15, 0.78, 0.05, x0 + w - 0.95, baseY + 1.42, frontZ + d - v.wall - 0.05, boardM),
-              box(`${b.id}_tablon_cara`, 1.03, 0.66, 0.012, x0 + w - 0.95, baseY + 1.42, frontZ + d - v.wall - 0.085, faceM),
-            );
-          }
+          // v1.36 — el VESTÍBULO ya no lleva muebles 3D: el vecino pidió que el interior
+          // del portal sea UNA IMAGEN del hall («una imagen del hall de un Portal de un
+          // edificio, lo que se ve dentro») — el arte del diorama (interiors.json,
+          // estancia_portal → wall_portal_hall.png) pinta buzones, tablón, banco, plantas,
+          // ascensor y escalera; aquí solo quedan el suelo tintado, las losetas y la
+          // lámpara que ya levanta el branch de locales.
         } else if (b.defId === 'garaje') {
           // v1.34 — GARAJE COMUNITARIO HABITABLE: mesa de trabajo con tablero de herramientas,
           // estantería con botes, pila de ruedas y caja de herramientas — TODO del catálogo
@@ -1348,6 +1301,47 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           drumMat.emissiveColor = Color3.FromHexString(lv.drumGlass ?? '#8fa3ad').scale(0.35);
           drumMat.specularColor = new Color3(0.3, 0.3, 0.3);
           drumMat.backFaceCulling = false;
+          /** v1.36 — CARA del bombo con CRUCETAS y PERNOS: un disco liso girando es invisible
+           *  (el vecino: «no se mueven los bombos») — con radios que giran se LEE el giro.
+           *  Una sola textura compartida por todas las máquinas. */
+          const drumFaceTex = (): DynamicTexture => {
+            const dt = new (B().DynamicTexture)('lav_bombo_cara_tex', { width: 256, height: 256 }, scene, true);
+            const c = dt.getContext() as unknown as CanvasRenderingContext2D;
+            const R = 128;
+            // Cubo metálico con brillo descentrado (el cristal del bombo).
+            const grad = c.createRadialGradient(R - 40, R - 44, 12, R, R, R);
+            grad.addColorStop(0, lv.drumGlass ?? '#8fa3ad');
+            grad.addColorStop(0.55, '#76858f');
+            grad.addColorStop(1, '#57646e');
+            c.fillStyle = grad;
+            c.fillRect(0, 0, 256, 256);
+            // Crucetas: TRES radios a 120° (el giro se ve con una sola ojeada).
+            c.strokeStyle = '#4a5560';
+            c.lineWidth = 17;
+            c.lineCap = 'round';
+            for (let k = 0; k < 3; k++) {
+              const a = (k * Math.PI * 2) / 3;
+              c.beginPath();
+              c.moveTo(R, R);
+              c.lineTo(R + Math.cos(a) * (R - 16), R + Math.sin(a) * (R - 16));
+              c.stroke();
+            }
+            // Hub central + pernos del aro (más referencia de rotación).
+            c.fillStyle = '#3d4650';
+            c.beginPath();
+            c.arc(R, R, 22, 0, Math.PI * 2);
+            c.fill();
+            c.fillStyle = '#6d7a85';
+            for (let k = 0; k < 8; k++) {
+              const a = (k * Math.PI * 2) / 8 + 0.39;
+              c.beginPath();
+              c.arc(R + Math.cos(a) * (R - 26), R + Math.sin(a) * (R - 26), 7, 0, Math.PI * 2);
+              c.fill();
+            }
+            dt.update(true);
+            return dt;
+          };
+          drumMat.diffuseTexture = drumFaceTex();
           /** Frontal de máquina (canvas): panel de mandos, perillas y PUERTA con el centro
            *  TRANSPARENTE (por el agujero se ve el bombo girando detrás). */
           const machineFrontTex = (kind: 'washer' | 'dryer', seed: number): DynamicTexture => {
@@ -3093,7 +3087,9 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       let show = !wall;
       if (!show && (b.defId === 'garaje' || b.defId === 'portal')) {
         const openT = b.defId === 'portal' ? portalOpen : garajeLiftT;
-        if (openT > 0.12) show = true;
+        // v1.36 — reveal DESDE EL PRIMER MILÍMETRO de puerta (catálogo hallDoors.revealAt):
+        // «tan pronto se levanta la puerta se ve el interior sin esperar a entrar».
+        if (openT > (v.locals.hallDoors?.revealAt ?? 0.12)) show = true;
       }
       interior.dioRoot.setEnabled(show);
     }
@@ -3346,18 +3342,22 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         const hd = loc.hallDoors;
         if (hd?.enabled) {
           for (const d of hallDoors) {
+            // v1.36 — la basculante del garaje se ANTICIPA más (catálogo): el interior se ve
+            // desde que la puerta empieza a moverse, sin esperar a estar encima ni a entrar.
+            const ahead = d.lift ? (hd.garageOpenAhead ?? hd.openAhead) : hd.openAhead;
             let near = false;
             for (const mv of movers) {
               if (
-                Math.abs(mv.x - d.doorX) < 0.9 &&
-                Math.abs(mv.z - d.doorZ) < hd.openAhead &&
+                Math.abs(mv.x - d.doorX) < 0.9 + (d.lift ? ahead - hd.openAhead : 0) &&
+                Math.abs(mv.z - d.doorZ) < ahead &&
                 Math.abs(mv.y - d.floorY) < v.cellH * 0.6
               ) {
                 near = true;
                 break;
               }
             }
-            const nextT = d.openT + (near ? dt : -dt * 0.8) / Math.max(0.05, hd.openSeconds);
+            const secs = d.lift ? (hd.garageOpenSeconds ?? hd.openSeconds) : hd.openSeconds;
+            const nextT = d.openT + (near ? dt : -dt * 0.8) / Math.max(0.05, secs);
             d.openT = Math.min(1, Math.max(0, nextT));
             // v1.34 — la basculante del garaje SE LEVANTA (rotación X hacia el techo); las
             // hojas batientes giran sobre su bisagra lateral como siempre.

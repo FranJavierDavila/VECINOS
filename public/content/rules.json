@@ -656,7 +656,7 @@
      "height": 32,
      "alpha": 0.72,
      "tint": "#e9e4d6",
-     "fog": 0.42,
+     "fog": 0.3,
      "image": "/content/backdrop/fachada_2_media.png",
      "windowColor": "#8593a8",
      "windowLitColor": "#ffd166",
@@ -675,7 +675,7 @@
      "height": 42,
      "alpha": 0.55,
      "tint": "#e6e2d8",
-     "fog": 0.6,
+     "fog": 0.45,
      "image": "/content/backdrop/fachada_3_lejos.png",
      "windowColor": "#8d9bb0",
      "windowLitColor": "#ffe0a3",
@@ -825,6 +825,11 @@
      ]
     }
    ]
+  },
+  "camera": {
+   "estanciaFloorH": 2.5,
+   "estanciaWidthW": 2.9,
+   "estanciaEdgeMargin": 2.4
   },
   "commonDepth": 2.8,
   "actorTurnSpeed": 10,
@@ -1320,21 +1325,15 @@
     "enabled": true,
     "openAhead": 1.15,
     "openSeconds": 0.45,
-    "openAngle": 1.0
+    "openAngle": 1.0,
+    "garageOpenAhead": 2.9,
+    "garageOpenSeconds": 1.15,
+    "revealAt": 0.02
    },
    "portal": {
     "lobby": {
      "wallColor": "#d8d3c8",
-     "floorColor": "#b9b3a4",
-     "mailboxes": 6,
-     "mailboxColor": "#7d7668",
-     "mailboxDoor": "#9aa2ad",
-     "mailboxW": 0.34,
-     "mailboxH": 0.3,
-     "benchColor": "#8a5a33",
-     "benchLegColor": "#3b3129",
-     "boardColor": "#6f4926",
-     "boardFace": "#f2e6cf"
+     "floorColor": "#b9b3a4"
     }
    }
   },

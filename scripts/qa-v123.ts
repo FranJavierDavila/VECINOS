@@ -63,7 +63,7 @@ const layersOf = (defId: string): Set<string> => {
 // v1.30: la sala de juntas es un LOCAL comunal (mesa y sillas 3D del catálogo, sin
 // capas pintadas) — se exime del mínimo de capas que rige para las viviendas.
 // v1.34: garaje y lavandería también son LOCALES comunales (mobiliario 3D propio).
-const localesComunales = new Set(['estancia_local_juntas', 'estancia_garaje', 'estancia_lavanderia']);
+const localesComunales = new Set(['estancia_local_juntas', 'estancia_garaje', 'estancia_lavanderia', 'estancia_portal']); // v1.36: el vestíbulo es UNA IMAGEN del hall (una capa + alfombra)
 check('capas de paralaje declaradas (2-3 por estancia, sets v1.29; locales comunales exentos)', !!ic && Object.entries(ic.rooms).every(([id, d]) => { if (localesComunales.has(id)) return true; const s2 = new Set<string>(); for (const sp of d.sprites) s2.add(sp.layer); for (const set of d.sets) for (const sp of set) s2.add(sp.layer); return s2.size >= 2; }), `salón:${[...layersOf('estancia_salon_cocina')].join('+')} · dormitorio:${[...layersOf('estancia_dormitorio')].join('+')} · trastero:${[...layersOf('trastero')].join('+')}`);
 check('sprites dentro del rect (u/v 0..1) y con tamaño positivo', !!ic && Object.values(ic.rooms).every((d) => d.sprites.every((s) => s.u >= 0 && s.u <= 1 && s.v >= 0 && s.v <= 1 && s.w > 0 && s.h > 0)));
 

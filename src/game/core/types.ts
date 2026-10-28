@@ -1296,6 +1296,11 @@ export interface Rules {
         openAngle: number;
         /** v1.34 — ángulo de levantamiento de la basculante del garaje (rad). */
         liftAngle: number;
+        /** v1.36 — la basculante se ANTICIPA más, va más lenta y revela el interior
+         *  desde revealAt: «tan pronto se levanta la puerta se ve el interior». */
+        garageOpenAhead?: number;
+        garageOpenSeconds?: number;
+        revealAt?: number;
       };
       lavanderia: {
         machines: number;
@@ -1325,20 +1330,12 @@ export interface Rules {
         accentColor?: string;
         topColor?: string;
       };
-      /** v1.35 — vestíbulo del portal: paredes cálidas, buzones, banco y tablón. */
+      /** v1.35 — vestíbulo del portal. v1.36: el interior es UNA IMAGEN del hall
+       *  (wall_portal_hall.png); del catálogo solo quedan los colores del diorama. */
       portal?: {
         lobby?: {
           wallColor: string;
           floorColor: string;
-          mailboxes: number;
-          mailboxColor: string;
-          mailboxDoor: string;
-          mailboxW: number;
-          mailboxH: number;
-          benchColor: string;
-          benchLegColor: string;
-          boardColor: string;
-          boardFace: string;
         };
       };
     };
@@ -1437,6 +1434,8 @@ export interface Rules {
     actorRadius: number;
     /** Niveles de detalle por distancia (Vista: "prefab por bloque y LOD por distancia"). */
     lod: { enabled: boolean; focus: 'player'; levels: LodLevel[] };
+    /** v1.36 — alejamiento de la cámara Estancia: factores de encuadre y margen de borde. */
+    camera?: { estanciaFloorH: number; estanciaWidthW: number; estanciaEdgeMargin: number };
     /** ── Escena exterior (v1.20) ── tiras de calle frente al edificio (aceras,
      *  carretera, jardines) con sus props; defId refiere bloques con `exterior`.
      *  v1.22: orient 'z' (aceras laterales y calle transversal), gridScatter 2D con

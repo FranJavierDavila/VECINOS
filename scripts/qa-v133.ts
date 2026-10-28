@@ -68,8 +68,8 @@ for (const call of glassCalls) {
 check('los 7 cristales nacen finos en X y anchos en Z (regla, no ejemplos)', axisOk, `${glassCalls.length} llamadas auditadas`);
 
 console.log('── 2. Versiones ──');
-check('insignia v1.34 en i18n (es/en)', i18nTs.includes('v1.35 · se ve dentro y hay vida') && i18nTs.includes('v1.35 · see inside, feel alive'));
-check('sw.js bump a vecinos-v1.34', swJs.includes('vecinos-v1.35'));
+check('insignia v1.34 en i18n (es/en)', i18nTs.includes('v1.36 · se ve dentro y se anda derecho') && i18nTs.includes('v1.36 · see inside, walk straight'));
+check('sw.js bump a vecinos-v1.34', swJs.includes('vecinos-v1.36'));
 check('PwaRegister espera vecinos-v1.34', pwaTsx.includes('vecinos-v1.34'));
 
 console.log('── 2.bis Avisos narrados 100% data-driven (v1.33: ecosistema + cutscenes) ──');

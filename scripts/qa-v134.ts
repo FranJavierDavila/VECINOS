@@ -127,8 +127,8 @@ check('arbusto = racimo de esferas (3 piezas por lado)', !!nodeOf('arbusto_izq_a
 check('el resto del portal INTACTO (misma fachada verificada)', !!nodeOf('cristal_izq') && !!nodeOf('toldo') && !!nodeOf('rotulo') && !!nodeOf('farol_izq'));
 
 console.log('── 8. Versiones ──');
-check('insignia v1.34 en i18n (es/en)', i18nTs.includes('v1.35 · se ve dentro y hay vida') && i18nTs.includes('v1.35 · see inside, feel alive'));
-check('sw.js bump a vecinos-v1.35', srcOf('public/sw.js').includes('vecinos-v1.35'));
+check('insignia v1.34 en i18n (es/en)', i18nTs.includes('v1.36 · se ve dentro y se anda derecho') && i18nTs.includes('v1.36 · see inside, walk straight'));
+check('sw.js bump a vecinos-v1.35', srcOf('public/sw.js').includes('vecinos-v1.36'));
 check('PwaRegister espera vecinos-v1.34', srcOf('src/components/game/PwaRegister.tsx').includes('vecinos-v1.34'));
 
 console.log('── 9. Contenido, resolver y sim intactos ──');

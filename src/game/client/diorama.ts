@@ -397,7 +397,9 @@ export function createDioramaDirector(scene: Scene, content: Content): DioramaDi
       const wallMat = surfMat(`${id}_dio_pared`, false);
       if (variant) wallMat.diffuseColor = Color3.FromHexString(variant.tintHex);
       const wallArt = variant && dio.walls.length > 0 ? dio.walls[variant.wallIndex % dio.walls.length]! : dio.wall;
-      const wallTiles = Math.max(1, Math.round(rect.w / Math.max(0.6, wallH)));
+      // v1.36 — wallTiles del catálogo (artes PANORÁMICOS como el hall del portal se ven UNA
+      // vez); sin él, la estimación de siempre (redondeo del rect) para las artes cuadradas.
+      const wallTiles = dio.wallTiles ?? Math.max(1, Math.round(rect.w / Math.max(0.6, wallH)));
       wallMat.diffuseTexture = artTex(`${id}_dio_pared_tex`, wallArt, false, wallTiles, 1);
       // v1.29 — PARED COMPLETA: la pared del fondo ya no se parte alrededor de la puerta
       // trasera (el hueco dejaba un VACÍO por el que se veía el fondo urbano a oscuras —

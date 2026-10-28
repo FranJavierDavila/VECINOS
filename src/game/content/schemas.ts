@@ -1250,6 +1250,12 @@ export const rulesSchema = z.object({
             openAngle: z.number().positive().default(1.0),
             /** v1.34 — ángulo de LEVANTAMIENTO de la basculante del garaje (rad). */
             liftAngle: z.number().positive().default(1.45),
+            /** v1.36 — la BASCULANTE del garaje se anticipa MÁS y va más lenta: el interior
+             *  se ve DESDE QUE LA PUERTA SE MUEVE, sin esperar a entrar. */
+            garageOpenAhead: z.number().positive().optional(),
+            garageOpenSeconds: z.number().positive().optional(),
+            /** v1.36 — fracción de apertura que revela el interior de garaje/portal. */
+            revealAt: z.number().min(0).max(1).optional(),
           })
           .default({ enabled: true, openAhead: 1.15, openSeconds: 0.45, openAngle: 1.0, liftAngle: 1.45 }),
         /** v1.30 — LAVANDERÍA comunitaria: local ABIERTO (sin pared frontal) con las
@@ -1284,25 +1290,17 @@ export const rulesSchema = z.object({
             topColor: z.string().optional(),
           })
           .default({ machines: 4, art: '/art/interiors/raw/f_lavadora.png', artH: 1.02, machineColor: '#e8e6e0', sign: 'LAVANDERÍA', signBg: '#3b3129', signText: '#ffd166' }),
-        /** v1.35 — VESTÍBULO del portal: paredes cálidas, buzones, banco y tablón (el
-         *  runtime levanta el interior que antes tapaba el cuerpo cerrado del arte). */
+        /** v1.35 — VESTÍBULO del portal: colores interiores del local. v1.36 — el interior
+         *  es UNA IMAGEN del hall (interiors.json → wall_portal_hall.png); del catálogo solo
+         *  quedan los colores de pared y suelo del diorama. */
         portal: z
           .object({
             lobby: z
               .object({
                 wallColor: z.string().default('#d8d3c8'),
                 floorColor: z.string().default('#b9b3a4'),
-                mailboxes: z.number().int().min(2).max(12).default(6),
-                mailboxColor: z.string().default('#7d7668'),
-                mailboxDoor: z.string().default('#9aa2ad'),
-                mailboxW: z.number().positive().default(0.34),
-                mailboxH: z.number().positive().default(0.3),
-                benchColor: z.string().default('#8a5a33'),
-                benchLegColor: z.string().default('#3b3129'),
-                boardColor: z.string().default('#6f4926'),
-                boardFace: z.string().default('#f2e6cf'),
               })
-              .default({ wallColor: '#d8d3c8', floorColor: '#b9b3a4', mailboxes: 6, mailboxColor: '#7d7668', mailboxDoor: '#9aa2ad', mailboxW: 0.34, mailboxH: 0.3, benchColor: '#8a5a33', benchLegColor: '#3b3129', boardColor: '#6f4926', boardFace: '#f2e6cf' }),
+              .default({ wallColor: '#d8d3c8', floorColor: '#b9b3a4' }),
           })
           .optional(),
       })
@@ -1798,6 +1796,17 @@ export const rulesSchema = z.object({
       focus: z.literal('player'),
       levels: z.array(z.object({ dist: z.number(), hide: z.array(z.enum(['edges', 'glow', 'panels'])) })),
     }),
+    /** v1.36 — ALEJAMIENTO de la cámara Estancia (petición: «alejar un poco la cámara
+     *  Estancia para que… en el extremo del pasillo de planta 0… lo enfoque»): factores
+     *  de encuadre (antes 2.0/2.2) y MARGEN que deja asomar la cámara más allá del borde
+     *  del mundo para que el personaje del extremo salga EN CUADRO y no pegado al canto. */
+    camera: z
+      .object({
+        estanciaFloorH: z.number().positive(),
+        estanciaWidthW: z.number().positive(),
+        estanciaEdgeMargin: z.number().min(0),
+      })
+      .default({ estanciaFloorH: 2.5, estanciaWidthW: 2.9, estanciaEdgeMargin: 2.4 }),
   }),
   demo: z.object({ resident: z.string(), block: z.string(), noise: z.number(), toast: z.string() }),
   cutscene: z.object({
@@ -2334,6 +2343,10 @@ export const interiorDioramaSchema = z.object({
   ceilings: z.array(z.string()).default([]),
   sets: z.array(z.array(interiorSpriteSchema)).default([]),
   sprites: z.array(interiorSpriteSchema).default([]),
+  /** v1.36 — repeticiones del arte de pared (uScale). Por defecto el runtime lo estima
+   *  del rect (redondeo w/h) para las artes cuadradas; un arte PANORÁMICO (el hall del
+   *  portal, 1.75:1) fija wallTiles: 1 para verse UNA sola vez, sin duplicados. */
+  wallTiles: z.number().int().min(1).max(6).optional(),
 });
 
 /** Catálogo de interiores (OPCIONAL): sin el fichero, los interiores siguen greybox.

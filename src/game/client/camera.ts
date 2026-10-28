@@ -24,6 +24,9 @@ export class CameraRig {
   /** Encuadre especial de la regla del pasillo de trasteros (v1.21): pitch y offset X
    *  propios — cámara elevada mirando el pasillo de frente para verlo hasta el fondo. */
   framing: { pitch: number; xOff: number } | null = null;
+  /** v1.36 — alejamiento de la Estancia (rules.view.camera): factores de encuadre y
+   *  margen de borde para que el personaje del EXTREMO del pasillo (planta 0) salga en cuadro. */
+  tuning: { estFloorH: number; estWidthW: number; estMargin: number } = { estFloorH: 2.0, estWidthW: 2.2, estMargin: 0 };
   private readonly pos: Vector3;
   private readonly look: Vector3;
 
@@ -68,9 +71,20 @@ export class CameraRig {
     } else if (this.mode === 'edificio') {
       viewH = Math.max(this.floors * this.cellH * 1.25, (width * 1.25) / aspect);
     } else {
-      viewH = this.mode === 'planta' ? Math.max(this.cellH * 2.4, (width * 1.1) / aspect) : Math.max(this.cellH * 2.0, (this.cellW * 2.2) / aspect);
+      // v1.36 — Estancia MÁS LEJOS (catálogo): antes 2.0/2.2; con el alejamiento del catálogo
+      // la planta 0 completa entra en cuadro aunque el personaje llegue al extremo izquierdo.
+      const est = this.mode === 'estancia' ? this.tuning : null;
+      viewH = this.mode === 'planta'
+        ? Math.max(this.cellH * 2.4, (width * 1.1) / aspect)
+        : Math.max(this.cellH * (est ? est.estFloorH : 2.0), (this.cellW * (est ? est.estWidthW : 2.2)) / aspect);
       const half = (viewH * aspect) / 2;
-      cx = half * 2 >= width ? width / 2 : Math.min(width - half, Math.max(half, p.x));
+      // v1.36 — MARGEN en los extremos (solo Estancia): en vez de APARCAR al personaje en el
+      // canto del cuadro cuando p.x < half, la cámara lo CENTRA y deja asomar el margen del
+      // catálogo más allá del borde del mundo (el fondo urbano cubre el hueco).
+      const margin = est ? est.estMargin : 0;
+      const lo = Math.max(0.001, half - margin);
+      const hi = width - lo;
+      cx = half * 2 + margin * 2 >= width ? width / 2 : Math.min(hi, Math.max(lo, p.x));
       cy = (p.floor + 0.5) * this.cellH;
       // Fase C: en estancia, la cámara se asoma al fondo siguiendo en parte la profundidad (z).
       // v1.20: en un bloque TRASERO (apilamiento 3D, z > calado del bloque principal) la cámara

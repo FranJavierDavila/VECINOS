@@ -31,7 +31,7 @@ interface LayerView {
   ready: boolean;
   lastNight: number;
   lastWeather: string;
-  /** Filas del canvas POT (2048×256) que ocupa la banda (el resto, transparente). */
+  /** Filas del canvas POT (4096×512) que ocupa la banda (el resto, transparente). */
   usedH: number;
 }
 
@@ -204,15 +204,18 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
   }
 
   // ── Capas de fachadas: sello PNG real (v1.21) o pintado procedural (fallback). ──
-  // Canvas POT 2048×256 (los NPOT de canvas re-subido hacen que SwiftShader muestre un velo
-  // negro al minificar); los sellos se dibujan en las filas inferiores y el plano recorta
-  // por UV (vScale = filas usadas / 256). El resultado visual es idéntico y estable.
+  // Canvas POT 4096×512 (v1.36 — el vecino veía los fondos «como manchones»: a 2048×256
+  // cada sello eran ~176 px estirados 6–11× por pantalla; a 4096 con mipmaps la definición
+  // DUPLICA y el minificado deja de emborronar). Los sellos se dibujan en las filas
+  // inferiores y el plano recorta por UV (vScale = filas usadas / 512).
+  const CANVAS_W = 4096;
+  const CANVAS_H = 512;
   const layers: LayerView[] = cfg.layers.map((l, li) => {
-    const usedH = Math.min(256, Math.max(32, Math.round((2048 * l.height) / STRIP_W)));
-    const tex = new DynamicTexture(`fachada_${li}_tex`, { width: 2048, height: 256 }, scene, false);
+    const usedH = Math.min(CANVAS_H, Math.max(64, Math.round((CANVAS_W * l.height) / STRIP_W)));
+    const tex = new DynamicTexture(`fachada_${li}_tex`, { width: CANVAS_W, height: CANVAS_H }, scene, true);
     // hasAlpha: fuera de los edificios el canvas es transparente (el cielo asoma entre ellos).
     tex.hasAlpha = true;
-    tex.vScale = usedH / 256;
+    tex.vScale = usedH / CANVAS_H;
     const mat = new StandardMaterial(`fachada_${li}_mat`, scene);
     mat.diffuseTexture = tex;
     mat.emissiveTexture = tex;
@@ -244,11 +247,11 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
   /** Pinta una capa al canvas: sellos repetidos (image) o edificios procedurales. */
   const paintLayer = (lv: LayerView, li: number, nightF: number, weather: string): void => {
     const l = cfg.layers[li]!;
-    const W = 2048;
+    const W = CANVAS_W;
     const H = lv.usedH;
-    const offY = 256 - H;
+    const offY = CANVAS_H - H;
     const ctx = lv.tex.getContext() as unknown as CanvasRenderingContext2D;
-    ctx.clearRect(0, 0, W, 256);
+    ctx.clearRect(0, 0, W, CANVAS_H);
     ctx.save();
     ctx.translate(0, offY);
     // NIEBLA (v1.22): los bloques del fondo se DEsaturan (perspectiva aérea) y se funden
@@ -365,11 +368,11 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
     let c = copies.get(li)!;
     if (!c) {
       c = document.createElement('canvas');
-      c.width = 2048;
-      c.height = 256;
+      c.width = CANVAS_W;
+      c.height = CANVAS_H;
       const cctx = c.getContext('2d')!;
       const H = lv.usedH;
-      const offY = 256 - H;
+      const offY = CANVAS_H - H;
       cctx.save();
       cctx.translate(0, offY);
       const aspect = lv.img!.naturalWidth / Math.max(1, lv.img!.naturalHeight);

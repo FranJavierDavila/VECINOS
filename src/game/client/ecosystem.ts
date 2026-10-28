@@ -60,6 +60,10 @@ interface Extra {
   /** Mascota: dirección del ping-pong y salida hacia casa. */
   dir: 1 | -1;
   exiting: boolean;
+  /** v1.36 — desfase de MODELO: el yaw interno mira a +X; los rigs de actor ya nacen así
+   *  (MODEL_YAW_OFFSET = 0), pero el PERRO está modelado mirando a +Z (hocico en +Z) — sin
+   *  desfase anda de LADO. +π/2 gira el +Z del modelo hacia el +X de la ruta. */
+  yawOffset?: number;
   /** v1.34 — animación propia del cuadrúpedo (patas, cola, cabeza): caminando + fase. */
   animate?: (walking: boolean, dt: number) => void;
 }
@@ -298,6 +302,7 @@ export function createEcosystem(
     const x = x0 + hash01('eco_mascota', 3) * (x1 - x0);
     root.position.set(x, feetY, v.corridorZ);
     let animT = hash01('eco_mascota', 11) * 6;
+    const dir0: 1 | -1 = hash01('eco_mascota', 7) >= 0.5 ? 1 : -1;
     const extra: Extra = {
       kind: 'pet',
       id: 'eco_mascota',
@@ -306,13 +311,14 @@ export function createEcosystem(
       rig: null,
       pivotY: 0,
       path: [],
-      yaw: 0,
+      yaw: dir0 > 0 ? 0 : Math.PI, // ya NACE mirando a donde va (v1.36)
       targetYaw: null,
+      yawOffset: Math.PI / 2, // modelo mirando a +Z → ruta a +X (adiós al ladito)
       px: x,
       pz: v.corridorZ,
       pauseT: p.pauseSeconds,
       sway: false,
-      dir: hash01('eco_mascota', 7) >= 0.5 ? 1 : -1,
+      dir: dir0,
       exiting: false,
       animate(walking, dt) {
         animT += dt * (walking ? 9 : 2.2);
@@ -466,8 +472,9 @@ export function createEcosystem(
         e.yaw += dYaw * Math.min(1, dt * v.actorTurnSpeed);
       }
     }
-    if (e.node.rotationQuaternion) Quaternion.RotationYawPitchRollToRef(e.yaw + MODEL_YAW_OFFSET, 0, 0, e.node.rotationQuaternion);
-    else e.node.rotation.y = e.yaw + MODEL_YAW_OFFSET;
+    const modelYaw = e.yaw + (e.yawOffset ?? MODEL_YAW_OFFSET);
+    if (e.node.rotationQuaternion) Quaternion.RotationYawPitchRollToRef(modelYaw, 0, 0, e.node.rotationQuaternion);
+    else e.node.rotation.y = modelYaw;
     // Pata terminada → siguiente (o pausa teatral / despawn marcado).
     if (Math.hypot(leg.x - pos.x, leg.z - pos.z) < 0.06 && Math.abs(leg.y - (pos.y - e.pivotY)) < 0.03) {
       e.path.shift();

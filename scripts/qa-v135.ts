@@ -1,7 +1,8 @@
 /**
  * QA v1.35 «se ve dentro y hay vida» — el lote del vecino:
  *  1. PORTAL SIN PARED OSCURA: cuerpo/hueco del arte glTF RETIRADOS (hideNodes) y el
- *     VESTÍBULO lo levanta el runtime (buzones, banco, tablón, lámpara, diorama, losetas).
+ *     VESTÍBULO: v1.36 — es UNA IMAGEN del hall (wall_portal_hall.png en el diorama);
+ *     lámpara, diorama y losetas del branch de locales.
  *     El portal entra al branch de LOCALES, es puerta (se entra con E) y su fachada glTF
  *     se desvanece al entrar. El interior TAMBIÉN se revela con las puertas abiertas.
  *  2. GARAJE: basculante que alimenta el reveal (garajeLiftT) + interiores de locales
@@ -67,11 +68,12 @@ check('el arte del portal es OVERLAY (la carcasa del vestíbulo sobrevive al mod
 check('el portal entra al branch de LOCALES y lleva layout+room del vestíbulo',
   buildingTs.includes("|| b.defId === 'portal'") && blocksJson.includes('"layout_portal"') &&
   layoutsJson.includes('layout_portal') && roomsJson.includes('estancia_portal'));
-check('vestíbulo amueblado del catálogo (buzones + banco + tablón)',
-  buildingTs.includes('b.defId === \'portal\'') && buildingTs.includes('_buzon_') &&
-  buildingTs.includes('_banco_asiento') && buildingTs.includes('_tablon_cara'));
-check('locals.portal.lobby existe en rules Y en el schema (sin strip)',
-  !!rules.view.locals.portal?.lobby && schemasTs.includes('portal: z') && schemasTs.includes('mailboxes'));
+check('v1.36 — el interior del portal es UNA IMAGEN del hall (art + interiors + sin muebles 3D)',
+  fs.existsSync(path.join(process.cwd(), 'public/art/interiors/raw/wall_portal_hall.png')) &&
+  srcOf('public/content/interiors.json').includes('wall_portal_hall.png') &&
+  !buildingTs.includes('_buzon_'));
+check('locals.portal.lobby (colores del diorama) existe en rules Y en el schema',
+  !!rules.view.locals.portal?.lobby && schemasTs.includes('portal: z') && !schemasTs.includes('mailboxColor')); // v1.36: el lobby solo lleva colores (el flag mailboxes de features.blocks es otro)
 check('la fachada glTF del portal se desvanece al entrar (regla viviendas)',
   buildingTs.includes("if (b.defId === 'garaje' || b.defId === 'portal') view.model?.setEnabled(wall);"));
 check('el interior del garaje/portal se REVELA con la puerta abierta (sin entrar)',
@@ -159,7 +161,7 @@ if (issues.length > 0) {
 const world = createWorld(content, 'slice');
 for (let i = 0; i < 240; i++) tick(world, content);
 check('sim determinista (240 ticks)', world.tick === 240);
-check('la insignia es v1.35', srcOf('src/game/client/i18n.ts').includes('v1.35'));
+check('la insignia es v1.36', srcOf('src/game/client/i18n.ts').includes('v1.36'));
 
 console.log(`\n═══ QA v1.35: ${pass} ✓ / ${fail} ✗ ═══`);
 process.exit(fail > 0 ? 1 : 0);

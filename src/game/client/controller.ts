@@ -895,6 +895,16 @@ class GameController {
       view.cellW,
       view.cellH,
     );
+    // v1.36 — alejamiento de la cámara Estancia desde el catálogo (rules.view.camera):
+    // factores de encuadre + margen de borde para el extremo del pasillo de planta 0.
+    const camTuning = view.camera;
+    if (camTuning) {
+      this.rig.tuning = {
+        estFloorH: camTuning.estanciaFloorH,
+        estWidthW: camTuning.estanciaWidthW,
+        estMargin: camTuning.estanciaEdgeMargin,
+      };
+    }
     // v1.20: plano frontal y calado del bloque principal — la cámara encuadra los bloques
     // traseros (apilamiento 3D) a la misma distancia que una estancia exterior.
     this.rig.metric = { frontZ: view.roomZ - view.commonDepth / 2, depth: view.depth };
