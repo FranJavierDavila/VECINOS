@@ -3,62 +3,18 @@
   "id": "layout_vivienda_v1",
   "rooms": [
    {
-    "key": "salon",
-    "defId": "estancia_salon_cocina",
+    "key": "estudio",
+    "defId": "estancia_estudio_diafano",
     "startsUnlocked": true,
     "rect": {
      "x": 0,
      "z": 0,
-     "w": 2.3,
+     "w": 4.8,
      "d": 4.8
-    }
-   },
-   {
-    "key": "dormitorio",
-    "defId": "estancia_dormitorio",
-    "startsUnlocked": true,
-    "rect": {
-     "x": 2.3,
-     "z": 0,
-     "w": 2.5,
-     "d": 2.5
-    }
-   },
-   {
-    "key": "bano",
-    "defId": "estancia_bano",
-    "startsUnlocked": true,
-    "rect": {
-     "x": 2.3,
-     "z": 2.5,
-     "w": 2.5,
-     "d": 2.3
     }
    }
   ],
-  "doorways": [
-   {
-    "a": "salon",
-    "b": "dormitorio",
-    "axis": "z",
-    "at": 1.25,
-    "width": 2.5
-   },
-   {
-    "a": "salon",
-    "b": "bano",
-    "axis": "z",
-    "at": 3.35,
-    "width": 1.7
-   },
-   {
-    "a": "dormitorio",
-    "b": "bano",
-    "axis": "x",
-    "at": 2.5,
-    "width": 2.5
-   }
-  ]
+  "doorways": []
  },
  {
   "id": "layout_trastero_comunal",

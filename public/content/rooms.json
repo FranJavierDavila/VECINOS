@@ -1,5 +1,142 @@
 [
  {
+  "id": "estancia_estudio_diafano",
+  "kind": "room",
+  "label": "Estudio diáfano",
+  "size": {
+   "w": 5,
+   "h": 1
+  },
+  "params": {
+   "comfort": {
+    "type": "number",
+    "min": 0,
+    "max": 100,
+    "default": 50,
+    "tier": 1,
+    "label": "Confort"
+   },
+   "clutter": {
+    "type": "number",
+    "min": 0,
+    "max": 100,
+    "default": 20
+   },
+   "cleanliness": {
+    "type": "number",
+    "min": 0,
+    "max": 100,
+    "default": 60
+   }
+  },
+  "furnitureSlots": [
+   {
+    "id": "salon_suelo_1",
+    "kind": "salon_suelo",
+    "pos": [
+     0.9,
+     1.1
+    ]
+   },
+   {
+    "id": "salon_suelo_2",
+    "kind": "salon_suelo",
+    "pos": [
+     2.1,
+     2.6
+    ]
+   },
+   {
+    "id": "salon_pared_1",
+    "kind": "salon_pared",
+    "pos": [
+     2.4,
+     0.14
+    ],
+    "y": 1.7
+   },
+   {
+    "id": "dorm_suelo_1",
+    "kind": "dorm_suelo",
+    "pos": [
+     3.5,
+     1.1
+    ]
+   },
+   {
+    "id": "dorm_mesa_1",
+    "kind": "dorm_mesa",
+    "pos": [
+     0.7,
+     2.9
+    ]
+   },
+   {
+    "id": "bano_suelo_1",
+    "kind": "bano_suelo",
+    "pos": [
+     4.1,
+     0.7
+    ]
+   }
+  ],
+  "interactables": [
+   {
+    "id": "portatil",
+    "kind": "laptop",
+    "pos": [
+     0.7,
+     1
+    ]
+   },
+   {
+    "id": "cama",
+    "kind": "bed",
+    "pos": [
+     3.5,
+     1.15
+    ]
+   }
+  ],
+  "anchors": [
+   {
+    "id": "tv",
+    "kind": "tv",
+    "pos": [
+     1.4,
+     1.7
+    ]
+   },
+   {
+    "id": "cocina",
+    "kind": "stove",
+    "pos": [
+     2.3,
+     0.6
+    ]
+   },
+   {
+    "id": "ampli",
+    "kind": "amp",
+    "pos": [
+     3.1,
+     2.8
+    ]
+   },
+   {
+    "id": "escritorio",
+    "kind": "desk",
+    "pos": [
+     0.7,
+     2.6
+    ]
+   }
+  ],
+  "view": {
+   "color": "#e8d8c8"
+  }
+ },
+ {
   "id": "estancia_salon_cocina",
   "kind": "room",
   "label": "Salón-cocina",

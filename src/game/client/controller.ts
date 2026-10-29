@@ -1041,6 +1041,16 @@ class GameController {
 
     this.scene?.dispose();
     this.scene = new Scene(this.engine);
+    // v1.42 — ASA DE QA (?qaengine=1): en headless el NullEngine no pinta píxeles, así que
+    // la verificación visual se hace GEOMÉTRICA: el QA lee mallas/transforms/estado del
+    // mundo desde la consola. Solo existe con el parámetro qaengine; cero impacto en juego.
+    if (typeof location !== 'undefined' && new URLSearchParams(location.search).has('qaengine')) {
+      (window as unknown as { __vecinosQa?: unknown }).__vecinosQa = {
+        getScene: () => this.scene,
+        getWorld: () => this.world,
+        getContent: () => this._content,
+      };
+    }
     this.flashlight = null; // v1.40 — la linterna nueva nace con la escena nueva
     this.scene.clearColor = new Color4(view.sky.r, view.sky.g, view.sky.b, 1);
     // Pase de calidad FPS (v1.22): el puntero no necesita picking por movimiento (la

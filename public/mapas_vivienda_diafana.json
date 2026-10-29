@@ -1,0 +1,83 @@
+{
+  "titulo": "Vivienda diáfana — medidas precisas del bloque único para los mapas de paredes y suelos",
+  "version": "v1.42",
+  "fuente": "rules.json (view) + layouts.json (layout_vivienda_v1) + rooms.json (estancia_estudio_diafano) + interiors.json",
+  "convencion": "Coordenadas del LAYOUT: x=0 en el canto izquierdo del bloque (fachada al pasillo), z=0 en el plano de la fachada, z crece hacia el fondo. La planta mide 2.60 m de canto a canto.",
+  "bloque_unico": {
+    "forma": "Un único prisma rectangular SIN divisiones interiores, SIN bloque trasero, SIN puerta trasera",
+    "celdas": "2 × 2.4 m de fachada",
+    "ancho_nominal": 4.68,
+    "fondo_nominal": 4.8,
+    "alto_planta": 2.6,
+    "muros_estructurales": {
+      "grosor": 0.1,
+      "laterales": "centrados en x=0 y x=4.68 (ocupan −0.05..0.05 y 4.63..4.73)",
+      "fondo": "centrado en z=4.8 (ocupa 4.75..4.85) — UNA sola pieza continua de 4.68 m",
+      "forjados": "suelo y techo de 0.10 m (x 0..4.68 × z 0..4.8)"
+    },
+    "acabados": {
+      "color_pared": "#dbd8d2",
+      "color_zocalo": "#a3a19b",
+      "zocalo_alto": 0.25
+    },
+    "puerta_fachada": {
+      "ancho": 0.95,
+      "alto": 1.85,
+      "posicion": "centrada en la fachada",
+      "nivel_suelo": "+0.17 m sobre la base del bloque",
+      "hoja": "plano a 3.5 cm delante del canto de fachada"
+    }
+  },
+  "espacio_diafano": {
+    "estancia": { "key": "estudio", "defId": "estancia_estudio_diafano", "rect": { "x": 0, "z": 0, "w": 4.8, "d": 4.8 } },
+    "tabiques": 0,
+    "doorways": 0,
+    "sala_trasera": "eliminada (ninguna estancia pasa de z=4.8)",
+    "anchura_util": 4.58,
+    "fondo_util": 4.7,
+    "alto_util": 2.26,
+    "nivel_suelo_interior": "+0.17 m",
+    "borde_techo_interior": "+2.43 m"
+  },
+  "mapas": {
+    "pared_fondo": {
+      "medida_visible": "4.58 × 2.26 m",
+      "quad_real": "4.82 × 2.26 m (solape de 1 cm por lado para evitar costuras)",
+      "teselas_arte": "2 × (2.41 × 2.26 m)",
+      "arte": "wall_vacio_salon.png (procesado a 512 px)",
+      "posicion": "z = 4.71 (9 cm delante del canto trasero; 1 cm embebido en el muro — nada coplanar)"
+    },
+    "paredes_laterales": {
+      "medida_cada_una": "4.70 × 2.26 m",
+      "teselas_arte": "2 × (2.35 × 2.26 m)",
+      "arte": "side_wall_a.png / side_wall_b.png",
+      "posicion": "x = 0.07 y x = 4.61 (2 cm dentro de los muros estructurales)"
+    },
+    "techo": {
+      "medida": "4.58 × 4.70 m",
+      "arte": "ceiling_a.png / ceiling_b.png",
+      "posicion": "+2.41 m sobre el plano de la fachada (y = base + 2.41)"
+    },
+    "suelo": {
+      "medida_visible": "4.58 × 4.70 m",
+      "quad_real": "4.80 × 4.80 m",
+      "teselas_arte": "2 × 2 de (2.40 × 2.40 m)",
+      "arte": "floor_madera.png / floor_madera_b.png / floor_parket.png",
+      "posicion": "+0.205 m sobre la base del bloque (3.5 cm sobre la solera)"
+    },
+    "lampara_techo": { "medida": "0.90 × 0.22 m", "posicion": "centrada (x 2.4, z 2.4), pegada al techo interior" }
+  },
+  "verificacion": {
+    "metodo": "?qaengine=1 (NullEngine) + inspección geométrica de la escena viva en el navegador",
+    "viviendas_verificadas": 9,
+    "incidencias": 0,
+    "comprobaciones": [
+      "1 sola pared de diorama continua por vivienda, en el fondo (z=4.71 local) — 0 paredes a media profundidad",
+      "0 tabiques, 0 marcos de puerta trasera (_dio_puerta), 0 muros partidos (_fondo_i/_fondo_d/_fondo_dintel)",
+      "0 bloques traseros registrados",
+      "1 suelo tintado 4.8 × 4.8 y 1 suelo de diorama 4.8 × 4.8 por vivienda",
+      "0 mallas de estancias antiguas (_salon_/_dormitorio_/_bano_)",
+      "anclas de actividad bed/tv/stove/desk/amp resueltas dentro de la estancia única"
+    ]
+  }
+}

@@ -21,6 +21,87 @@
     "tint": "#f4f1ea"
   },
   "rooms": {
+    "estancia_estudio_diafano": {
+      "wall": "wall_vacio_salon.png",
+      "walls": [
+        "wall_vacio_salon.png"
+      ],
+      "floor": "floor_madera.png",
+      "floors": [
+        "floor_madera.png",
+        "floor_madera_b.png",
+        "floor_parket.png"
+      ],
+      "sets": [
+        [
+          {
+            "art": "f_fogones.png",
+            "w": 1.35,
+            "h": 1.15,
+            "u": 0.42,
+            "v": 0.88,
+            "layer": "back"
+          },
+          {
+            "art": "f_nevera.png",
+            "w": 0.85,
+            "h": 1.7,
+            "u": 0.52,
+            "v": 0.86,
+            "layer": "back"
+          },
+          {
+            "art": "f_tv.png",
+            "w": 1.5,
+            "h": 0.95,
+            "u": 0.25,
+            "v": 0.72,
+            "layer": "back"
+          },
+          {
+            "art": "f_sofa.png",
+            "w": 1.7,
+            "h": 0.95,
+            "u": 0.2,
+            "v": 0.42,
+            "layer": "mid"
+          },
+          {
+            "art": "f_mesa.png",
+            "w": 1.45,
+            "h": 1.15,
+            "u": 0.78,
+            "v": 0.5,
+            "layer": "mid"
+          },
+          {
+            "art": "f_alfombra.png",
+            "w": 1.8,
+            "h": 1.15,
+            "u": 0.35,
+            "v": 0.32,
+            "layer": "rug"
+          },
+          {
+            "art": "f_planta.png",
+            "w": 0.75,
+            "h": 1.35,
+            "u": 0.94,
+            "v": 0.18,
+            "layer": "front"
+          },
+          {
+            "art": "f_lampara.png",
+            "w": 0.6,
+            "h": 1.5,
+            "u": 0.06,
+            "v": 0.22,
+            "layer": "front"
+          }
+        ]
+      ],
+      "furnitureVisible": false
+    },
     "estancia_salon_cocina": {
       "wall": "wall_vacio_salon.png",
       "walls": [
