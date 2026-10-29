@@ -992,6 +992,10 @@ export interface CharacterDetailSpec {
   headScale?: number;
   /** v1.44 — corpulencia del torso (1 normal; 1.2 ancho). */
   bulk?: number;
+  /** v1.45 — ARTE RECORTADO de 4 vistas (billboard del LOD cercano): rutas PNG con
+   *  transparencia. Presente → el LOD cercano usa este arte; ausente → rig glTF
+   *  a todas las distancias (jamás un fallback de primitivas). */
+  art?: { front: string; back: string; left: string; right: string };
 }
 
 export interface CharacterDetailsCatalog {

@@ -45,7 +45,13 @@
       "mustache": "#c9c3b8",
       "hunch": 0.12,
       "headScale": 1.16,
-      "bulk": 1.2
+      "bulk": 1.2,
+      "art": {
+        "front": "/art/characters/presidente_front.png",
+        "back": "/art/characters/presidente_back.png",
+        "left": "/art/characters/presidente_left.png",
+        "right": "/art/characters/presidente_right.png"
+      }
     },
     "jugador_base": {
       "height": 1.3,

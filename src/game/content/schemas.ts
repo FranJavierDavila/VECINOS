@@ -2816,6 +2816,14 @@ const characterDetailSpecSchema = z.object({
   hunch: z.number().min(0).max(0.3).optional(),
   headScale: z.number().min(0.5).max(2).optional(),
   bulk: z.number().min(0.5).max(2).optional(),
+  art: z
+    .object({
+      front: z.string(),
+      back: z.string(),
+      left: z.string(),
+      right: z.string(),
+    })
+    .optional(),
   skin: z.string(),
   hairColor: z.string(),
   hairStyle: z.enum(['baldSides', 'bun', 'cap', 'short', 'full', 'headphones']),

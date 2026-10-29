@@ -2,7 +2,7 @@ import type { Mesh, Scene, TransformNode } from '@babylonjs/core';
 import type { BlockInstance, Content, PlayerPosition, ResidentInstance, World } from '@/game/core/types';
 import { B } from './babylon';
 import { instantiateActorAsset, type ActorRig } from './assets';
-import { buildCharacterDetail, type CharacterDetailRig } from './character-detail';
+import { buildCharacterBillboard, type CharacterDetailRig } from './character-detail';
 import { hash01, interiorTarget, layoutGeometryOf, type Pt } from '@/game/interior';
 import { stairGeomOf, stairPathPoints } from '@/game/stairs';
 import { horizontalLegs } from '@/game/routing';
@@ -918,10 +918,11 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
           a.rig.play(clip, rate);
         }
 
-        // ── v1.44 — LOD DEL PERSONAJE EN TRES NIVELES: lejos, el rig glTF de siempre;
-        //  a media distancia, silueta detallada (pelo, gafas, nariz, traje); de cerca,
-        //  TODO (ojos, cejas, varillas, hebilla, papel del portapapeles). Histéresis en
-        //  ambos umbrales; construcción PEREZOSA y UN solo cuerpo visible. ──
+        // ── v1.45 — LOD DEL PERSONAJE: lejos, el rig glTF de siempre; cerca, el ARTE
+        //  RECORTADO de 4 vistas (billboard que mira a cámara y cambia de vista según el
+        //  ángulo — la misma técnica que los árboles del juego). Sentado o tumbado NO hay
+        //  billboard: el rig muestra sus clips sit/sleep. Sin arte en el catálogo, el
+        //  arquetipo se queda con su rig a todas las distancias (jamás un fallback zafio). ──
         if (detailCfg?.enabled && a.rig) {
           const cam = scene.activeCamera;
           const dist = cam ? Math.sqrt((cam.position.x - node.x) ** 2 + (cam.position.y - node.y) ** 2 + (cam.position.z - node.z) ** 2) : Infinity;
@@ -930,9 +931,11 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
           else if (a.detLevel === 2 && dist < detailCfg.nearDist + detailCfg.hysteresis) lvl = 2;
           else if (dist < detailCfg.midDist) lvl = 1;
           else if (a.detLevel === 1 && dist < detailCfg.midDist + detailCfg.hysteresis) lvl = 1;
+          // Sentado o tumbado: los clips del rig manda (un quad de pie sobre un banco sería mentira).
+          if (lvl > 0 && (a.seated || a.lying)) lvl = 0;
           if (lvl > 0 && !a.detail) {
             const spec = content.characterDetails?.byArchetype[r.archetype] ?? content.characterDetails?.defaults;
-            a.detail = spec ? buildCharacterDetail(scene, id, spec, a.height) : null;
+            a.detail = spec ? buildCharacterBillboard(scene, id, spec, a.height) : null;
             a.detail?.setFade(a.fade);
           }
           if (a.detail) {
@@ -940,28 +943,19 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
               a.detLevel = lvl;
               for (const m of a.rigMeshes) m.setEnabled(lvl === 0);
               a.detail.setEnabled(lvl > 0);
-              a.detail.setTier(lvl === 2 ? 2 : 1);
             }
             if (lvl > 0) {
-              // El detallado es HERMANO del nodo: posición y pose (rumbo + tumbado) copiadas 1:1.
-              a.detail.root.position.copyFrom(a.node.position);
-              const q = a.node.rotationQuaternion;
-              if (q) {
-                if (!a.detail.root.rotationQuaternion) a.detail.root.rotationQuaternion = new Quaternion();
-                a.detail.root.rotationQuaternion.copyFrom(q);
-              } else {
-                a.detail.root.rotationQuaternion = null;
-                a.detail.root.rotation.copyFrom(a.node.rotation);
-              }
               a.detail.sync(dt, {
                 speedH: Math.hypot(node.x - prevX, node.z - prevZ) / Math.max(1e-4, dt),
                 gesture: a.gesture,
-                seated: a.seated && a.path.length === 0,
+                yaw: a.yaw,
+                pos: { x: node.x, y: node.y, z: node.z },
+                camPos: cam ? { x: cam.position.x, y: cam.position.y, z: cam.position.z } : { x: node.x, y: node.y, z: node.z },
                 fade: a.fade,
               });
             }
           } else {
-            a.detLevel = 0; // sin catálogo aplicable: rig como siempre
+            a.detLevel = 0; // sin arte en el catálogo: rig como siempre
           }
         } else if (a.detail && a.detLevel !== 0) {
           // El LOD se apagó (o el rig aún carga): todo como siempre.
