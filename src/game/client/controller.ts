@@ -91,6 +91,8 @@ class GameController {
   private projectLevelSeen = 0;
   /** v1.39 — posición previa del jugador (para el paso «muévete» del tutorial). */
   private lastMovePos: { x: number; z: number } | null = null;
+  /** v1.42 — último fundido aplicado al cuerpo del jugador (evita setFade por frame). */
+  private lastPlayerFade = 1;
   /** Bloom/glow de las luces (v1.28): halo realista sobre materiales emisivos (catálogo). */
   private glowLayer: { dispose(): void } | null = null;
   /** v1.40 — LINTERNA: PointLight que llevas encima cuando se va la luz (apagón).
@@ -493,6 +495,24 @@ class GameController {
     // catálogo de personalidades (reactions.greet), en el idioma del chrome.
     if (r.type === 'chat') {
       this.chatWith(r.residentId);
+      this.pump();
+      return;
+    }
+    // v1.42 — CALLE: poses del banco y calistenia (el gesto/pose lo aplica el director).
+    if (r.type === 'sit') {
+      this.actors?.director?.seatWhenIdle(this.actorId(), { x: r.x, z: r.z, yaw: r.yaw });
+      this.sayOutdoorLine('sit');
+      this.pump();
+      return;
+    }
+    if (r.type === 'stand') {
+      this.actors?.director?.standUp(this.actorId());
+      this.pump();
+      return;
+    }
+    if (r.type === 'exerciseStart') {
+      this.actors?.director?.setGesture(this.actorId(), this.content.rules.view.paseo?.gesture ?? 'dance', 0);
+      this.sayOutdoorLine('exercise');
       this.pump();
       return;
     }
@@ -1152,6 +1172,12 @@ class GameController {
       const cm = useGameStore.getState().camMode;
       return cm === 'edificio' || cm === 'fachada' || cm === 'planta';
     }, () => this.exterior?.benches() ?? []);
+    // v1.42 — spots exteriores del JUGADOR: bancos del decorado (sentarse a contemplar el
+    // edificio) y el punto de calistenia del jardín de enfrente (catálogo view.outside).
+    this.logic?.setOutdoorSpots(
+      this.exterior?.benches() ?? [],
+      view.outside ? { x: view.outside.exercise.x, z: view.outside.exercise.z } : null,
+    );
     // v1.39 — VECINOS COMO PERSONAJES: reacciones ambientales con carácter (bocadillos).
     this.residents?.dispose();
     this.residents = this.actors ? createResidents(this.world, this.content, this.actors.director, this.bubbles) : null;
@@ -1252,9 +1278,22 @@ class GameController {
     if (!frozen) {
       this.logic.update(dt, this.readInput());
       // v1.40 — acciones automáticas (entrar/salir de TU vivienda sin E): la cámara sigue.
+      // v1.42 — la calle: portal sin E, banco y calistenia también llegan por aquí.
       for (const ar of this.logic.drainAuto()) {
         if (ar.type === 'entered') this.setCamMode('estancia');
         else if (ar.type === 'exited') this.setCamMode('planta');
+        else if (ar.type === 'portalOut') {
+          this.setCamMode('planta');
+          this.sayOutdoorLine('out');
+        } else if (ar.type === 'portalIn') {
+          this.setCamMode('estancia');
+          this.sayOutdoorLine('into');
+        } else if (ar.type === 'stand') {
+          this.actors?.director?.standUp(this.actorId());
+          this.actors?.director?.setGesture(this.actorId(), null);
+        } else if (ar.type === 'exerciseEnd') {
+          this.actors?.director?.setGesture(this.actorId(), null);
+        }
       }
       // Ascensor (v1.5): el director mueve cabinas y puertas; el jugador llama con W/S en el
       // núcleo y su escalada EXTERNA la gobierna la cabina (espera → embarco → viaje → salida).
@@ -1346,6 +1385,11 @@ class GameController {
 
     const pos = this.logic.position();
     this.actors.update(dt, pos, this.actorId());
+    // v1.42 — fundido del cuerpo al cruzar el portal (teatro; solo cuando cambia).
+    if (pos.fade !== this.lastPlayerFade) {
+      this.lastPlayerFade = pos.fade;
+      this.actors.director?.setFade(this.actorId(), pos.fade);
+    }
     // v1.32 — SOMBRAS: refresco perezoso de participantes (rigs glTF tardíos, pool de
     // tráfico, celadores…): escaneo barato cada 2 s contra un Set de vistas.
     this.shadowRefreshT -= dt;
@@ -1386,6 +1430,12 @@ class GameController {
       this.pedestrians?.update(dt);
       this.streetlife?.update(dt);
       this.paseo?.update(dt);
+      // v1.42 — el JUGADOR también es peatón: si pisa la calzada (solo hay paso legal en
+      // el paso de cebra), los coches frenan por él igual que por cualquier vecino.
+      const laneZs = this.content.rules.view.traffic.lanes.map((l) => l.z);
+      const roadZ0 = laneZs.length > 0 ? Math.min(...laneZs) - 1.5 : -11.6;
+      const roadZ1 = laneZs.length > 0 ? Math.max(...laneZs) + 1.5 : -7;
+      this.traffic?.setExtraCrossers(pos.mode === 'outside' && pos.z < roadZ1 && pos.z > roadZ0 ? [{ x: pos.x, z: pos.z }] : []);
     }
     // Charlas de cruce (v1.20): en multijugador quedan en pausa (mismo criterio que el ecosistema).
     if (!this.net) this.chats?.update(dt);
@@ -1813,6 +1863,15 @@ class GameController {
     }
   }
 
+  /** v1.42 — línea cómica del jugador al aire libre (catálogo view.outside.says): bocadillo
+   *  sobre su cabeza, mismo canal que las charlas de cruce. Sin catálogo, silencio. */
+  private sayOutdoorLine(kind: 'out' | 'into' | 'sit' | 'exercise'): void {
+    const arr = this.content.rules.view.outside?.says[kind];
+    if (!arr || arr.length === 0 || !this.bubbles) return;
+    const line = arr[Math.floor(Math.random() * arr.length)]!;
+    this.bubbles.sayText(this.actorId(), line, 3.6);
+  }
+
   private promptText(): string | null {
     const logic = this.logic;
     const world = this.world;
@@ -1856,6 +1915,11 @@ class GameController {
           return ic.storageEnter;
         case 'rearExit':
           return ic.rearExit;
+        // v1.42 — calle: banco (sentarse/levantarse) y calistenia.
+        case 'bench':
+          return logic.isSitting() ? (ic.standUp ?? '') : (ic.bench ?? '');
+        case 'exercise':
+          return ic.exercise ?? '';
       }
     }
     const zone = logic.zone();

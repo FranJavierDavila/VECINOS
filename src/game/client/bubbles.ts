@@ -60,6 +60,10 @@ interface BubbleView {
    *  un rayo barato y la decisión cambia poco. */
   occluded: boolean;
   occludedAt: number;
+  /** v1.42 — segundos sin dueño visible: al superar el tope, el nodo DOM se DESTRUYE
+   *  (dropBubble). Así no queda NADA flotando donde ya no hay personaje — la queja
+   *  histórica del barrio. */
+  lostT: number;
 }
 
 export interface BubblesDirector {
@@ -175,7 +179,7 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
     inner.appendChild(tail);
     el.appendChild(inner);
     layer.appendChild(el);
-    const view: BubbleView = { el, inner, key: '', mode: 'glyph', priority: 0, hidden: true, placed: false, occluded: false, occludedAt: 0 };
+    const view: BubbleView = { el, inner, key: '', mode: 'glyph', priority: 0, hidden: true, placed: false, occluded: false, occludedAt: 0, lostT: 0 };
     bubbles.set(id, view);
     return view;
   };
@@ -205,12 +209,40 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
     // reconstruye por encima... la cola es hija del inner y su estilo no se toca aquí: intacta.
   };
 
+  /** v1.42 — baja individual REAL (antes era código muerto): quita el nodo DOM y TODO el
+   *  estado asociado (transitorio, habla, cooldowns). Un solo punto de retirada: nada
+   *  queda a medias ni reaparece fantasma. */
   const dropBubble = (id: string): void => {
     const b = bubbles.get(id);
     if (b) {
       b.el.remove();
       bubbles.delete(id);
     }
+    transient.delete(id);
+    speech.delete(id);
+    for (const key of [...cooldown.keys()]) {
+      if (key.startsWith(`${id}:`)) cooldown.delete(key);
+    }
+    dirty.delete(id);
+  };
+
+  /** v1.42 — esconde TODOS los bocadillos YA (sin cámara, cambio de mundo): nada queda
+   *  congelado en la última coordenada de pantalla — la otra vía de los "flotantes". */
+  const hideAll = (): void => {
+    for (const b of bubbles.values()) {
+      if (!b.hidden) {
+        b.hidden = true;
+        b.inner.style.opacity = '0';
+        b.el.style.visibility = 'hidden';
+      }
+    }
+  };
+
+  /** v1.42 — la visibilidad DOM es doble (opacity + visibility): a prueba de transition
+   *  a medias, de capas por encima y de cualquier resurrección visual. */
+  const setVisible = (b: BubbleView, on: boolean): void => {
+    b.inner.style.opacity = on ? '1' : '0';
+    b.el.style.visibility = on ? 'visible' : 'hidden';
   };
 
   const pop = (b: BubbleView): void => {
@@ -271,7 +303,7 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
       const b = bubbles.get(id);
       if (b && !b.hidden) {
         b.hidden = true;
-        b.inner.style.opacity = '0';
+        setVisible(b, false);
       }
       return;
     }
@@ -289,11 +321,11 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
       if (modeChanged) applyMode(b, isText ? 'text' : 'glyph');
       (b.inner.firstChild as HTMLElement).textContent = isText ? pick.text! : pick.glyph;
       b.hidden = capped || shelved;
-      b.inner.style.opacity = b.hidden ? '0' : '1';
+      setVisible(b, !b.hidden);
       if (!b.hidden) pop(b);
     } else if (b.hidden && !capped && !shelved) {
       b.hidden = false;
-      b.inner.style.opacity = '1';
+      setVisible(b, true);
       pop(b);
     }
   };
@@ -396,6 +428,12 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
 
     update(dt, actorId) {
       localActorId = actorId;
+      // v1.42 — PURGA DE FANTASMAS (la garantía dura): bocadillos de residentes que ya
+      // no existen en el mundo → nodo DOM DESTRUIDO y estado limpio. Antes el <div> se
+      // quedaba oculto pero vivo hasta el dispose del mundo entero: flotando ahí fuera.
+      for (const id of [...bubbles.keys()]) {
+        if (!world.residents[id]) dropBubble(id);
+      }
       // 1.5) CICLO DE HABLA (v1.15): crea/renueva/avanza el turno de palabra de cada actor.
       // TODO sale del contenido: líneas de archetypes.activities.say, tiempos de emotes.speech.
       if (speechCfg) {
@@ -467,7 +505,13 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
 
       // 2) Reposición cada frame: proyección 3D → píxeles del contenedor.
       const cam = scene.activeCamera;
-      if (!cam) return;
+      // v1.42 — SIN CÁMARA ACTIVA: antes `return` a secas congelaba los bocadillos en su
+      // última coordenada de pantalla (la vía principal de los «flotantes al cambiar de
+      // cámara»). Ahora se esconden TODOS de inmediato y punto.
+      if (!cam) {
+        hideAll();
+        return;
+      }
       const rect = host.getBoundingClientRect();
       const renderW = engine.getRenderWidth();
       const renderH = engine.getRenderHeight();
@@ -486,16 +530,30 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
       const nearRadius = cfg.bubble.nearRadius ?? null;
       const meHead = nearRadius !== null ? actors.headOf(localActorId) : null;
       const floorH = content.rules.view.cellH;
+      // v1.42 — un bocadillo sin dueño visible más de 1.2 s se DESTRUYE (nodo DOM fuera):
+      // ni aunque la proyección se pierda, ni aunque el actor se recree — nada persiste
+      // flotando donde no hay personaje.
+      const noOwnerDropSeconds = 1.2;
       for (const [id, b] of rotated) {
         const head = actors.headOf(id);
         const capped = cappedIds !== null && !cappedIds.has(id);
         if (!head || capped) {
+          if (!head) {
+            b.lostT += dt;
+            if (b.lostT > noOwnerDropSeconds) {
+              dropBubble(id);
+              continue;
+            }
+          } else {
+            b.lostT = 0;
+          }
           if (!b.hidden) {
             b.hidden = true;
-            b.inner.style.opacity = '0';
+            setVisible(b, false);
           }
           continue;
         }
+        b.lostT = 0;
         if (nearRadius !== null && meHead && id !== localActorId) {
           const dxp = head.x - meHead.x;
           const dzp = head.z - meHead.z;
@@ -503,7 +561,7 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
           if (!sameFloor || dxp * dxp + dzp * dzp > nearRadius * nearRadius) {
             if (!b.hidden) {
               b.hidden = true;
-              b.inner.style.opacity = '0';
+              setVisible(b, false);
             }
             continue;
           }
@@ -514,7 +572,7 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
         if (Vector3.Dot(toPt, camFwd) <= 0.01 || toPt.length() > cfg.bubble.maxDistance) {
           if (!b.hidden) {
             b.hidden = true;
-            b.inner.style.opacity = '0';
+            setVisible(b, false);
           }
           continue;
         }
@@ -526,7 +584,7 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
         if (nx < -0.04 || nx > 1.04 || ny < -0.06 || ny > 1.06) {
           if (!b.hidden) {
             b.hidden = true;
-            b.inner.style.opacity = '0';
+            setVisible(b, false);
           }
           continue;
         }
@@ -534,7 +592,7 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
         if (occlusionBlocked(head, nowMs, b)) {
           if (!b.hidden) {
             b.hidden = true;
-            b.inner.style.opacity = '0';
+            setVisible(b, false);
           }
           continue;
         }
@@ -545,10 +603,10 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
         if (!b.placed) {
           // Primera proyección real: a partir de aquí puede mostrarse (nunca en (0,0)).
           b.placed = true;
-          if (!b.hidden) b.inner.style.opacity = '1';
+          if (!b.hidden) setVisible(b, true);
         } else if (b.hidden) {
           b.hidden = false;
-          b.inner.style.opacity = '1';
+          setVisible(b, true);
           pop(b);
         }
       }

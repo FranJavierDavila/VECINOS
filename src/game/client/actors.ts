@@ -95,6 +95,10 @@ interface Actor {
   /** v1.41 — BOLSAS DE LA COMPRA (una en cada mano): vuelve del taxi o de fuera del plano. */
   bags: TransformNode | null;
   bagsWant: boolean;
+  /** v1.42 — ÚLTIMO fundido aplicado (0..1): la fuente de verdad de "¿se ve este actor?".
+   *  headOf/visibleOf lo consultan: un actor desvanecido (cruzando la pared del portal) no
+   *  luce bocadillos ni emoticonos — no queda nada flotando donde no hay personaje. */
+  fade: number;
 }
 
 /**
@@ -180,7 +184,7 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
     m.emissiveColor = m.diffuseColor.scale(0.25);
     mesh.material = m;
     mesh.isPickable = false;
-    const a: Actor = { id, node: mesh, height, pivotY: height / 2, path: [], wanderT: 0, wanderLap: 0, targetLocal: null, lastLoc: null, directed: false, yaw: 0, targetYaw: null, gesture: null, gestureT: 0, seated: false, seatPending: null, elevatorReq: null, ridePhase: null, enabledPrev: false, stowedBlock: null, rig: null, chatT: 0, carry: null, carryKind: null, carryManual: null, lying: false, bobBase: null, umbrella: null, umbrellaWant: false, umbrellaK: 0, bags: null, bagsWant: false };
+    const a: Actor = { id, node: mesh, height, pivotY: height / 2, path: [], wanderT: 0, wanderLap: 0, targetLocal: null, lastLoc: null, directed: false, yaw: 0, targetYaw: null, gesture: null, gestureT: 0, seated: false, seatPending: null, elevatorReq: null, ridePhase: null, enabledPrev: false, stowedBlock: null, rig: null, chatT: 0, carry: null, carryKind: null, carryManual: null, lying: false, bobBase: null, umbrella: null, umbrellaWant: false, umbrellaK: 0, bags: null, bagsWant: false, fade: 1 };
     actors.set(id, a);
 
     // Arte final (opcional): modelo glTF del manifiesto; cualquier fallo → cápsula.
@@ -992,17 +996,21 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
       },
       headOf(id: string): { x: number; y: number; z: number } | null {
         const a = actors.get(id);
-        if (!a || !a.node.isEnabled()) return null;
+        // v1.42 — "existe" = nodo habilitado (con ancestros) Y no desvanecido: un actor en
+        // fundido (cruzando la pared del portal) NO proyecta bocadillos — antes quedaban
+        // flotando en mitad de la pared mientras el cuerpo era invisible.
+        if (!a || !a.node.isEnabled(true) || a.fade <= 0.04) return null;
         const p = a.node.position;
         return { x: p.x, y: p.y + a.height + 0.18, z: p.z };
       },
       gestureOf(id: string): string | null {
         return actors.get(id)?.gesture ?? null;
       },
-      /** v1.41 — ¿está EN ESCENA de verdad? (nodo habilitado: no fuera, no stowed, no oculto). */
+      /** v1.41 — ¿está EN ESCENA de verdad? (nodo habilitado: no fuera, no stowed, no oculto).
+       *  v1.42 — también exige fundido > 0 (el teatro atraviesa paredes desvaneciendo). */
       visibleOf(id: string): boolean {
         const a = actors.get(id);
-        return !!a && a.node.isEnabled();
+        return !!a && a.node.isEnabled(true) && a.fade > 0.04;
       },
       /** v1.41 — PARAGUAS on/off (el teatro de la calle decide con el clima). */
       setUmbrella(id: string, on: boolean): void {
@@ -1022,6 +1030,7 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
         const a = actors.get(id);
         if (!a) return;
         const val = Math.max(0, Math.min(1, k));
+        a.fade = val; // v1.42 — se recuerda: headOf/visibleOf lo consultan cada frame
         if (a.node instanceof B().Mesh) a.node.visibility = val;
         for (const m of a.node.getChildMeshes()) m.visibility = val;
       },

@@ -1563,6 +1563,45 @@ export interface Rules {
     glow?: { enabled: boolean; intensity: number; blurKernelSize?: number };
     /** v1.40 — LINTERNA del apagón: PointLight que sigue al jugador (radio corto). */
     flashlight?: { range: number; intensity: number; height: number; color: string };
+    /** v1.42 — SALIDA DEL JUGADOR A LA CALLE: rects transitables (aceras, paso de peatones,
+     *  jardín de enfrente), disparadores del portal SIN tecla E (dirección manda), bancos y
+     *  calistenia. El jugador es un vecino más: no puede salir del plano de la cámara lejana. */
+    outside?: {
+      /** Límites del plano de cámara lejana: las aceras no continúan más allá en el cuadro. */
+      xMin: number;
+      xMax: number;
+      /** Rects transitables (unión; el paso de cebra es el ÚNICO cruce de la calzada). */
+      walk: { x0: number; z0: number; x1: number; z1: number }[];
+      /** Portal sin E: salir/entrar caminando en la dirección correcta (pared lateral y frente). */
+      portal: {
+        outFrontZ: number;
+        inFrontZ: number;
+        sideExitX: number;
+        sideEnterX: number;
+        sideZ: number;
+        wallInnerX: number;
+        frontInnerZ: number;
+        fadeSeconds: number;
+      };
+      /** Banco exterior: radio de sentarse (la pose usa el yaw del catálogo del paseo). */
+      benchRadius: number;
+      /** Parque de calistenia: punto de ejercicio y parámetros. */
+      exercise: { x: number; z: number; radius: number; secondsMin: number; secondsMax: number; moodBoost: number };
+      /** Banco: ánimo que sube al contemplar el edificio un rato. */
+      sitMoodBoost: number;
+      /** Líneas cómicas del jugador al aire libre (bocadillo; data-driven, i18n ES→EN). */
+      says: { out: string[]; into: string[]; sit: string[]; exercise: string[] };
+    };
+    /** v1.42 — ZONAS CIEGAS de la cortina de la vista FACHADA: bandas opacas arriba y abajo
+     *  de cada nivel + paneles ciegos deterministas, con el acabado de las fachadas de fondo. */
+    fachadaCortina?: {
+      bottomBlind: number;
+      topBlind: number;
+      bandColor: string;
+      panelColor: string;
+      panelChance: number;
+      panelInset: number;
+    };
     /** v1.41 — ACCESORIOS DE LA CALLE: paraguas abierto cuando llueve y bolsas de la compra. */
     outdoor?: {
       umbrella?: { color: string; stickColor: string; size: number; openSeconds: number };
@@ -1931,6 +1970,10 @@ export interface Rules {
     /** v1.40 — timbre de una vivienda ajena (E en su puerta) y charla con un vecino. */
     doorbell?: string;
     chat?: string;
+    /** v1.42 — calle: banco exterior y parque de calistenia. */
+    bench?: string;
+    exercise?: string;
+    standUp?: string;
   };
 }
 
@@ -2068,13 +2111,18 @@ export interface CommandResult {
 
 export interface PlayerPosition {
   x: number;
-  /** Profundidad en metros dentro de la vivienda (0 = plano frontal de la puerta; solo mode 'inside'). */
+  /** Profundidad en metros dentro de la vivienda (0 = plano frontal de la puerta; solo mode 'inside').
+   *  v1.42 — en mode 'outside' la Z es ABSOLUTA del mundo (la acera vive en z negativo). */
   z: number;
   /** Altura en unidades de planta (fraccionaria mientras sube o baja). */
   floor: number;
-  mode: 'corridor' | 'inside';
+  /** v1.42 — 'outside': el jugador está en la calle (aceras, paso de peatones, parque). */
+  mode: 'corridor' | 'inside' | 'outside';
   insideBlock: string | null;
   climbing: boolean;
+  /** v1.42 — fundido del cuerpo al cruzar portal (0 invisible..1 visible): el teatro de
+   *  atravesar la pared lateral del portal, igual que los vecinos del paseo. */
+  fade: number;
   /**
    * Z absoluta del recorrido de escalera (v1.4): mientras el jugador sube por el cubo, la X
    * y la Z varían (tramos y descansillo); null fuera de la escalada (el pasillo manda).
@@ -2110,7 +2158,11 @@ export type InteractTarget =
   | { kind: 'laptop' }
   | { kind: 'bed' }
   | { kind: 'storageCell' }
-  | { kind: 'rearExit' };
+  | { kind: 'rearExit' }
+  /** v1.42 — calle: banco exterior (sentarse a contemplar el edificio). */
+  | { kind: 'bench'; x: number; z: number; yaw: number }
+  /** v1.42 — calle: parque de calistenia (hacer ejercicio). */
+  | { kind: 'exercise' };
 
 // ───────────────────────── Etiquetas ─────────────────────────
 

@@ -82,6 +82,8 @@ export interface TrafficDirector {
    *  la sustituyen cada frame). Los coches FRENAN en el paso de peatones si alguno pisa
    *  la banda; si apareció demasiado cerca, no hay freno que baste → accidente cómico. */
   setCrossers(points: { x: number; z: number }[]): void;
+  /** v1.42 — el JUGADOR en la calzada: se fusiona con la lista de los directores cada frame. */
+  setExtraCrossers(points: { x: number; z: number }[]): void;
   /** v1.41 — TEATRO DEL TAXI: hace venir UN taxi (si hay rig libre) y lo para exactamente
    *  en stopX del carril cercano al edificio. false si ya hay taxi en la calle. */
   hailTaxi(stopX: number, onStopped: () => void): boolean;
@@ -118,7 +120,7 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
   const { Color3, Mesh, MeshBuilder, StandardMaterial, TransformNode, Vector3 } = B();
   const cfg = content.rules.view.traffic;
   if (!cfg.enabled || cfg.vehicles.length === 0 || cfg.lanes.length === 0) {
-    return { update() {}, setVisible() {}, aliveCount: () => 0, crossingClear: () => true, setCrossers() {}, hailTaxi: () => false, releaseTaxi() {}, taxiAvailable: () => false, dispose() {}, buildAmbulance: () => null };
+    return { update() {}, setVisible() {}, aliveCount: () => 0, crossingClear: () => true, setCrossers() {}, setExtraCrossers() {}, hailTaxi: () => false, releaseTaxi() {}, taxiAvailable: () => false, dispose() {}, buildAmbulance: () => null };
   }
   // AMBULANCIA (opcional del catálogo): la librea lee franja/cruz del catálogo.
   const acfg = cfg.ambulance ?? { stripe: '#e8641b', cross: '#c0392b' };
@@ -651,6 +653,10 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
   // v1.41 — peatones en calzada (la lista la manda el controlador cada frame con los
   // puntos de los directores de la calle: paseo vecinal, teatro del taxi…).
   let crossers: { x: number; z: number }[] = [];
+  // v1.42 — EL JUGADOR TAMBIÉN CRUZA: el controlador publica su punto cuando pisa la
+  // calzada (solo hay paso legal en el paso de cebra, así que los coches frenan por él
+  // igual que por cualquier vecino). Se fusiona con la lista de los directores.
+  let extraCrossers: { x: number; z: number }[] = [];
   const pick = (): number => {
     // Ruleta ponderada determinista por hash (mismo lenguaje que el resto de la calle).
     let acc = 0;
@@ -840,6 +846,8 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
           for (const s of r.lights.signs) s.emissiveColor = s.emissiveColor.scale(night ? 3 : 1 / 3);
         }
       }
+      // v1.42 — lista fusionada de peatones en calzada (directores + jugador) para este frame.
+      const frameCrossers = extraCrossers.length > 0 ? crossers.concat(extraCrossers) : crossers;
       nextSpawn -= dt;
       if (nextSpawn <= 0) {
         nextSpawn = cfg.spawnEveryMin + hash01('trafico_t', world.tick + roll) * (cfg.spawnEveryMax - cfg.spawnEveryMin);
@@ -882,10 +890,10 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
           // ¿Hay alguien cruzando delante (banda del paso de peatones)?
           const brk = cfg.braking;
           let danger = false;
-          if (brk.enabled && crossers.length > 0) {
+          if (brk.enabled && frameCrossers.length > 0) {
             const bandX0 = cfg.passX - brk.zebraHalfWidth - 0.8;
             const bandX1 = cfg.passX + brk.zebraHalfWidth + 0.8;
-            for (const c of crossers) {
+            for (const c of frameCrossers) {
               if (c.x > bandX0 && c.x < bandX1 && c.z > laneZ - 2.4 && c.z < laneZ + 2.4) {
                 danger = true;
                 break;
@@ -982,6 +990,10 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
     },
     setCrossers(points: { x: number; z: number }[]): void {
       crossers = points;
+    },
+    /** v1.42 — el jugador en la calzada: mismo cortesía que con cualquier vecino. */
+    setExtraCrossers(points: { x: number; z: number }[]): void {
+      extraCrossers = points;
     },
     hailTaxi(stopX: number, onStopped: () => void): boolean {
       const idx = cfg.vehicles.findIndex((d) => d.kind === 'taxi');

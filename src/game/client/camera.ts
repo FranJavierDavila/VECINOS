@@ -101,6 +101,13 @@ export class CameraRig {
           ? this.metric.frontZ + Math.min(p.z, this.metric.depth + 2.8)
           : Math.min(1.2, Math.max(0, p.z)) * 0.45;
       }
+      // v1.42 — CALLE (mode 'outside'): la cámara de planta acompaña al jugador POR LA CALLE:
+      // centra su X (las aceras sobran del ancho del edificio) y baja el punto de interés
+      // hacia la acera — cruzar al parque o sentarse en un banco no saca el encuadre del mundo.
+      if (p.mode === 'outside') {
+        cx = p.x;
+        cz = Math.min(0, p.z + 4);
+      }
     }
     const dist = viewH / (2 * Math.tan(FOV / 2));
     const k = 1 - Math.exp(-dt * 6);

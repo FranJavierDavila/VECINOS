@@ -3386,6 +3386,42 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         mullion.isPickable = false;
         mullion.parent = fachadaRoot;
       }
+      // v1.42 — ZONAS CIEGAS por nivel (arriba Y abajo): la galería acristalada NO es todo
+      // vidrio. Bandas opacas con el acabado de las fachadas de fondo (escayola beige de la
+      // familia tint #f2efe6/#e9e4d6) + paneles ciegos deterministas (persianas cerradas del
+      // tono «ventana» del fondo, #7d8ba0). Van DETRÁS del vidrio — dentro de la galería,
+      // z = railZ+0.04 con calado 0.08: nada coplanar con el vidrio (−4,5 cm) ni con los
+      // montantes (−6 cm) ni con el canto de la losa (railZ exacto). Por el vidrio solo se
+      // ENTREVE la franja central: vecinos paseando, luces de noche.
+      const fc = v.fachadaCortina;
+      if (fc) {
+        const bandM = mat('fachada_ciega_banda');
+        bandM.diffuseColor = Color3.FromHexString(fc.bandColor);
+        bandM.specularColor = new Color3(0.02, 0.02, 0.02);
+        const panelM = mat('fachada_ciega_panel');
+        panelM.diffuseColor = Color3.FromHexString(fc.panelColor);
+        panelM.specularColor = new Color3(0.02, 0.02, 0.02);
+        const blindZ = railZ + 0.04;
+        const midH = Math.max(0.2, openH - fc.bottomBlind - fc.topBlind);
+        if (fc.bottomBlind > 0.01) {
+          const low = box(`fachada_ciega_abajo_${b.id}`, W - 0.05, fc.bottomBlind, 0.08, cxm, y0 + fc.bottomBlind / 2, blindZ, bandM);
+          low.isPickable = false;
+          low.parent = fachadaRoot;
+        }
+        if (fc.topBlind > 0.01) {
+          const top = box(`fachada_ciega_arriba_${b.id}`, W - 0.05, fc.topBlind, 0.08, cxm, y0 + openH - fc.topBlind / 2, blindZ, bandM);
+          top.isPickable = false;
+          top.parent = fachadaRoot;
+        }
+        for (let k = 0; k < b.size.w; k++) {
+          if (hash01(`fachada_ciega_${b.id}`, k) >= fc.panelChance) continue;
+          const px = x0 + (k + 0.5) * v.cellW;
+          const pw = v.cellW - fc.panelInset * 2;
+          const panel = box(`fachada_ciega_panel_${b.id}_${k}`, pw, midH, 0.08, px, y0 + fc.bottomBlind + midH / 2, blindZ, panelM);
+          panel.isPickable = false;
+          panel.parent = fachadaRoot;
+        }
+      }
     }
     fachadaRoot.setEnabled(false);
   }

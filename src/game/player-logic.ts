@@ -16,7 +16,14 @@ export type InteractResult =
   /** v1.40 — vivienda ajena: E toca el TIMBRE (el controlador hace sonar y decide quién abre). */
   | { type: 'doorbell'; block: string }
   /** v1.40 — cruzarte con un vecino en circulación: E = pararse a charlar (sin puerta). */
-  | { type: 'chat'; residentId: string };
+  | { type: 'chat'; residentId: string }
+  /** v1.42 — CALLE: portal sin tecla E (dirección manda) y vida exterior. */
+  | { type: 'portalOut'; block: string }
+  | { type: 'portalIn'; block: string }
+  | { type: 'sit'; x: number; z: number; yaw: number }
+  | { type: 'stand' }
+  | { type: 'exerciseStart'; seconds: number }
+  | { type: 'exerciseEnd' };
 
 /**
  * Firma de la vía de salida de comandos. En partida clásica el controlador devuelve el
@@ -39,7 +46,7 @@ export class PlayerLogic {
   /** Profundidad en metros dentro de la vivienda (0 = plano frontal de la puerta). */
   z: number;
   floor: number;
-  mode: 'corridor' | 'inside' = 'corridor';
+  mode: 'corridor' | 'inside' | 'outside' = 'corridor';
   insideBlock: string | null = null;
   private climb: { from: number; to: number; t: number; duration: number; external?: boolean; progress?: number; zOverride?: number | null } | null = null;
   /** Escalada REAL por el cubo (v1.4): el jugador recorre los peldaños del contrato
@@ -79,6 +86,18 @@ export class PlayerLogic {
   private lastMoveTarget: string | null = null;
   /** Llamada de ascensor del jugador ya registrada (evita pedir la misma cada frame). */
   externalRequested = false;
+  // ── v1.42 — LA CALLE: el jugador es un vecino más. Sale del portal caminando en la
+  // dirección correcta (sin E), recorre aceras/paso de peatones/parque y se sienta en bancos.
+  // No puede salir del plano de la cámara lejana (xMin/xMax del catálogo). El sim NO se
+  // entera de la calle: su location queda en el portal (teatro puro, como el paseo). ──
+  /** Fundido del cuerpo (0 invisible..1 visible) al atravesar el portal. */
+  private fade = 1;
+  /** Sentado en un banco exterior (pose del catálogo; cualquier dirección te levanta). */
+  private sitting: { x: number; z: number; yaw: number } | null = null;
+  /** Segundos de calistenia restantes (parque de enfrente). */
+  private exerciseT = 0;
+  /** Spots exteriores que aporta la presentación: bancos del decorado y punto de calistenia. */
+  private outdoor: { benches: { x: number; z: number }[]; exercise: { x: number; z: number } | null } = { benches: [], exercise: null };
 
   constructor(
     private readonly world: World,
@@ -110,6 +129,21 @@ export class PlayerLogic {
     // (sin esto, el modo 'corridor' del constructor sincronizaría un move al pasillo en el
     // primer frame y el jugador "saldría de casa" solo al cargar la partida).
     if (start.kind === 'dwelling') this.landInside(start);
+  }
+
+  /** v1.42 — bancos exteriores + punto de calistenia (el controlador los pasa del decorado). */
+  setOutdoorSpots(benches: { x: number; z: number }[], exercise: { x: number; z: number } | null): void {
+    this.outdoor = { benches, exercise };
+  }
+
+  /** v1.42 — ¿estás fuera del edificio? (modo calle; para HUD y el teatro del tráfico). */
+  isOutside(): boolean {
+    return this.mode === 'outside';
+  }
+
+  /** v1.42 — ¿sentado en un banco exterior? (el prompt «E · levantarse» manda). */
+  isSitting(): boolean {
+    return this.sitting !== null;
   }
 
   private rangeOf(b: BlockInstance): [number, number] {
@@ -231,6 +265,7 @@ export class PlayerLogic {
         pathZ: this.climbPos.z,
         rear: null,
         storage: null,
+        fade: this.fade,
       };
     }
     let floor = this.floor;
@@ -241,7 +276,7 @@ export class PlayerLogic {
         // NO se re-suaviza aquí: la curva del jugador ha de ser EXACTAMENTE la de la cabina.
         const k = Math.min(1, Math.max(0, this.climb.progress ?? 0));
         floor = this.climb.from + (this.climb.to - this.climb.from) * k;
-        return { x: this.x, z: this.z, floor, mode: this.mode, insideBlock: this.insideBlock, climbing: true, pathZ: this.climb.zOverride ?? null, rear: null, storage: null };
+        return { x: this.x, z: this.z, floor, mode: this.mode, insideBlock: this.insideBlock, climbing: true, pathZ: this.climb.zOverride ?? null, rear: null, storage: null, fade: this.fade };
       }
       const k = Math.min(1, this.climb.t / this.climb.duration);
       floor = this.climb.from + (this.climb.to - this.climb.from) * (k * k * (3 - 2 * k));
@@ -260,7 +295,7 @@ export class PlayerLogic {
         storage = { cx, frontZ: this.frontZ, depth: storageGeomOf(this.view).depth };
       }
     }
-    return { x: this.x, z: this.z, floor, mode: this.mode, insideBlock: this.insideBlock, climbing: this.climb !== null, pathZ: null, rear, storage };
+    return { x: this.x, z: this.z, floor, mode: this.mode, insideBlock: this.insideBlock, climbing: this.climb !== null, pathZ: null, rear, storage, fade: this.fade };
   }
 
   /** Rects de obstáculos del interior del trastero (v1.21): los registra building.ts al
@@ -506,6 +541,11 @@ export class PlayerLogic {
       }
       return;
     }
+    // v1.42 — LA CALLE: aceras, paso de peatones, parque y bancos (todo del catálogo).
+    if (this.mode === 'outside') {
+      this.updateOutside(dt, input);
+      return;
+    }
     const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
     // Correr (v1.2): multiplicador del catálogo (rules.view.runMultiplier); andar es el default.
     const speedMul = input.run ? this.view.runMultiplier : 1;
@@ -563,6 +603,9 @@ export class PlayerLogic {
           if (r.type === 'exited') this.autoEvents.push(r);
         }
       }
+      // v1.42 — SALIDA DEL PORTAL SIN E: en el vestíbulo, caminar hacia la PARED IZQUIERDA
+      // (ruta oficial del perímetro) o hacia las CORREDERAS DEL FRENTE ya te echa a la calle.
+      this.portalExitTriggers(input);
       return;
     }
     // Pasillo (v1.19): DOS carriles. A/D avanza en X; W/S, si no arrancan escalada (no hay
@@ -604,6 +647,117 @@ export class PlayerLogic {
       const r = this.tryEnterDoor(ahead);
       if (r.type === 'entered') this.autoEvents.push(r);
     }
+  }
+
+  // ─────────────── v1.42 — LA CALLE (mode 'outside') ───────────────
+
+  /** Movimiento libre por el exterior del catálogo: unión de rects (aceras, paso de
+   *  peatones — el ÚNICO cruce —, jardín de enfrente, entrante del portal), límites del
+   *  plano de cámara y disparadores del portal SIN E: caminar en la dirección correcta
+   *  ya sale o entra. Sentado solo se sale (cualquier dirección); ejercitando, se espera. */
+  private updateOutside(dt: number, input: Input): void {
+    const cfg = this.view.outside;
+    if (!cfg) {
+      // Sin catálogo de calle: no puede haber modo outside (defensivo) — vuelve al portal.
+      this.mode = 'corridor';
+      this.z = this.view.corridorZ;
+      return;
+    }
+    // Fundido del portal: el cuerpo reaparece al atravesar la pared (teatro del paseo).
+    if (this.fade < 1) this.fade = Math.min(1, this.fade + dt / Math.max(0.05, cfg.portal.fadeSeconds));
+    // Ejercicio en curso: quieto (la presentación pone el gesto del catálogo) hasta acabar.
+    if (this.exerciseT > 0) {
+      this.exerciseT -= dt;
+      if (this.exerciseT <= 0) {
+        this.exerciseT = 0;
+        this.autoEvents.push({ type: 'exerciseEnd' });
+      }
+      return;
+    }
+    // Sentado en un banco: cualquier dirección te levanta (la E también, en interact()).
+    if (this.sitting) {
+      if (input.left || input.right || input.up || input.down) {
+        this.sitting = null;
+        this.autoEvents.push({ type: 'stand' });
+      }
+      return;
+    }
+    const dirX = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+    const dirZ = (input.up ? 1 : 0) - (input.down ? 1 : 0);
+    const step = this.view.walkSpeed * (input.run ? this.view.runMultiplier : 1) * dt;
+    const inside = (x: number, z: number): boolean =>
+      cfg.walk.some((rc) => x >= rc.x0 - 1e-4 && x <= rc.x1 + 1e-4 && z >= rc.z0 - 1e-4 && z <= rc.z1 + 1e-4);
+    const nx = Math.min(cfg.xMax, Math.max(cfg.xMin, this.x + dirX * step));
+    if (nx !== this.x && inside(nx, this.z)) this.x = nx;
+    const nz = this.z + dirZ * step;
+    if (nz !== this.z && inside(this.x, nz)) this.z = nz;
+    // ── PORTAL SIN E: la dirección correcta ya entra (o sale). ──
+    const portal = this.portalBlock();
+    const [pa, pb] = portal ? this.rangeOf(portal) : [0, 0];
+    if (input.up && this.z >= cfg.portal.inFrontZ && portal && this.x > pa + 0.35 && this.x < pb - 0.35) {
+      this.enterPortal(true);
+      return;
+    }
+    if (input.right && this.x >= cfg.portal.sideEnterX && Math.abs(this.z - cfg.portal.sideZ) < 1.0 && portal) {
+      this.enterPortal(false);
+      return;
+    }
+  }
+
+  /** Disparadores de SALIDA al exterior estando dentro del portal (vestíbulo), sin E:
+   *  caminar hacia la pared izquierda (ruta oficial del perímetro) o hacia las correderas
+   *  del frente. El sim NO se entera: sigues "en el portal" (teatro como el paseo). */
+  private portalExitTriggers(input: Input): void {
+    const cfg = this.view.outside;
+    const portal = this.portalBlock();
+    if (!cfg || !portal || this.insideBlock !== portal.id) return;
+    if (input.left && this.x <= cfg.portal.wallInnerX) {
+      this.mode = 'outside';
+      this.insideBlock = null;
+      this.x = cfg.portal.sideExitX;
+      this.z = cfg.portal.sideZ;
+      this.fade = 0;
+      this.approached = null;
+      this.autoEvents.push({ type: 'portalOut', block: portal.id });
+    } else if (input.down && this.z <= cfg.portal.frontInnerZ) {
+      this.mode = 'outside';
+      this.insideBlock = null;
+      this.z = cfg.portal.outFrontZ;
+      this.fade = 0;
+      this.approached = null;
+      this.autoEvents.push({ type: 'portalOut', block: portal.id });
+    }
+  }
+
+  /** Entrar al portal desde fuera (frente: correderas; lateral: fade por la pared oeste). */
+  private enterPortal(fromFront: boolean): void {
+    const cfg = this.view.outside;
+    const portal = this.portalBlock();
+    if (!cfg || !portal) return;
+    if (this.location !== portal.id) {
+      const res = this.exec({ type: 'move', resident: this.actorId, to: portal.id });
+      if (res && !res.ok) return; // el sim manda: si no deja, no hay entrada
+    }
+    this.lastMoveTarget = portal.id;
+    this.mode = 'inside';
+    this.insideBlock = portal.id;
+    if (fromFront) {
+      this.x = Math.min(this.rangeOf(portal)[1] - this.view.margin, Math.max(this.rangeOf(portal)[0] + this.view.margin, this.x));
+      this.z = 0.45;
+    } else {
+      this.x = cfg.portal.wallInnerX - 0.1;
+      this.z = cfg.portal.sideZ - this.frontZ; // z local del vestíbulo (world 0.35)
+    }
+    this.fade = 0;
+    this.approached = portal.id;
+    this.autoEnterLast = null;
+    this.exitArmed = false;
+    this.autoEvents.push({ type: 'portalIn', block: portal.id });
+  }
+
+  /** Bloque del portal (vestíbulo de buzones) o null si la plantilla no lo trae. */
+  private portalBlock(): BlockInstance | null {
+    return Object.values(this.world.blocks).find((b) => b.defId === 'portal') ?? null;
   }
 
   /** v1.40 — el controlador consume los resultados de las acciones automáticas (entrada
@@ -667,6 +821,8 @@ export class PlayerLogic {
 
   /** Vecino que está a tu lado en el pasillo (o en tu misma vivienda). */
   residentNearby(): string | null {
+    // v1.42 — en la calle el sim no manda (teatro): sin charlas de zona.
+    if (this.mode === 'outside') return null;
     const r = this.world.residents[this.actorId]!;
     for (const other of Object.values(this.world.residents)) {
       if (other.id === r.id || !other.present || other.location === null) continue;
@@ -690,6 +846,8 @@ export class PlayerLogic {
     if (this.climb) return null;
     // Apilamiento 3D (v1.19): dentro del trastero propio la única salida es la puerta.
     if (this.rearCell) return { kind: 'rearExit' };
+    // v1.42 — CALLE: banco exterior (sentarse) o calistenia (ejercicio).
+    if (this.mode === 'outside') return this.outdoorTarget();
     if (this.mode === 'inside') {
       const b = this.world.blocks[this.insideBlock!]!;
       // Trastero propio (v1.19): delante de la puerta de TU celda → E abre el swap de bloques.
@@ -734,6 +892,24 @@ export class PlayerLogic {
     }
     const neighbor = this.residentNearby();
     if (neighbor) return { kind: 'resident', residentId: neighbor };
+    return null;
+  }
+
+  /** v1.42 — objetivo exterior: banco más cercano (dentro del radio del catálogo) o el
+   *  punto de calistenia. Sentado, el propio banco es el objetivo (E = levantarse). */
+  private outdoorTarget(): InteractTarget | null {
+    const cfg = this.view.outside;
+    if (!cfg) return null;
+    if (this.sitting) return { kind: 'bench', x: this.sitting.x, z: this.sitting.z, yaw: this.sitting.yaw };
+    if (this.exerciseT > 0) return { kind: 'exercise' };
+    const ex = this.outdoor.exercise;
+    if (ex && Math.hypot(this.x - ex.x, this.z - ex.z) < cfg.exercise.radius) return { kind: 'exercise' };
+    let best: { d: number; x: number; z: number } | null = null;
+    for (const b of this.outdoor.benches) {
+      const d = Math.hypot(this.x - b.x, this.z - b.z);
+      if (d < cfg.benchRadius && (!best || d < best.d)) best = { d, x: b.x, z: b.z };
+    }
+    if (best) return { kind: 'bench', x: best.x, z: best.z, yaw: -Math.PI / 2 };
     return null;
   }
 
@@ -782,6 +958,9 @@ export class PlayerLogic {
       // Ya no se llama a su puerta por accidente: los timbres viven en las puertas.
       return { type: 'chat', residentId: t.residentId };
     }
+    if (this.mode === 'outside') {
+      return this.interactOutside();
+    }
     if (this.mode === 'inside') {
       return this.interactInside();
     }
@@ -794,6 +973,28 @@ export class PlayerLogic {
     // nadie abriría (el controlador lo dice con su bocadillo de siempre).
     if (door.kind === 'dwelling') return { type: 'doorbell', block: door.id };
     return this.tryEnterDoor(door);
+  }
+
+  /** v1.42 — E en la calle: levantarse del banco, sentarse a contemplar el edificio o
+   *  un rato de calistenia en el parque de enfrente (duración del catálogo). */
+  private interactOutside(): InteractResult {
+    if (this.sitting) {
+      this.sitting = null;
+      return { type: 'stand' };
+    }
+    if (this.exerciseT > 0) return { type: 'none' };
+    const cfg = this.view.outside;
+    const t = this.outdoorTarget();
+    if (t?.kind === 'bench') {
+      this.sitting = { x: t.x, z: t.z, yaw: t.yaw };
+      return { type: 'sit', x: t.x, z: t.z, yaw: t.yaw };
+    }
+    if (t?.kind === 'exercise' && cfg) {
+      const secs = cfg.exercise.secondsMin + Math.random() * Math.max(0.1, cfg.exercise.secondsMax - cfg.exercise.secondsMin);
+      this.exerciseT = secs;
+      return { type: 'exerciseStart', seconds: secs };
+    }
+    return { type: 'none' };
   }
 
   /** v1.40 — E dentro de un bloque: trastero propio (celda), o salir por la puerta. */
@@ -881,6 +1082,9 @@ export class PlayerLogic {
     this.rearCell = null;
     this.rearHold = false;
     this.rearPos = null;
+    this.fade = 1; // v1.42
+    this.sitting = null; // v1.42
+    this.exerciseT = 0; // v1.42
     this.z = this.view.corridorZ;
     this.approached = null;
     this.externalRequested = false;
@@ -913,6 +1117,9 @@ export class PlayerLogic {
     this.rearCell = null;
     this.rearHold = false;
     this.rearPos = null;
+    this.fade = 1; // v1.42
+    this.sitting = null; // v1.42
+    this.exerciseT = 0; // v1.42
     this.autoEnterLast = null; // v1.40
     this.exitArmed = false; // v1.40
     if (!target) {

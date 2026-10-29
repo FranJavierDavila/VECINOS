@@ -1981,6 +1981,71 @@ export const rulesSchema = z.object({
         rideMax: z.number().positive().default(150),
       })
       .default({ enabled: true, pickupX: 4.4, stopLaneZ: -8.3, stopX: 4.4, waitMin: 6, waitMax: 14, rideMin: 45, rideMax: 150 }),
+    /** v1.42 — SALIDA DEL JUGADOR A LA CALLE: rects transitables (aceras, paso de cebra,
+     *  jardín de enfrente, entrante del portal), disparadores del portal SIN tecla E
+     *  (la dirección correcta ya entra o sale), bancos y calistenia. El jugador es un
+     *  vecino más: no puede salir del plano de la cámara lejana (xMin/xMax). */
+    outside: z
+      .object({
+        xMin: z.number().default(-7.5),
+        xMax: z.number().default(29),
+        walk: z
+          .array(z.object({ x0: z.number(), z0: z.number(), x1: z.number(), z1: z.number() }))
+          .default([
+            { x0: -7.5, z0: -7.0, x1: 29, z1: -4.4 },
+            { x0: -6, z0: -7.0, x1: 0, z1: 6.4 },
+            { x0: -7.5, z0: -13.8, x1: 29, z1: -11.6 },
+            { x0: 10.2, z0: -11.6, x1: 15.8, z1: -7.0 },
+            { x0: 7.0, z0: -17.6, x1: 19.0, z1: -13.8 },
+            { x0: 0.35, z0: -4.4, x1: 4.45, z1: -1.5 },
+          ]),
+        portal: z
+          .object({
+            outFrontZ: z.number().default(-2.2),
+            inFrontZ: z.number().default(-1.75),
+            sideExitX: z.number().default(-2.9),
+            sideEnterX: z.number().default(-0.6),
+            sideZ: z.number().default(0.35),
+            wallInnerX: z.number().default(0.55),
+            frontInnerZ: z.number().default(0.42),
+            fadeSeconds: z.number().positive().default(0.35),
+          })
+          .default({ outFrontZ: -2.2, inFrontZ: -1.75, sideExitX: -2.9, sideEnterX: -0.6, sideZ: 0.35, wallInnerX: 0.55, frontInnerZ: 0.42, fadeSeconds: 0.35 }),
+        benchRadius: z.number().positive().default(1.3),
+        exercise: z
+          .object({
+            x: z.number().default(12.9),
+            z: z.number().default(-15.4),
+            radius: z.number().positive().default(1.7),
+            secondsMin: z.number().positive().default(6),
+            secondsMax: z.number().positive().default(14),
+            moodBoost: z.number().min(0).default(6),
+          })
+          .default({ x: 12.9, z: -15.4, radius: 1.7, secondsMin: 6, secondsMax: 14, moodBoost: 6 }),
+        sitMoodBoost: z.number().min(0).default(4),
+        says: z
+          .object({
+            out: z.array(z.string()).default([]),
+            into: z.array(z.string()).default([]),
+            sit: z.array(z.string()).default([]),
+            exercise: z.array(z.string()).default([]),
+          })
+          .default({ out: [], into: [], sit: [], exercise: [] }),
+      })
+      .optional(),
+    /** v1.42 — ZONAS CIEGAS de la cortina de la vista FACHADA: bandas opacas arriba y
+     *  abajo de cada nivel + paneles ciegos deterministas, con el acabado de las fachadas
+     *  de fondo (tint/windowColor del backdrop). NADA coplanar: detrás del vidrio. */
+    fachadaCortina: z
+      .object({
+        bottomBlind: z.number().min(0).default(0.55),
+        topBlind: z.number().min(0).default(0.42),
+        bandColor: z.string().default('#cfc9bd'),
+        panelColor: z.string().default('#7d8ba0'),
+        panelChance: z.number().min(0).max(1).default(0.3),
+        panelInset: z.number().min(0).default(0.08),
+      })
+      .optional(),
   }),
   demo: z.object({ resident: z.string(), block: z.string(), noise: z.number(), toast: z.string() }),
   cutscene: z.object({
@@ -2018,6 +2083,10 @@ export const rulesSchema = z.object({
      *  paseo por el pasillo. {name} = nombre propio del vecino. */
     doorbell: z.string().optional(),
     chat: z.string().optional(),
+    /** v1.42 — calle: banco exterior, calistenia y levantarse (prompt de la E). */
+    bench: z.string().optional(),
+    exercise: z.string().optional(),
+    standUp: z.string().optional(),
     laptop: z.string(),
     bed: z.string(),
     /** Trastero propio y bloques traseros (v1.19, apilamiento 3D). */
