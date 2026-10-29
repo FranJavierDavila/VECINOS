@@ -1,4 +1,4 @@
-import type { Mesh, Scene, TransformNode } from '@babylonjs/core';
+import type { Mesh, Scene, StandardMaterial as StandardMaterialT, Texture as TextureT, TransformNode } from '@babylonjs/core';
 import type { CharacterDetailSpec } from '@/game/core/types';
 import { B } from './babylon';
 
@@ -35,6 +35,15 @@ export interface DetailFrameState {
   camPos: { x: number; y: number; z: number };
   /** Fundido del actor (0..1) — el mismo del teatro del portal. */
   fade: number;
+  /** v1.46 — estado extendido (la hoja de sprites lo usa; el billboard estático lo ignora). */
+  /** Altura del suelo bajo los pies (tumbado, el teatro eleva el nodo: se pasa el suelo real). */
+  groundY?: number;
+  /** En un asiento (ancla del catálogo). */
+  seated?: boolean;
+  /** Pose tumbada (gesto 'sleep'). */
+  lying?: boolean;
+  /** Pausa de charla (chatT > 0). */
+  chatting?: boolean;
 }
 
 export interface CharacterDetailRig {
@@ -43,6 +52,8 @@ export interface CharacterDetailRig {
   ready: boolean;
   /** Vista activa ('front'|'back'|'left'|'right') — sonda de verificación. */
   view: string;
+  /** v1.46 — la presentación tiene filas sit/lie/talk propias (la hoja de sprites). */
+  supportsPoses?: boolean;
   setEnabled(v: boolean): void;
   setFade(v: number): void;
   /** Selección de vista por ángulo + animación de papel. */
@@ -61,8 +72,11 @@ export function buildCharacterBillboard(scene: Scene, id: string, spec: Characte
   const quads = new Map<ViewName, Mesh>();
   let ready = false;
   let view: ViewName = 'front';
-  // Signo del lado (perfil izq./der.): se verifica en vivo; el catálogo manda en el arte.
-  const SIDE_SIGN = 1;
+  // v1.46 — SIGNO DEL LADO VERIFICADO MATEMÁTICAMENTE (y en vivo): Babylon es left-handed,
+  // con cámara forward C = −d (d = cámara−actor) la DERECHA DE PANTALLA es R = (−dz, dx),
+  // así que f·R = dx·fz − dz·fx. Con el signo anterior (fx·dz − fz·dx) el perfil quedaba
+  // INVERTIDO: andando hacia la izquierda de pantalla se mostraba el arte mirando a la derecha.
+  const SIDE_SIGN = -1;
 
   let fade = 1;
   let lastFade = -1;
@@ -157,8 +171,8 @@ export function buildCharacterBillboard(scene: Scene, id: string, spec: Characte
     dispose() {
       root.dispose(false, true);
       for (const [, q] of quads) {
-        const m = q.material as StandardMaterial | null;
-        const t = m?.diffuseTexture as Texture | null;
+        const m = q.material as StandardMaterialT | null;
+        const t = m?.diffuseTexture as TextureT | null;
         m?.dispose();
         t?.dispose();
       }

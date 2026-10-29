@@ -3,6 +3,7 @@ import type { BlockInstance, Content, PlayerPosition, ResidentInstance, World } 
 import { B } from './babylon';
 import { instantiateActorAsset, type ActorRig } from './assets';
 import { buildCharacterBillboard, type CharacterDetailRig } from './character-detail';
+import { buildCharacterSheet } from './character-sheet';
 import { hash01, interiorTarget, layoutGeometryOf, type Pt } from '@/game/interior';
 import { stairGeomOf, stairPathPoints } from '@/game/stairs';
 import { horizontalLegs } from '@/game/routing';
@@ -167,6 +168,8 @@ export interface ActorsDirector {
   faceToward(id: string, x: number, z: number): void;
   /** v1.44 — nivel LOD vigente del actor (0 rig, 1 medio, 2 detallado); -1 si no existe. */
   lodOf(id: string): number;
+  /** v1.46 — fila/vista vigente de la presentación cercana ('walk_left'…); '' si no hay. */
+  detailViewOf(id: string): string;
 }
 
 /**
@@ -918,11 +921,11 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
           a.rig.play(clip, rate);
         }
 
-        // ── v1.45 — LOD DEL PERSONAJE: lejos, el rig glTF de siempre; cerca, el ARTE
-        //  RECORTADO de 4 vistas (billboard que mira a cámara y cambia de vista según el
-        //  ángulo — la misma técnica que los árboles del juego). Sentado o tumbado NO hay
-        //  billboard: el rig muestra sus clips sit/sleep. Sin arte en el catálogo, el
-        //  arquetipo se queda con su rig a todas las distancias (jamás un fallback zafio). ──
+        // ── v1.46 — LOD DEL PERSONAJE: lejos, el rig glTF de siempre; cerca, la HOJA DE
+        //  SPRITES ANIMADA (andar en 4 direcciones + idle + sentado + hablar + tumbado,
+        //  reproducida según el estado). El PNG externo del manifiesto character-sprites.json
+        //  manda sobre el horneado procedural; sin hoja posible, billboard estático (v1.45);
+        //  sin arte, rig glTF a todas las distancias. ──
         if (detailCfg?.enabled && a.rig) {
           const cam = scene.activeCamera;
           const dist = cam ? Math.sqrt((cam.position.x - node.x) ** 2 + (cam.position.y - node.y) ** 2 + (cam.position.z - node.z) ** 2) : Infinity;
@@ -931,13 +934,17 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
           else if (a.detLevel === 2 && dist < detailCfg.nearDist + detailCfg.hysteresis) lvl = 2;
           else if (dist < detailCfg.midDist) lvl = 1;
           else if (a.detLevel === 1 && dist < detailCfg.midDist + detailCfg.hysteresis) lvl = 1;
-          // Sentado o tumbado: los clips del rig manda (un quad de pie sobre un banco sería mentira).
-          if (lvl > 0 && (a.seated || a.lying)) lvl = 0;
           if (lvl > 0 && !a.detail) {
             const spec = content.characterDetails?.byArchetype[r.archetype] ?? content.characterDetails?.defaults;
-            a.detail = spec ? buildCharacterBillboard(scene, id, spec, a.height) : null;
+            const sheetUrl = content.characterSprites?.sheets[r.archetype] ?? null;
+            a.detail = spec
+              ? buildCharacterSheet(scene, id, spec, a.height, sheetUrl, content.characterSprites?.layout) ?? buildCharacterBillboard(scene, id, spec, a.height)
+              : null;
             a.detail?.setFade(a.fade);
           }
+          // Sentado o tumbado SIN poses propias (billboard estático): los clips del rig mandan
+          // (un quad de pie sobre un banco sería mentira). La hoja de sprites SÍ tiene filas sit/lie.
+          if (lvl > 0 && (a.seated || a.lying) && !a.detail?.supportsPoses) lvl = 0;
           if (a.detail) {
             if (lvl !== a.detLevel) {
               a.detLevel = lvl;
@@ -950,6 +957,12 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
                 gesture: a.gesture,
                 yaw: a.yaw,
                 pos: { x: node.x, y: node.y, z: node.z },
+                // Tumbado, el teatro eleva el nodo (goal.y − 0.14 + height·0.22): el suelo real
+                // se recupera restando esa elevación; el pivote de los pies es node.y − pivotY.
+                groundY: a.lying ? node.y - a.pivotY - a.height * 0.22 : node.y - a.pivotY,
+                seated: a.seated,
+                lying: a.lying,
+                chatting: a.chatT > 0,
                 camPos: cam ? { x: cam.position.x, y: cam.position.y, z: cam.position.z } : { x: node.x, y: node.y, z: node.z },
                 fade: a.fade,
               });
@@ -1144,6 +1157,10 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
       lodOf(id: string): number {
         const a = actors.get(id);
         return a ? a.detLevel : -1;
+      },
+      /** v1.46 — fila/vista vigente de la presentación cercana (sonda E2E de la hoja). */
+      detailViewOf(id: string): string {
+        return actors.get(id)?.detail?.view ?? '';
       },
       /** Gira hacia un punto del mundo (arco corto con el ritmo del catálogo). */
       faceToward(id: string, x: number, z: number): void {

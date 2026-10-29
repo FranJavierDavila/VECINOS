@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "layout": {
+    "frameWidth": 256,
+    "frameHeight": 256,
+    "columns": 8,
+    "rows": {
+      "idle": 0,
+      "walk_right": 1,
+      "walk_left": 2,
+      "walk_down": 3,
+      "walk_up": 4,
+      "sit": 5,
+      "talk": 6,
+      "lie": 7
+    },
+    "fps": {
+      "idle": 6,
+      "walk_right": 10,
+      "walk_left": 10,
+      "walk_down": 10,
+      "walk_up": 10,
+      "sit": 3,
+      "talk": 8,
+      "lie": 2
+    }
+  },
+  "sheets": {}
+}

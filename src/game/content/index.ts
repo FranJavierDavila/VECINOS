@@ -1,4 +1,4 @@
-import type { AchievementsCatalog, AssetsCatalog, Content, CrossingsCatalog, EcosystemContent, Effect, EmotesCatalog, InteriorsCatalog, StreetCatalog, SoundsCatalog, MusicCatalog, OnboardingCatalog, ProjectCatalog, PersonalitiesCatalog, CharacterDetailsCatalog } from '@/game/core/types';
+import type { AchievementsCatalog, AssetsCatalog, Content, CrossingsCatalog, EcosystemContent, Effect, EmotesCatalog, InteriorsCatalog, StreetCatalog, SoundsCatalog, MusicCatalog, OnboardingCatalog, ProjectCatalog, PersonalitiesCatalog, CharacterDetailsCatalog, CharacterSpritesCatalog } from '@/game/core/types';
 import {
   achievementsCatalogSchema,
   blockListSchema,
@@ -26,6 +26,7 @@ import {
   projectCatalogSchema,
   personalitiesCatalogSchema,
   characterDetailsCatalogSchema,
+  characterSpritesCatalogSchema,
 } from './schemas';
 
 export interface Issue {
@@ -196,6 +197,16 @@ export async function loadContent(baseUrl: string = '/content/'): Promise<{ cont
       throw new Error(`character-details.json (personajes detallados) inválido: ${e instanceof Error ? e.message : String(e)}`);
     }
 
+    // v1.46 — Hojas de sprites del personaje (OPCIONAL): retícula compartida + PNG externos
+    // por arquetipo (el arte externo manda sobre el procedural). Sin fichero, todo se hornea.
+    let characterSprites: CharacterSpritesCatalog | undefined;
+    try {
+      const res = await fetch(`${baseUrl}character-sprites.json`);
+      if (res.ok) characterSprites = characterSpritesCatalogSchema.parse(await res.json()) as CharacterSpritesCatalog;
+    } catch (e) {
+      throw new Error(`character-sprites.json (hojas de sprites) inválido: ${e instanceof Error ? e.message : String(e)}`);
+    }
+
     const content: Content = {
       rules,
       blocks: indexById(blocks),
@@ -223,6 +234,7 @@ export async function loadContent(baseUrl: string = '/content/'): Promise<{ cont
       project,
       personalities,
       characterDetails,
+      characterSprites,
     };
 
     const issues = validateContent(content);

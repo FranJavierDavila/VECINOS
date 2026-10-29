@@ -2863,3 +2863,22 @@ export const characterDetailsCatalogSchema = z.object({
 });
 
 export type CharacterDetailsCatalogParsed = z.infer<typeof characterDetailsCatalogSchema>;
+
+/**
+ * v1.46 — Manifiesto de HOJAS DE SPRITES del personaje (OPCIONAL). Define la retícula
+ * (la «regla para todos») y los PNG externos por arquetipo: si un arquetipo tiene URL,
+ * su hoja MANDA sobre la generada por código. Sin el fichero, todo se hornea procedural.
+ */
+export const characterSpritesCatalogSchema = z.object({
+  version: z.literal(1),
+  layout: z.object({
+    frameWidth: z.number().int().min(32).max(1024).default(256),
+    frameHeight: z.number().int().min(32).max(1024).default(256),
+    columns: z.number().int().min(2).max(32).default(8),
+    rows: z.record(z.string(), z.number().int().min(0).max(31)).default({}),
+    fps: z.record(z.string(), z.number().positive()).default({}),
+  }),
+  sheets: z.record(z.string(), z.string()).default({}),
+});
+
+export type CharacterSpritesCatalogParsed = z.infer<typeof characterSpritesCatalogSchema>;

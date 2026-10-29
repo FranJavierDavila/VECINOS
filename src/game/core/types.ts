@@ -1008,6 +1008,26 @@ export interface CharacterDetailsCatalog {
   defaults: CharacterDetailSpec;
 }
 
+/**
+ * v1.46 — Manifiesto de HOJAS DE SPRITES del personaje (opcional): la retícula compartida
+ * («la regla para todos») + PNG externos por arquetipo. Si un arquetipo tiene URL en
+ * `sheets`, esa hoja MANDA sobre la generada por código; sin fichero, todo se hornea.
+ */
+export interface CharacterSpritesCatalog {
+  version: 1;
+  layout: {
+    frameWidth: number;
+    frameHeight: number;
+    columns: number;
+    /** Nombre de fila (idle/walk_right/walk_left/walk_down/walk_up/sit/talk/lie) → índice. */
+    rows: Record<string, number>;
+    /** fps de reproducción por fila. */
+    fps: Record<string, number>;
+  };
+  /** Arquetipo → URL del PNG con la retícula del layout (arte externo). */
+  sheets: Record<string, string>;
+}
+
 export interface Content {
   rules: Rules;
   blocks: Record<string, BlockDef>;
@@ -1051,6 +1071,8 @@ export interface Content {
   personalities?: PersonalitiesCatalog;
   /** Personajes detallados (v1.43, opcional): apariencia del LOD cercano de los vecinos. */
   characterDetails?: CharacterDetailsCatalog;
+  /** v1.46 — hojas de sprites animadas del personaje (retícula + PNG externos por arquetipo). */
+  characterSprites?: CharacterSpritesCatalog;
 }
 
 // ───────────────────────── Reglas y ajustes (catálogo rules.json) ─────────────────────────
