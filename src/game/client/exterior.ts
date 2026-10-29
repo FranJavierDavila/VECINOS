@@ -397,11 +397,13 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
       box('cal_dip_pata_b', props, 0.08, cal.dipH, 0.08, dx + 0.55, baseY + 0.03 + cal.dipH / 2, dz + sz * 0.3, pM).parent = propsNode;
       box('cal_dip_barra', props, 1.22, 0.055, 0.055, dx, baseY + 0.03 + cal.dipH, dz + sz * 0.3, bM).parent = propsNode;
     }
-    // BANCO DE ABDOMINALES: tabla inclinada sobre dos caballetes.
+    // BANCO DE ABDOMINALES: tabla inclinada sobre dos caballetes. v1.47 — inclinación
+    // suave (la 0.22 con la tabla clara se leía como «camino blanco sin salida» a la
+    // derecha del parque; el tono madera del catálogo + menos ángulo lo deja como banco).
     const bx = xC + cal.w * 0.34;
     const bz = nearZ - 2.15;
     const board = box('cal_banco_tabla', props, 1.15, 0.06, 0.4, bx, baseY + 0.03 + 0.36, bz, matOf(cal.boardColor, 'cal_tabla'));
-    board.rotation.z = -0.22;
+    board.rotation.z = -0.12;
     board.parent = propsNode;
     for (const sx of [-1, 1] as const) {
       box('cal_banco_pata', props, 0.08, 0.36, 0.36, bx + sx * 0.42, baseY + 0.03 + 0.18, bz, pM).parent = propsNode;

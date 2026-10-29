@@ -642,9 +642,19 @@ function walkSideJoints(m: Metrics, spec: CharacterDetailSpec, gait: number): Wa
   const legPose = (phase: number, off: number) => {
     const p = phase * Math.PI * 2;
     const foot: V = { x: -Math.cos(p) * m.stride, y: m.ankleY + m.lift * Math.max(0, Math.sin(p)) };
-    const hipJ: V = { x: hip.x + off * 0.4, y: hip.y };
-    const knee = solveJoint(hipJ, foot, m.upperLeg, m.lowerLeg, 1);
-    return { hip: hipJ, knee, ankle: foot };
+    // v1.47 — FIX de la «X de tijeras»: la cadera del perfil se separaba off·0.4 (¡0.4 METROS,
+    // mezcla de unidades con la fracción de H!) — las caderas quedaban a ±64 px con los pies
+    // en el centro y la pierna dibujada MÁS ALLÁ de su alcance (rectas en diagonal). La
+    // separación real de caderas de perfil es una fracción ínfima de hipOff.
+    const hipJ: V = { x: hip.x + off * m.hipOff * 0.5, y: hip.y };
+    // protección de alcance: si el pie queda más lejos que la pierna estirada, se acerca
+    const reach = (m.upperLeg + m.lowerLeg) * 0.985;
+    const dx = foot.x - hipJ.x;
+    const dy = foot.y - hipJ.y;
+    const d = Math.hypot(dx, dy);
+    const ankle = d > reach ? { x: hipJ.x + (dx / d) * reach, y: hipJ.y + (dy / d) * reach } : foot;
+    const knee = solveJoint(hipJ, ankle, m.upperLeg, m.lowerLeg, 1);
+    return { hip: hipJ, knee, ankle };
   };
   const legA = legPose(gait, 1);
   const legB = legPose(gait + 0.5, -1);

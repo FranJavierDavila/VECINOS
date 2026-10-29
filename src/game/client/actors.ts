@@ -400,7 +400,22 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
               curY = nextY;
             }
           }
-          if (a.path.length === 0) a.path.push({ x: sx, y: dest.y, z: v.corridorZ });
+          if (a.path.length === 0) {
+            a.path.push({ x: sx, y: dest.y, z: v.corridorZ });
+          } else {
+            // v1.48 — DESEMBOCO DE LA BAJADA: el vuelo descendente es el REVERSO del
+            // ascendente, así que termina DENTRO del cubo (carril frontal, zF) y no en la
+            // línea del pasillo como la subida. Sin el tramo de salida, la ruta horizontal
+            // partía de (sx, corridorZ) fingiendo que el vecino ya había salido: el primer
+            // tramo cortaba en DIAGONAL y atravesaba la pared del cubo («bajan a planta 0
+            // y cruzan la pared en vez de salir al pasillo»). Si el último punto no está
+            // en el pasillo, se añade la salida RECTA por la puerta del cubo (mismo x del
+            // pozo — la puerta está en el centro de la celda lógica —, solo cambia z).
+            const lastPt = a.path[a.path.length - 1]!;
+            if (Math.abs(lastPt.z - v.corridorZ) > 0.03) {
+              a.path.push({ x: sx, y: lastPt.y, z: v.corridorZ });
+            }
+          }
         } else if (elevators && feat.elevator === true) {
           const from = Math.round(node.y / v.cellH);
           const to = Math.round(dest.y / v.cellH);

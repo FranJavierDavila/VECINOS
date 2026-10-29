@@ -346,15 +346,16 @@ export const sinKeys = (T: number, amp: number, base = 0, cycles = 1) => {
  *  mira el modelo), no hacia/alejándose de la cámara. Con la rotación de yaw del runtime
  *  (v1.2), la misma zancada se ve correcta de perfil, de frente y de espaldas.
  *
- *  CONTRATO DE ZANCADA (v1.3, anti-patinaje): el walk se authora con amplitud 0.9 rad y
- *  periodo 0.65 s → velocidad natural ≈ 2·0.48·sin(0.9)/0.65 ≈ 1.15 m/s a ratio 1. El
+ *  CONTRATO DE ZANCADA (v1.47, anti-patinaje): el walk se authora con amplitud 0.5 rad
+ *  (±28.6°, piernas SIEMPRE cerca del suelo; la 0.9 antigua pintaba la X de tijeras) y
+ *  periodo 0.65 s → velocidad natural ≈ 2·0.48·sin(0.5)/0.65 ≈ 0.71 m/s a ratio 1. El
  *  runtime (rules.view.animSync.walkRefSpeed) escala el playback con la velocidad REAL del
  *  actor: las piernas nunca patinan. Cambiar aquí la amplitud/periodo implica actualizar
  *  walkRefSpeed en el catálogo (una sola verdad). */
-export const WALK_AMPLITUDE = 0.9;
+export const WALK_AMPLITUDE = 0.5;
 export const WALK_PERIOD = 0.65;
 /** Velocidad natural del walk (m/s a ratio 1): la que declara rules.view.animSync.walkRefSpeed. */
-export const WALK_NATURAL_SPEED = 1.15;
+export const WALK_NATURAL_SPEED = 0.71;
 export function addBaseClips(r: AdultRig, period = 2.6): void {
   const { g, hips, headPivot, armL, armR, legL, legR } = r;
   const bob = sinKeys(period, 0.012, 0.52);
@@ -397,11 +398,12 @@ export interface RigParts {
   legR: number;
 }
 
-/** Zancada del run (CONTRATO v1.3, anti-patinaje): velocidad natural ≈ 2.2 m/s a ratio 1,
- *  la que declara rules.view.animSync.runRefSpeed. Cambiar aquí implica cambiar el catálogo. */
-export const RUN_AMPLITUDE = 1.05;
+/** Zancada del run (CONTRATO v1.47, anti-patinaje): amplitud 0.7 rad (±40°) → velocidad
+ *  natural ≈ 2·0.48·sin(0.7)/0.38 ≈ 1.63 m/s a ratio 1, la que declara
+ *  rules.view.animSync.runRefSpeed. Cambiar aquí implica cambiar el catálogo. */
+export const RUN_AMPLITUDE = 0.7;
 export const RUN_PERIOD = 0.38;
-export const RUN_NATURAL_SPEED = 2.2;
+export const RUN_NATURAL_SPEED = 1.63;
 
 /** hipBase del rig: 0.52 adulto, 0.45 niño (define a qué altura cae la cadera al sentarse). */
 export function addSocialClips(parts: RigParts, opts: { hipBase?: number } = {}): void {

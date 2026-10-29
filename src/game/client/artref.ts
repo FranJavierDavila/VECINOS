@@ -65,6 +65,9 @@ const STR: ArtRefStrings = {
   viewBack: 'ESPALDA',
   frameLabel: '256 px',
   hint: 'El arte externo (character-sprites.json) sustituye a esta hoja automáticamente si respeta la retícula.',
+  saveProject: 'Guardar PNGs en /art/preview/',
+  saved: 'Guardado ✓',
+  saving: 'Guardando…',
 };
 
 const downloadCanvas = (canvas: HTMLCanvasElement, filename: string): void => {
@@ -236,10 +239,11 @@ export function openArtReference(content: Content): void {
   const btnSheet = mkBtn(STR.downloadSheet, true);
   const btnAnnotated = mkBtn(STR.downloadAnnotated, false);
   const btnTurn = mkBtn(STR.downloadTurnaround, false);
+  const btnSave = mkBtn(STR.saveProject, false);
   const spacer = document.createElement('div');
   spacer.style.cssText = 'flex:1;';
   const btnClose = mkBtn(STR.close, false);
-  bar.append(spacer, btnClose);
+  bar.append(btnSheet, btnAnnotated, btnTurn, btnSave, spacer, btnClose);
   card.appendChild(bar);
 
   // visor (con scroll interno)
@@ -250,6 +254,9 @@ export function openArtReference(content: Content): void {
   ].join(';');
 
   let raw: HTMLCanvasElement | null = null;
+  const stash = (w: unknown): void => {
+    (window as unknown as { __vecinosArtRef?: unknown }).__vecinosArtRef = w;
+  };
   const render = (): void => {
     const id = sel.value;
     const spec = catalog ? (catalog.byArchetype[id] ?? catalog.defaults) : undefined;
@@ -261,11 +268,14 @@ export function openArtReference(content: Content): void {
       err.textContent = 'No se pudo generar la hoja para ' + id;
       err.style.cssText = 'color:#f2b8b8;padding:30px;font-size:14px;';
       viewer.appendChild(err);
+      stash(null);
       return;
     }
     const annotated = buildAnnotatedCanvas(raw);
     annotated.style.cssText = 'width:100%;max-width:940px;height:auto;display:block;border-radius:6px;';
     viewer.appendChild(annotated);
+    // QA/E2E: los tres canvas del arquetipo vigente (verificación y horneado).
+    stash({ archetype: id, raw, annotated: buildAnnotatedCanvas(raw), turnaround: buildTurnaroundCanvas(raw) });
   };
   sel.addEventListener('change', render);
   card.appendChild(viewer);
@@ -283,6 +293,40 @@ export function openArtReference(content: Content): void {
   });
   btnTurn.addEventListener('click', () => {
     if (raw) downloadCanvas(buildTurnaroundCanvas(raw), `vecinos_${sel.value}_3vistas.png`);
+  });
+  // Guardar en el proyecto: persiste los 3 PNG bajo public/art/preview/ (URL estable para descargar).
+  btnSave.addEventListener('click', () => {
+    if (!raw) return;
+    const set = { raw, annotated: buildAnnotatedCanvas(raw), turnaround: buildTurnaroundCanvas(raw) };
+    btnSave.disabled = true;
+    btnSave.textContent = STR.saving;
+    const items: [HTMLCanvasElement, string][] = [
+      [set.raw, `vecinos_${sel.value}_spritesheet_8x8`],
+      [set.annotated, `vecinos_${sel.value}_referencia`],
+      [set.turnaround, `vecinos_${sel.value}_3vistas`],
+    ];
+    void Promise.all(
+      items.map(([c, name]) =>
+        fetch('/api/artref-save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, dataUrl: c.toDataURL('image/png') }),
+        }).then((r) => r.json()),
+      ),
+    )
+      .then((res) => {
+        const ok = Array.isArray(res) && res.every((x) => (x as { ok?: boolean }).ok);
+        btnSave.textContent = ok ? STR.saved : 'Error al guardar';
+      })
+      .catch(() => {
+        btnSave.textContent = 'Error al guardar';
+      })
+      .finally(() => {
+        btnSave.disabled = false;
+        setTimeout(() => {
+          btnSave.textContent = STR.saveProject;
+        }, 2500);
+      });
   });
   btnClose.addEventListener('click', () => root.remove());
   root.addEventListener('click', (e) => {
