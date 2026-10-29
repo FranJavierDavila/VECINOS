@@ -158,6 +158,11 @@ class GameController {
       // 1) Contenido externo + validación (los errores de referencias se avisan, no abortan).
       const { content, issues } = await loadContent();
       this._content = content;
+      // v1.47 — REFERENCIA DE ARTE (?artref=1): overlay con la hoja de sprites del personaje
+      // y descarga del PNG (el vecino monta el arte final sobre esta retícula).
+      if (typeof location !== 'undefined' && new URLSearchParams(location.search).has('artref')) {
+        void import('./artref').then((m) => m.openArtReference(content));
+      }
       this.cutscenePlayer = new CutscenePlayer(content);
       preloadSounds();
       preloadTranslations();

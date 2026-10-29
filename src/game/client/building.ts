@@ -278,51 +278,75 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
   /** v1.35 — textura de LOSETAS compartida (pasillos + locales + vestíbulo): 2×2 baldosas
    *  con alternancia ajedrezada, VARIACIÓN por baldosa (terrazo) y veteado/suciedad leve —
    *  el vecino: «se debe notar las losetas del suelo». Todo del catálogo (corridorFloor):
-   *  contrast, groutW (grosor de junta) y speckle (moteado). uScale/vScale en metros reales. */
-  const tileTexCache = new Map<string, DynamicTexture>();
-  const makeTileTex = (id: string, wMeters: number, dMeters: number): { tex: DynamicTexture; ready: boolean } => {
+   *  contrast, groutW (grosor de junta) y speckle (moteado). uScale/vScale en metros reales.
+   *  v1.47 — CAMINO DEL PNG VERIFICADO (la lección v1.40 de los decals): el DynamicTexture
+   *  de este entorno (WebGPU/CDN) NO sube el canvas a la GPU — la losa se veía LISA (el
+   *  ajedrez muerto en el canvas 2D, nunca en pantalla: «falta tilearla por todo el pasillo»).
+   *  Ahora el patrón se dibuja en un canvas SUELTO y sube por Texture(dataURL) vía
+   *  updateURL — el mismo camino que macetas/candado/decals, verificado en vivo. 512 px por
+   *  lado + filtrado anisotrópico: juntas nítidas incluso en ángulo rasante. */
+  const tileTexCache = new Map<string, Texture>();
+  const makeTileTex = (id: string, wMeters: number, dMeters: number): { tex: Texture; ready: boolean } => {
     const key = `${id}|${wMeters.toFixed(2)}|${dMeters.toFixed(2)}`;
     const hit = tileTexCache.get(key);
     if (hit) return { tex: hit, ready: true };
     const cf = v.corridorFloor!;
-    const tex = new (B().DynamicTexture)(`${id}_tex`, { width: 256, height: 256 }, scene, true);
-    tileTexCache.set(key, tex);
-    const tctx = tex.getContext() as unknown as CanvasRenderingContext2D;
-    const half = 128;
-    const base = Color3.FromHexString(cf.color);
-    for (let ty = 0; ty < 2; ty++) {
-      for (let tx = 0; tx < 2; tx++) {
-        const idx = ty * 2 + tx;
-        // Alternancia ajedrezada + variación determinista por baldosa (cada una su tinte).
-        const checker = (tx + ty) % 2 === 0 ? 1 : 1 - (cf.contrast ?? 0.1);
-        const jitter = 1 - (cf.speckle ?? 0.12) * 0.5 * hash01(id, 910 + idx);
-        const shade = checker * jitter;
-        tctx.fillStyle = `rgb(${Math.round(base.r * 255 * shade)},${Math.round(base.g * 255 * shade)},${Math.round(base.b * 255 * shade)})`;
-        tctx.fillRect(tx * half, ty * half, half, half);
-        // Moteado tipo terrazo (puntitos oscuros/claros deterministas).
-        const speckles = 26;
-        for (let s = 0; s < speckles; s++) {
-          const sx = tx * half + hash01(id, 920 + idx * 40 + s) * half;
-          const sy = ty * half + hash01(id, 930 + idx * 40 + s) * half;
-          const dark = hash01(id, 940 + idx * 40 + s) < 0.5;
-          tctx.fillStyle = dark ? 'rgba(60,58,54,0.24)' : 'rgba(255,255,255,0.28)';
-          tctx.beginPath();
-          tctx.arc(sx, sy, 0.8 + hash01(id, 950 + idx * 40 + s) * 1.8, 0, Math.PI * 2);
-          tctx.fill();
+    const SIZE = 512; // 2×2 baldosas; el doble del antiguo DynamicTexture (juntas con músculo)
+    const half = SIZE / 2;
+    const c = document.createElement('canvas');
+    c.width = SIZE;
+    c.height = SIZE;
+    const tctx = c.getContext('2d', { willReadFrequently: true }) as CanvasRenderingContext2D | null;
+    if (tctx) {
+      const base = Color3.FromHexString(cf.color);
+      for (let ty = 0; ty < 2; ty++) {
+        for (let tx = 0; tx < 2; tx++) {
+          const idx = ty * 2 + tx;
+          // Alternancia ajedrezada + variación determinista por baldosa (cada una su tinte).
+          const checker = (tx + ty) % 2 === 0 ? 1 : 1 - (cf.contrast ?? 0.1);
+          const jitter = 1 - (cf.speckle ?? 0.12) * 0.5 * hash01(id, 910 + idx);
+          const shade = checker * jitter;
+          tctx.fillStyle = `rgb(${Math.round(base.r * 255 * shade)},${Math.round(base.g * 255 * shade)},${Math.round(base.b * 255 * shade)})`;
+          tctx.fillRect(tx * half, ty * half, half, half);
+          // Moteado tipo terrazo (puntitos oscuros/claros deterministas).
+          const speckles = 64;
+          for (let s = 0; s < speckles; s++) {
+            const sx = tx * half + hash01(id, 920 + idx * 40 + s) * half;
+            const sy = ty * half + hash01(id, 930 + idx * 40 + s) * half;
+            const dark = hash01(id, 940 + idx * 40 + s) < 0.5;
+            tctx.fillStyle = dark ? 'rgba(60,58,54,0.24)' : 'rgba(255,255,255,0.28)';
+            tctx.beginPath();
+            tctx.arc(sx, sy, 1.6 + hash01(id, 950 + idx * 40 + s) * 3.6, 0, Math.PI * 2);
+            tctx.fill();
+          }
         }
       }
+      // Juntas: grosor del catálogo escalado al canvas (groutW está pensado para 256).
+      const gw = (cf.groutW ?? 5) * (SIZE / 256);
+      tctx.strokeStyle = cf.grout;
+      tctx.lineWidth = gw;
+      tctx.strokeRect(gw / 2, gw / 2, SIZE - gw, SIZE - gw); // junta exterior (cada baldosa cierra contra su vecina)
+      tctx.beginPath();
+      tctx.moveTo(half, 0); tctx.lineTo(half, SIZE);
+      tctx.moveTo(0, half); tctx.lineTo(SIZE, half);
+      tctx.stroke();
     }
-    const gw = cf.groutW ?? 5;
-    tctx.strokeStyle = cf.grout;
-    tctx.lineWidth = gw;
-    tctx.strokeRect(0.5, 0.5, 255, 255); // junta exterior (cada baldosa cierra contra su vecina)
-    tctx.beginPath();
-    tctx.moveTo(half, 0); tctx.lineTo(half, 256);
-    tctx.moveTo(0, half); tctx.lineTo(256, half);
-    tctx.stroke();
-    tex.update(true);
+    const tex = new (B().Texture)(
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+      scene,
+      false,
+      true,
+    );
+    tex.name = `${id}_tex`;
+    tex.onLoadObservable.addOnce(() => {
+      // El PNG llega con su mipchain; el anisotrópico afila las juntas en ángulo rasante
+      // (la vista de paseo roza el suelo: sin esto el ajedrez se difumina a gris liso).
+      tex.anisotropicFilteringLevel = 8;
+    });
+    tex.updateURL(c.toDataURL('image/png'));
     tex.uScale = Math.max(1, Math.round(wMeters / (cf.tile * 2)));
     tex.vScale = Math.max(1, Math.round(dMeters / (cf.tile * 2)));
+    tileTexCache.set(key, tex);
     return { tex, ready: true };
   };
   /** Recorte billboard genérico (máquinas de la lavandería): PNG → stripWhite → Texture

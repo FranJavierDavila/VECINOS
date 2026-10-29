@@ -1,4 +1,4 @@
-import type { DynamicTexture, Scene, Texture as BTexture, TransformNode } from '@babylonjs/core';
+import type { Scene, Texture as BTexture, TransformNode } from '@babylonjs/core';
 import type { CharacterDetailSpec } from '@/game/core/types';
 import { B } from './babylon';
 
@@ -9,8 +9,8 @@ import { B } from './babylon';
  *
  * Dos orígenes de hoja, MISMA retícula (la «regla para todos»):
  *  1. GENERADA: este módulo dibuja al arquetipo (colores/ropa/pelo/bigote/gafas de
- *     character-details.json) frame a frame en un canvas y lo hornea en una
- *     DynamicTexture. Determinista, sin arte externo, un atlas por arquetipo.
+ *     character-details.json) frame a frame en un canvas y sube el atlas como PNG
+ *     (dataURL — el camino verificado). Determinista, sin arte externo, un atlas por arquetipo.
  *  2. EXTERNA: character-sprites.json → sheets[arquetipo] = URL de un PNG con la misma
  *     retícula (mismo nº de filas/columnas, pies abajo, mirando a la derecha en
  *     walk_right). Si existe, MANDA sobre la generada — pasar sprites propios no toca código.
@@ -981,27 +981,25 @@ function drawFrameInto(
   ctx.restore();
 }
 
+type Ctx2D = CanvasRenderingContext2D;
+
 /**
- * Hornea el atlas procedural del arquetipo (8 filas × N columnas) en una DynamicTexture.
- * NullEngine incluido: el canvas 2D existe aunque el motor no rasterice.
+ * v1.47 — HORNEADO EN CANVAS SUELTO: dibuja el atlas completo (8 filas × N columnas) en un
+ * HTMLCanvasElement normal. Es la fuente de DOS salidas: la textura del juego (vía dataURL,
+ * el único camino que sube a GPU en este entorno) y el PNG descargable de referencia del
+ * arte final (?artref=1). Sin escena, sin motor: servible también fuera de partida.
  */
-export function bakeCharacterSheetTexture(
-  scene: Scene,
-  id: string,
+export function bakeCharacterSheetCanvas(
   spec: CharacterDetailSpec,
   layout: SheetLayout,
-): DynamicTexture | null {
-  const { DynamicTexture } = B();
+): HTMLCanvasElement | null {
   if (!spec?.skin) return null;
-  let dyn: DynamicTexture;
-  try {
-    dyn = new DynamicTexture(`${id}_sheet`, { width: layout.frameWidth * layout.columns, height: layout.frameHeight * 8 }, scene, true);
-  } catch {
-    return null;
-  }
-  const ctx = dyn.getContext() as unknown as Ctx;
-  if (!ctx || typeof ctx.save !== 'function') return null;
-  ctx.clearRect(0, 0, layout.frameWidth * layout.columns, layout.frameHeight * 8);
+  const c = document.createElement('canvas');
+  c.width = layout.frameWidth * layout.columns;
+  c.height = layout.frameHeight * 8;
+  const ctx = c.getContext('2d', { willReadFrequently: true }) as Ctx2D | null;
+  if (!ctx) return null;
+  ctx.clearRect(0, 0, c.width, c.height);
   const pal = buildPalette(spec);
   for (const row of SHEET_ROW_NAMES) {
     const rowIndex = layout.rows[row] ?? 0;
@@ -1009,13 +1007,37 @@ export function bakeCharacterSheetTexture(
       drawFrameInto(ctx, spec, pal, row, rowIndex, col, layout);
     }
   }
-  // update() con invertY por defecto (true): la fila 0 del canvas queda ARRIBA en espacio de
-  // textura (v≈1) — el mismo convenio que las Texture de PNG del juego.
-  dyn.update();
-  dyn.hasAlpha = true;
-  dyn.wrapU = 0; // CLAMP
-  dyn.wrapV = 0;
-  return dyn;
+  return c;
+}
+
+/**
+ * Hornea el atlas procedural del arquetipo (8 filas × N columnas) como Texture de escena.
+ * v1.47 — CAMINO DEL PNG VERIFICADO: el DynamicTexture de este entorno (WebGPU/CDN) no sube
+ * el canvas a la GPU (la hoja se veía lisa/invisible — la misma enfermedad de las losas y de
+ * los decals v1.40). Ahora el atlas nace en bakeCharacterSheetCanvas y sube por
+ * Texture(dataURL) vía updateURL, el camino verificado de macetas/candado/decals.
+ */
+export function bakeCharacterSheetTexture(
+  scene: Scene,
+  id: string,
+  spec: CharacterDetailSpec,
+  layout: SheetLayout,
+): BTexture | null {
+  const { Texture } = B();
+  const canvas = bakeCharacterSheetCanvas(spec, layout);
+  if (!canvas) return null;
+  const tex = new Texture(
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+    scene,
+    false,
+    true,
+  );
+  tex.name = `${id}_sheet`;
+  tex.hasAlpha = true;
+  tex.wrapU = 0; // WRAP: el UV-pan del frame cae dentro del atlas, el clamp evita sangrado
+  tex.wrapV = 0;
+  tex.updateURL(canvas.toDataURL('image/png'));
+  return tex;
 }
 
 // ────────────────────────────── el rig de hoja (quad + animator) ──────────────────────────────
@@ -1079,13 +1101,13 @@ export function buildCharacterSheet(
   tex.uScale = 1 / cols;
   tex.vScale = 1 / rowsCount;
 
-  let ready = !sheetUrl; // la procedural ya está horneada
+  // v1.47 — las DOS procedencias (PNG externo y atlas procedural vía dataURL) cargan async:
+  // `ready` salta con onLoadObservable en ambos casos (el quad no se muestra hasta entonces).
+  let ready = false;
   let disposed = false;
-  if (sheetUrl) {
-    tex.onLoadObservable.addOnce(() => {
-      if (!disposed) ready = true;
-    });
-  }
+  tex.onLoadObservable.addOnce(() => {
+    if (!disposed) ready = true;
+  });
 
   let fade = 1;
   let lastFade = -1;
