@@ -25,5 +25,16 @@
       "lie": 2
     }
   },
-  "sheets": {}
+  "sheets": {
+    "jugador_base": "/sprites/jugador.png"
+  },
+  "animations": {
+    "walk_right": { "cells": [[0, 0], [0, 1], [0, 2]], "fps": 6, "groundMarginPx": 3 },
+    "walk_left": { "cells": [[0, 0], [0, 1], [0, 2]], "mirror": true, "fps": 6, "groundMarginPx": 3 },
+    "walk_down": { "cells": [[0, 3], [0, 4]], "fps": 5.5, "groundMarginPx": 14 },
+    "walk_up": { "cells": [[0, 5], [0, 6]], "fps": 5.5, "groundMarginPx": 14 },
+    "idle": { "cells": [[0, 7], [1, 0]], "fps": 0.7, "groundMarginPx": 10 }
+  },
+  "alwaysFor": ["jugador_base"],
+  "quadM": 1.39
 }

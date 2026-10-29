@@ -936,24 +936,31 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
           a.rig.play(clip, rate);
         }
 
-        // ── v1.46 — LOD DEL PERSONAJE: lejos, el rig glTF de siempre; cerca, la HOJA DE
+        // ── v1.46/v1.48 — LOD DEL PERSONAJE: lejos, el rig glTF de siempre; cerca, la HOJA DE
         //  SPRITES ANIMADA (andar en 4 direcciones + idle + sentado + hablar + tumbado,
         //  reproducida según el estado). El PNG externo del manifiesto character-sprites.json
         //  manda sobre el horneado procedural; sin hoja posible, billboard estático (v1.45);
-        //  sin arte, rig glTF a todas las distancias. ──
-        if (detailCfg?.enabled && a.rig) {
+        //  sin arte, rig glTF a todas las distancias. v1.48 — los arquetipos en
+        //  characterSprites.alwaysFor (EL JUGADOR) se representan CON SU HOJA SIEMPRE, desde
+        //  cualquier cámara y a cualquier distancia (lvl 2 fijo, el rig queda oculto). ──
+        const spritesCfg = content.characterSprites ?? null;
+        const sheetAlways = !!(spritesCfg?.alwaysFor?.includes(r.archetype) && spritesCfg.sheets[r.archetype]);
+        if ((detailCfg?.enabled || sheetAlways) && a.rig) {
           const cam = scene.activeCamera;
           const dist = cam ? Math.sqrt((cam.position.x - node.x) ** 2 + (cam.position.y - node.y) ** 2 + (cam.position.z - node.z) ** 2) : Infinity;
           let lvl: 0 | 1 | 2 = 0;
-          if (dist < detailCfg.nearDist) lvl = 2;
-          else if (a.detLevel === 2 && dist < detailCfg.nearDist + detailCfg.hysteresis) lvl = 2;
-          else if (dist < detailCfg.midDist) lvl = 1;
-          else if (a.detLevel === 1 && dist < detailCfg.midDist + detailCfg.hysteresis) lvl = 1;
+          if (sheetAlways) lvl = 2;
+          else if (detailCfg) {
+            if (dist < detailCfg.nearDist) lvl = 2;
+            else if (a.detLevel === 2 && dist < detailCfg.nearDist + detailCfg.hysteresis) lvl = 2;
+            else if (dist < detailCfg.midDist) lvl = 1;
+            else if (a.detLevel === 1 && dist < detailCfg.midDist + detailCfg.hysteresis) lvl = 1;
+          }
           if (lvl > 0 && !a.detail) {
             const spec = content.characterDetails?.byArchetype[r.archetype] ?? content.characterDetails?.defaults;
             const sheetUrl = content.characterSprites?.sheets[r.archetype] ?? null;
             a.detail = spec
-              ? buildCharacterSheet(scene, id, spec, a.height, sheetUrl, content.characterSprites?.layout) ?? buildCharacterBillboard(scene, id, spec, a.height)
+              ? buildCharacterSheet(scene, id, spec, a.height, sheetUrl, content.characterSprites?.layout, content.characterSprites?.animations, content.characterSprites?.quadM) ?? buildCharacterBillboard(scene, id, spec, a.height)
               : null;
             a.detail?.setFade(a.fade);
           }

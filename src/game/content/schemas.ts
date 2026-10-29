@@ -2895,6 +2895,27 @@ export const characterSpritesCatalogSchema = z.object({
     fps: z.record(z.string(), z.number().positive()).default({}),
   }),
   sheets: z.record(z.string(), z.string()).default({}),
+  // v1.48 — REGLA DE CELDAS del arte final (la del usuario): cada animación es una LISTA de
+  // celdas [fila, columna] de la matriz 8×8 (índices 0,0 → 7,7), con espejo opcional (andar
+  // a la izquierda = las mismas casillas que a la derecha, volteadas). Si una animación no
+  // está definida aquí, la hoja externa cae a las celdas de 'idle'; la procedural usa filas.
+  animations: z
+    .record(
+      z.string(),
+      z.object({
+        cells: z.array(z.tuple([z.number().int().min(0).max(31), z.number().int().min(0).max(31)])).min(1),
+        mirror: z.boolean().default(false),
+        fps: z.number().positive().default(6),
+        // Margen vacío bajo los pies DENTRO de la celda (px): ancla los pies al suelo por animación.
+        groundMarginPx: z.number().min(0).max(128).default(0),
+      }),
+    )
+    .default({}),
+  // v1.48 — arquetipos que se representan SIEMPRE con su hoja (cualquier cámara y distancia):
+  // el jugador. Los demás conservan el LOD rig↔hoja de v1.46.
+  alwaysFor: z.array(z.string()).default([]),
+  // v1.48 — lado del quad en metros (calibra el tamaño del personaje sprite; 1.6 por defecto).
+  quadM: z.number().positive().default(1.6),
 });
 
 export type CharacterSpritesCatalogParsed = z.infer<typeof characterSpritesCatalogSchema>;

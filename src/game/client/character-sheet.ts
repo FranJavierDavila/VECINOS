@@ -25,10 +25,32 @@ import { B } from './babylon';
  * lección de los árboles) y UV-pan por frame — cero coste por frame salvo escribir
  * uOffset/vOffset. La dirección (fila) se elige por ángulo cámara↔rumbo con el signo
  * VERIFICADO: en left-handed, la derecha de pantalla es R = (−dz, dx) ⇒ f·R = dx·fz − dz·fx.
+ *
+ * v1.48 — REGLA DE CELDAS del arte final (manifiesto `animations`): cada animación es una
+ * LISTA de casillas [fila, columna] de la matriz 8×8 (índices 0,0 → 7,7) — p. ej. el
+ * jugador.png: andar derecha (0,0)(0,1)(0,2), IZQUIERDA = LAS MISMAS espejadas (flag
+ * `mirror`, uScale negativo), de frente (0,3)(0,4), de espaldas (0,5)(0,6) e idle alternando
+ * (0,7)(1,0). Las casillas NO tienen por qué compartir fila ni ser contiguas. Las vistas sin
+ * casillas propias (sit/talk/lie) caen a las de 'idle' hasta que el arte las amplíe. El margen
+ * de pies por animación (`groundMarginPx`) ancla los pies al suelo y `quadM` calibra el tamaño.
  */
 
-/** Tamaño mundial del quad: 1.6 m de lado (la figura de 1.3 m llena el frame con margen). */
+/** Tamaño mundial del quad por defecto: 1.6 m de lado (la figura de 1.3 m llena el frame con margen). */
 export const SHEET_QUAD_M = 1.6;
+
+/** v1.48 — Definición de animación por CASILLAS de la matriz (regla del arte final). */
+export interface CellAnimDef {
+  /** Casillas [fila, columna] EN ORDEN de reproducción (índices 0,0 → 7,7). */
+  cells: [number, number][];
+  /** true → se reproduce volteada horizontalmente (andar a la izquierda = derecha espejada). */
+  mirror?: boolean;
+  /** fps propios de la animación (los de layout.fps no aplican en modo casillas). */
+  fps?: number;
+  /** Margen vacío bajo los pies DENTRO de la celda (px): ancla los pies al suelo. */
+  groundMarginPx?: number;
+}
+
+export type CellAnims = Record<string, CellAnimDef>;
 
 export type SheetRow =
   | 'idle'
@@ -1067,12 +1089,17 @@ export function buildCharacterSheet(
   height: number,
   sheetUrl: string | null,
   layoutOverride?: Partial<SheetLayout>,
+  cellAnims?: CellAnims | null,
+  quadM?: number,
 ): CharacterSheetRig | null {
   const { Color3, Mesh, MeshBuilder, StandardMaterial, Texture, TransformNode } = B();
   if (!spec || height <= 0) return null;
   const layout: SheetLayout = { ...DEFAULT_SHEET_LAYOUT, ...layoutOverride };
   const rowsCount = Math.max(...SHEET_ROW_NAMES.map((r) => (layout.rows[r] ?? 0) + 1));
   const cols = layout.columns;
+  // v1.48 — modo CASILLAS: solo tiene sentido con hoja externa (el PNG del arte final).
+  const cells = sheetUrl && cellAnims ? cellAnims : null;
+  const quadH = quadM && quadM > 0 ? quadM : SHEET_QUAD_M;
 
   const tex = sheetUrl
     ? (() => {
@@ -1095,14 +1122,19 @@ export function buildCharacterSheet(
 
   const fw = layout.frameWidth;
   const fh = layout.frameHeight;
-  const quadH = SHEET_QUAD_M;
   const quadW = quadH * (fw / Math.max(1, fh));
   const root = new TransformNode(`${id}_sheet_root`, scene);
   const quad = MeshBuilder.CreatePlane(`${id}_sheet_quad`, { width: quadW, height: quadH }, scene);
   quad.material = mat;
   quad.isPickable = false;
-  // anclaje: el margen de pies del frame (3.5% del frame) cuelga por debajo del centro
-  quad.position.y = quadH * (0.5 - 0.035);
+  // anclaje: el margen de pies del frame cuelga por debajo del centro (en modo casillas lo fija
+  // groundMarginPx de la animación — v1.48; en modo filas, el 3.5% del horneado)
+  const anchorOf = (view: string): number => {
+    const ca = cells?.[view] ?? (cells ? cells.idle : null);
+    const marginPx = ca?.groundMarginPx ?? fh * 0.035;
+    return quadH * (0.5 - Math.min(0.45, marginPx / fh));
+  };
+  quad.position.y = anchorOf('idle');
   quad.billboardMode = Mesh.BILLBOARDMODE_Y;
   quad.parent = root;
   quad.setEnabled(false);
@@ -1171,9 +1203,16 @@ export function buildCharacterSheet(
       // ── avance de fase (fps del manifiesto; los andares comparten fase y escalan con la velocidad) ──
       if (wanted !== view) {
         view = wanted;
-        quad.setEnabled(true);
+        quad.position.y = anchorOf(view); // v1.48: pies al suelo según el margen de ESTA animación
       }
-      const baseFps = layout.fps[view] ?? 6;
+      // El sync SOLO corre con el rig activo (lvl > 0): encender el quad aquí es idempotente y
+      // evita el caso v1.48 del jugador SIEMPRE en idle — nacía en 'idle', nunca «cambiaba» de
+      // vista y el quad quedaba apagado para siempre.
+      quad.setEnabled(true);
+      // v1.48 — en modo casillas, las vistas sin casillas propias (sit/talk/lie de momento)
+      // caen a las de 'idle': mejor un idle creíble que una casilla vacía.
+      const ca = cells ? cells[view] ?? cells.idle ?? null : null;
+      const baseFps = ca?.fps ?? layout.fps[view] ?? 6;
       const rate = WALK_ROWS.has(view) ? Math.min(1.55, Math.max(0.75, 0.72 + state.speedH * 0.55)) : 1;
       if (WALK_ROWS.has(view)) {
         walkPhase += dt * baseFps * rate;
@@ -1183,12 +1222,23 @@ export function buildCharacterSheet(
         walkPhase = 0;
       }
       const phase = WALK_ROWS.has(view) ? walkPhase : miscPhase;
-      const col = Math.floor(phase) % cols;
-      const rowIndex = layout.rows[view] ?? 0;
-
-      // ── UV del frame: u = col/cols · v = fila (origen de textura abajo-izquierda) ──
-      tex.uOffset = col / cols;
-      tex.vOffset = 1 - (rowIndex + 1) / rowsCount;
+      if (ca) {
+        // ── v1.48 — modo CASILLAS: [fila, columna] arbitrarias de la matriz, espejo por uScale ──
+        const idx = Math.floor(phase) % ca.cells.length;
+        const [cr, cc] = ca.cells[idx];
+        // Espejo (izquierda = derecha volteada): u' = −u/cols + (cc+1)/cols invierte la casilla
+        // horizontalmente sin tocar la geometría del quad (el billboard queda intacto).
+        tex.uScale = ca.mirror ? -1 / cols : 1 / cols;
+        tex.uOffset = ca.mirror ? (cc + 1) / cols : cc / cols;
+        tex.vOffset = 1 - (cr + 1) / rowsCount;
+      } else {
+        const col = Math.floor(phase) % cols;
+        const rowIndex = layout.rows[view] ?? 0;
+        tex.uScale = 1 / cols;
+        // ── UV del frame: u = col/cols · v = fila (origen de textura abajo-izquierda) ──
+        tex.uOffset = col / cols;
+        tex.vOffset = 1 - (rowIndex + 1) / rowsCount;
+      }
 
       // ── anclaje: pies en el suelo (el quad pivota en su borde inferior − margen del frame) ──
       root.position.set(state.pos.x, state.groundY, state.pos.z);

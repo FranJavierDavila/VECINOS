@@ -1026,6 +1026,17 @@ export interface CharacterSpritesCatalog {
   };
   /** Arquetipo → URL del PNG con la retícula del layout (arte externo). */
   sheets: Record<string, string>;
+  /** v1.48 — REGLA DE CELDAS del arte final: animación → celdas [fila, columna] de la
+   *  matriz (0,0 → 7,7), espejo opcional (izquierda = derecha volteada) y fps propios.
+   *  Presente → la hoja externa reproduce ESTAS casillas; ausente una vista → cae a 'idle'. */
+  animations?: Record<
+    string,
+    { cells: [number, number][]; mirror?: boolean; fps?: number; groundMarginPx?: number }
+  >;
+  /** v1.48 — arquetipos representados SIEMPRE por su hoja (cualquier cámara/distancia). */
+  alwaysFor?: string[];
+  /** v1.48 — lado del quad del personaje sprite en metros (por defecto 1.6). */
+  quadM?: number;
 }
 
 export interface Content {
