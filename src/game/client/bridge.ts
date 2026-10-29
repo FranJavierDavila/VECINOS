@@ -6,7 +6,7 @@
  * la página y los componentes solo conocen esta interfaz, sin importar Babylon.
  */
 
-export type CamModeBridge = 'edificio' | 'planta' | 'estancia';
+export type CamModeBridge = 'edificio' | 'fachada' | 'planta' | 'estancia';
 export type SpeedBridge = 1 | 3 | 10;
 
 export interface GameControllerApi {

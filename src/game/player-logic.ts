@@ -594,6 +594,16 @@ export class PlayerLogic {
       const r = this.tryEnterDoor(ahead);
       if (r.type === 'entered') this.autoEvents.push(r);
     }
+    // v1.41 — ENTRADA DIRECTA A LOS LOCALES (sin E): la única excepción a «entrar sin E»
+    // son las viviendas de los vecinos (ahí manda el timbre). Garaje, lavandería, local,
+    // trasteros…: te plantas delante y entras, igual que tu vivienda. Con candado no
+    // (norma del barrio: E avisa) y el portal queda fuera (es el vestíbulo de buzones:
+    // entrar sin querer cada vez que pasas por delante sería un fastidio).
+    if (ahead && ahead.kind !== 'dwelling' && ahead.defId !== 'portal' && ahead.access !== 'locked' && this.autoEnterLast !== ahead.id) {
+      this.autoEnterLast = ahead.id;
+      const r = this.tryEnterDoor(ahead);
+      if (r.type === 'entered') this.autoEvents.push(r);
+    }
   }
 
   /** v1.40 — el controlador consume los resultados de las acciones automáticas (entrada

@@ -171,5 +171,74 @@
       "Los vecinos de al lado organizan cosas. Nuestro bloque pide ya una manifestación propia.",
       "Me cae bien el del cartel del gato. Tiene prioridades claras."
     ]
+  },
+  "outdoor": {
+    "exitLines": [
+      "Salgo por la izquierda, que la puerta de delante es para las fotos.",
+      "El perímetro izquierdo: el camino de los de verdad.",
+      "Un poco de aire. El ascensor sigue averiado, esto es cardio.",
+      "Si me buscáis, estaré dando vueltas a la manzana."
+    ],
+    "enterLines": [
+      "Se entra por el lado, como manda la tradición del bloque.",
+      "Por detrás del portal, sigilosamente, como un gato con llaves.",
+      "Otra vuelta y a la siesta. El edificio me recibe por su mejor cara.",
+      "Nada como entrar por casa: aunque sea rodeando media fachada."
+    ],
+    "benchLines": [
+      "Este banco tiene las mejores vistas del tráfico… y del vecino que frena mal.",
+      "Banco, sol y cotilleo: el trío perfecto.",
+      "Me sento dos minutos. Dos… o veinte.",
+      "Desde aquí el portal se ve mejor que desde el portal."
+    ],
+    "strollLines": [
+      "Media vuelta a la manzana y a casa, que la paella espera.",
+      "Caminar es gratis; volver, también… si no te da pereza.",
+      "¿Deprisa? Yo no conozco a ese señor.",
+      "Paso, saludo y sigo: el ejercicio del vecino moderno."
+    ],
+    "umbrellaLines": [
+      "Paraguas abierto: la lluvia hoy no me moja la siesta.",
+      "Con paraguas hasta la lluvia parece cortesana.",
+      "Agua fuera, tranquilidad dentro… de mi círculo seco.",
+      "Este paraguas ha visto más tormentas que el tejado."
+    ],
+    "bagsLines": [
+      "La compra de toda la semana… y un dulce que nadie debe saber.",
+      "Bolsas llenas, espalda en huelga.",
+      "Compré de todo menos tiempo para subirlo por la escalera.",
+      "Si preguntois, esto lo trae el taxi. No todo el mérito es mío."
+    ],
+    "taxiHail": [
+      "¡Taxi! Que para las escaleras ya estoy mayor.",
+      "¡Taxi! El ascensor sigue en huelga y yo no.",
+      "Un taxi, por favor: hoy me toca viajar con dignidad.",
+      "¡Taxiii! Se me enfría el enfado del comité."
+    ],
+    "taxiBoard": [
+      "Al mercado, conductor, y pise la aceleración con arte.",
+      "Vaya donde me venda verduras baratas.",
+      "Deme la vuelta a la manzana más larga que conozca.",
+      "Si oye un claxon, no es por nosotros: siga."
+    ],
+    "taxiBack": [
+      "Aquí mismo está bien. El cambio se lo queda la propina.",
+      "Justo frente al portal… por la izquierda, claro.",
+      "Gracias, conductor. Mi espalda le está eternamente agradecida.",
+      "Llego con la compra y sin sudar: milagro urbano."
+    ],
+    "nearMiss": [
+      "¡Pero bueno! ¿Se puede cruzar con un poco de aviso?",
+      "¡Casi me deja en la portada del barrio!",
+      "¡Qué frenazo! Mi corazón pide paso de peatones.",
+      "Uy… gracias por frenar, campeón del asfalto."
+    ],
+    "accident": [
+      "Mi espalda… y mi dignidad, por el paso de peatones.",
+      "El suelo de la calzada está más cómodo de lo que decían.",
+      "No es un abrazo del oso, es un coche… casi.",
+      "Me levanto yo solita. La compra, no tanto."
+    ],
+    "carHorn": "¡PIIIIP!"
   }
 }

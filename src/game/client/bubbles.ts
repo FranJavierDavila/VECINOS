@@ -116,6 +116,18 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
   const bubbles = new Map<string, BubbleView>();
   const transient = new Map<string, TransientEmote>();
   const cooldown = new Map<string, number>();
+  /** v1.41 — CAMBIO DE CÁMARA: al saltar de vista, las decisiones de oclusión/TTL y los
+   *  topes quedan viejas (la cámara vuela a otro plano). Nos llega el cambio por el store:
+   *  invalidamos TODAS las oclusiones y reevaluamos ya — ningún bocadillo queda flotando
+   *  anclado a donde ESTABA su dueño antes del salto. */
+  let lastCam = useGameStore.getState().camMode;
+  const unsubCam = useGameStore.subscribe((s) => {
+    if (s.camMode !== lastCam) {
+      lastCam = s.camMode;
+      for (const b of bubbles.values()) b.occludedAt = 0;
+      for (const id of bubbles.keys()) dirty.add(id);
+    }
+  });
   /** Ciclos de habla activos por actor (solo actividades con líneas say, v1.15). */
   const speech = new Map<string, SpeechState>();
   const speechCfg = cfg.speech;
@@ -217,7 +229,9 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
    *  texto) y el glifo de actividad/ánimo habla por él. */
   const decide = (id: string): EmotePick | null => {
     const now = performance.now() / 1000;
-    const building = useGameStore.getState().camMode === 'edificio';
+    // v1.41 — la FACHADA (tecla 0) es un plano general como el edificio: líneas calladas.
+    const cam = useGameStore.getState().camMode;
+    const building = cam === 'edificio' || cam === 'fachada';
     const tr = transient.get(id);
     if (tr) {
       if (tr.until > now) return tr;
@@ -427,7 +441,8 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
       // 1) Reevaluación a cadencia (amortigua parpadeos del sim) + eventos pendientes ya.
       decisionAcc += dt;
       const decisionS = cfg.bubble.decisionMs / 1000;
-      const inBuilding = useGameStore.getState().camMode === 'edificio';
+      // v1.41 — fachada = vista general: mismo trato que edificio (tope de glifos).
+      const inBuilding = useGameStore.getState().camMode === 'edificio' || useGameStore.getState().camMode === 'fachada';
       if (decisionAcc >= decisionS || dirty.size > 0) {
         decisionAcc = 0;
         const pending = dirty.size > 0 ? [...dirty] : [];
@@ -540,6 +555,7 @@ export function createBubbles(host: HTMLElement, scene: Scene, engine: AbstractE
     },
 
     dispose() {
+      unsubCam();
       layer.remove();
       bubbles.clear();
       transient.clear();

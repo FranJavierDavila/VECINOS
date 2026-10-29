@@ -263,6 +263,7 @@ function DoodleButton({
 
 const CAMS: ReadonlyArray<{ value: CamMode }> = [
   { value: 'edificio' },
+  { value: 'fachada' },
   { value: 'planta' },
   { value: 'estancia' },
 ];

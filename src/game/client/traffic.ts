@@ -52,8 +52,19 @@ interface Active {
   laneIndex: number;
   x: number;
   speed: number;
+  /** v1.41 — velocidad de crucero del carril (la frenada/restauración orbitan alrededor). */
+  cruise: number;
   passed: boolean;
   phase: number;
+  /** v1.41 — segundos de parón tras un susto/accidente cómico (pilotos parpadeando). */
+  hazardT: number;
+  tailFlash: boolean;
+  /** v1.41 — la frenada es imposible (el peatón apareció demasiado cerca): chasca pero acabará pisando el paso. */
+  doomed: boolean;
+  /** v1.41 — ya avisó el «frenazo heroico» de esta parada (una vez por frenada). */
+  nearDone: boolean;
+  /** v1.41 — TEATRO DEL TAXI: parada exacta en el punto pedido hasta releaseTaxi(). */
+  stage: { stopAtX: number; stopped: boolean; onStopped: () => void } | null;
 }
 
 export interface TrafficDirector {
@@ -67,6 +78,17 @@ export interface TrafficDirector {
    *  [zMin..zMax] a menos de `margin` metros del punto x (por morro o por cola). Lo consulta
    *  el paseo vecinal antes de cruzar («mirando a ambos lados para que no pasen coches»). */
   crossingClear(x: number, zMin: number, zMax: number, margin: number): boolean;
+  /** v1.41 — PEATONES EN CALZADA: lista viviente de puntos (los directores de la calle
+   *  la sustituyen cada frame). Los coches FRENAN en el paso de peatones si alguno pisa
+   *  la banda; si apareció demasiado cerca, no hay freno que baste → accidente cómico. */
+  setCrossers(points: { x: number; z: number }[]): void;
+  /** v1.41 — TEATRO DEL TAXI: hace venir UN taxi (si hay rig libre) y lo para exactamente
+   *  en stopX del carril cercano al edificio. false si ya hay taxi en la calle. */
+  hailTaxi(stopX: number, onStopped: () => void): boolean;
+  /** v1.41 — el/los taxi(s) en parada reanudan la marcha. */
+  releaseTaxi(): void;
+  /** v1.41 — ¿hay rig de taxi libre para un encargo? */
+  taxiAvailable(): boolean;
   /** RIG de la ambulancia para el teatro de emergencias (ambulance.ts).
    *  null si el catálogo no trae view.traffic.ambulance. */
   buildAmbulance(): AmbulanceRig | null;
@@ -92,11 +114,11 @@ type DaylightFn = () => number;
 
 const NIGHT_DAYLIGHT = 0.42;
 
-export function createTraffic(scene: Scene, world: World, content: Content, daylight?: DaylightFn): TrafficDirector {
+export function createTraffic(scene: Scene, world: World, content: Content, daylight?: DaylightFn, onIncident?: (x: number, kind: 'near' | 'hit') => void): TrafficDirector {
   const { Color3, Mesh, MeshBuilder, StandardMaterial, TransformNode, Vector3 } = B();
   const cfg = content.rules.view.traffic;
   if (!cfg.enabled || cfg.vehicles.length === 0 || cfg.lanes.length === 0) {
-    return { update() {}, setVisible() {}, aliveCount: () => 0, crossingClear: () => true, dispose() {}, buildAmbulance: () => null };
+    return { update() {}, setVisible() {}, aliveCount: () => 0, crossingClear: () => true, setCrossers() {}, hailTaxi: () => false, releaseTaxi() {}, taxiAvailable: () => false, dispose() {}, buildAmbulance: () => null };
   }
   // AMBULANCIA (opcional del catálogo): la librea lee franja/cruz del catálogo.
   const acfg = cfg.ambulance ?? { stripe: '#e8641b', cross: '#c0392b' };
@@ -626,6 +648,9 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
   let nextSpawn = 1.5;
   let roll = 0;
   let nightOn = false;
+  // v1.41 — peatones en calzada (la lista la manda el controlador cada frame con los
+  // puntos de los directores de la calle: paseo vecinal, teatro del taxi…).
+  let crossers: { x: number; z: number }[] = [];
   const pick = (): number => {
     // Ruleta ponderada determinista por hash (mismo lenguaje que el resto de la calle).
     let acc = 0;
@@ -654,7 +679,7 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
     rig.root.rotation.y = dir > 0 ? 0 : Math.PI;
     rig.root.setEnabled(visible);
     rig.root.position = new Vector3(x, 0, lane.z);
-    active.add({ rig, defIndex, laneIndex, x, speed, passed: false, phase: hash01('trafico_fase', roll) * 6 });
+    active.add({ rig, defIndex, laneIndex, x, speed, cruise: speed, passed: false, phase: hash01('trafico_fase', roll) * 6, hazardT: 0, tailFlash: false, doomed: false, nearDone: false, stage: null });
   };
 
   /** AMBULANCIA del teatro de emergencias: furgón blanco con librea (franja + cruz +
@@ -824,6 +849,90 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
         const def = cfg.vehicles[a.defIndex]!;
         // Movimiento real: la dirección del carril manda.
         const dir = cfg.lanes[a.laneIndex]!.dir >= 0 ? 1 : -1;
+        const laneZ = cfg.lanes[a.laneIndex]!.z;
+        // ── v1.41 — CORTESÍA AL VOLANTE ────────────────────────────────────────────
+        // TEATRO DEL TAXI: parada exacta donde lo pide el teatro (se queda hasta releaseTaxi).
+        if (a.stage && !a.stage.stopped) {
+          const frontX = a.x + dir * (def.length / 2);
+          if ((dir > 0 && frontX >= a.stage.stopAtX) || (dir < 0 && frontX <= a.stage.stopAtX)) {
+            a.rig.root.position.x = a.stage.stopAtX - dir * (def.length / 2);
+            a.x = a.rig.root.position.x;
+            a.speed = 0;
+            a.stage.stopped = true;
+            a.stage.onStopped();
+          }
+        }
+        if (a.stage?.stopped) {
+          // Aparcado para el teatro: sin movimiento (las ruedas también descansan).
+        } else if (a.hazardT > 0) {
+          // SUSTO/ACCIDENTE cómico: el coche se planta con los pilotos parpadeando y, al
+          // expirar el TheaterSeconds del catálogo, retoma la marcha con vergüenza.
+          a.hazardT -= dt;
+          a.speed = 0;
+          a.tailFlash = true;
+          const blink = Math.floor(a.hazardT * 5) % 2 === 0;
+          a.rig.lights.tail.emissiveColor = Color3.FromHexString('#d43a2a').scale(blink ? 1.6 : 0.3);
+          if (a.hazardT <= 0) {
+            a.tailFlash = false;
+            a.doomed = false;
+            a.nearDone = false;
+            a.speed = Math.min(a.cruise, 2.2);
+          }
+        } else {
+          // ¿Hay alguien cruzando delante (banda del paso de peatones)?
+          const brk = cfg.braking;
+          let danger = false;
+          if (brk.enabled && crossers.length > 0) {
+            const bandX0 = cfg.passX - brk.zebraHalfWidth - 0.8;
+            const bandX1 = cfg.passX + brk.zebraHalfWidth + 0.8;
+            for (const c of crossers) {
+              if (c.x > bandX0 && c.x < bandX1 && c.z > laneZ - 2.4 && c.z < laneZ + 2.4) {
+                danger = true;
+                break;
+              }
+            }
+          }
+          // Distancia de cortesía con el vehículo de delante (mismo carril).
+          if (!danger && brk.enabled) {
+            for (const o of active) {
+              if (o === a || o.laneIndex !== a.laneIndex) continue;
+              const gap = (o.x - a.x) * dir - (cfg.vehicles[o.defIndex]!.length + def.length) / 2;
+              if (gap > 0 && gap < brk.followGap) {
+                danger = true;
+                break;
+              }
+            }
+          }
+          const frontX = a.x + dir * (def.length / 2);
+          const stopLine = dir > 0 ? cfg.passX - brk.zebraHalfWidth - 0.8 : cfg.passX + brk.zebraHalfWidth + 0.8;
+          const distToLine = (stopLine - frontX) * dir;
+          if (danger) {
+            const brakeDist = (a.speed * a.speed) / (2 * brk.brakeDecel);
+            if (!a.doomed && a.speed > 0.5 && distToLine < Math.max(0.5, Math.min(brakeDist * 1.15, brk.minStopDist))) a.doomed = true;
+            if (a.doomed) {
+              // La física no perdona: chasca frenando pero el morro acaba pisando el paso.
+              a.speed = Math.max(0, a.speed - brk.brakeDecel * 0.55 * dt);
+              if (distToLine <= 0.45) {
+                a.hazardT = brk.hazardSeconds;
+                a.speed = 0;
+                playSoundAt('claxon', 0.9);
+                onIncident?.(a.x, 'hit');
+              }
+            } else {
+              a.speed = Math.max(0, a.speed - brk.brakeDecel * dt);
+              if (a.speed <= 0.02 && !a.nearDone && distToLine < 2.8) {
+                a.nearDone = true;
+                playSoundAt('frenazo', 0.8);
+                onIncident?.(a.x, 'near');
+              }
+            }
+          } else {
+            a.doomed = false;
+            a.nearDone = false;
+            // Reaceleración suave hasta el crucero del carril.
+            a.speed = Math.min(a.cruise, a.speed + brk.brakeDecel * 0.5 * dt);
+          }
+        }
         a.rig.root.position.x += dir * a.speed * dt;
         a.x = a.rig.root.position.x;
         // RUEDAS QUE GIRAN: spin = v/R alrededor del eje (marco local: el morro siempre +X).
@@ -837,6 +946,11 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
           const on = Math.floor(a.phase * 2.2) % 2 === 0;
           a.rig.siren.red.emissiveColor = Color3.FromHexString('#c0392b').scale(on ? 1 : 0.2);
           a.rig.siren.blue.emissiveColor = Color3.FromHexString('#286090').scale(on ? 0.2 : 1);
+        }
+        // v1.41 — restaurar los pilotos tras el parpadeo del susto (y con la política nocturna).
+        if (a.tailFlash && a.hazardT <= 0) {
+          a.tailFlash = false;
+          a.rig.lights.tail.emissiveColor = Color3.FromHexString('#d43a2a').scale(night ? 0.85 : 0.18);
         }
         // Sonido de paso frente al portal (una vez por vehículo).
         if (!a.passed && Math.abs(a.x - cfg.passX) < 4) {
@@ -865,6 +979,44 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
         if (Math.abs(a.x - x) < half + margin) return false;
       }
       return true;
+    },
+    setCrossers(points: { x: number; z: number }[]): void {
+      crossers = points;
+    },
+    hailTaxi(stopX: number, onStopped: () => void): boolean {
+      const idx = cfg.vehicles.findIndex((d) => d.kind === 'taxi');
+      if (idx < 0) return false;
+      if ([...active].some((a) => a.defIndex === idx)) return false;
+      // Carril CERCANO al edificio (el de mayor z con dir +1): la acera de enfrente.
+      let laneIndex = -1;
+      for (let i = 0; i < cfg.lanes.length; i++) {
+        const l = cfg.lanes[i]!;
+        if (l.dir > 0 && (laneIndex < 0 || l.z > cfg.lanes[laneIndex]!.z)) laneIndex = i;
+      }
+      if (laneIndex < 0) return false;
+      const def = cfg.vehicles[idx]!;
+      const rig = rigs[idx]!;
+      const lane = cfg.lanes[laneIndex]!;
+      rig.bodyMat.diffuseColor = Color3.FromHexString(def.colors[0]!);
+      rig.root.rotation.y = 0;
+      rig.root.setEnabled(visible);
+      const startX = cfg.xMin - def.length;
+      rig.root.position = new Vector3(startX, 0, lane.z);
+      const cruise = lane.speedMin + 1.5;
+      active.add({ rig, defIndex: idx, laneIndex, x: startX, speed: cruise, cruise, passed: false, phase: 0, hazardT: 0, tailFlash: false, doomed: false, nearDone: false, stage: { stopAtX: stopX, stopped: false, onStopped } });
+      return true;
+    },
+    releaseTaxi(): void {
+      for (const a of active) {
+        if (a.stage) {
+          a.stage = null;
+          a.speed = Math.min(a.cruise, 2.0);
+        }
+      }
+    },
+    taxiAvailable(): boolean {
+      const idx = cfg.vehicles.findIndex((d) => d.kind === 'taxi');
+      return idx >= 0 && ![...active].some((a) => a.defIndex === idx);
     },
     buildAmbulance,
     dispose() {

@@ -1596,6 +1596,23 @@ export const rulesSchema = z.object({
         bob: z.number().min(0).default(0.085),
         bobRate: z.number().positive().default(4.2),
         lines: z.array(z.string()).min(1).default(['A estirar las piernas.']),
+        /** v1.41 — RUTA POR EL PERÍMETRO IZQUIERDO: la única puerta «real» del edificio es
+         *  la pared lateral del portal (se sale cruzando el portal hacia su lado izquierdo
+         *  y se entra al revés, un poco por detrás del bloque de entrada). */
+        sideX: z.number().default(-2.9),
+        sideZ: z.number().default(0.35),
+        cornerZ: z.number().default(-4.9),
+        frontZ: z.number().default(-5.7),
+        portalSideX: z.number().default(0.3),
+        /** v1.41 — PLANES del paseo: reparto entre parque (calistenia), banco (sentarse),
+         *  paseo (estirar piernas por la acera frontal) y taxi (vuelve en taxi con bolsas).
+         *  El resto relativo lo da 1 − suma. */
+        benchChance: z.number().min(0).max(1).default(0.3),
+        strollChance: z.number().min(0).max(1).default(0.25),
+        taxiChance: z.number().min(0).max(1).default(0.2),
+        strollMeters: z.number().positive().default(9),
+        sitSecondsMin: z.number().positive().default(8),
+        sitSecondsMax: z.number().positive().default(22),
       })
       .optional(),
     /** ── Tráfico (v1.22) ── vehículos ocasionales por los carriles de la carretera:
@@ -1621,6 +1638,19 @@ export const rulesSchema = z.object({
         /** Punto de "paso" para el sonido del motor al pasar frente al portal. */
         passX: z.number().default(13.1),
         passRadius: z.number().positive().default(22),
+        /** v1.41 — CORTESÍA AL VOLANTE: los coches FRENAN en el paso de peatones si hay
+         *  alguien cruzando (y guardan distancia con el de delante). Si el peatón se planta
+         *  demasiado cerca, la frenada es imposible → susto/accidente cómico del catálogo. */
+        braking: z
+          .object({
+            enabled: z.boolean().default(true),
+            zebraHalfWidth: z.number().positive().default(2.4),
+            minStopDist: z.number().positive().default(4.4),
+            brakeDecel: z.number().positive().default(13),
+            followGap: z.number().positive().default(6.5),
+            hazardSeconds: z.number().positive().default(6),
+          })
+          .default({ enabled: true, zebraHalfWidth: 2.4, minStopDist: 4.4, brakeDecel: 13, followGap: 6.5, hazardSeconds: 6 }),
         vehicles: z.array(
           z.object({
             kind: z.string(),
@@ -1671,7 +1701,7 @@ export const rulesSchema = z.object({
           })
           .optional(),
       })
-      .default({ enabled: false, lanes: [], spawnEveryMin: 8, spawnEveryMax: 24, maxAlive: 4, xMin: -60, xMax: 60, passX: 13.1, passRadius: 22, vehicles: [] }),
+      .default({ enabled: false, lanes: [], spawnEveryMin: 8, spawnEveryMax: 24, maxAlive: 4, xMin: -60, xMax: 60, passX: 13.1, passRadius: 22, braking: { enabled: true, zebraHalfWidth: 2.4, minStopDist: 4.4, brakeDecel: 13, followGap: 6.5, hazardSeconds: 6 }, vehicles: [] }),
     /** ── Viandantes (v1.22) ── paseantes por las aceras; algunos entran al edificio
      *  (desaparecen en el portal) y otros salen. Solo presentación y solo vista edificio. */
     pedestrians: z
@@ -1687,6 +1717,18 @@ export const rulesSchema = z.object({
         enterX: z.number().default(13.1),
         /** v1.30 — umbral del portal (z del mundo): entrar/salir cruza POR las correderas. */
         enterZ: z.number().default(-1.7),
+        /** v1.41 — RUTA LATERAL (la única entrada «real»): los viandantes que entran o salen
+         *  cruzan el portal hacia su pared izquierda y recorren la acera lateral (perímetro
+         *  oeste) hasta la acera frontal. Sin esto, entran por la frontal como siempre. */
+        sideRoute: z
+          .object({
+            sideX: z.number().default(-2.9),
+            sideZ: z.number().default(0.35),
+            cornerZ: z.number().default(-4.9),
+            frontZ: z.number().default(-5.7),
+            portalSideX: z.number().default(0.3),
+          })
+          .optional(),
         paths: z.array(
           z.object({
             z: z.number(),
@@ -1897,8 +1939,48 @@ export const rulesSchema = z.object({
         estanciaFloorH: z.number().positive(),
         estanciaWidthW: z.number().positive(),
         estanciaEdgeMargin: z.number().min(0),
+        /** v1.41 — CÁMARA FACHADA (tecla 0): factor de alejamiento sobre la vista edificio
+         *  (viewH = edificio × factor): se ve el bloque entero CON fachada cerrada. */
+        fachadaViewHFactor: z.number().positive().default(1.32),
       })
-      .default({ estanciaFloorH: 2.5, estanciaWidthW: 2.9, estanciaEdgeMargin: 2.4 }),
+      .default({ estanciaFloorH: 2.5, estanciaWidthW: 2.9, estanciaEdgeMargin: 2.4, fachadaViewHFactor: 1.32 }),
+    /** v1.41 — ACCESORIOS DE LA CALLE: paraguas abierto cuando llueve y bolsas de la
+     *  compra al volver. Solo presentación; colores y tiempos del catálogo. */
+    outdoor: z
+      .object({
+        umbrella: z
+          .object({
+            color: z.string().default('#b8452e'),
+            stickColor: z.string().default('#5b4632'),
+            size: z.number().positive().default(1.02),
+            openSeconds: z.number().positive().default(0.45),
+          })
+          .default({ color: '#b8452e', stickColor: '#5b4632', size: 1.02, openSeconds: 0.45 }),
+        bags: z
+          .object({
+            colorA: z.string().default('#d8c9a3'),
+            colorB: z.string().default('#9fb875'),
+          })
+          .default({ colorA: '#d8c9a3', colorB: '#9fb875' }),
+      })
+      .default({ umbrella: { color: '#b8452e', stickColor: '#5b4632', size: 1.02, openSeconds: 0.45 }, bags: { colorA: '#d8c9a3', colorB: '#9fb875' } }),
+    /** v1.41 — TEATRO DEL TAXI: vecinos que vuelven en taxi con las bolsas de la compra
+     *  (el taxi para frente al portal, se bajan, cruzan y entran por la ruta lateral). */
+    taxi: z
+      .object({
+        enabled: z.boolean().default(true),
+        /** Punto de recogida/bajada en la acera frontal (delante del portal). */
+        pickupX: z.number().default(4.4),
+        /** Carril donde para el taxi y punto exacto de parada. */
+        stopLaneZ: z.number().default(-8.3),
+        stopX: z.number().default(4.4),
+        waitMin: z.number().positive().default(6),
+        waitMax: z.number().positive().default(14),
+        /** Minutos (sim) que el vecino está «de compras» entre subida y vuelta. */
+        rideMin: z.number().positive().default(45),
+        rideMax: z.number().positive().default(150),
+      })
+      .default({ enabled: true, pickupX: 4.4, stopLaneZ: -8.3, stopX: 4.4, waitMin: 6, waitMax: 14, rideMin: 45, rideMax: 150 }),
   }),
   demo: z.object({ resident: z.string(), block: z.string(), noise: z.number(), toast: z.string() }),
   cutscene: z.object({
@@ -2064,6 +2146,36 @@ export const streetCatalogSchema = z.object({
     ok: z.array(z.string()).min(1),
     good: z.array(z.string()).min(1),
   }),
+  /** v1.41 — VIDA EN LAS ENTRADAS Y SALIDAS: líneas cómicas del teatro exterior
+   *  (paseo por la acera, bancos, paraguas, bolsas, taxi, frenazos y accidentes). */
+  outdoor: z
+    .object({
+      /** Al salir del portal por la lateral. */
+      exitLines: z.array(z.string()).min(1).default(['Hasta luego, bloque, que no nos vemos por el pasillo.']),
+      /** Al volver a entrar por la lateral. */
+      enterLines: z.array(z.string()).min(1).default(['Por la izquierda, que la frontal es de adornos.']),
+      /** Sentado en un banco exterior. */
+      benchLines: z.array(z.string()).min(1).default(['Este banco tiene las mejores vistas del tráfico.']),
+      /** Paseando por la acera frontal. */
+      strollLines: z.array(z.string()).min(1).default([' media vuelta a la manzana y a casa.']),
+      /** Con el paraguas abierto bajo la lluvia. */
+      umbrellaLines: z.array(z.string()).min(1).default(['Paraguas abierto: hoy la lluvia no me moja la siesta.']),
+      /** Al volver con las bolsas de la compra. */
+      bagsLines: z.array(z.string()).min(1).default(['La compra de todo el pasillo… me la recomiendo.']),
+      /** Pide el taxi (a la acera, al teléfono…). */
+      taxiHail: z.array(z.string()).min(1).default(['Taxi! Que para escaleras ya estoy mayor.']),
+      /** Al subir al taxi (desaparece). */
+      taxiBoard: z.array(z.string()).min(1).default(['A la calle de los tarareos, y pise usted la aceleración.']),
+      /** Al bajarse del taxi de vuelta. */
+      taxiBack: z.array(z.string()).min(1).default(['Aquí mismo está bien. El cambio se lo queda la propina.']),
+      /** Frenazo heroico ante un peatón (susto cómico, sin contacto). */
+      nearMiss: z.array(z.string()).min(1).default(['¡Pero bueno! ¿Se puede cruzar con un poco de aviso?']),
+      /** Accidente cómico: coche no puede frenar y el peatón acaba sentado en la calzada. */
+      accident: z.array(z.string()).min(1).default(['Mi espalda… y mi dignidad, por el paso de peatones.']),
+      /** Bocina del coche (frenazo/susto). */
+      carHorn: z.string().default('¡PIIIIP!'),
+    })
+    .optional(),
 });
 
 export type StreetCatalog = z.infer<typeof streetCatalogSchema>;

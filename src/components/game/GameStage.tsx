@@ -99,7 +99,7 @@ export default function GameStage() {
     const normalize = (ev: KeyboardEvent): string => {
       if (ev.code) return ev.code;
       const k = ev.key;
-      const map: Record<string, string> = { a: 'KeyA', d: 'KeyD', w: 'KeyW', s: 'KeyS', e: 'KeyE', j: 'KeyJ', A: 'KeyA', D: 'KeyD', W: 'KeyW', S: 'KeyS', E: 'KeyE', J: 'KeyJ', '1': 'Digit1', '2': 'Digit2', '3': 'Digit3', ' ': 'Space' };
+      const map: Record<string, string> = { a: 'KeyA', d: 'KeyD', w: 'KeyW', s: 'KeyS', e: 'KeyE', j: 'KeyJ', A: 'KeyA', D: 'KeyD', W: 'KeyW', S: 'KeyS', E: 'KeyE', J: 'KeyJ', '0': 'Digit0', '1': 'Digit1', '2': 'Digit2', '3': 'Digit3', ' ': 'Space' };
       return map[k] ?? k;
     };
     const onKeyDown = (ev: KeyboardEvent) => {

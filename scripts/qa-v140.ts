@@ -87,7 +87,7 @@ check('el tuyo propio siempre pasa (id !== localActorId)', bubTs.includes('id !=
 console.log('── 5. Decals bien recortados (alpha de verdad) ──');
 const buildTs = srcOf('src/game/client/building.ts');
 check('los decals ya NO usan DynamicTexture (caja negra WebGPU)', !buildTs.includes("new (B().DynamicTexture)('decal_") && !buildTs.includes('new (B().DynamicTexture)(`decal_'));
-check('suben por TEXTURE(dataURL) con hasAlpha (patrón candado v1.26)', buildTs.includes('const canvasTex = (name: string, c: HTMLCanvasElement): Texture') && buildTs.includes("canvasTex('decal_grafiti_tex', got.c)"));
+check('suben por TEXTURE(dataURL) con hasAlpha (patrón candado v1.26; v1.41 añade el recorte decalTex)', buildTs.includes('const canvasTex = (name: string, c: HTMLCanvasElement): Texture') && buildTs.includes("decalTex('decal_grafiti_tex', got.c)"));
 check('grafiti cacheado por variante (dataURL una vez)', buildTs.includes('const graffitiCache = new Map<string, Texture>();'));
 const elevTs = srcOf('src/game/client/elevator.ts');
 check('mural de la cabina: canvas suelto + Texture(dataURL)', elevTs.includes("new (B().Texture)(cv.toDataURL('image/png'), scene, false, true)") && !elevTs.includes("new (B().DynamicTexture)('asc_grafiti_tex'"));
@@ -110,7 +110,7 @@ check('claves i18n del overlay (lost.title/text/reload)', ["'lost.title'", "'los
 console.log('── 8. i18n de bocadillos y avisos ──');
 const i18nCTs = srcOf('src/game/support/i18n-content.ts');
 check('el overlay camina los 6 catálogos nuevos (archetypes/rules/crossings/street/cutscenes/minigames)', ['walk(content.archetypes)', 'walk(content.rules)', 'walk(content.crossings)', 'walk(content.street)', 'walk(content.cutscenes)', 'walk(content.minigames)'].every((k) => i18nCTs.includes(k)));
-check('los originales se guardan/restauran para volver a ES', i18nCTs.includes('content.archetypes = originals.archetypes') && i18nCTs.includes('content.rules = originals.rules'));
+check('los originales se guardan/restauran para volver a ES (v1.41: snapshot único clonado + restore)', i18nCTs.includes('if (!esSnapshot) esSnapshot = snapshotOf(content);') && i18nCTs.includes('function restore(content: Content): void') && i18nCTs.includes('content.street = esSnapshot.street!'));
 const dict = JSON.parse(srcOf('public/content/translations.en.json'));
 check('diccionario ES→EN ampliado (+370 entradas nuevas)', Object.keys(dict).length >= 800, `${Object.keys(dict).length} cadenas`);
 check('frases de actividad y timbre en EN', dict['🌀 pone la lavadora'] === '🌀 does the laundry' && dict['E · timbre de {name}'] === "E · ring {name}'s doorbell");

@@ -463,6 +463,9 @@ export interface EmotesCatalog {
      *  el edificio entero no se convierte en una sopa de emoticonos. El texto (`say`) se
      *  calla siempre en esa vista. */
     buildingMaxGlyphs?: number;
+    /** v1.40 — PROXIMIDAD (opcional): solo lucen los bocadillos de vecinos a ≤ N metros
+     *  en TU misma planta (el tuyo propio siempre pasa). null/undefined = siempre. */
+    nearRadius?: number;
   };
   /**
    * Bocadillos con TEXTO (v1.15, opcional): las actividades con líneas `say` del arquetipo
@@ -1510,6 +1513,19 @@ export interface Rules {
       bob: number;
       bobRate: number;
       lines: string[];
+      /** v1.41 — RUTA LATERAL (perímetro oeste): la única puerta «real» del edificio. */
+      sideX: number;
+      sideZ: number;
+      cornerZ: number;
+      frontZ: number;
+      portalSideX: number;
+      /** v1.41 — planes del paseo: reparto banco/paseo/taxi (resto = parque). */
+      benchChance: number;
+      strollChance: number;
+      taxiChance: number;
+      strollMeters: number;
+      sitSecondsMin: number;
+      sitSecondsMax: number;
     };
     /** v1.35 — GRAFITIS (cabina del ascensor + paredes del cubo/portal): textos y dibujos
      *  graciosos del catálogo; cabinMin = nivel en que aparece el mural de cabina,
@@ -1545,6 +1561,24 @@ export interface Rules {
     };
     /** Bloom/glow de las luces (v1.28): halo realista de los materiales emisivos. */
     glow?: { enabled: boolean; intensity: number; blurKernelSize?: number };
+    /** v1.40 — LINTERNA del apagón: PointLight que sigue al jugador (radio corto). */
+    flashlight?: { range: number; intensity: number; height: number; color: string };
+    /** v1.41 — ACCESORIOS DE LA CALLE: paraguas abierto cuando llueve y bolsas de la compra. */
+    outdoor?: {
+      umbrella?: { color: string; stickColor: string; size: number; openSeconds: number };
+      bags?: { colorA: string; colorB: string };
+    };
+    /** v1.41 — TEATRO DEL TAXI: recogida frente al portal y vuelta con bolsas de la compra. */
+    taxi?: {
+      enabled: boolean;
+      pickupX: number;
+      stopLaneZ: number;
+      stopX: number;
+      waitMin: number;
+      waitMax: number;
+      rideMin: number;
+      rideMax: number;
+    };
     /** Sombras de verdad (v1.32): un solo ShadowGenerator sobre el sol del catálogo con
      *  listas de patrones de nombre para casters / receptores / excluidos. */
     shadows?: {
@@ -1607,7 +1641,7 @@ export interface Rules {
     /** Niveles de detalle por distancia (Vista: "prefab por bloque y LOD por distancia"). */
     lod: { enabled: boolean; focus: 'player'; levels: LodLevel[] };
     /** v1.36 — alejamiento de la cámara Estancia: factores de encuadre y margen de borde. */
-    camera?: { estanciaFloorH: number; estanciaWidthW: number; estanciaEdgeMargin: number };
+    camera?: { estanciaFloorH: number; estanciaWidthW: number; estanciaEdgeMargin: number; fachadaViewHFactor?: number };
     /** ── Escena exterior (v1.20) ── tiras de calle frente al edificio (aceras,
      *  carretera, jardines) con sus props; defId refiere bloques con `exterior`.
      *  v1.22: orient 'z' (aceras laterales y calle transversal), gridScatter 2D con
@@ -1685,6 +1719,17 @@ export interface Rules {
         roofRack?: boolean;
         axles?: number;
       }[];
+      /** v1.41 — CORTESÍA AL VOLANTE: frenada en el paso de peatones + distancia de
+       *  seguridad con el vehículo de delante. Si el peatón aparece demasiado cerca, la
+       *  frenada es imposible → susto/accidente cómico. */
+      braking: {
+        enabled: boolean;
+        zebraHalfWidth: number;
+        minStopDist: number;
+        brakeDecel: number;
+        followGap: number;
+        hazardSeconds: number;
+      };
       /** v1.32 — AMBULANCIA del teatro de emergencias (opcional). */
       ambulance?: {
         length: number;
@@ -1721,6 +1766,15 @@ export interface Rules {
       enterX: number;
       /** v1.30 — umbral del portal (z del mundo): entrar/salir cruza POR las correderas. */
       enterZ?: number;
+      /** v1.41 — RUTA LATERAL: los viandantes entran/salen cruzando el portal por su
+       *  pared izquierda (perímetro oeste) y recorriendo la acera lateral. */
+      sideRoute?: {
+        sideX: number;
+        sideZ: number;
+        cornerZ: number;
+        frontZ: number;
+        portalSideX: number;
+      };
       paths: { z: number; x0: number; x1: number; dir: number }[];
       colors: string[];
       hatChance: number;
@@ -1874,6 +1928,9 @@ export interface Rules {
     elevatorBroken: string;
     mailbox: { prompt: string; lines: string[] };
     noticeboard: { prompt: string; template: string };
+    /** v1.40 — timbre de una vivienda ajena (E en su puerta) y charla con un vecino. */
+    doorbell?: string;
+    chat?: string;
   };
 }
 

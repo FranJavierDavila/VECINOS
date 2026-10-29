@@ -87,6 +87,14 @@ interface Actor {
   lying: boolean;
   /** v1.37 — base Y del rebote de ejercicio (parque de calistenia); null = sin rebote. */
   bobBase: number | null;
+  /** v1.41 — PARAGUAS ABIERTO (llueve y está en la calle): nodo colgado de la cabeza;
+   *  el teatro manda (setUmbrella), la animación de apertura la hace el propio actor. */
+  umbrella: TransformNode | null;
+  umbrellaWant: boolean;
+  umbrellaK: number;
+  /** v1.41 — BOLSAS DE LA COMPRA (una en cada mano): vuelve del taxi o de fuera del plano. */
+  bags: TransformNode | null;
+  bagsWant: boolean;
 }
 
 /**
@@ -128,6 +136,18 @@ export interface ActorsDirector {
   setHold(id: string, seconds: number): void;
   /** v1.35 — llevar algo ENCIMA (caja de mudanza/paquete): el teatro manda; null lo suelta. */
   setCarrying(id: string, kind: 'box' | 'parcel' | null): void;
+  /** v1.41 — ¿el actor está EN ESCENA de verdad (nodo habilitado)? Los teatros y los
+   *  bocadillos lo consultan para no colgar nada sobre un vecino invisible. */
+  visibleOf(id: string): boolean;
+  /** v1.41 — PARAGUAS ABIERTO (llueve y el vecino está fuera): on/off con animación. */
+  setUmbrella(id: string, on: boolean): void;
+  /** v1.41 — BOLSAS DE LA COMPRA en las dos manos (vuelve con la compra). */
+  setBags(id: string, on: boolean): void;
+  /** v1.41 — FADE del actor (0..1): cruzar la pared lateral del portal sin atravesarla a
+   *  la vista. 1 = visible; el teatro lo usa al entrar/salir por el lateral del portal. */
+  setFade(id: string, k: number): void;
+  /** v1.41 — se levanta del asiento (fin del banco del paseo): quita la pose sentada. */
+  standUp(id: string): void;
   /** v1.37 — ruta LIBRE del paseo vecinal: tramos crudos del mundo para un actor dirigido. */
   strollPath(id: string, pts: { x: number; y: number; z: number }[]): boolean;
   /** v1.37 — sólidos del mundo (lavadoras de la lavandería): los tramos se resuelven contra ellos. */
@@ -160,7 +180,7 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
     m.emissiveColor = m.diffuseColor.scale(0.25);
     mesh.material = m;
     mesh.isPickable = false;
-    const a: Actor = { id, node: mesh, height, pivotY: height / 2, path: [], wanderT: 0, wanderLap: 0, targetLocal: null, lastLoc: null, directed: false, yaw: 0, targetYaw: null, gesture: null, gestureT: 0, seated: false, seatPending: null, elevatorReq: null, ridePhase: null, enabledPrev: false, stowedBlock: null, rig: null, chatT: 0, carry: null, carryKind: null, carryManual: null, lying: false, bobBase: null };
+    const a: Actor = { id, node: mesh, height, pivotY: height / 2, path: [], wanderT: 0, wanderLap: 0, targetLocal: null, lastLoc: null, directed: false, yaw: 0, targetYaw: null, gesture: null, gestureT: 0, seated: false, seatPending: null, elevatorReq: null, ridePhase: null, enabledPrev: false, stowedBlock: null, rig: null, chatT: 0, carry: null, carryKind: null, carryManual: null, lying: false, bobBase: null, umbrella: null, umbrellaWant: false, umbrellaK: 0, bags: null, bagsWant: false };
     actors.set(id, a);
 
     // Arte final (opcional): modelo glTF del manifiesto; cualquier fallo → cápsula.
@@ -761,6 +781,89 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
           a.carry.setEnabled(a.node.isEnabled());
         }
 
+        // ── v1.41 — PARAGUAS ABIERTO (llueve y está en la calle) y BOLSAS DE LA COMPRA.
+        //  Mismo patrón que el carry: el teatro marca el deseo (umbrellaWant/bagsWant) y el
+        //  bucle construye/desmonta el accesorio colgado del nodo; el paraguas además se
+        //  ABRE con una animación corta (K 0→1 del catálogo). Ambos son hijos del nodo:
+        //  se ocultan solos cuando el actor se oculta y siguen TODA la animación del cuerpo.
+        const outdoor = v.outdoor;
+        if (a.umbrellaWant !== (a.umbrella !== null)) {
+          if (a.umbrella) {
+            a.umbrella.dispose(false, true);
+            a.umbrella = null;
+            a.umbrellaK = 0;
+          } else {
+            const uc = outdoor?.umbrella;
+            const rootU = new (B().TransformNode)(`${id}_umbrella`, scene);
+            rootU.parent = a.node;
+            const canopyM = new (B().StandardMaterial)(`${id}_umbrella_tela`, scene);
+            canopyM.diffuseColor = (B().Color3).FromHexString(uc?.color ?? '#b8452e');
+            canopyM.specularColor = new (B().Color3)(0, 0, 0);
+            const stickM = new (B().StandardMaterial)(`${id}_umbrella_palo`, scene);
+            stickM.diffuseColor = (B().Color3).FromHexString(uc?.stickColor ?? '#5b4632');
+            stickM.specularColor = new (B().Color3)(0, 0, 0);
+            const d = uc?.size ?? 1.02;
+            const yTop = a.rig ? a.height + 0.42 : a.height / 2 + 0.42;
+            const stick = (B().MeshBuilder).CreateCylinder(`${id}_umbrella_palo`, { diameter: 0.035, height: 0.85 }, scene);
+            stick.material = stickM;
+            stick.isPickable = false;
+            stick.parent = rootU;
+            stick.position.set(0.06, yTop - 0.42, 0.05);
+            const canopy = (B().MeshBuilder).CreateCylinder(`${id}_umbrella_tela`, { diameterTop: d * 0.16, diameterBottom: d, height: 0.16, tessellation: 20 }, scene);
+            canopy.material = canopyM;
+            canopy.isPickable = false;
+            canopy.parent = rootU;
+            canopy.position.set(0.06, yTop - 0.06, 0.05);
+            const tip = (B().MeshBuilder).CreateSphere(`${id}_umbrella_punno`, { diameter: 0.05 }, scene);
+            tip.material = stickM;
+            tip.isPickable = false;
+            tip.parent = rootU;
+            tip.position.set(0.06, yTop + 0.05, 0.05);
+            rootU.scaling.setAll(a.rig ? 1 : 1);
+            a.umbrella = rootU;
+            a.umbrellaK = 0.06;
+          }
+        }
+        if (a.umbrella) {
+          if (a.umbrellaK < 1) {
+            a.umbrellaK = Math.min(1, a.umbrellaK + dt / Math.max(0.05, outdoor?.umbrella?.openSeconds ?? 0.45));
+            const k = 0.06 + 0.94 * a.umbrellaK;
+            for (const kid of a.umbrella.getChildMeshes()) {
+              if (kid.name.includes('tela')) kid.scaling.setAll(k);
+            }
+          }
+          a.umbrella.setEnabled(a.node.isEnabled());
+        }
+        if (a.bagsWant !== (a.bags !== null)) {
+          if (a.bags) {
+            a.bags.dispose(false, true);
+            a.bags = null;
+          } else {
+            const bc = outdoor?.bags;
+            const rootB = new (B().TransformNode)(`${id}_bolsas`, scene);
+            rootB.parent = a.node;
+            const yHand = a.rig ? a.height * 0.48 : -a.height * 0.05;
+            for (const side of [-1, 1] as const) {
+              const bagM = new (B().StandardMaterial)(`${id}_bolsa_mat_${side}`, scene);
+              bagM.diffuseColor = (B().Color3).FromHexString(side < 0 ? bc?.colorA ?? '#d8c9a3' : bc?.colorB ?? '#9fb875');
+              bagM.specularColor = new (B().Color3)(0, 0, 0);
+              const bag = (B().MeshBuilder).CreateBox(`${id}_bolsa_${side}`, { width: 0.2, height: 0.26, depth: 0.15 }, scene);
+              bag.material = bagM;
+              bag.isPickable = false;
+              bag.parent = rootB;
+              bag.position.set(side * 0.26, yHand - 0.13, 0);
+              const handle = (B().MeshBuilder).CreateBox(`${id}_bolsa_asa_${side}`, { width: 0.025, height: 0.12, depth: 0.025 }, scene);
+              handle.material = bagM;
+              handle.isPickable = false;
+              handle.parent = rootB;
+              handle.position.set(side * 0.26, yHand + 0.01, 0);
+            }
+            rootB.scaling.setAll(a.rig ? a.height / 1.5 : 1);
+            a.bags = rootB;
+          }
+        }
+        if (a.bags) a.bags.setEnabled(a.node.isEnabled());
+
         // ── Animación (solo rigs) por prioridad de estados (v1.2) + SINCRONÍA DE ZANCADA (v1.3):
         //   gesto explícito → run (speed > runSpeed) → walk (mientras se avanza) → clip de
         //   actividad parado → sentado en ancla → idle. El ratio de playback sale de la
@@ -895,6 +998,39 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
       },
       gestureOf(id: string): string | null {
         return actors.get(id)?.gesture ?? null;
+      },
+      /** v1.41 — ¿está EN ESCENA de verdad? (nodo habilitado: no fuera, no stowed, no oculto). */
+      visibleOf(id: string): boolean {
+        const a = actors.get(id);
+        return !!a && a.node.isEnabled();
+      },
+      /** v1.41 — PARAGUAS on/off (el teatro de la calle decide con el clima). */
+      setUmbrella(id: string, on: boolean): void {
+        const a = actors.get(id);
+        if (!a || a.umbrellaWant === on) return;
+        a.umbrellaWant = on;
+      },
+      /** v1.41 — BOLSAS DE LA COMPRA on/off. */
+      setBags(id: string, on: boolean): void {
+        const a = actors.get(id);
+        if (!a || a.bagsWant === on) return;
+        a.bagsWant = on;
+      },
+      /** v1.41 — FADE del actor (visibilidad por malla; el teatro cruza al actor por la
+       *  pared lateral del portal desvaneciéndolo, como los viandantes). */
+      setFade(id: string, k: number): void {
+        const a = actors.get(id);
+        if (!a) return;
+        const val = Math.max(0, Math.min(1, k));
+        if (a.node instanceof B().Mesh) a.node.visibility = val;
+        for (const m of a.node.getChildMeshes()) m.visibility = val;
+      },
+      /** v1.41 — se levanta del asiento (banco del paseo): sin pose sentada residual. */
+      standUp(id: string): void {
+        const a = actors.get(id);
+        if (!a) return;
+        a.seated = false;
+        a.seatPending = null;
       },
       isDirected(id: string): boolean {
         return actors.get(id)?.directed ?? false;

@@ -45,7 +45,7 @@ import { NetSession, type SessionStatePayload } from './net';
 import { setController } from './bridge';
 import { selectModalOpen, useGameStore, type AchievementUi, type Speed, type Tone } from './store';
 
-const CAM_BY_KEY: Record<string, CamMode> = { Digit1: 'edificio', Digit2: 'planta', Digit3: 'estancia' };
+const CAM_BY_KEY: Record<string, CamMode> = { Digit0: 'fachada', Digit1: 'edificio', Digit2: 'planta', Digit3: 'estancia' };
 
 /**
  * Único dueño del mundo en el navegador: engine Babylon, PlayerLogic, bucle de render,
@@ -161,7 +161,7 @@ class GameController {
       preloadTranslations();
       useGameStore.setState({ touchHint: content.rules.touch.hint });
       if (issues.length > 0) {
-        useGameStore.getState().pushToast(`Contenido inválido: ${issues.length} errores de validación`, 'bad');
+        useGameStore.getState().pushToast(translate(useGameStore.getState().lang, 'ev.contentInvalid', { n: String(issues.length) }), 'bad');
       }
       // v1.39 — tutorial del primer día: director + registro para la UI.
       this.tutorial = createTutorial(content.onboarding, () => useGameStore.getState().lang);
@@ -354,9 +354,9 @@ class GameController {
     useGameStore.getState().setCamMode(mode);
   }
 
-  /** Siguiente cámara de la rueda Edificio → Planta → Estancia (teclado 1/2/3 y mando Y). */
+  /** Siguiente cámara de la rueda Edificio → Fachada → Planta → Estancia (teclado 1/2/3/0 y mando Y). */
   cycleCam(): void {
-    const order: CamMode[] = ['edificio', 'planta', 'estancia'];
+    const order: CamMode[] = ['edificio', 'fachada', 'planta', 'estancia'];
     const cur = order.indexOf(useGameStore.getState().camMode);
     this.setCamMode(order[(cur + 1) % order.length]!);
   }
@@ -625,7 +625,7 @@ class GameController {
     this.lastConvocaTick = world.tick;
     world.junta = { agenda: cfg.presetAgenda.map((i) => ({ ...i })), votes: {}, playerVoted: false };
     useGameStore.getState().setJunta(cfg.presetAgenda.map((i) => ({ id: i.id, title: i.title, description: i.description, cost: i.cost })));
-    useGameStore.getState().pushLog('🗳️ Junta extraordinaria convocada desde el tablón. Los vecinos, en camino.', 'info');
+    useGameStore.getState().pushLog(translate(useGameStore.getState().lang, 'ev.juntaConvocada'), 'info');
     this.marchJunta(); // v1.30: igual que las juntas de misión, la sala recibe a los asistentes
   }
 
@@ -761,7 +761,7 @@ class GameController {
     store.setMpParticipants([]);
     store.setMpPanelOpen(false);
     void this.restart();
-    store.pushToast('Has vuelto a tu partida en solitario.', 'info');
+    store.pushToast(translate(store.lang, 'ev.soloResumed'), 'info');
   }
 
   private connectNet(): void {
@@ -942,10 +942,10 @@ class GameController {
       });
       if (!res.ok) throw new Error(String(res.status));
       store.setSaveState('saved', new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }));
-      store.pushToast('Partida guardada. El acta queda en el tablón (y en SQLite).', 'good');
+      store.pushToast(translate(store.lang, 'ev.saved'), 'good');
     } catch {
       store.setSaveState('error');
-      store.pushToast('No se pudo guardar la partida. ¿El administrador se habrá ido a comer?', 'bad');
+      store.pushToast(translate(store.lang, 'ev.saveFailed'), 'bad');
     }
   }
 
@@ -959,17 +959,17 @@ class GameController {
       const res = await fetch('/api/save?slot=auto');
       const json = (await res.json()) as { state?: unknown };
       if (!json.state || typeof json.state !== 'object') {
-        store.pushToast('Todavía no hay ninguna partida guardada.', 'info');
+        store.pushToast(translate(store.lang, 'ev.noSave'), 'info');
         return;
       }
       if (!this._content) {
-        store.pushToast('El contenido todavía se está cargando. Espera un momento.', 'info');
+        store.pushToast(translate(store.lang, 'ev.contentLoading'), 'info');
         return;
       }
       await this.restart(json.state as World);
-      store.pushToast('Partida cargada. El vecindario, exactamente como lo dejaste.', 'good');
+      store.pushToast(translate(store.lang, 'ev.loaded'), 'good');
     } catch {
-      store.pushToast('No se pudo cargar la partida.', 'bad');
+      store.pushToast(translate(store.lang, 'ev.loadFailed'), 'bad');
     }
   }
 
@@ -1090,7 +1090,11 @@ class GameController {
     // (Las manifestaciones se crean más abajo, tras los bocadillos, para poder comentarlas.)
     // v1.31: los vehículos leen la luz de día del cielo para encender y apagar los faros.
     this.traffic?.dispose();
-    this.traffic = createTraffic(this.scene, this.world, this.content, () => this.backdrop?.daylight ?? 1);
+    this.traffic = createTraffic(this.scene, this.world, this.content, () => this.backdrop?.daylight ?? 1, (x, kind) => {
+      // v1.41 — CORTESÍA AL VOLANTE: cuando un coche frena en seco o no puede frenar en el
+      // paso, el peatón (paseo vecinal) es el protagonista del cómic: susto o accidente cómico.
+      this.paseo?.onTrafficIncident(x, kind);
+    });
     // v1.32 — TEATRO DE EMERGENCIAS: la ambulancia (rig del catálogo) que recoge heridos
     // de las peleas de acera. Se crea ANTES que los viandantes (ellos la llaman).
     this.ambulance?.dispose();
@@ -1146,8 +1150,8 @@ class GameController {
     this.paseo?.dispose();
     this.paseo = createPaseo(this.world, this.content, this.actors?.director ?? null, this.bubbles, this.traffic, () => {
       const cm = useGameStore.getState().camMode;
-      return cm === 'edificio' || cm === 'planta';
-    });
+      return cm === 'edificio' || cm === 'fachada' || cm === 'planta';
+    }, () => this.exterior?.benches() ?? []);
     // v1.39 — VECINOS COMO PERSONAJES: reacciones ambientales con carácter (bocadillos).
     this.residents?.dispose();
     this.residents = this.actors ? createResidents(this.world, this.content, this.actors.director, this.bubbles) : null;
@@ -1172,6 +1176,7 @@ class GameController {
         estFloorH: camTuning.estanciaFloorH,
         estWidthW: camTuning.estanciaWidthW,
         estMargin: camTuning.estanciaEdgeMargin,
+        fachadaFactor: camTuning.fachadaViewHFactor ?? 1.32,
       };
     }
     // v1.20: plano frontal y calado del bloque principal — la cámara encuadra los bloques
@@ -1365,7 +1370,11 @@ class GameController {
     // manifestaciones viven en las vistas "edificio" y "planta" (v1.23: la planta baja
     // ve pasar la acera en el encuadre — no perderse la vidilla de la calle); en
     // estancia se apagan (menos carga, y no estorban la vista de la estancia).
-    const streetView = store.camMode === 'edificio' || store.camMode === 'planta';
+    // v1.41 — la FACHADA (tecla 0) también es vista de calle: el decorado exterior (coches,
+    // viandantes, paseo, taxi) vive y se ve tras la fachada acristalada del bloque.
+    const streetView = store.camMode === 'edificio' || store.camMode === 'fachada' || store.camMode === 'planta';
+    // v1.41 — la vista FACHADA cierra el edificio entero (cortina acristalada en building).
+    this.building?.setFachadaView(store.camMode === 'fachada');
     this.exterior?.setPropsVisible(streetView);
     this.traffic?.setVisible(streetView);
     this.ambulance?.setVisible(streetView);
@@ -1415,7 +1424,9 @@ class GameController {
     for (const p of this.pedestrians?.positions() ?? []) movers.push({ x: p.x, y: 0, z: p.z });
     this.building.update(
       dt,
-      useGameStore.getState().camMode === 'edificio' ? undefined : { x: pos.x, floor: pos.floor },
+      useGameStore.getState().camMode === 'edificio' || useGameStore.getState().camMode === 'fachada'
+        ? undefined
+        : { x: pos.x, floor: pos.floor },
       pos.insideBlock,
       { x: pos.x, z: pos.z, insideBlock: pos.insideBlock },
       // v1.21: luz de día del fondo → luces nocturnas de interiores (encendidas solo con
@@ -1520,7 +1531,7 @@ class GameController {
         case 'choice_required': {
           const choices = (d.choices as { id: string; label: string; hint?: string | null }[] | undefined) ?? [];
           store.setChoices({ mission: String(d.mission), title: String(d.title), choices: choices.map((c) => ({ id: c.id, label: c.label, hint: c.hint ?? null })) });
-          store.pushLog(`⚖️ Decisión pendiente: ${String(d.title)}`, 'info');
+          store.pushLog(translate(store.lang, 'ev.juntaPending', { t: String(d.title) }), 'info');
           this.actors?.director.setGesture(this.actorId(), 'talk'); // el jugador razona en voz alta
           break;
         }
@@ -1540,7 +1551,7 @@ class GameController {
           store.pushLog(translate(store.lang, 'ev.neighborArrivedLog', { name: this.nameOf(d.resident), block: blockLabel(String(d.block)) }), 'info');
           break;
         case 'mission_activated':
-          store.pushLog(`📋 Nueva misión: ${String(d.title)}`, 'info');
+          store.pushLog(translate(store.lang, 'ev.missionNew', { m: String(d.title) }), 'info');
           break;
         case 'mission_completed':
           // v1.30 — post-it de CELEBRACIÓN: se pliega como origami y suelta estrellitas que
@@ -1560,10 +1571,10 @@ class GameController {
           store.pushToast(translate(store.lang, 'ev.blockUnlocked', { block: blockLabel(String(d.block)) }), 'good');
           break;
         case 'block_bought':
-          store.pushLog(`🔑 ${blockLabel(String(d.block))} comprado por ${String(d.price)} €`, 'good');
+          store.pushLog(translate(store.lang, 'ev.blockBought', { block: blockLabel(String(d.block)), price: String(d.price) }), 'good');
           break;
         case 'block_for_sale':
-          store.pushLog(`🪧 Cartel de "SE VENDE" en ${blockLabel(String(d.block))} (${String(d.price)} €)`, 'info');
+          store.pushLog(translate(store.lang, 'ev.forSaleSign', { block: blockLabel(String(d.block)), price: String(d.price) }), 'info');
           break;
         case 'knock_result': {
           // v1.40 — el timbre lo atiende la PERSONALIDAD: saludo del catálogo de personajes
@@ -1572,10 +1583,10 @@ class GameController {
           const other = rid ? this.world?.residents[rid] : undefined;
           const greet = other ? greetLineOf(this.content, other, store.lang) : null;
           if (d.asleep) {
-            store.pushToast(`😴 ${String(d.name)}: «${String(d.line)}»`, 'info');
+            store.pushToast(translate(store.lang, 'ev.asleepSay', { name: String(d.name), line: String(d.line) }), 'info');
           } else {
             const line = greet ?? String(d.line);
-            store.pushToast(`🗣️ ${String(d.name)}: «${line}»`, 'good');
+            store.pushToast(translate(store.lang, 'ev.greetSay', { name: String(d.name), line }), 'good');
             if (rid) this.bubbles?.sayText(rid, line, 2.8);
             // v1.40 — abre de VERDAD: el vecino camina hasta el interior de su puerta.
             if (rid && other?.home && this.world) {
@@ -1598,23 +1609,23 @@ class GameController {
         }
         case 'noise_complaint': // texto data-driven: lo pinta el uiLog del catálogo (case mantenido por compatibilidad de eventos antiguos)
           if (d.uiLog === true) break;
-          store.pushLog(`🔊 Ruido por encima del límite en ${blockLabel(String(d.block))}. Alguien aprieta los dientes.`, 'bad');
+          store.pushLog(translate(store.lang, 'ev.noiseOver', { block: blockLabel(String(d.block)) }), 'bad');
           break;
         case 'leak_detected':
           if (d.uiLog === true) break;
-          store.pushLog(`💧 Goteo detectado en ${blockLabel(String(d.block))}. El cubo del salón hace ojitos.`, 'bad');
+          store.pushLog(translate(store.lang, 'ev.leak', { block: blockLabel(String(d.block)) }), 'bad');
           break;
         case 'furniture_placed':
-          store.pushLog(`${String(d.emoji ?? '📦')} ${String(d.name)} colocado en ${blockLabel(String(d.block))} (${String(d.room)}).`, 'info');
+          store.pushLog(translate(store.lang, 'ev.furniturePlaced', { e: String(d.emoji ?? '📦'), name: String(d.name), block: blockLabel(String(d.block)), room: String(d.room) }), 'info');
           break;
         case 'furniture_removed':
-          store.pushLog(`${String(d.emoji ?? '📦')} ${String(d.name)} retirado de ${blockLabel(String(d.block))} (+${String(d.refund)} €).`, 'info');
+          store.pushLog(translate(store.lang, 'ev.furnitureRemoved', { e: String(d.emoji ?? '📦'), name: String(d.name), block: blockLabel(String(d.block)), n: String(d.refund) }), 'info');
           break;
         case 'room_renovated':
-          store.pushLog(`🧱 Reforma terminada en ${blockLabel(String(d.block))}. Hay estancia nueva que amueblar.`, 'good');
+          store.pushLog(translate(store.lang, 'ev.roomRenovated', { block: blockLabel(String(d.block)) }), 'good');
           break;
         case 'weather_changed':
-          store.pushLog(`El cielo cambia: ${this.content.rules.labels.weather[String(d.state)] ?? String(d.state)}`, 'info');
+          store.pushLog(translate(store.lang, 'ev.weatherChange', { state: this.content.rules.labels.weather[String(d.state)] ?? String(d.state) }), 'info');
           break;
         case 'rent_collected':
           store.pushToast(translate(store.lang, 'ev.rentCollected', { n: String(d.amount), block: blockLabel(String(d.block)) }), 'good');
@@ -1623,7 +1634,7 @@ class GameController {
           store.pushLog(translate(store.lang, 'ev.workDone', { n: String(d.amount) }), 'info');
           break;
         case 'activity_started':
-          if (d.activity !== 'idle') store.pushLog(`${this.nameOf(d.resident)} ${this.activityLabel(d.resident, String(d.activity))}`, 'info');
+          if (d.activity !== 'idle') store.pushLog(translate(store.lang, 'ev.activity', { n: this.nameOf(d.resident), a: this.activityLabel(d.resident, String(d.activity)) }), 'info');
           break;
         case 'junta_requested': {
           const agenda = (d.agenda as { id: string; title: string; description: string; cost: number }[] | undefined) ?? [];
@@ -1640,7 +1651,7 @@ class GameController {
           );
           break;
         case 'junta_vote_registered':
-          store.pushLog(`🗳️ ${this.nameOf(d.resident)} ha depositado su voto. Pendientes: ${String(d.pendingHumans)}`, 'info');
+          store.pushLog(translate(store.lang, 'ev.voteCast', { name: this.nameOf(d.resident), n: String(d.pendingHumans) }), 'info');
           break;
         case 'junta_closed':
           store.setJunta(null);
@@ -1662,7 +1673,7 @@ class GameController {
         }
         case 'minigame_finished': {
           const name = this.content.minigames[String(d.minigame)]?.name ?? String(d.minigame);
-          store.pushLog(d.success ? `🎮 Minijuego superado: ${name}` : `🎮 Minijuego fallido: ${name}`, d.success ? 'good' : 'bad');
+          store.pushLog(translate(store.lang, d.success ? 'ev.minigameWin' : 'ev.minigameLose', { m: name }), d.success ? 'good' : 'bad');
           break;
         }
         case 'ui_toast':

@@ -2,7 +2,7 @@ import type { AbstractEngine, UniversalCamera, Vector3 } from '@babylonjs/core';
 import type { PlayerPosition } from '@/game/core/types';
 import { B } from './babylon';
 
-export type CamMode = 'edificio' | 'planta' | 'estancia';
+export type CamMode = 'edificio' | 'fachada' | 'planta' | 'estancia';
 const FOV = 0.55;
 
 /** Encuadre cinematográfico (cutscenes, Fase D): a dónde vuela la cámara y con qué alto de vista. */
@@ -25,8 +25,10 @@ export class CameraRig {
    *  propios — cámara elevada mirando el pasillo de frente para verlo hasta el fondo. */
   framing: { pitch: number; xOff: number } | null = null;
   /** v1.36 — alejamiento de la Estancia (rules.view.camera): factores de encuadre y
-   *  margen de borde para que el personaje del EXTREMO del pasillo (planta 0) salga en cuadro. */
-  tuning: { estFloorH: number; estWidthW: number; estMargin: number } = { estFloorH: 2.0, estWidthW: 2.2, estMargin: 0 };
+   *  margen de borde para que el personaje del EXTREMO del pasillo (planta 0) salga en cuadro.
+   *  v1.41 — fachadaFactor: la vista FACHADA (tecla 0) se aleja edificio × factor y se ve
+   *  el bloque entero CON su fachada cerrada (ventanas acristaladas a la altura del pasillo). */
+  tuning: { estFloorH: number; estWidthW: number; estMargin: number; fachadaFactor: number } = { estFloorH: 2.0, estWidthW: 2.2, estMargin: 0, fachadaFactor: 1.32 };
   private readonly pos: Vector3;
   private readonly look: Vector3;
 
@@ -70,6 +72,10 @@ export class CameraRig {
       this.framing = { pitch: 0.12, xOff: 0 };
     } else if (this.mode === 'edificio') {
       viewH = Math.max(this.floors * this.cellH * 1.25, (width * 1.25) / aspect);
+    } else if (this.mode === 'fachada') {
+      // v1.41 — VISTA FACHADA (tecla 0): un paso MÁS ATRÁS que el edificio — el bloque entero
+      // cabe en cuadro CON fachada cerrada (building la fuerza) y la calle completa de fondo.
+      viewH = Math.max(this.floors * this.cellH * 1.25, (width * 1.25) / aspect) * this.tuning.fachadaFactor;
     } else {
       // v1.36 — Estancia MÁS LEJOS (catálogo): antes 2.0/2.2; con el alejamiento del catálogo
       // la planta 0 completa entra en cuadro aunque el personaje llegue al extremo izquierdo.

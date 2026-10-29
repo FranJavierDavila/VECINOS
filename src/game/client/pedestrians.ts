@@ -140,8 +140,12 @@ interface Walker {
   z: number;
   speed: number;
   phase: number;
-  /** 'walk' recorre la acera; 'enter' va hacia el portal y se desvanece; 'exit' sale de él. */
-  mode: 'walk' | 'enter' | 'exit' | 'leave';
+  /** 'walk' recorre la acera; 'enter' va hacia el portal y se desvanece; 'exit' sale de él;
+   *  v1.41 — 'legs' consume la RUTA LATERAL (la única entrada/salida real del edificio). */
+  mode: 'walk' | 'enter' | 'exit' | 'leave' | 'legs';
+  /** v1.41 — cola de puntos de la ruta lateral; al agotarse cae a `legNext`. */
+  legs: { x: number; z: number }[] | null;
+  legNext: 'enter' | 'leave';
   /** Escala para entrar/salir por el portal (desvanecido cartoon). */
   scale: number;
   /** Última orientación aplicada (rad) — solo se escribe si cambia (cero escrituras ociosas). */
@@ -253,26 +257,45 @@ export function createPedestrians(scene: Scene, world: World, content: Content, 
   const spawn = (): void => {
     const slot = free.pop();
     if (!slot) return;
-    const pathIndex = Math.floor(hash01('viandante_ruta', roll) * cfg.paths.length) % cfg.paths.length;
+    let pathIndex = Math.floor(hash01('viandante_ruta', roll) * cfg.paths.length) % cfg.paths.length;
     const path = cfg.paths[pathIndex]!;
     const dir = path.dir >= 0 ? 1 : -1;
     const speed = cfg.speedMin + hash01('viandante_velo', roll) * Math.max(0.1, cfg.speedMax - cfg.speedMin);
     const enterRoll = hash01('viandante_portal', roll);
+    // v1.41 — RUTA LATERAL (catálogo sideRoute): la única entrada/salida real del edificio
+    // recorre la acera lateral (perímetro oeste) y cruza el portal por su pared izquierda.
+    const side = cfg.sideRoute;
     let mode: Walker['mode'] = 'walk';
     let x: number;
+    let legs: { x: number; z: number }[] | null = null;
+    let legNext: Walker['legNext'] = 'enter';
     if (enterRoll < cfg.enterChance) {
-      // Entra al edificio: camina hacia el portal por SU acera y cruza las puertas correderas.
-      mode = 'enter';
+      // Entra al edificio: acera frontal → esquina → acera lateral → fade junto a la pared.
+      mode = 'legs';
+      legNext = 'enter';
       x = dir > 0 ? bounds.min : bounds.max;
+      legs = side
+        ? [{ x: side.sideX, z: side.cornerZ }, { x: side.sideX, z: side.sideZ }, { x: side.sideX + 0.45, z: side.sideZ }]
+        : [{ x: cfg.enterX, z: cfg.enterZ ?? -1.7 }];
     } else if (enterRoll < cfg.enterChance + cfg.exitChance) {
-      // Sale del edificio: nace en el umbral del portal (tras las hojas) y crece al cruzarlas.
-      mode = 'exit';
-      x = cfg.enterX;
+      // Sale del edificio: nace DENTRO del portal junto a su pared izquierda y sale al lateral.
+      mode = 'legs';
+      legNext = 'leave';
+      x = side ? side.portalSideX : cfg.enterX;
+      legs = side
+        ? [{ x: side.sideX - 0.45, z: side.sideZ }, { x: side.sideX, z: side.sideZ }, { x: side.sideX, z: side.cornerZ }]
+        : [];
     } else {
       x = dir > 0 ? bounds.min : bounds.max;
     }
-    const z = mode === 'enter' || mode === 'exit' ? cfg.paths[0]!.z : path.z;
-    const w: Walker = { id: walkerSeq++, gltf: slot.gltf, prim: slot.prim, pathIndex, x, z, speed, phase: hash01('viandante_fase', roll) * 6, mode, scale: mode === 'exit' ? 0.05 : 1, yaw: dir > 0 ? 0 : Math.PI, social: null };
+    // v1.41 — los que ENTRAN usan la acera frontal (paths[0]): la ruta lateral parte de ahí.
+    if (mode === 'legs' && legNext === 'enter') {
+      pathIndex = 0;
+    }
+    const z = mode === 'legs'
+      ? (legNext === 'leave' ? (side ? side.sideZ : cfg.enterZ ?? -1.7) : cfg.paths[0]!.z)
+      : cfg.paths[pathIndex]!.z;
+    const w: Walker = { id: walkerSeq++, gltf: slot.gltf, prim: slot.prim, pathIndex, x, z, speed, phase: hash01('viandante_fase', roll) * 6, mode, legs, legNext, scale: mode === 'legs' && legNext === 'leave' ? 0.05 : 1, yaw: dir > 0 ? 0 : Math.PI, social: null };
     const node = w.gltf ? w.gltf.root : w.prim!.root;
     node.setEnabled(visible);
     node.scaling.setAll(w.scale);
@@ -287,6 +310,16 @@ export function createPedestrians(scene: Scene, world: World, content: Content, 
   const recycle = (w: Walker): void => {
     const node = w.gltf ? w.gltf.root : w.prim!.root;
     node.setEnabled(false);
+    // v1.41 — los emotes vivos colgaban de su nodo: si el rig se reutiliza para otro
+    // viandante, un bocadillo viejo reaparecería sobre cabeza ajena. Se disponen YA.
+    for (const entry of emojiTex.values()) {
+      for (const it of [...entry.meshes]) {
+        if (it.m.parent === node) {
+          it.m.dispose();
+          entry.meshes.splice(entry.meshes.indexOf(it), 1);
+        }
+      }
+    }
     free.push({ gltf: w.gltf, prim: w.prim });
   };
 
@@ -324,8 +357,12 @@ export function createPedestrians(scene: Scene, world: World, content: Content, 
     m.billboardMode = Mesh.BILLBOARDMODE_ALL;
     m.isPickable = false;
     const node = w.gltf ? w.gltf.root : w.prim!.root;
-    m.position.set(node.position.x, node.position.y + (w.gltf ? 1.75 : 1.62), node.position.z);
-    m.scaling.setAll(w.scale);
+    // v1.41 — EL EMOTE VIAJA CON EL VIANDANTE (hijo de su nodo): antes se colocaba UNA vez
+    // en el mundo y el viandante seguía andando — el emoji quedaba flotando sin sentido,
+    // sin estar vinculado a nadie (más visible aún al cambiar de cámara). Como hijo, sigue
+    // la marcha, la escala y la visibilidad del que lo lleva.
+    m.parent = node;
+    m.position.set(0, w.gltf ? 1.75 : 1.62, 0);
     entry.meshes.push({ m, t: seconds });
   };
 
@@ -535,19 +572,39 @@ export function createPedestrians(scene: Scene, world: World, content: Content, 
         // PUERTAS correderas, no se desvanece a mitad de acera.
         const enterZ = cfg.enterZ ?? -1.7;
         let movedX = 0;
-        if (w.mode === 'enter') {
-          // Hacia el portal (por la acera frontal); al acercarse, la z vira al umbral y cruza.
-          const target = cfg.enterX;
-          const d = target - w.x;
-          const step = Math.min(Math.abs(d), w.speed * dt) * Math.sign(d || 1);
-          w.x += step;
-          movedX = step;
-          if (Math.abs(d) < 2.4) {
-            const dzT = enterZ - w.z;
-            w.z += Math.sign(dzT) * Math.min(Math.abs(dzT), w.speed * dt * 0.9);
+        if (w.mode === 'legs') {
+          // v1.41 — RUTA LATERAL: consume la cola de puntos (acera frontal → esquina →
+          // acera lateral → pared del portal). Al acabarla: fundido (entrar) o acera (salir).
+          const t = w.legs![0]!;
+          const dx = t.x - w.x;
+          const dz = t.z - w.z;
+          const d = Math.hypot(dx, dz);
+          const step = w.speed * dt;
+          if (d <= step) {
+            w.x = t.x;
+            w.z = t.z;
+            w.legs = w.legs!.slice(1);
+            if (w.legs.length === 0) {
+              w.legs = null;
+              if (w.legNext === 'enter') {
+                w.mode = 'enter'; // ya junto a la pared: fundido de entrada
+              } else {
+                w.mode = 'exit'; // sale del portal: crece y toma la acera lateral
+              }
+            }
+          } else {
+            w.x += (dx / d) * step;
+            w.z += (dz / d) * step;
+            movedX = dx;
           }
           w.phase += dt * w.speed * 4.2;
-          if (Math.abs(target - w.x) < 0.35 && Math.abs(w.z - enterZ) < 0.45) {
+        } else if (w.mode === 'enter') {
+          // Fundido de entrada junto a la pared lateral (o umbral clásico sin sideRoute):
+          // encoge y desaparece cruzando al vestíbulo.
+          const atWall = cfg.sideRoute
+            ? Math.abs(w.x - (cfg.sideRoute.sideX + 0.45)) < 0.6
+            : Math.abs(w.x - cfg.enterX) < 0.35 && Math.abs(w.z - enterZ) < 0.45;
+          if (atWall) {
             w.scale -= dt * 2.4;
             if (w.scale <= 0.05) {
               recycle(w);
@@ -556,7 +613,7 @@ export function createPedestrians(scene: Scene, world: World, content: Content, 
             }
           }
         } else if (w.mode === 'exit') {
-          // Sale del portal: crece cruzando las hojas y toma la acera.
+          // Sale del portal: crece cruzando la pared y toma la acera.
           w.scale = Math.min(1, w.scale + dt * 2.4);
           if (w.scale >= 1) {
             w.mode = 'leave';

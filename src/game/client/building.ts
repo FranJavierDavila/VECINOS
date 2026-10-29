@@ -1709,7 +1709,30 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       m.emissiveColor = new Color3(0.22, 0.22, 0.22);
       m.alpha = alpha;
       m.backFaceCulling = false;
+      // v1.41 — RECORTE DE VERDAD (II): sin esto, Babylon 8 NO pasa el alpha de la textura
+      // al shader (default false) y el quad se veía como caja translúcida alrededor del
+      // motivo — los grafitis «mal recortados». Con la bandera, el alpha del canvas manda.
+      m.useAlphaFromDiffuseTexture = true;
       return m;
+    };
+    /** v1.41 — subida de decal con RECORTE a la caja del contenido (mismo trato que el
+     *  candado desde v1.26): el quad del catálogo enmarca exactamente el motivo, sin halo
+     *  vacío alrededor. El pad 6 px conserva la pluma del spray. */
+    const decalTex = (name: string, src: HTMLCanvasElement): Texture => {
+      const b = alphaBoundsOf(src);
+      if (!b) return canvasTex(name, src);
+      const pad = 6;
+      const x0 = Math.max(0, b.x0 - pad);
+      const y0 = Math.max(0, b.y0 - pad);
+      const w = Math.min(src.width - x0, b.x1 - b.x0 + pad * 2);
+      const h = Math.min(src.height - y0, b.y1 - b.y0 + pad * 2);
+      const out = document.createElement('canvas');
+      out.width = Math.max(2, Math.round(w));
+      out.height = Math.max(2, Math.round(h));
+      const octx = out.getContext('2d');
+      if (!octx) return canvasTex(name, src);
+      octx.drawImage(src, x0, y0, w, h, 0, 0, w, h);
+      return canvasTex(name, out);
     };
     /** Canvas 2D suelto (nada de DynamicTexture: ver nota v1.40 arriba). */
     const decalCanvas = (name: string, w: number, h: number): { c: HTMLCanvasElement; ctx: CanvasRenderingContext2D } | null => {
@@ -1744,7 +1767,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           c.fillRect(dx, by + r * 0.4, 3 + hash01('chor', i * 9 + d) * 3, 40 + hash01('chor', i * 11 + d) * 70);
         }
       }
-      return canvasTex('decal_humedad_tex', got.c);
+      return decalTex('decal_humedad_tex', got.c);
     };
     /** GRIETAS: trazos oscuros ramificados con tramos en zigzag. */
     const crackTex = (): Texture => {
@@ -1774,7 +1797,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       };
       branch(128, 24, Math.PI / 2 + 0.15, 200, 5, 0);
       branch(70, 120, Math.PI / 2 - 0.5, 110, 3.4, 1);
-      return canvasTex('decal_grieta_tex', got.c);
+      return decalTex('decal_grieta_tex', got.c);
     };
     /** HOLLÍN: penacho gris oscuro que sube (humo viejo sobre fogones/chimenea). */
     const sootTex = (): Texture => {
@@ -1794,7 +1817,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         c.arc(bx, by, Math.max(8, r), 0, Math.PI * 2);
         c.fill();
       }
-      return canvasTex('decal_hollin_tex', got.c);
+      return decalTex('decal_hollin_tex', got.c);
     };
     /** Mugre del pasillo: charcos grises/verdosos en el suelo. */
     const grimeTex = (): Texture => {
@@ -1814,7 +1837,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         c.arc(bx, by, r, 0, Math.PI * 2);
         c.fill();
       }
-      return canvasTex('decal_mugre_tex', got.c);
+      return decalTex('decal_mugre_tex', got.c);
     };
     /** GRAFITI: texto en spray con contorno, goteos y un dibujo (corona, estrella, gato,
      *  flecha, carita, rayo) — todo gracioso y del catálogo. Cache por variante: el dataURL
@@ -1951,7 +1974,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         c.moveTo(dx0 - 6, dy0 + 8); c.lineTo(dx0 - 2, dy0 + 12); c.moveTo(dx0, dy0 + 9); c.lineTo(dx0 + 4, dy0 + 13);
         c.stroke();
       }
-      const out = canvasTex('decal_grafiti_tex', got.c);
+      const out = decalTex('decal_grafiti_tex', got.c);
       graffitiCache.set(key, out);
       return out;
     };
@@ -2014,7 +2037,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         const dep = depthOf(b);
         const backZ = frontZ + dep - v.wall - 0.012;
         const y0 = b.cell.floor * v.cellH + v.slab * 2;
-        const kinds: { key: string; tex: DynamicTexture | null; from: number; to: number; invert?: boolean; w: number; h: number }[] = [];
+        const kinds: { key: string; tex: Texture | null; from: number; to: number; invert?: boolean; w: number; h: number }[] = [];
         if (decayCfg.humidity && humTex) kinds.push({ key: 'humedad', tex: humTex, from: decayCfg.humidity.min, to: decayCfg.humidity.max, w: decayCfg.humidity.w, h: decayCfg.humidity.h });
         if (decayCfg.soot && soTex) kinds.push({ key: 'hollin', tex: soTex, from: decayCfg.soot.min, to: decayCfg.soot.max, w: decayCfg.soot.w, h: decayCfg.soot.h });
         if (decayCfg.cracks && grTex) kinds.push({ key: 'grietas', tex: grTex, from: 0, to: decayCfg.cracks.conditionMax, invert: true, w: decayCfg.cracks.w, h: decayCfg.cracks.h });
@@ -3210,7 +3233,10 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
 
   /** Visibilidad efectiva de fachada/puerta/candado: candado solo si access='locked';
    *  fachada cerrada si está bloqueada O si la privacidad la cierra (nadie dentro).
-   *  paint() la fija por el acceso y el LOD puede ocultarlos encima. */
+   *  paint() la fija por el acceso y el LOD puede ocultarlos encima.
+   *  v1.41 — VISTA FACHADA (tecla 0): TODO cerrado — la fachada entera se ve acristalada
+   *  (cortina con ventanas a la altura del pasillo) y el interior solo se entreve por ellas. */
+  let fachadaView = false;
   function applyPanels(view: BlockView, b: BlockInstance, occ?: Set<string>) {
     const locked = b.kind === 'dwelling' && b.access === 'locked';
     // v1.30 — los locales con interior (trastero comunitario, sala de juntas) usaban la
@@ -3227,7 +3253,10 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         privacyClosed = playerInside !== b.id && juntaHallId !== b.id;
       }
     }
-    const wall = (locked || privacyClosed) && !view.lodHiddenPanels;
+    // v1.41 — en vista FACHADA todas las fachadas están CERRADAS (sin seccionar): la cámara
+    // exterior ve el bloque como un edificio de verdad y el interior solo se entreve por
+    // las ventanas de la cortina acristalada.
+    const wall = (fachadaView || locked || privacyClosed) && !view.lodHiddenPanels;
     view.front?.setEnabled(wall);
     for (const p of view.frontParts) p.setEnabled(wall); // v1.28: fachada partida — todo o nada
     view.door?.setEnabled(wall);
@@ -3245,8 +3274,8 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     // levantada o el cristal correído enseñan el vestíbulo/interior sin entrar).
     const interior = interiors.get(b.id);
     if (interior?.dioRoot) {
-      let show = !wall;
-      if (!show && (b.defId === 'garaje' || b.defId === 'portal')) {
+      let show = !wall && !fachadaView;
+      if (!show && !fachadaView && (b.defId === 'garaje' || b.defId === 'portal')) {
         const openT = b.defId === 'portal' ? portalOpen : garajeLiftT;
         // v1.36 — reveal DESDE EL PRIMER MILÍMETRO de puerta (catálogo hallDoors.revealAt):
         // «tan pronto se levanta la puerta se ve el interior sin esperar a entrar».
@@ -3313,7 +3342,66 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     }
   }
 
+  // ── v1.41 — CORTINA ACRISTALADA de la vista FACHADA (tecla 0): cierra TODA la fachada
+  // con ventanas repartidas a la altura de los pasillos (galería acristalada: vidrio
+  // translúcido + montantes cada celda). Por el vidrio se ENTREVE la galería — vecinos
+  // paseando, luces de noche — y nada más: el interior solo se ve por los huecos de
+  // ventana, como pidió el vecino. NADA COPLANAR: vidrio a 4,5 cm del canto de la galería,
+  // marcos a 6 cm (el canto de la losa está exactamente en railZ).
+  const fachadaRoot = new TransformNode('fachada_cortina', scene);
+  {
+    const glassM = mat('fachada_cristal_mat');
+    glassM.diffuseColor = Color3.FromHexString('#cdd9dd');
+    glassM.alpha = 0.16;
+    glassM.specularColor = new Color3(0.04, 0.04, 0.04);
+    glassM.backFaceCulling = false;
+    const frameM = mat('fachada_marco_mat');
+    frameM.diffuseColor = Color3.FromHexString('#565d63');
+    frameM.specularColor = new Color3(0.03, 0.03, 0.03);
+    const railZ = v.roomZ - v.commonDepth / 2 - v.corridorDepth;
+    const glassZ = railZ - 0.045;
+    const frameZ = railZ - 0.06;
+    for (const b of Object.values(world.blocks)) {
+      if (b.layer !== 'corridor') continue;
+      const x0 = b.cell.col * v.cellW;
+      const W = b.size.w * v.cellW;
+      const y0 = b.cell.floor * v.cellH + v.slab * 2 + 0.06;
+      const openH = Math.max(0.4, v.cellH - v.slab * 2 - 0.18);
+      const cxm = x0 + W / 2;
+      const ym = y0 + openH / 2;
+      const glass = MeshBuilder.CreatePlane(`fachada_vidrio_${b.id}`, { width: W - 0.05, height: openH }, scene);
+      glass.position.set(cxm, ym, glassZ);
+      glass.material = glassM;
+      glass.isPickable = false;
+      glass.parent = fachadaRoot;
+      // Dintel y viðo del hueco (horizontal) + montante vertical en cada división de celda:
+      // la fachada queda repartida en ventanas de un ancho de calle (cellW).
+      for (const [tag, yy] of [['abajo', y0 - 0.045], ['arriba', y0 + openH + 0.045]] as const) {
+        const bar = box(`fachada_barra_${tag}_${b.id}`, W, 0.09, 0.09, cxm, yy, frameZ, frameM);
+        bar.isPickable = false;
+        bar.parent = fachadaRoot;
+      }
+      for (let k = 0; k <= b.size.w; k++) {
+        const mullion = box(`fachada_montante_${b.id}_${k}`, 0.07, openH + 0.2, 0.09, x0 + k * v.cellW, ym, frameZ, frameM);
+        mullion.isPickable = false;
+        mullion.parent = fachadaRoot;
+      }
+    }
+    fachadaRoot.setEnabled(false);
+  }
+
   return {
+    /** v1.41 — conmutador de la VISTA FACHADA (el controlador lo manda al cambiar de cámara):
+     *  cierra todas las fachadas (applyPanels) y muestra la cortina acristalada. */
+    setFachadaView(on: boolean): void {
+      if (fachadaView === on) return;
+      fachadaView = on;
+      fachadaRoot.setEnabled(on);
+      for (const b of Object.values(world.blocks)) {
+        const view = views.get(b.id);
+        if (view) applyPanels(view, b);
+      }
+    },
     paint() {
       for (const b of Object.values(world.blocks)) {
         const view = views.get(b.id)!;
@@ -3645,7 +3733,8 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       // bloque, su fachada se desvanece (corte de muñecas) y la cámara frontal ve TODO el
       // pasillo hasta el fondo. Al salir, la fachada vuelve. Fundido del catálogo.
       for (const [blkId, parts] of storageFacades) {
-        const target = pos && pos.insideBlock === blkId ? 0 : 1;
+        // v1.41 — en vista FACHADA las fachadas de trasteros NUNCA se desvanecen (todo cerrado).
+        const target = fachadaView ? 1 : pos && pos.insideBlock === blkId ? 0 : 1;
         let alpha = facadeAlphas.get(blkId) ?? 1;
         if (alpha !== target) {
           alpha += Math.sign(target - alpha) * Math.min(Math.abs(target - alpha), dt / Math.max(0.05, v.rearBlock.fadeSeconds));
@@ -3659,12 +3748,14 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       }
       // APILAMIENTO 3D (v1.19): avanzar los fundidos de los bloques traseros.
       for (const r of rears.values()) {
-        const mainT = r.phase === 'inside' ? 0 : 1;
-        const rearT = r.phase === 'idle' ? 0 : 1;
+        // v1.41 — en vista FACHADA el edificio se ve ENTERO: los fundidos del apilamiento
+        // se quedan en reposo (principal visible, trasero oculto).
+        const mainT = fachadaView ? 1 : r.phase === 'inside' ? 0 : 1;
+        const rearT = fachadaView ? 0 : r.phase === 'idle' ? 0 : 1;
         // v1.20: la PARED DIVISORIA del bloque trasero desaparece al entrar (fase 'inside').
         // Se evalúa SIEMPRE (incluso con los fundidos ya asentados): es un cambio de fase,
         // no de alpha — el early-continue de abajo no la vería.
-        const frontOpen = r.phase === 'inside';
+        const frontOpen = r.phase === 'inside' && !fachadaView;
         for (const f of r.frontParts) f.setEnabled(!frontOpen);
         if (r.settled && r.mainAlpha === mainT && r.rearAlpha === rearT) continue;
         const mRate = dt / Math.max(0.05, rb.fadeSeconds);

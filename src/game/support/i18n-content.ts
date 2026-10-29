@@ -14,12 +14,16 @@ type Lang = 'es' | 'en';
  * Se aplica DESPUÉS de cargar el contenido y ANTES de expandir tokens estructurales
  * (applyStaticTokens), para que las traducciones también reciban {plantas}/{blk:id}.
  * El sim solo lee textos aquí vivos: traducir no toca gameplay ni determinismo.
+ *
+ * v1.41 — SNAPSHOT ÚNICO: el clon ES se captura UNA sola vez (en el PRIMER pase a EN).
+ * Antes se guardaba la REFERENCIA (el walk la mutaba: restaurar era un no-op) y después
+ * se re-guardaba en cada apply — si el overlay corría dos veces (doble restart), el
+ * segundo «original» era contenido ya en EN y volver a ES quedaba envenenado. Ahora el
+ * snapshot nace siempre de contenido castellano y la ida y vuelta ES↔EN es idempotente.
  */
 
-let originals: Pick<
-  Content,
-  'missions' | 'dialogs' | 'influences' | 'ecosystem' | 'archetypes' | 'rules' | 'crossings' | 'street' | 'cutscenes' | 'minigames'
-> | null = null;
+type SnapshotKeys = 'missions' | 'dialogs' | 'influences' | 'ecosystem' | 'archetypes' | 'rules' | 'crossings' | 'street' | 'cutscenes' | 'minigames' | 'sounds';
+let esSnapshot: Partial<Pick<Content, SnapshotKeys>> | null = null;
 let appliedLang: Lang = 'es';
 
 type Dict = Record<string, string>;
@@ -63,44 +67,50 @@ function walk(o: unknown): void {
   }
 }
 
+function snapshotOf(content: Content): Partial<Pick<Content, SnapshotKeys>> {
+  return {
+    missions: structuredClone(content.missions),
+    dialogs: structuredClone(content.dialogs),
+    influences: structuredClone(content.influences),
+    ecosystem: structuredClone(content.ecosystem),
+    archetypes: structuredClone(content.archetypes),
+    rules: structuredClone(content.rules),
+    crossings: structuredClone(content.crossings),
+    street: structuredClone(content.street),
+    cutscenes: structuredClone(content.cutscenes),
+    minigames: structuredClone(content.minigames),
+    sounds: content.sounds ? structuredClone(content.sounds) : undefined,
+  };
+}
+
+function restore(content: Content): void {
+  if (!esSnapshot) return;
+  content.missions = esSnapshot.missions!;
+  content.dialogs = esSnapshot.dialogs!;
+  content.influences = esSnapshot.influences!;
+  content.ecosystem = esSnapshot.ecosystem!;
+  content.archetypes = esSnapshot.archetypes!;
+  content.rules = esSnapshot.rules!;
+  content.crossings = esSnapshot.crossings!;
+  content.street = esSnapshot.street!;
+  content.cutscenes = esSnapshot.cutscenes!;
+  content.minigames = esSnapshot.minigames!;
+  if (esSnapshot.sounds) content.sounds = esSnapshot.sounds;
+}
+
 /**
  * Aplica (o restaura) el idioma sobre los catálogos narrativos del contenido.
- * Idempotente: guarda los originales la primera vez que traduce y desde ahí alterna.
+ * Idempotente: el snapshot ES se captura una sola vez; repetir 'en' re-pasea (no-op
+ * sobre texto ya traducido) y repetir 'es' restaura el mismo clon.
  */
 export function applyContentLanguage(content: Content, lang: Lang): void {
-  if (lang === appliedLang) return;
   if (lang === 'es') {
-    if (originals) {
-      content.missions = originals.missions;
-      content.dialogs = originals.dialogs;
-      content.influences = originals.influences;
-      content.ecosystem = originals.ecosystem;
-      content.archetypes = originals.archetypes;
-      content.rules = originals.rules;
-      content.crossings = originals.crossings;
-      content.street = originals.street;
-      content.cutscenes = originals.cutscenes;
-      content.minigames = originals.minigames;
-      originals = null;
-    }
+    restore(content);
     appliedLang = 'es';
     return;
   }
-  // Traducir: conserva los originales para poder volver a ES sin recargar.
-  if (!originals) {
-    originals = {
-      missions: content.missions,
-      dialogs: content.dialogs,
-      influences: content.influences,
-      ecosystem: content.ecosystem,
-      archetypes: content.archetypes,
-      rules: content.rules,
-      crossings: content.crossings,
-      street: content.street,
-      cutscenes: content.cutscenes,
-      minigames: content.minigames,
-    };
-  }
+  // Traducir: el snapshot ES nace SIEMPRE de contenido castellano (primera vez).
+  if (!esSnapshot) esSnapshot = snapshotOf(content);
   if (dict === null) {
     // Diccionario aún en vuelo: se aplicará cuando llegue (ver applyContentLanguageAsync).
     appliedLang = 'en';
@@ -120,17 +130,29 @@ export function applyContentLanguage(content: Content, lang: Lang): void {
   walk(content.street);
   walk(content.cutscenes);
   walk(content.minigames);
+  // v1.41 — las VOCES DE PROXIMIDAD (captions «grr…», «fiu-fiu~») también se traducen:
+  // vivían en sounds.json y el pase del idioma las dejaba en castellano.
+  if (content.sounds) walk(content.sounds);
   appliedLang = 'en';
 }
 
 /** Versión asíncrona: garantiza el diccionario antes de traducir (el arranque la usa). */
 export async function applyContentLanguageAsync(content: Content, lang: Lang): Promise<void> {
   await loadDict();
-  appliedLang = 'es'; // fuerza el pase aunque el idioma no haya cambiado desde el arranque
   applyContentLanguage(content, lang);
 }
 
 /** ¿El diccionario de traducciones ya está disponible? (QA/arranque). */
 export function translationsReady(): boolean {
   return dict !== null;
+}
+
+// v1.41 — sonda de QA (SOLO dev): estado del overlay observable desde el E2E.
+if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+  (window as unknown as Record<string, unknown>).__vecinosI18n = {
+    hasSnapshot: () => esSnapshot !== null,
+    applied: () => appliedLang,
+    dictReady: () => dict !== null,
+    dictSize: () => (dict ? Object.keys(dict).length : 0),
+  };
 }

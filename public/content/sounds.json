@@ -765,6 +765,45 @@
           "atMs": 0
         }
       ]
+    },
+    "claxon": {
+      "kind": "seq",
+      "steps": [
+        {
+          "wave": "square",
+          "freq": 392,
+          "durMs": 300,
+          "gain": 0.1,
+          "atMs": 0
+        },
+        {
+          "wave": "square",
+          "freq": 311,
+          "durMs": 420,
+          "gain": 0.1,
+          "atMs": 260
+        }
+      ]
+    },
+    "frenazo": {
+      "kind": "seq",
+      "steps": [
+        {
+          "kind": "noise",
+          "durMs": 520,
+          "gain": 0.09,
+          "filterHz": 2400,
+          "atMs": 0
+        },
+        {
+          "wave": "sawtooth",
+          "freq": 1400,
+          "freqEnd": 420,
+          "durMs": 520,
+          "gain": 0.05,
+          "atMs": 0
+        }
+      ]
     }
   },
   "events": {

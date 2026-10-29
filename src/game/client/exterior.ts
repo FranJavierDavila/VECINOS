@@ -28,6 +28,8 @@ export interface ExteriorDirector {
   update(dt: number): void;
   /** Mobiliario ON solo en vista "edificio" (v1.21): idempotente. */
   setPropsVisible(visible: boolean): void;
+  /** v1.41 — bancos exteriores construidos (acera frontal): asientos del paseo vecinal. */
+  benches(): { x: number; z: number }[];
   dispose(): void;
 }
 
@@ -35,7 +37,7 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
   const { Color3, Mesh, MeshBuilder, StandardMaterial, TransformNode } = B();
   const cfg = content.rules.view.exterior;
   if (!cfg.enabled || cfg.rows.length === 0) {
-    return { update() {}, setPropsVisible() {}, dispose() {} };
+    return { update() {}, setPropsVisible() {}, benches: () => [], dispose() {} };
   }
   const mats = new Map<string, StandardMaterial>();
   const root: Mesh[] = [];
@@ -151,6 +153,8 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
 
   // Farolas encendidas/apagadas: sus materiales emisivos se actualizan por frame.
   const lampMats: { mat: StandardMaterial; hex: string }[] = [];
+  // v1.41 — bancos exteriores (asientos del paseo vecinal).
+  const benchSpots: { x: number; z: number }[] = [];
 
   cfg.rows.forEach((row, ri) => {
     const def = content.blocks[row.defId];
@@ -226,6 +230,9 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
         const u = u0 + ex.benchEvery * (i + 0.5) + (hash01(`bench${ri}`, i) - 0.5) * 0.8;
         const v = vCenter + (hash01(`benchZ${ri}`, i) - 0.5) * vLen * 0.4;
         const p = at(u, v);
+        // v1.41 — asiento registrado para el paseo vecinal (solo bancos de la acera FRONTAL:
+        // filas horizontales con v por debajo de la línea del edificio).
+        if (horizontal && p.z < -3.4) benchSpots.push({ x: p.x, z: p.z });
         const y = ex.height;
         box(`calle_${ri}_banco_asiento`, props, horizontal ? 1.6 : 0.5, 0.07, horizontal ? 0.5 : 1.6, p.x, y + 0.42, p.z, matOf(ex.benchColor, 'bench')).parent = propsNode;
         const back = at(u, v + (horizontal ? -0.22 : 0.22));
@@ -477,6 +484,7 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
       propsVisible = visible;
       propsNode.setEnabled(visible);
     },
+    benches: () => benchSpots,
     dispose() {
       dispose();
     },

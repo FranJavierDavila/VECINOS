@@ -9,7 +9,7 @@ import type { ColorblindMode, Lang, PerfTarget, TextScale } from './options';
 // ───────────────────────── Tipos de la interfaz ─────────────────────────
 
 export type Tone = 'info' | 'good' | 'bad';
-export type CamMode = 'edificio' | 'planta' | 'estancia';
+export type CamMode = 'edificio' | 'fachada' | 'planta' | 'estancia';
 export type Speed = 1 | 3 | 10;
 
 /** Estado de la sesión multijugador en la interfaz ('off' = sin sesión). */
