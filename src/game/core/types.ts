@@ -986,12 +986,18 @@ export interface CharacterDetailSpec {
   prop?: 'none' | 'clipboard' | 'briefcase' | 'spray' | 'guitar' | 'baguette';
   /** Bigote facial (silueta frontal inconfundible). */
   mustache?: string | null;
+  /** v1.44 — encorvamiento (0..0.3): postura del señor mayor (hoja del Presidente). */
+  hunch?: number;
+  /** v1.44 — escala de la cabeza (1 normal; 1.16 corpulento caricaturesco). */
+  headScale?: number;
+  /** v1.44 — corpulencia del torso (1 normal; 1.2 ancho). */
+  bulk?: number;
 }
 
 export interface CharacterDetailsCatalog {
   version: 1;
   /** Configuración del LOD de personaje (distancias de cámara en metros). */
-  lod: { enabled: boolean; nearDist: number; hysteresis: number };
+  lod: { enabled: boolean; nearDist: number; midDist: number; hysteresis: number };
   /** Especificación por ARQUETIPO (el resto de vecinos usan `defaults`). */
   byArchetype: Record<string, CharacterDetailSpec>;
   /** Especificación genérica (fallback para cualquier arquetipo sin entrada propia). */

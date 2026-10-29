@@ -298,7 +298,7 @@ export function createDioramaDirector(scene: Scene, content: Content): DioramaDi
     // interior sale de la hemisférica con su groundColor elevado (controller) + el glow
     // nocturno del catálogo; la capa de bloom excluye estas mallas (glowExcluded).
     if (keyed) {
-      m.transparencyMode = 2; // ALPHATEST: recorte duro, sin líos de orden con los actores
+      m.transparencyMode = 1; // ALPHATEST (1, no 2=ALPHABLEND): recorte duro, sin líos de orden con los actores
       m.alphaCutOff = cat.alphaCutoff;
       // v1.26 — CRÍTICO: Babylon 8 dejó el default de useAlphaFromDiffuseTexture en FALSE.
       // Sin esto, el alpha de la textura JAMÁS entra en el alpha del shader (el compilado

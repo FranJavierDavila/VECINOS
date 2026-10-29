@@ -104,9 +104,8 @@ interface Actor {
   rigMeshes: Mesh[];
   /** v1.43 — personaje detallado (se construye PEREZOSO la primera vez que la cámara se acerca). */
   detail: CharacterDetailRig | null;
-  /** v1.43 — estado del LOD cercano con histéresis (evita parpadeos en el umbral). */
-  detNear: boolean;
-  detShown: boolean;
+  /** v1.44 — nivel LOD vigente: 0 = rig glTF, 1 = detalle medio, 2 = detalle completo. */
+  detLevel: 0 | 1 | 2;
 }
 
 /**
@@ -166,6 +165,8 @@ export interface ActorsDirector {
   setObstacles(rects: { x0: number; z0: number; w: number; d: number }[]): void;
   /** Gira el actor hacia un punto del mundo (charla de cruce: mirarse al hablar). */
   faceToward(id: string, x: number, z: number): void;
+  /** v1.44 — nivel LOD vigente del actor (0 rig, 1 medio, 2 detallado); -1 si no existe. */
+  lodOf(id: string): number;
 }
 
 /**
@@ -194,7 +195,7 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
     m.emissiveColor = m.diffuseColor.scale(0.25);
     mesh.material = m;
     mesh.isPickable = false;
-    const a: Actor = { id, node: mesh, height, pivotY: height / 2, path: [], wanderT: 0, wanderLap: 0, targetLocal: null, lastLoc: null, directed: false, yaw: 0, targetYaw: null, gesture: null, gestureT: 0, seated: false, seatPending: null, elevatorReq: null, ridePhase: null, enabledPrev: false, stowedBlock: null, rig: null, chatT: 0, carry: null, carryKind: null, carryManual: null, lying: false, bobBase: null, umbrella: null, umbrellaWant: false, umbrellaK: 0, bags: null, bagsWant: false, fade: 1, rigMeshes: [], detail: null, detNear: false, detShown: false };
+    const a: Actor = { id, node: mesh, height, pivotY: height / 2, path: [], wanderT: 0, wanderLap: 0, targetLocal: null, lastLoc: null, directed: false, yaw: 0, targetYaw: null, gesture: null, gestureT: 0, seated: false, seatPending: null, elevatorReq: null, ridePhase: null, enabledPrev: false, stowedBlock: null, rig: null, chatT: 0, carry: null, carryKind: null, carryManual: null, lying: false, bobBase: null, umbrella: null, umbrellaWant: false, umbrellaK: 0, bags: null, bagsWant: false, fade: 1, rigMeshes: [], detail: null, detLevel: 0 };
     actors.set(id, a);
 
     // Arte final (opcional): modelo glTF del manifiesto; cualquier fallo → cápsula.
@@ -479,8 +480,8 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
         if (!nowEnabled || stowedHere) {
           a.enabledPrev = false;
           // v1.43 — el detallado sigue al cuerpo: fuera de escena, fuera detalle.
-          if (a.detail && a.detShown) {
-            a.detShown = false;
+          if (a.detail && a.detLevel !== 0) {
+            a.detLevel = 0;
             a.detail.setEnabled(false);
             for (const m of a.rigMeshes) m.setEnabled(true);
           }
@@ -917,27 +918,31 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
           a.rig.play(clip, rate);
         }
 
-        // ── v1.43 — LOD DEL PERSONAJE: lejos, el rig glTF de siempre; cerca, el personaje
-        //  detallado (silueta reconocible: peinado, gafas, corbata, nariz, accesorio).
-        //  Histéresis para no parpadear en el umbral; construcción PEREZOSA (solo paga
-        //  quien se acerca) y UN solo cuerpo visible (rig oculto ⇄ detalle visible). ──
+        // ── v1.44 — LOD DEL PERSONAJE EN TRES NIVELES: lejos, el rig glTF de siempre;
+        //  a media distancia, silueta detallada (pelo, gafas, nariz, traje); de cerca,
+        //  TODO (ojos, cejas, varillas, hebilla, papel del portapapeles). Histéresis en
+        //  ambos umbrales; construcción PEREZOSA y UN solo cuerpo visible. ──
         if (detailCfg?.enabled && a.rig) {
           const cam = scene.activeCamera;
           const dist = cam ? Math.sqrt((cam.position.x - node.x) ** 2 + (cam.position.y - node.y) ** 2 + (cam.position.z - node.z) ** 2) : Infinity;
-          if (!a.detNear && dist < detailCfg.nearDist) a.detNear = true;
-          else if (a.detNear && dist > detailCfg.nearDist + detailCfg.hysteresis) a.detNear = false;
-          if (a.detNear && !a.detail) {
+          let lvl: 0 | 1 | 2 = 0;
+          if (dist < detailCfg.nearDist) lvl = 2;
+          else if (a.detLevel === 2 && dist < detailCfg.nearDist + detailCfg.hysteresis) lvl = 2;
+          else if (dist < detailCfg.midDist) lvl = 1;
+          else if (a.detLevel === 1 && dist < detailCfg.midDist + detailCfg.hysteresis) lvl = 1;
+          if (lvl > 0 && !a.detail) {
             const spec = content.characterDetails?.byArchetype[r.archetype] ?? content.characterDetails?.defaults;
             a.detail = spec ? buildCharacterDetail(scene, id, spec, a.height) : null;
             a.detail?.setFade(a.fade);
           }
           if (a.detail) {
-            if (a.detNear !== a.detShown) {
-              a.detShown = a.detNear;
-              for (const m of a.rigMeshes) m.setEnabled(!a.detNear);
-              a.detail.setEnabled(a.detNear);
+            if (lvl !== a.detLevel) {
+              a.detLevel = lvl;
+              for (const m of a.rigMeshes) m.setEnabled(lvl === 0);
+              a.detail.setEnabled(lvl > 0);
+              a.detail.setTier(lvl === 2 ? 2 : 1);
             }
-            if (a.detNear) {
+            if (lvl > 0) {
               // El detallado es HERMANO del nodo: posición y pose (rumbo + tumbado) copiadas 1:1.
               a.detail.root.position.copyFrom(a.node.position);
               const q = a.node.rotationQuaternion;
@@ -953,13 +958,14 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
                 gesture: a.gesture,
                 seated: a.seated && a.path.length === 0,
                 fade: a.fade,
-                enabled: true,
               });
             }
+          } else {
+            a.detLevel = 0; // sin catálogo aplicable: rig como siempre
           }
-        } else if (a.detail && a.detShown) {
+        } else if (a.detail && a.detLevel !== 0) {
           // El LOD se apagó (o el rig aún carga): todo como siempre.
-          a.detShown = false;
+          a.detLevel = 0;
           for (const m of a.rigMeshes) m.setEnabled(true);
           a.detail.setEnabled(false);
         }
@@ -1139,6 +1145,11 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
         const a = actors.get(id);
         if (!a) return;
         a.carryManual = kind;
+      },
+      /** v1.44 — nivel LOD vigente (sonda de verificación E2E). */
+      lodOf(id: string): number {
+        const a = actors.get(id);
+        return a ? a.detLevel : -1;
       },
       /** Gira hacia un punto del mundo (arco corto con el ritmo del catálogo). */
       faceToward(id: string, x: number, z: number): void {

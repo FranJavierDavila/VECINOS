@@ -2813,6 +2813,9 @@ export type PersonalitiesCatalogParsed = z.infer<typeof personalitiesCatalogSche
 
 const characterDetailSpecSchema = z.object({
   height: z.number().positive().optional(),
+  hunch: z.number().min(0).max(0.3).optional(),
+  headScale: z.number().min(0.5).max(2).optional(),
+  bulk: z.number().min(0.5).max(2).optional(),
   skin: z.string(),
   hairColor: z.string(),
   hairStyle: z.enum(['baldSides', 'bun', 'cap', 'short', 'full', 'headphones']),
@@ -2844,6 +2847,7 @@ export const characterDetailsCatalogSchema = z.object({
   lod: z.object({
     enabled: z.boolean().default(true),
     nearDist: z.number().positive().default(10.5),
+    midDist: z.number().positive().default(22),
     hysteresis: z.number().min(0).default(3),
   }),
   byArchetype: z.record(z.string(), characterDetailSpecSchema).default({}),

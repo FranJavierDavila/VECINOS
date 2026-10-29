@@ -394,7 +394,7 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
     const m = new StandardMaterial(`trafico_${kind}_${part}_mat`, scene);
     m.diffuseTexture = tex;
     m.useAlphaFromDiffuseTexture = true;
-    m.transparencyMode = 2; // ALPHATEST: recorte duro del texto, sin velos
+    m.transparencyMode = 1; // ALPHATEST (1, no 2=ALPHABLEND): recorte duro del texto, sin velos
     m.alphaCutOff = 0.4;
     m.specularColor = new Color3(0, 0, 0);
     m.backFaceCulling = true;

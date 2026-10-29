@@ -1458,7 +1458,12 @@ class GameController {
     this.syncRear(pos);
     // v1.24: posiciones de todos los vecinos en escena — abren las puertas de escalera al
     // acercarse y encienden su iluminación compartida de noche al moverse por los cubos.
-    const movers: { x: number; y: number; z: number }[] = [{ x: pos.x, y: pos.floor * (this.content?.rules.view.cellH ?? 2.6), z: pos.z }];
+    // v1.44 — el JUGADOR FUERA (mode 'outside') NO abre puertas: pasear delante del garaje,
+    // la sala o las escaleras (o del propio portal desde la acera) no abre nada ni dispara
+    // avisos — solo cuenta quien está DENTRO del edificio (vecinos, extras, visitantes).
+    const movers: { x: number; y: number; z: number; outside?: boolean }[] = [
+      { x: pos.x, y: pos.floor * (this.content?.rules.view.cellH ?? 2.6), z: pos.z, outside: pos.mode === 'outside' },
+    ];
     if (this.world && this.actors) {
       for (const r of Object.values(this.world.residents)) {
         if (!r.present || r.location === null) continue;

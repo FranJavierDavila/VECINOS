@@ -278,7 +278,7 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
             m2.diffuseTexture = loaded!.tex;
             m2.opacityTexture = loaded!.tex;
             m2.useAlphaFromDiffuseTexture = true;
-            m2.transparencyMode = 2; // ALPHATEST: sin líos de orden de mezcla
+            m2.transparencyMode = 1; // ALPHATEST (1, no 2=ALPHABLEND): profundidad por píxel, sin líos de orden de mezcla
             m2.alphaCutOff = 0.45;
             m2.specularColor = new Color3(0, 0, 0);
             m2.backFaceCulling = true;
@@ -340,7 +340,7 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
       m2.diffuseTexture = loaded!.tex;
       m2.opacityTexture = loaded!.tex;
       m2.useAlphaFromDiffuseTexture = true;
-      m2.transparencyMode = 2;
+      m2.transparencyMode = 1; // ALPHATEST: igual que los dispersos
       m2.alphaCutOff = 0.45;
       m2.specularColor = new Color3(0, 0, 0);
       m2.backFaceCulling = true;

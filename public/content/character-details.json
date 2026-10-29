@@ -3,6 +3,7 @@
   "lod": {
     "enabled": true,
     "nearDist": 10.5,
+    "midDist": 22,
     "hysteresis": 3
   },
   "defaults": {
@@ -14,24 +15,37 @@
     "suit": null,
     "bottom": "#4f5866",
     "shoes": "#4a3527",
-    "belt": { "strap": "#5b4632", "buckle": "#c9a227" },
+    "belt": {
+      "strap": "#5b4632",
+      "buckle": "#c9a227"
+    },
     "prop": "none",
     "mustache": null
   },
   "byArchetype": {
     "presidente": {
       "height": 1.32,
-      "skin": "#e2a97e",
-      "hairColor": "#c9c2b6",
+      "skin": "#e8b48e",
+      "hairColor": "#d6d0c8",
       "hairStyle": "baldSides",
       "glasses": "clear",
-      "top": "#3d362f",
-      "suit": { "lapel": "#322c26", "shirt": "#f1eee6", "tie": "#97a0b4" },
-      "bottom": "#6e5b44",
-      "shoes": "#5f3d26",
-      "belt": { "strap": "#4c3524", "buckle": "#cfa63f" },
+      "top": "#453a33",
+      "suit": {
+        "lapel": "#382f29",
+        "shirt": "#f2efe8",
+        "tie": "#9aa3b8"
+      },
+      "bottom": "#6b5843",
+      "shoes": "#6b3f24",
+      "belt": {
+        "strap": "#5a3c26",
+        "buckle": "#d2a63f"
+      },
       "prop": "clipboard",
-      "mustache": "#b8b1a5"
+      "mustache": "#c9c3b8",
+      "hunch": 0.12,
+      "headScale": 1.16,
+      "bulk": 1.2
     },
     "jugador_base": {
       "height": 1.3,
@@ -43,7 +57,10 @@
       "suit": null,
       "bottom": "#46586e",
       "shoes": "#e8e4dc",
-      "belt": { "strap": "#5b4632", "buckle": "#c9a227" },
+      "belt": {
+        "strap": "#5b4632",
+        "buckle": "#c9a227"
+      },
       "prop": "none",
       "mustache": null
     },
@@ -71,7 +88,10 @@
       "suit": null,
       "bottom": "#33393f",
       "shoes": "#e8e4dc",
-      "belt": { "strap": "#22262b", "buckle": "#ffd166" },
+      "belt": {
+        "strap": "#22262b",
+        "buckle": "#ffd166"
+      },
       "prop": "none",
       "mustache": null
     },
@@ -87,7 +107,9 @@
       "shoes": "#6e5b44",
       "belt": null,
       "prop": "none",
-      "mustache": null
+      "mustache": null,
+      "hunch": 0.06,
+      "headScale": 1.08
     },
     "estudiante": {
       "height": 1.26,
@@ -124,10 +146,17 @@
       "hairStyle": "short",
       "glasses": "sun",
       "top": "#232323",
-      "suit": { "lapel": "#1a1a1d", "shirt": "#e8e4dc", "tie": "#ffd60a" },
+      "suit": {
+        "lapel": "#1a1a1d",
+        "shirt": "#e8e4dc",
+        "tie": "#ffd60a"
+      },
       "bottom": "#232323",
       "shoes": "#1a1a1d",
-      "belt": { "strap": "#1a1a1d", "buckle": "#ffd60a" },
+      "belt": {
+        "strap": "#1a1a1d",
+        "buckle": "#ffd60a"
+      },
       "prop": "briefcase",
       "mustache": null
     },
@@ -141,7 +170,10 @@
       "suit": null,
       "bottom": "#4a5568",
       "shoes": "#e8e4dc",
-      "belt": { "strap": "#3a4450", "buckle": "#c9a227" },
+      "belt": {
+        "strap": "#3a4450",
+        "buckle": "#c9a227"
+      },
       "prop": "none",
       "mustache": null
     },
@@ -155,9 +187,13 @@
       "suit": null,
       "bottom": "#4f5866",
       "shoes": "#3a3530",
-      "belt": { "strap": "#3a3530", "buckle": "#ffb703" },
+      "belt": {
+        "strap": "#3a3530",
+        "buckle": "#ffb703"
+      },
       "prop": "none",
-      "mustache": "#3d2f22"
+      "mustache": "#3d2f22",
+      "hunch": 0.05
     },
     "musico": {
       "height": 1.25,
@@ -197,7 +233,10 @@
       "suit": null,
       "bottom": "#264653",
       "shoes": "#3a3530",
-      "belt": { "strap": "#264653", "buckle": "#c9a227" },
+      "belt": {
+        "strap": "#264653",
+        "buckle": "#c9a227"
+      },
       "prop": "none",
       "mustache": null
     },
@@ -211,7 +250,10 @@
       "suit": null,
       "bottom": "#4a5568",
       "shoes": "#3a3530",
-      "belt": { "strap": "#3a4450", "buckle": "#ffc107" },
+      "belt": {
+        "strap": "#3a4450",
+        "buckle": "#ffc107"
+      },
       "prop": "briefcase",
       "mustache": null
     },

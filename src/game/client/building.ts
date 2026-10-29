@@ -888,7 +888,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       lockMat.diffuseTexture = padlockTex();
       lockMat.emissiveColor = Color3.FromHexString(v.lockColor).scale(0.22);
       lockMat.specularColor = new Color3(0, 0, 0);
-      lockMat.transparencyMode = 2;
+      lockMat.transparencyMode = 1; // ALPHATEST (1, no 2=ALPHABLEND): recorte duro del candado
       lockMat.alphaCutOff = 0.35;
       lockMat.useAlphaFromDiffuseTexture = true; // v1.26: alpha de la textura → shader (ver diorama)
       view.lock = MeshBuilder.CreatePlane(`${b.id}_candado`, { width: lw, height: lh }, scene);
@@ -1556,7 +1556,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
               const fm = mat(`${b.id}_lav_${bd.kind}_${s}_frontal_mat`);
               fm.diffuseTexture = machineFrontTex(bd.kind, s);
               fm.specularColor = new Color3(0.08, 0.08, 0.08);
-              fm.transparencyMode = 2;
+              fm.transparencyMode = 1; // ALPHATEST: frontal de lavadora recortado
               fm.alphaCutOff = 0.3;
               fm.useAlphaFromDiffuseTexture = true;
               fm.backFaceCulling = false;
@@ -2889,7 +2889,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         pm.diffuseTexture = art.dt;
         pm.emissiveColor = Color3.FromHexString(pt.plantColor).scale(0.05);
         pm.specularColor = new Color3(0, 0, 0);
-        pm.transparencyMode = 2;
+        pm.transparencyMode = 1; // ALPHATEST: recorte de la planta
         pm.alphaCutOff = 0.4;
         // v1.26: sin esto el alpha de la textura no llega al shader (Babylon 8 lo cambió a
         // false por defecto) y la maceta se veía con fondo negro.
@@ -3557,7 +3557,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
      * su interior al instante, sin esperar al siguiente tick.
      * `pos` (v1.19) alimenta los carteles guía de trasteros y el apilamiento 3D.
      */
-    update(dt: number, focus?: { x: number; floor: number }, inside?: string | null, pos?: { x: number; z: number; insideBlock: string | null }, env?: { daylight: number; movers?: { x: number; y: number; z: number }[] }) {
+    update(dt: number, focus?: { x: number; floor: number }, inside?: string | null, pos?: { x: number; z: number; insideBlock: string | null }, env?: { daylight: number; movers?: { x: number; y: number; z: number; outside?: boolean }[] }) {
       if (focus) lastFocus = focus;
       if (inside !== undefined) playerInside = inside;
       // PRIVACIDAD (v1.17) cada frame: la fachada de una vivienda sin nadie dentro se cierra
@@ -3586,6 +3586,10 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         // mover cerca del umbral) y la ILUMINACIÓN COMPARTIDA de TODOS los cubos se enciende
         // de noche si algún vecino se mueve por las escaleras (un solo nivel para todos).
         const movers = env?.movers ?? [];
+        // v1.44 — QUIÉN PUEDE ABRIR: el jugador en la calle (outside) no cuenta para NINGUNA
+        // puerta (garaje, escalera, locales, portal). Pasar delante desde la acera no abre
+        // nada — la calle es decorado, no el interior del edificio.
+        const openers = movers.filter((mv) => !mv.outside);
         const al = v.stairs.activityLight;
         // ── v1.30 — PUERTAS CORREDERAS DEL PORTAL: se separan al acercarse cualquiera
         //  (jugador, vecino o visitante de la calle — todos viajan en `movers`) y se
@@ -3593,7 +3597,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         if (portalLeaves.length > 0 && portalDoorX !== 0) {
           const pd = loc.portalDoors;
           let near = false;
-          for (const mv of movers) {
+          for (const mv of openers) {
             if (
               Math.abs(mv.x - portalDoorX) < pd.openAhead &&
               Math.abs(mv.z - portalDoorZ) < pd.openAhead + 0.6 &&
@@ -3613,7 +3617,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         }
         for (const d of stairDoors) {
           let near = false;
-          for (const mv of movers) {
+          for (const mv of openers) {
             if (
               Math.abs(mv.x - d.doorX) < 0.85 &&
               Math.abs(mv.z - d.doorZ) < stF.openAhead &&
@@ -3641,7 +3645,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
             // desde que la puerta empieza a moverse, sin esperar a estar encima ni a entrar.
             const ahead = d.lift ? (hd.garageOpenAhead ?? hd.openAhead) : hd.openAhead;
             let near = false;
-            for (const mv of movers) {
+            for (const mv of openers) {
               if (
                 Math.abs(mv.x - d.doorX) < 0.9 + (d.lift ? ahead - hd.openAhead : 0) &&
                 Math.abs(mv.z - d.doorZ) < ahead &&
@@ -3669,7 +3673,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         if (al.enabled && stairLightMats.length > 0) {
           let busy = false;
           if (litWorld) {
-            for (const mv of movers) {
+            for (const mv of openers) {
               for (const fp of stairFootprints) {
                 if (
                   mv.x >= fp.x0 &&
