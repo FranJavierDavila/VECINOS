@@ -943,10 +943,14 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       view.door.material = doorMat;
       view.door.isPickable = true; // v1.29: la hoja cerrada OCULTA bocadillos (rayo de oclusión)
       view.door.setEnabled(false);
-      // Marco DEL COLOR DEL ZÓCALO (v1.25) — v1.26: SOLO si el catálogo pide grosor
-      // (frameW > 0); con frameW 0 la hoja queda a sangre (el arte ya trae su marco
-      // pintado y el "marco gris clarito" que se veía alrededor era el overlay glTF,
-      // hoy oculto de verdad por hideNodes recursivo).
+      // RECERCADO DEL COLOR DEL ZÓCALO (v1.25, v1.42): jambas + dintel que ENMARCAN la hoja
+      // (petición del vecino: «que no parezcan pegotes o planos pegados»). Mismo gris que el
+      // zócalo (pv.skirtingColor) — el zócalo se CORTA en la puerta y el recercado retoma el
+      // listón subiendo por los lados. Caja a sangre: sobresale ~9 cm de la fachada y 6 cm
+      // por delante de la hoja (nada coplanar; la cara trasera queda 5 mm EMBEBIDA en el muro).
+      // v1.42 — jambas APOYADAS en el suelo: alto doorH + fw desde doorFloorY (antes colgaban
+      // fw por debajo del suelo). SOLO si el catálogo pide grosor (frameW > 0; 0 = hoja a
+      // sangre con su marco pintado).
       const fw = pv.frameW ?? 0.075;
       const fz = frontZ - v.wall / 2 - 0.045;
       if (fw > 0.001) {
@@ -954,9 +958,11 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         const frameMat = mat(`${b.id}_marco_puerta_mat`);
         frameMat.diffuseColor = Color3.FromHexString(pv.skirtingColor ?? '#a3a19b');
         frameMat.specularColor = new Color3(0.03, 0.03, 0.03);
-        const jambL = box(`${b.id}_marco_izq`, fw, pv.doorH + fw * 2, fd, cx - pv.doorW / 2 - fw / 2, bottom + v.slab + v.wall + pv.doorH / 2, fz, frameMat);
-        const jambR = box(`${b.id}_marco_der`, fw, pv.doorH + fw * 2, fd, cx + pv.doorW / 2 + fw / 2, bottom + v.slab + v.wall + pv.doorH / 2, fz, frameMat);
-        const lintel = box(`${b.id}_marco_sup`, pv.doorW + fw * 2, fw, fd, cx, bottom + v.slab + v.wall + pv.doorH + fw / 2, fz, frameMat);
+        const jambH = pv.doorH + fw;
+        const jambY = doorFloorY + jambH / 2;
+        const jambL = box(`${b.id}_marco_izq`, fw, jambH, fd, cx - pv.doorW / 2 - fw / 2, jambY, fz, frameMat);
+        const jambR = box(`${b.id}_marco_der`, fw, jambH, fd, cx + pv.doorW / 2 + fw / 2, jambY, fz, frameMat);
+        const lintel = box(`${b.id}_marco_sup`, pv.doorW + fw * 2, fw, fd, cx, doorFloorY + pv.doorH + fw / 2, fz, frameMat);
         for (const j of [jambL, jambR, lintel]) {
           j.isPickable = false;
           j.setEnabled(false);
@@ -1233,6 +1239,30 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           leaf.parent = hinge;
           view.doorDecor.push(hinge);
           hallDoors.push({ hinge, openT: 0, doorX: gx, doorZ: doorZHall, floorY: baseY, side });
+          // v1.42 — RECERCADO DEL COLOR DEL ZÓCALO alrededor de cada hoja (misma receta que
+          // las viviendas: jambas + dintel en skirtingColor, caja que sobresale de la fachada
+          // y queda 5 mm embebida en el muro — nada coplanar). Se oculta con la fachada
+          // (doorDecor). Gobernado por el MISMO interruptor del catálogo (privacy.frameW).
+          const fwH = v.privacy.frameW ?? 0;
+          if (fwH > 0.001) {
+            const fdH = v.privacy.frameDepth ?? 0.1;
+            const fzH = frontZ - v.wall / 2 - 0.045;
+            const frMat = mat(`${b.id}_marco_hoja_${li}_mat`);
+            frMat.diffuseColor = Color3.FromHexString(v.privacy.skirtingColor ?? '#a3a19b');
+            frMat.specularColor = new Color3(0.03, 0.03, 0.03);
+            const jH = lh + fwH;
+            const jY = baseY + jH / 2;
+            const frParts = [
+              box(`${b.id}_marco_hoja_${li}_izq`, fwH, jH, fdH, gx - lw / 2 - fwH / 2, jY, fzH, frMat),
+              box(`${b.id}_marco_hoja_${li}_der`, fwH, jH, fdH, gx + lw / 2 + fwH / 2, jY, fzH, frMat),
+              box(`${b.id}_marco_hoja_${li}_sup`, lw + fwH * 2, fwH, fdH, gx, baseY + lh + fwH / 2, fzH, frMat),
+            ];
+            for (const fr of frParts) {
+              fr.isPickable = false;
+              fr.setEnabled(false);
+              view.doorDecor.push(fr);
+            }
+          }
         });
       }
       // Interiores 2D + diorama + carcaso (las mismas tripas que una vivienda: suelos

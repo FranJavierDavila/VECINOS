@@ -1179,7 +1179,7 @@
       "doorArts": [
         "/art/interiors/raw/door_casa_a.png"
       ],
-      "frameW": 0,
+      "frameW": 0.1,
       "frameDepth": 0.1,
       "hideNodes": [
         "jamba_izq",
