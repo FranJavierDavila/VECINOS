@@ -1789,6 +1789,14 @@ export const rulesSchema = z.object({
              *  fondo se intuyen (perspectiva aérea) sin robar atención al edificio. */
             fog: z.number().min(0).max(1).default(0),
             fogColor: z.string().default('#dfe4e6'),
+            /** v1.49 — PROFUNDIDAD REAL entre capas (petición del vecino: «cuanto más cerca,
+             *  siempre por delante de los que están más lejos»): con depthWrite la capa se
+             *  dibuja en ALPHATEST y ESCRIBE depth — la oclusión la decide el buffer de
+             *  profundidad (posición de la cámara aparte), no el orden de mezcla. */
+            depthWrite: z.boolean().default(true),
+            /** Umbral de recorte ALPHATEST (solo con depthWrite): los sellos PNG son alfa
+             *  binario (medido: <1% de píxeles intermedios) → el recorte no muerde los sellos. */
+            alphaCutOff: z.number().min(0.05).max(1).default(0.4),
           }),
         ),
         /** LLUVIA (v1.21): partículas de trazo que caen cuando el clima es rain/storm.

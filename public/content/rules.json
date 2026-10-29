@@ -347,8 +347,8 @@
           "depth": 24,
           "body": true,
           "gridScatter": true,
-          "maxTrees": 26,
-          "maxBushes": 34
+          "maxTrees": 46,
+          "maxBushes": 72
         }
       ],
       "ground": {
@@ -382,8 +382,8 @@
         {
           "x0": -26.0,
           "x1": 46.0,
-          "z0": -46.0,
-          "z1": 33.2
+          "z0": -120.0,
+          "z1": 9.2
         },
         {
           "x0": -19.0,
@@ -428,6 +428,108 @@
           "z": 0.0,
           "art": "/art/trees/tree_pine.png",
           "s": 1.15
+        },
+        {
+          "x": -52.0,
+          "z": 24.0,
+          "art": "/art/trees/tree_round.png",
+          "s": 1.15
+        },
+        {
+          "x": -44.0,
+          "z": 28.0,
+          "art": "/art/trees/tree_pine.png",
+          "s": 1.2
+        },
+        {
+          "x": -36.0,
+          "z": 20.0,
+          "art": "/art/trees/tree_poplar.png",
+          "s": 1.1
+        },
+        {
+          "x": -26.0,
+          "z": 26.0,
+          "art": "/art/trees/tree_bushy.png",
+          "s": 1.0
+        },
+        {
+          "x": -18.0,
+          "z": 15.5,
+          "art": "/art/trees/tree_round.png",
+          "s": 1.0
+        },
+        {
+          "x": -10.0,
+          "z": 27.0,
+          "art": "/art/trees/tree_pine.png",
+          "s": 1.25
+        },
+        {
+          "x": -2.0,
+          "z": 18.0,
+          "art": "/art/trees/tree_poplar.png",
+          "s": 1.05
+        },
+        {
+          "x": 6.0,
+          "z": 24.0,
+          "art": "/art/trees/tree_round.png",
+          "s": 1.1
+        },
+        {
+          "x": 14.0,
+          "z": 16.0,
+          "art": "/art/trees/tree_bushy.png",
+          "s": 0.95
+        },
+        {
+          "x": 22.0,
+          "z": 26.5,
+          "art": "/art/trees/tree_pine.png",
+          "s": 1.1
+        },
+        {
+          "x": 30.0,
+          "z": 15.5,
+          "art": "/art/trees/tree_poplar.png",
+          "s": 1.15
+        },
+        {
+          "x": 38.0,
+          "z": 27.0,
+          "art": "/art/trees/tree_round.png",
+          "s": 1.2
+        },
+        {
+          "x": 46.0,
+          "z": 21.0,
+          "art": "/art/trees/tree_bushy.png",
+          "s": 1.05
+        },
+        {
+          "x": 56.0,
+          "z": 26.0,
+          "art": "/art/trees/tree_pine.png",
+          "s": 1.2
+        },
+        {
+          "x": 66.0,
+          "z": 18.5,
+          "art": "/art/trees/tree_round.png",
+          "s": 1.1
+        },
+        {
+          "x": 78.0,
+          "z": 24.0,
+          "art": "/art/trees/tree_poplar.png",
+          "s": 1.15
+        },
+        {
+          "x": 90.0,
+          "z": 27.0,
+          "art": "/art/trees/tree_pine.png",
+          "s": 1.05
         }
       ],
       "calisthenics": {
@@ -685,7 +787,9 @@
           ],
           "windowChance": 0.8,
           "galleryChance": 0.35,
-          "nightGlow": 0.5
+          "nightGlow": 0.5,
+          "depthWrite": true,
+          "alphaCutOff": 0.4
         },
         {
           "z": 44,
@@ -704,7 +808,9 @@
           ],
           "windowChance": 0.75,
           "galleryChance": 0.3,
-          "nightGlow": 0.4
+          "nightGlow": 0.4,
+          "depthWrite": true,
+          "alphaCutOff": 0.4
         },
         {
           "z": 60,
@@ -723,7 +829,9 @@
           ],
           "windowChance": 0.7,
           "galleryChance": 0.25,
-          "nightGlow": 0.3
+          "nightGlow": 0.3,
+          "depthWrite": true,
+          "alphaCutOff": 0.4
         }
       ],
       "rain": {

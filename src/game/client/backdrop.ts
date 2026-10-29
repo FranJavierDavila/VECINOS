@@ -20,6 +20,11 @@ import { B } from './babylon';
  *   velocidad y densidad del catálogo (look cartoon, caída creíble).
  * · LUZ GLOBAL: los keyframes modularizan la hemisférica y el direccional para que el
  *   edificio viva la misma hora que el cielo.
+ * · PROFUNDIDAD REAL (v1.49): las capas de fachadas viven en ALPHATEST y ESCRIBEN depth
+ *   (reglas.view.backdrop.layers[].depthWrite) — los edificios MÁS CERCANOS tapan SIEMPRE
+ *   a los lejanos por buffer de profundidad (no por orden de mezcla, que dependía de la
+ *   cámara). El orden entre transparentes (estrellas, capas legadas, nubes) es determinista
+ *   vía alphaIndex: lejos→cerca sin importar dónde esté la cámara.
  */
 
 interface LayerView {
@@ -129,6 +134,9 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
   const starsMesh = MeshBuilder.CreatePlane('estrellas', { width: 320, height: 150, sideOrientation: B().Mesh.DOUBLESIDE }, scene);
   starsMesh.material = starMat;
   starsMesh.isPickable = false;
+  // v1.49 — lo más lejano del mundo: primera en la cola transparente (alphaIndex), detrás
+  // de las capas de fachadas y de las nubes SIEMPRE.
+  starsMesh.alphaIndex = 1;
   starsMesh.position.set(cx, 34, cfg.sky.sunZ + 11.5);
 
   // ── Sol y luna: discos emisivos que recorren el arco del día / de la noche. ──
@@ -197,6 +205,8 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
     mat.disableDepthWrite = true; // las nubes se mezclan con el cielo, jamás lo tapan
     mesh.material = mat;
     mesh.isPickable = false;
+    // v1.49 — lo más cercano del cielo (delante de las capas): última en la cola transparente.
+    mesh.alphaIndex = 20;
     const x = cx + (hash01('nube_x', i) - 0.5) * 220;
     const y = cfg.clouds.yMin + hash01('nube_y', i) * (cfg.clouds.yMax - cfg.clouds.yMin);
     mesh.position.set(x, y, cfg.clouds.z);
@@ -224,12 +234,27 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
     mat.useAlphaFromDiffuseTexture = true;
     mat.disableLighting = true;
     mat.specularColor = new Color3(0, 0, 0);
-    mat.alpha = l.alpha;
-    // Sin escritura de depth: las capas se MEZCLAN (nunca ocultan el cielo/sol/luna detrás).
-    mat.disableDepthWrite = true;
+    // v1.49 — PROFUNDIDAD REAL (petición del vecino: «cuanto más cerca, siempre por delante
+    // de los que están más lejos»). Con depthWrite la capa vira a ALPHATEST (recorte binario:
+    // los sellos PNG son alfa 0/1, medido <1% intermedio) y ESCRIBE depth: un edificio
+    // cercano tapa a los lejanos POR BUFFER DE PROFUNDIDAD — da igual dónde esté la cámara.
+    // El cielo/sol/luna siguen asomando por los huecos (alpha del canvas bajo el corte).
+    if (l.depthWrite) {
+      mat.transparencyMode = 1; // ALPHATEST (1, no 2=ALPHABLEND): profundidad por píxel
+      mat.alphaCutOff = l.alphaCutOff;
+      mat.alpha = 1; // sin mezcla: con alpha<1 la capa se colaría en la cola transparente
+      mat.disableDepthWrite = false; // escribe depth → oclusión verdadera entre capas
+    } else {
+      // Legado v1.21: capas en mezcla sin depth — el orden de pintado manda (alphaIndex).
+      mat.alpha = l.alpha;
+      mat.disableDepthWrite = true;
+    }
     const plane = MeshBuilder.CreatePlane(`fachada_${li}`, { width: STRIP_W, height: l.height, sideOrientation: B().Mesh.DOUBLESIDE }, scene);
     plane.material = mat;
     plane.isPickable = false;
+    // Orden DETERMINISTA entre transparentes (legado/mixto): lejos→cerca SIEMPRE (alphaIndex
+    // manda sobre la distancia de cámara). Con ALPHATEST lo resuelve el depth y sobra.
+    plane.alphaIndex = 10 - li;
     plane.position.set(cx, l.height / 2 - 0.2, l.z);
     // Sello real: se carga el PNG del catálogo (blur ya horneado por distancia).
     let img: HTMLImageElement | null = null;
