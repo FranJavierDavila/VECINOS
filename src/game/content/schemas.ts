@@ -2808,3 +2808,46 @@ export const personalitiesCatalogSchema = z.object({
 });
 
 export type PersonalitiesCatalogParsed = z.infer<typeof personalitiesCatalogSchema>;
+
+// ── v1.43 — PERSONAJES DETALLADOS (LOD cercano de los vecinos) ──────────────────────────
+
+const characterDetailSpecSchema = z.object({
+  height: z.number().positive().optional(),
+  skin: z.string(),
+  hairColor: z.string(),
+  hairStyle: z.enum(['baldSides', 'bun', 'cap', 'short', 'full', 'headphones']),
+  glasses: z.enum(['none', 'clear', 'sun']).default('none'),
+  top: z.string(),
+  suit: z
+    .object({
+      lapel: z.string(),
+      shirt: z.string(),
+      tie: z.string(),
+    })
+    .nullable()
+    .default(null),
+  bottom: z.string(),
+  shoes: z.string(),
+  belt: z
+    .object({
+      strap: z.string(),
+      buckle: z.string(),
+    })
+    .nullable()
+    .default(null),
+  prop: z.enum(['none', 'clipboard', 'briefcase', 'spray', 'guitar', 'baguette']).default('none'),
+  mustache: z.string().nullable().default(null),
+});
+
+export const characterDetailsCatalogSchema = z.object({
+  version: z.literal(1),
+  lod: z.object({
+    enabled: z.boolean().default(true),
+    nearDist: z.number().positive().default(10.5),
+    hysteresis: z.number().min(0).default(3),
+  }),
+  byArchetype: z.record(z.string(), characterDetailSpecSchema).default({}),
+  defaults: characterDetailSpecSchema,
+});
+
+export type CharacterDetailsCatalogParsed = z.infer<typeof characterDetailsCatalogSchema>;

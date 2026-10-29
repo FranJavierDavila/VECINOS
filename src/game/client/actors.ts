@@ -2,6 +2,7 @@ import type { Mesh, Scene, TransformNode } from '@babylonjs/core';
 import type { BlockInstance, Content, PlayerPosition, ResidentInstance, World } from '@/game/core/types';
 import { B } from './babylon';
 import { instantiateActorAsset, type ActorRig } from './assets';
+import { buildCharacterDetail, type CharacterDetailRig } from './character-detail';
 import { hash01, interiorTarget, layoutGeometryOf, type Pt } from '@/game/interior';
 import { stairGeomOf, stairPathPoints } from '@/game/stairs';
 import { horizontalLegs } from '@/game/routing';
@@ -99,6 +100,13 @@ interface Actor {
    *  headOf/visibleOf lo consultan: un actor desvanecido (cruzando la pared del portal) no
    *  luce bocadillos ni emoticonos — no queda nada flotando donde no hay personaje. */
   fade: number;
+  /** v1.43 — LOD cercano: mallas del rig glTF (se ocultan cuando el detalle manda). */
+  rigMeshes: Mesh[];
+  /** v1.43 — personaje detallado (se construye PEREZOSO la primera vez que la cámara se acerca). */
+  detail: CharacterDetailRig | null;
+  /** v1.43 — estado del LOD cercano con histéresis (evita parpadeos en el umbral). */
+  detNear: boolean;
+  detShown: boolean;
 }
 
 /**
@@ -172,6 +180,8 @@ export interface ActorsDirector {
 export function createActors(scene: Scene, world: World, content: Content, elevators?: ElevatorsDirector | null) {
   const { Color3, MeshBuilder, Quaternion, StandardMaterial, Vector3 } = B();
   const v = content.rules.view;
+  // v1.43 — configuración del LOD de personaje (catálogo character-details.json).
+  const detailCfg = content.characterDetails?.lod ?? null;
   const actors = new Map<string, Actor>();
 
   /** Crea la cápsula de un residente (greybox/fallback) y lanza la carga del modelo si el manifiesto lo declara. */
@@ -184,7 +194,7 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
     m.emissiveColor = m.diffuseColor.scale(0.25);
     mesh.material = m;
     mesh.isPickable = false;
-    const a: Actor = { id, node: mesh, height, pivotY: height / 2, path: [], wanderT: 0, wanderLap: 0, targetLocal: null, lastLoc: null, directed: false, yaw: 0, targetYaw: null, gesture: null, gestureT: 0, seated: false, seatPending: null, elevatorReq: null, ridePhase: null, enabledPrev: false, stowedBlock: null, rig: null, chatT: 0, carry: null, carryKind: null, carryManual: null, lying: false, bobBase: null, umbrella: null, umbrellaWant: false, umbrellaK: 0, bags: null, bagsWant: false, fade: 1 };
+    const a: Actor = { id, node: mesh, height, pivotY: height / 2, path: [], wanderT: 0, wanderLap: 0, targetLocal: null, lastLoc: null, directed: false, yaw: 0, targetYaw: null, gesture: null, gestureT: 0, seated: false, seatPending: null, elevatorReq: null, ridePhase: null, enabledPrev: false, stowedBlock: null, rig: null, chatT: 0, carry: null, carryKind: null, carryManual: null, lying: false, bobBase: null, umbrella: null, umbrellaWant: false, umbrellaK: 0, bags: null, bagsWant: false, fade: 1, rigMeshes: [], detail: null, detNear: false, detShown: false };
     actors.set(id, a);
 
     // Arte final (opcional): modelo glTF del manifiesto; cualquier fallo → cápsula.
@@ -206,6 +216,9 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
         // shadows.casters con patrón 'res_') reconocen así a cada vecino sin tocar el
         // catálogo; el resto del juego no lee nombres de malla glTF (la pose va por nodos).
         for (const m of rig.root.getChildMeshes(false)) m.name = `${id}_${m.name}`;
+        // v1.43 — las mallas del rig se registran: el LOD cercano las oculta cuando el
+        // personaje detallado manda (un solo cuerpo visible, nunca los dos a la vez).
+        cur.rigMeshes = rig.root.getChildMeshes(false) as Mesh[];
         // PRESERVAR POSE (v1.10): el modelo puede terminar de cargar EN PLENO paseo (los assets
         // llegan async). Sin esto, el swap cápsula→rig recolocaba el nodo a origen y el actor
         // "saltaba" (el guard antiguo lo enmascaraba con OTRO teletransporte al objetivo: la
@@ -444,6 +457,7 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
       for (const id of gone) {
         const a = actors.get(id)!;
         actors.delete(id);
+        a.detail?.dispose();
         if (a.rig) a.rig.dispose();
         else if (a.node instanceof B().Mesh) a.node.dispose(false, true);
         else a.node.dispose(false, false);
@@ -464,6 +478,12 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
         a.node.setEnabled(nowEnabled && !stowedHere);
         if (!nowEnabled || stowedHere) {
           a.enabledPrev = false;
+          // v1.43 — el detallado sigue al cuerpo: fuera de escena, fuera detalle.
+          if (a.detail && a.detShown) {
+            a.detShown = false;
+            a.detail.setEnabled(false);
+            for (const m of a.rigMeshes) m.setEnabled(true);
+          }
           continue;
         }
         // En escena lo coloca el director (v1.10): marcar habilitado SIN snap — si no, al soltar
@@ -896,6 +916,53 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
           rate = Math.min(sync.maxRate, Math.max(sync.minRate, rate));
           a.rig.play(clip, rate);
         }
+
+        // ── v1.43 — LOD DEL PERSONAJE: lejos, el rig glTF de siempre; cerca, el personaje
+        //  detallado (silueta reconocible: peinado, gafas, corbata, nariz, accesorio).
+        //  Histéresis para no parpadear en el umbral; construcción PEREZOSA (solo paga
+        //  quien se acerca) y UN solo cuerpo visible (rig oculto ⇄ detalle visible). ──
+        if (detailCfg?.enabled && a.rig) {
+          const cam = scene.activeCamera;
+          const dist = cam ? Math.sqrt((cam.position.x - node.x) ** 2 + (cam.position.y - node.y) ** 2 + (cam.position.z - node.z) ** 2) : Infinity;
+          if (!a.detNear && dist < detailCfg.nearDist) a.detNear = true;
+          else if (a.detNear && dist > detailCfg.nearDist + detailCfg.hysteresis) a.detNear = false;
+          if (a.detNear && !a.detail) {
+            const spec = content.characterDetails?.byArchetype[r.archetype] ?? content.characterDetails?.defaults;
+            a.detail = spec ? buildCharacterDetail(scene, id, spec, a.height) : null;
+            a.detail?.setFade(a.fade);
+          }
+          if (a.detail) {
+            if (a.detNear !== a.detShown) {
+              a.detShown = a.detNear;
+              for (const m of a.rigMeshes) m.setEnabled(!a.detNear);
+              a.detail.setEnabled(a.detNear);
+            }
+            if (a.detNear) {
+              // El detallado es HERMANO del nodo: posición y pose (rumbo + tumbado) copiadas 1:1.
+              a.detail.root.position.copyFrom(a.node.position);
+              const q = a.node.rotationQuaternion;
+              if (q) {
+                if (!a.detail.root.rotationQuaternion) a.detail.root.rotationQuaternion = new Quaternion();
+                a.detail.root.rotationQuaternion.copyFrom(q);
+              } else {
+                a.detail.root.rotationQuaternion = null;
+                a.detail.root.rotation.copyFrom(a.node.rotation);
+              }
+              a.detail.sync(dt, {
+                speedH: Math.hypot(node.x - prevX, node.z - prevZ) / Math.max(1e-4, dt),
+                gesture: a.gesture,
+                seated: a.seated && a.path.length === 0,
+                fade: a.fade,
+                enabled: true,
+              });
+            }
+          }
+        } else if (a.detail && a.detShown) {
+          // El LOD se apagó (o el rig aún carga): todo como siempre.
+          a.detShown = false;
+          for (const m of a.rigMeshes) m.setEnabled(true);
+          a.detail.setEnabled(false);
+        }
       }
     },
     /** Dirección de cutscenes (Fase D): toma/coloca/ruta/suelta actores como teatro. */
@@ -1033,6 +1100,7 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
         a.fade = val; // v1.42 — se recuerda: headOf/visibleOf lo consultan cada frame
         if (a.node instanceof B().Mesh) a.node.visibility = val;
         for (const m of a.node.getChildMeshes()) m.visibility = val;
+        a.detail?.setFade(val); // v1.43 — el detallado funde con el cuerpo
       },
       /** v1.41 — se levanta del asiento (banco del paseo): sin pose sentada residual. */
       standUp(id: string): void {

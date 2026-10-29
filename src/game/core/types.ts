@@ -961,6 +961,43 @@ export interface PersonalitiesCatalog {
   };
 }
 
+/**
+ * Catálogo de PERSONAJES DETALLADOS (v1.43, opcional): apariencia del LOD cercano de los
+ * vecinos. Lejos mandan los rigs glTF de siempre; cuando la cámara se acerca, el vecino
+ * se reconstruye con piezas legibles (silueta reconocible de frente/espalda/perfiles).
+ * Sin catálogo, no hay LOD de personaje (todo queda como siempre).
+ */
+export interface CharacterDetailSpec {
+  /** Altura de autoría del personaje detallado (m). La presentación la escala 1:1. */
+  height?: number;
+  skin: string;
+  hairColor: string;
+  /** Peinado: calva con laterales (presidente), moño, gorra, cortado, melena, cascos. */
+  hairStyle: 'baldSides' | 'bun' | 'cap' | 'short' | 'full' | 'headphones';
+  /** Prescripción/bis correctivos sobre la cara. */
+  glasses?: 'none' | 'clear' | 'sun';
+  top: string;
+  /** Prenda superior con solapas y corbata (traje): lectura de «señor serio». */
+  suit?: { lapel: string; shirt: string; tie: string } | null;
+  bottom: string;
+  shoes: string;
+  belt?: { strap: string; buckle: string } | null;
+  /** Objeto en la mano (accesorio de silueta): portapapeles, maletín, spray, guitarra. */
+  prop?: 'none' | 'clipboard' | 'briefcase' | 'spray' | 'guitar' | 'baguette';
+  /** Bigote facial (silueta frontal inconfundible). */
+  mustache?: string | null;
+}
+
+export interface CharacterDetailsCatalog {
+  version: 1;
+  /** Configuración del LOD de personaje (distancias de cámara en metros). */
+  lod: { enabled: boolean; nearDist: number; hysteresis: number };
+  /** Especificación por ARQUETIPO (el resto de vecinos usan `defaults`). */
+  byArchetype: Record<string, CharacterDetailSpec>;
+  /** Especificación genérica (fallback para cualquier arquetipo sin entrada propia). */
+  defaults: CharacterDetailSpec;
+}
+
 export interface Content {
   rules: Rules;
   blocks: Record<string, BlockDef>;
@@ -1002,6 +1039,8 @@ export interface Content {
   project?: ProjectCatalog;
   /** Personalidades vecinales (v1.39, opcional): nombres, gustos y reacciones por contexto. */
   personalities?: PersonalitiesCatalog;
+  /** Personajes detallados (v1.43, opcional): apariencia del LOD cercano de los vecinos. */
+  characterDetails?: CharacterDetailsCatalog;
 }
 
 // ───────────────────────── Reglas y ajustes (catálogo rules.json) ─────────────────────────
