@@ -455,6 +455,10 @@ export function createDioramaDirector(scene: Scene, content: Content): DioramaDi
       // jamás se intersecan entre sí (el vecino: «los recortes nunca intersequen ni paredes
       // ni otros muebles») y quedan dentro de la estancia. ──
       const sprites: DioramaSurface[] = [];
+      // v1.41 — interruptor de mobiliario (data-driven): el AND del flag raíz del catálogo
+      // y del flag de la estancia decide. false ⇒ solo paredes/suelo/puerta (nada de
+      // muebles, alfombras ni cuadros). Paredes y carcaso siguen intactos.
+      const furnitureVisible = cat.furnitureVisible && dio.furnitureVisible;
       const jit = variant?.jitter ?? 0;
       const setList = dio.sets.length > 0 ? dio.sets : [dio.sprites];
       const chosenSet = setList[(variant?.wallIndex ?? 0) % setList.length]!;
@@ -466,41 +470,43 @@ export function createDioramaDirector(scene: Scene, content: Content): DioramaDi
         id,
       );
       let uCursor = 0;
-      for (const [i, sp] of chosenSet.entries()) {
-        const m = surfMat(`${id}_dio_sp${i}`, true);
-        const z = origin.frontZ + rect.z + sp.v * rect.d;
-        let x: number;
-        if (sp.layer === 'rug') {
-          const u0 = Math.min(0.94, Math.max(0.06, variant?.mirror ? 1 - sp.u : sp.u));
-          x = origin.x0 + rect.x + u0 * rect.w;
-        } else {
-          const u = us[uCursor++]! + jit * (hash01(id, 9000 + (variant?.salt ?? 0)) - 0.5) * 2;
-          x = origin.x0 + rect.x + Math.min(0.94, Math.max(0.06, u)) * rect.w;
-        }
-        if (sp.layer === 'rug') {
-          const rq = quad(`${id}_dio_sp${i}`, sp.w, sp.h, x, floorY + 0.012, z, m, true);
+      if (furnitureVisible) {
+        for (const [i, sp] of chosenSet.entries()) {
+          const m = surfMat(`${id}_dio_sp${i}`, true);
+          const z = origin.frontZ + rect.z + sp.v * rect.d;
+          let x: number;
+          if (sp.layer === 'rug') {
+            const u0 = Math.min(0.94, Math.max(0.06, variant?.mirror ? 1 - sp.u : sp.u));
+            x = origin.x0 + rect.x + u0 * rect.w;
+          } else {
+            const u = us[uCursor++]! + jit * (hash01(id, 9000 + (variant?.salt ?? 0)) - 0.5) * 2;
+            x = origin.x0 + rect.x + Math.min(0.94, Math.max(0.06, u)) * rect.w;
+          }
+          if (sp.layer === 'rug') {
+            const rq = quad(`${id}_dio_sp${i}`, sp.w, sp.h, x, floorY + 0.012, z, m, true);
+            m.diffuseTexture = artTex(`${id}_dio_sp${i}_tex`, sp.art, true, 1, 1, (ar) => {
+              // Alfombra: encaja el recorte en la caja w × h (h es calado) sin deformar.
+              const boxAr = sp.w / sp.h;
+              const nw = boxAr > ar ? sp.h * ar : sp.w;
+              const nd = boxAr > ar ? sp.h : sp.w / ar;
+              rq.scaling.set(nw, nd, 1);
+            });
+            place(rq);
+            sprites.push({ mesh: rq, mat: m });
+            continue;
+          }
+          const mesh = quad(`${id}_dio_sp${i}`, sp.w, sp.h, x, slabTop + sp.y + sp.h / 2, z, m, false);
           m.diffuseTexture = artTex(`${id}_dio_sp${i}_tex`, sp.art, true, 1, 1, (ar) => {
-            // Alfombra: encaja el recorte en la caja w × h (h es calado) sin deformar.
+            // Caja declarada (w, h) → encajar el contenido sin deformar (cobra el mayor eje).
             const boxAr = sp.w / sp.h;
             const nw = boxAr > ar ? sp.h * ar : sp.w;
-            const nd = boxAr > ar ? sp.h : sp.w / ar;
-            rq.scaling.set(nw, nd, 1);
+            const nh = boxAr > ar ? sp.h : sp.w / ar;
+            mesh.scaling.set(nw, nh, 1);
+            mesh.position.y = slabTop + sp.y + nh / 2;
           });
-          place(rq);
-          sprites.push({ mesh: rq, mat: m });
-          continue;
+          place(mesh);
+          sprites.push({ mesh, mat: m });
         }
-        const mesh = quad(`${id}_dio_sp${i}`, sp.w, sp.h, x, slabTop + sp.y + sp.h / 2, z, m, false);
-        m.diffuseTexture = artTex(`${id}_dio_sp${i}_tex`, sp.art, true, 1, 1, (ar) => {
-          // Caja declarada (w, h) → encajar el contenido sin deformar (cobra el mayor eje).
-          const boxAr = sp.w / sp.h;
-          const nw = boxAr > ar ? sp.h * ar : sp.w;
-          const nh = boxAr > ar ? sp.h : sp.w / ar;
-          mesh.scaling.set(nw, nh, 1);
-          mesh.position.y = slabTop + sp.y + nh / 2;
-        });
-        place(mesh);
-        sprites.push({ mesh, mat: m });
       }
 
       return { wall, floor, sprites, door };

@@ -2623,6 +2623,10 @@ export const interiorDioramaSchema = z.object({
   ceilings: z.array(z.string()).default([]),
   sets: z.array(z.array(interiorSpriteSchema)).default([]),
   sprites: z.array(interiorSpriteSchema).default([]),
+  /** v1.41 — interruptor de MOBILIARIO de la estancia: false oculta las capas de sprites
+   *  (muebles/alfombras/cuadros) dejando paredes, suelo y techos. El efectivo es el AND
+   *  con el flag raíz del catálogo (apagón global en una línea). */
+  furnitureVisible: z.boolean().default(true),
   /** v1.36 — repeticiones del arte de pared (uScale). Por defecto el runtime lo estima
    *  del rect (redondeo w/h) para las artes cuadradas; un arte PANORÁMICO (el hall del
    *  portal, 1.75:1) fija wallTiles: 1 para verse UNA sola vez, sin duplicados. */
@@ -2641,6 +2645,10 @@ export const interiorsCatalogSchema = z.object({
   keyTolerance: z.number().min(0).max(1).default(0.09),
   processSize: z.number().int().min(64).max(2048).default(512),
   alphaCutoff: z.number().min(0).max(1).default(0.45),
+  /** v1.41 — apagón GLOBAL de mobiliario: false oculta TODAS las capas de sprites de todas
+   *  las estancias (el AND con furnitureVisible de cada estancia decide). true = cada
+   *  estancia manda por su propio flag. */
+  furnitureVisible: z.boolean().default(true),
   doorDecal: z.object({ art: z.string().min(1), w: z.number().positive(), h: z.number().positive() }),
   wallTints: z.array(z.string()).default(['#ffffff']),
   mirrorChance: z.number().min(0).max(1).default(0),
