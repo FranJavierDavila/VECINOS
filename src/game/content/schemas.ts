@@ -2739,6 +2739,12 @@ export const interiorDioramaSchema = z.object({
    *  del rect (redondeo w/h) para las artes cuadradas; un arte PANORÁMICO (el hall del
    *  portal, 1.75:1) fija wallTiles: 1 para verse UNA sola vez, sin duplicados. */
   wallTiles: z.number().int().min(1).max(6).optional(),
+  /** v1.50 — tinte de los LATERALES del carcaso EMPAREJADO al diseño elegido (walls[i]):
+   *  el hall del portal continúa su color también de lado. Índice paralelo a walls. */
+  sideTints: z.array(z.string()).default([]),
+  /** v1.50 — false: el local NO recibe las losas de pasillo encima de su suelo de diorama
+   *  (el vestíbulo del portal: su suelo ES el del diseño asignado, sin lavado de checker). */
+  corridorTilesInside: z.boolean().default(true),
 });
 
 /** Catálogo de interiores (OPCIONAL): sin el fichero, los interiores siguen greybox.

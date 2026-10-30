@@ -1011,12 +1011,21 @@
     "estancia_portal": {
       "wall": "wall_portal_hall.png",
       "walls": [
-        "wall_portal_hall.png"
+        "wall_portal_hall.png",
+        "wall_hall_clasico.png",
+        "wall_hall_esmeralda.png",
+        "wall_hall_retro.png",
+        "wall_hall_moderno.png",
+        "wall_hall_sol.png"
       ],
       "floor": "floor_baldosa.png",
       "floors": [
         "floor_baldosa.png",
-        "floor_baldosa_b.png"
+        "floor_baldosa_b.png",
+        "floor_parket.png",
+        "floor_hidraulico.png",
+        "floor_hormigon.png",
+        "floor_terrazo.png"
       ],
       "sets": [
         [
@@ -1030,7 +1039,16 @@
           }
         ]
       ],
-      "wallTiles": 1
+      "wallTiles": 1,
+      "sideTints": [
+        "#e6d7bf",
+        "#e9dcc8",
+        "#5c6b5e",
+        "#e2a37c",
+        "#c9cbcc",
+        "#9fd4c8"
+      ],
+      "corridorTilesInside": false
     }
   },
   "wallTints": [

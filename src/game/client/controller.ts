@@ -1058,6 +1058,13 @@ class GameController {
     this.logic = new PlayerLogic(this.world, this.content, {
       actorId: this.myResidentId ?? undefined,
       send: (cmd) => this.sendCommand(cmd),
+      // v1.50 — el prompt de charla se mide contra el ACTOR real (nodeOf): si el cuerpo no
+      // está pintado ahí (otro sitio/oculto), no hay aviso «E · charlar con…» fantasma.
+      actorPos: (residentId) => {
+        const n = this.actors?.director.nodeOf(residentId);
+        if (!n) return null;
+        return { x: n.x, z: n.z, floor: Math.round(n.y / this.content.rules.view.cellH) };
+      },
     });
 
     this.scene?.dispose();

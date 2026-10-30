@@ -109,14 +109,26 @@ export class PlayerLogic {
   private exerciseT = 0;
   /** Spots exteriores que aporta la presentación: bancos del decorado y punto de calistenia. */
   private outdoor: { benches: { x: number; z: number }[]; exercise: { x: number; z: number } | null } = { benches: [], exercise: null };
+  /** v1.50 — POSICIÓN REAL del actor de un residente (la aporta el controlador): el prompt
+   *  de charla no puede salir de la posición del SIM (el centro del bloque donde "está") —
+   *  si el actor está en otra parte (o sin pintar), el aviso «E · charlar con…» se ve SIN
+   *  NADIE delante. Con este resolver, la cercanía se mide contra el actor de verdad
+   *  (null u otra planta = no hay charla). Sin resolver, manda la heurística clásica. */
+  private readonly actorPos: ((residentId: string) => { x: number; z: number; floor: number } | null) | null;
 
   constructor(
     private readonly world: World,
     private readonly content: Content,
-    opts?: { actorId?: string; send?: SendCommand },
+    opts?: {
+      actorId?: string;
+      send?: SendCommand;
+      /** v1.50 — posición real del actor de un residente (null = no pintado/oculto). */
+      actorPos?: (residentId: string) => { x: number; z: number; floor: number } | null;
+    },
   ) {
     this.actorId = opts?.actorId ?? world.playerId;
     this.send = opts?.send ?? null;
+    this.actorPos = opts?.actorPos ?? null;
     this.view = content.rules.view;
     const blocks = Object.values(world.blocks);
     // El ancho transitable lo marcan los bloques CON SUELO (v1.18): el tejado (traversable
@@ -999,6 +1011,16 @@ export class PlayerLogic {
       // está "a tu lado" aunque zone() te asigne el núcleo (capa main) y a él el pasillo.
       const sharedCirculation = this.mode === 'corridor' && loc.cell.floor === this.floor && loc.kind !== 'dwelling';
       if (theirZone !== myZone && !sharedCirculation) continue;
+      // v1.50 — con posiciones reales de actores, la PROXIMIDAD manda el cuerpo pintado:
+      // actor en mi planta y a distancia de charla (adiós al aviso fantasma que anunciaba a
+      // un vecino cuyo cuerpo estaba en otra parte). La elegibilidad de ZONA sigue siendo la
+      // del sim (nunca se charla «a través» de la pared de una vivienda ajena).
+      if (this.actorPos) {
+        const p = this.actorPos(other.id);
+        if (!p || p.floor !== this.floor) continue;
+        if (Math.hypot(p.x - this.x, p.z - (this.frontZ + this.z)) < this.view.nearRadius) return other.id;
+        continue;
+      }
       // En circulación, la referencia es el centro del bloque donde está (pasillo ancho → su centro).
       const theirX = (loc.cell.col + loc.size.w / 2) * this.view.cellW;
       if (Math.abs(theirX - this.x) < this.view.nearRadius) return other.id;

@@ -1418,7 +1418,11 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         // baldosas (misma textura que los pasillos) 6 mm SOBRE el suelo tintado — el tinte
         // de estado (cerrada = lockedColor) sigue leyéndose a través del alpha de las losas.
         const cfLoc = v.corridorFloor;
-        if (cfLoc) {
+        // v1.50 — corridorTilesInside:false (el vestíbulo del portal): SIN losas de pasillo
+        // encima — su suelo ES el del diseño del hall (dio), sin el lavado del checker que
+        // pintaba la zona de entrada con una mezcla pálida (la franja «fea» del vecino).
+        const dioDefLoc = content.interiors?.rooms[roomDef.defId];
+        if (cfLoc && dioDefLoc?.corridorTilesInside !== false) {
           const locTex = makeTileTex(`${b.id}_losas_int`, rect.w, rect.d);
           const lmat = mat(`${b.id}_losas_int_mat`);
           lmat.diffuseTexture = locTex.tex;
@@ -1435,12 +1439,35 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           const dioRootH = new TransformNode(`${b.id}_dio_root`, scene);
           dioRootH.parent = root;
           interior.dioRoot = dioRootH;
+          // v1.50 — el diseño del HALL se sortea ALEATORIAMENTE por partida (el vecino pidió
+          // «que varíe de forma aleatoria»): la semilla del sim es FIJA por escenario (ley
+          // determinista), así que el azar visual vive en el chrome del cliente — un roll
+          // 0..1 guardado en localStorage por escenario+semilla: estable entre recargas de
+          // LA MISMA partida (el portal no se redecora solo) y distinto en cada partida nueva.
+          // walls[]/floors[]/sideTints[] de la estancia van EMPAREJADOS por índice: arte,
+          // suelo de entrada y laterales siguen SIEMPRE el mismo diseño.
+          let hallRoll = 0.5;
+          try {
+            const hallKey = `vecinos.hallroll.${world.scenarioId ?? 'x'}.${world.seed}`;
+            const stored = localStorage.getItem(hallKey);
+            const n = stored === null ? NaN : Number(stored);
+            if (Number.isFinite(n) && n >= 0 && n < 1) hallRoll = n;
+            else {
+              hallRoll = Math.random();
+              localStorage.setItem(hallKey, String(hallRoll));
+            }
+          } catch {
+            hallRoll = Math.random(); // sin storage (privacidad): re-sorteo por sesión
+          }
+          const dioVariantIdx = isPortal
+            ? Math.floor(hash01(`${b.id}:${hallRoll}`, 8100) * 1000)
+            : Math.floor(hash01(b.id, 8100) * 1000);
           const roomH = diro.room(
             `${b.id}_int`,
             roomDef.defId,
             rect,
             { x0, frontZ, yBottom: baseY, yTop: baseY + H },
-            { parent: dioRootH, variant: { tintHex: '#ffffff', mirror: false, jitter: 0, wallIndex: Math.floor(hash01(b.id, 8100) * 1000), salt: 0 } },
+            { parent: dioRootH, variant: { tintHex: '#ffffff', mirror: false, jitter: 0, wallIndex: dioVariantIdx, salt: 0 } },
           );
           if (roomH) {
             interior.dio.rooms.set(roomDef.key, roomH);
@@ -1456,6 +1483,18 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           );
           interior.dio.shell.push(...shellSurfsH);
           for (const s of shellSurfsH) interior.dioMats.push(s.mat);
+          // v1.50 — los LATERALES del vestíbulo heredan el TINTE del diseño asignado al fondo
+          // (sideTints[i], paralelo a walls[]): el hall continúa de lado y la franja derecha
+          // ya no flota en un blanco fuera de paleta.
+          const sideTintsLoc = dioDefLoc?.sideTints ?? [];
+          if (isPortal && sideTintsLoc.length > 0) {
+            const tintHex = sideTintsLoc[dioVariantIdx % sideTintsLoc.length]!;
+            for (const s of shellSurfsH) {
+              if (s.mesh.name.endsWith('_dio_lateral_izq') || s.mesh.name.endsWith('_dio_lateral_der')) {
+                s.mat.diffuseColor = Color3.FromHexString(tintHex);
+              }
+            }
+          }
         }
         // ── MOBILIARIO PROPIO de cada local (todo del catálogo) ──
         if (b.defId === 'trasteros') {
