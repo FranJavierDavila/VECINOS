@@ -1576,7 +1576,8 @@
         "armZ": 0.9,
         "exitZ": 0.5,
         "doorPad": 0.05,
-        "armOnEnter": true
+        "armOnEnter": true,
+        "visitorExit": true
       },
       "portal": {
         "backZoneZ": 2.0,
@@ -1850,6 +1851,14 @@
         "dy": 1.45,
         "out": 0.006
       }
+    },
+    "streetLife": {
+      "cameras": [
+        "edificio",
+        "fachada",
+        "planta",
+        "estancia"
+      ]
     }
   },
   "demo": {

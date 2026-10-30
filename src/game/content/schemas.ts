@@ -1344,6 +1344,10 @@ export const rulesSchema = z.object({
             /** v1.47 — ARMADA AL ENTRAR: cruzar el umbral ya arma la salida natural (entrar y
              *  darte la vuelta te deja fuera sin adentrarte antes). false = armado clásico. */
             armOnEnter: z.boolean().default(true),
+            /** v1.49 — SALIDA NATURAL EN VIVIENDAS AJENAS (petición del vecino): entrar llamando
+             *  con E (timbre) y salir ATRAVESANDO la puerta sin E — solo en el vano y empujando
+             *  hacia ella (S). false = las ajenas conservan la salida por E de siempre. */
+            visitorExit: z.boolean().default(false),
           })
           .optional(),
         /** v1.35 — VESTÍBULO del portal: colores interiores del local. v1.36 — el interior
@@ -2125,6 +2129,16 @@ export const rulesSchema = z.object({
             exercise: z.array(z.string()).default([]),
           })
           .default({ out: [], into: [], sit: [], exercise: [] }),
+      })
+      .optional(),
+    /** v1.49 — VIDA DE CALLE POR CÁMARA: qué vistas ven el mobiliario de la acera (bancos,
+     *  farolas, árboles, PARQUE DE CALISTENIA), los coches, los viandantes y el resto del
+     *  decorado vivo. El vecino pidió verla también desde la cámara de Estancia. */
+    streetLife: z
+      .object({
+        cameras: z
+          .array(z.enum(['edificio', 'fachada', 'planta', 'estancia']))
+          .default(['edificio', 'fachada', 'planta']),
       })
       .optional(),
     /** v1.42 — ZONAS CIEGAS de la cortina de la vista FACHADA: bandas opacas arriba y

@@ -1467,7 +1467,11 @@ class GameController {
     // estancia se apagan (menos carga, y no estorban la vista de la estancia).
     // v1.41 — la FACHADA (tecla 0) también es vista de calle: el decorado exterior (coches,
     // viandantes, paseo, taxi) vive y se ve tras la fachada acristalada del bloque.
-    const streetView = store.camMode === 'edificio' || store.camMode === 'fachada' || store.camMode === 'planta';
+    // v1.49 — DATA-DRIVEN (rules.view.streetLife.cameras): el vecino pidió ver la calle
+    // (bancos, parque de calistenia, coches, viandantes) DESDE LA CÁMARA DE ESTANCIA —
+    // el catálogo manda; sin regla, el comportamiento de siempre.
+    const streetCameras = this.content.rules.view.streetLife?.cameras ?? ['edificio', 'fachada', 'planta'];
+    const streetView = streetCameras.includes(store.camMode);
     // v1.41 — la vista FACHADA cierra el edificio entero (cortina acristalada en building).
     this.building?.setFachadaView(store.camMode === 'fachada');
     this.exterior?.setPropsVisible(streetView);
@@ -1945,7 +1949,9 @@ class GameController {
           if (logic.position().mode === 'inside') {
             // v1.40 — en TU vivienda, en el marco de la puerta la salida es automática:
             // el prompt se calla justo cuando va a saltar (lo que ves es lo que pasa).
-            if (door.ownerId === this.actorId() && logic.nearOwnDoor()) return null;
+            // v1.49 — walkIn.visitorExit: en vivienda ajena la salida también es natural
+            // (atraviesa la puerta) — nearOwnDoor lo cubre y la E queda de respaldo.
+            if (logic.nearOwnDoor()) return null;
             return ic.exit;
           }
           // v1.40 — TU puerta ya no pide E: entras al plantarte (como el núcleo).

@@ -695,16 +695,20 @@ export class PlayerLogic {
       // heredan la misma regla Y la disciplina de hueco: la salida solo salta DENTRO del
       // vano de su puerta — entrar y salir es ANDAR hacia la puerta, nunca atravesar
       // paredes; la E de respaldo también se queda en el umbral (interactInside).
+      // v1.49 — TAMBIÉN EN LAS VIVIENDAS AJENAS (walkIn.visitorExit): entraste llamando con
+      // E (timbre) y sales ATRAVESANDO la puerta sin pulsar nada — mismo vano, mismo
+      // empujón (S). La E dentro sigue como respaldo clásico en toda vivienda.
       const wi = this.view.locals.walkIn;
       const armZ = wi?.armZ ?? 0.9;
       const exitZ = wi?.exitZ ?? 0.5;
       const ownHome = home.ownerId === this.actorId;
       const locale = home.kind !== 'dwelling' && home.defId !== 'portal';
+      const visitorExit = wi?.visitorExit ?? false;
       // v1.47 — ARMADA AL ENTRAR (walkIn.armOnEnter) + DIRECCIÓN MANDA: cruzar el umbral
       // arma la salida, pero solo salta EMPUJANDO hacia la puerta (S — la dirección del
       // cruce). Sin el requisito de dirección, entrar con W disparaba la salida del frame
       // siguiente (el aterrizaje z=0.45 ya está ≤ exitZ): entrar y salir era un bucle.
-      if (ownHome || locale) {
+      if (ownHome || locale || visitorExit) {
         if (this.z > armZ) this.exitArmed = true;
         else if (this.exitArmed && input.down && this.z <= exitZ && (ownHome || this.atDoorGap(home))) {
           const r = this.tryExitHome();
@@ -921,12 +925,18 @@ export class PlayerLogic {
     return this.autoEvents.splice(0, this.autoEvents.length);
   }
 
-  /** v1.40 — ¿estás en el marco de la puerta de TU vivienda (interior)? Para callar el
-   *  prompt «E · salir» justo cuando la salida automática está a punto de saltar. */
+  /** v1.40 — ¿estás en el marco de la puerta (interior)? Para callar el prompt «E · salir»
+   *  justo cuando la salida automática está a punto de saltar.
+   *  v1.49 — con walkIn.visitorExit aplica a TODA vivienda (ajenas incluidas): la salida
+   *  natural atravesando la puerta manda y el prompt ya no sugiere la E (E queda como
+   *  respaldo clásico, pero sin anunciarse en el umbral). */
   nearOwnDoor(): boolean {
     if (this.mode !== 'inside' || !this.insideBlock) return false;
     const b = this.world.blocks[this.insideBlock]!;
-    return b.ownerId === this.actorId && this.z <= 0.6;
+    if (b.kind !== 'dwelling') return false;
+    const own = b.ownerId === this.actorId;
+    if (!own && !(this.view.locals.walkIn?.visitorExit ?? false)) return false;
+    return this.z <= 0.6;
   }
 
   /** v1.40 — timbre atendido (el vecino está dentro): el sim registra el toque social
