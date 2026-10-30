@@ -417,6 +417,44 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     img.src = file;
     return entry;
   };
+  /** v1.51 — ARTE PLANO a textura (suelos del catálogo, opacos): el MISMO camino verificado
+   *  de makeTileTex/keyedSpriteTex (PNG → canvas → Texture.updateURL), con ganchos de salud
+   *  de assets (reportAssetOk/Failure) y tiling por metros (uScale/vScale, 1 losa ≈ 2,4 m
+   *  como el suelo dio de las estancias). Sirve al TAPIZ DE ENTRADA del portal. */
+  const plainArtCache = new Map<string, Texture>();
+  const plainArtTex = (name: string, file: string, uTiles: number, vTiles: number): Texture => {
+    const hit = plainArtCache.get(file);
+    if (hit) return hit;
+    const tex = new (B().Texture)(
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+      scene,
+      false,
+      true,
+    );
+    tex.name = name;
+    plainArtCache.set(file, tex);
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, img.naturalWidth);
+      c.height = Math.max(1, img.naturalHeight);
+      const cx2 = c.getContext('2d', { willReadFrequently: true });
+      if (!cx2) return;
+      cx2.drawImage(img, 0, 0);
+      tex.updateURL(c.toDataURL('image/png'));
+      tex.uScale = Math.max(1, uTiles);
+      tex.vScale = Math.max(1, vTiles);
+      reportAssetOk();
+    };
+    img.onerror = () => {
+      console.warn(`locals: suelo del hall no disponible (${file})`);
+      reportAssetFailure(file);
+    };
+    img.src = file;
+    tex.uScale = Math.max(1, uTiles);
+    tex.vScale = Math.max(1, vTiles);
+    return tex;
+  };
   /**
    * V1.26 — OPACIDAD TOTAL para hojas de puerta: los DynamicTexture con píxeles alpha=0 se
    * renderizan a NEGRO en esta config (WebGPU/CDN — diagnóstico v1.25). Las artes de puerta
@@ -1290,15 +1328,34 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       const x0 = cx - w / 2; // borde izquierdo del bloque (los rects del layout son locales)
       const baseY = bottom + v.slab * 2;
       const H = v.cellH - v.slab * 2;
+      // v1.51 — cota del suelo INTERIOR visible de los locales: la solera del bloque (v1.27)
+      // sube hasta bottom + gapH/2 + h (≈ +0,20) y enterraba los suelos de los locales
+      // (baseY = slab·2 ≈ +0,14): garaje, trasteros, sala y el propio vestíbulo mostraban el
+      // GRIS de la solera (#c9c6bf) en vez de su suelo — parte de la «zona gris» de la
+      // entrada. Las viviendas no sufren esto (base slab+wall ≈ +0,17 → suelo dio a +0,205,
+      // 5 mm sobre la solera). Misma receta aquí: carcasa/puertas/mobiliario siguen anclados
+      // a baseY (sus bases quedan bajo el suelo y se leen apoyadas en él).
+      const yBottomLoc = Math.max(baseY, bottom + v.slab + v.wall);
       const frontMat = hallFrontMat;
       const intMat = isLaundry || isGaraje ? (isGaraje ? hallGarajeMat : hallLaundryMat) : isPortal ? hallPortalMat : hallInnerMat;
+      // v1.51 — MATERIAL PROPIO de los laterales del portal: v1.50 tintaba los planos dio
+      // del carcaso, pero estos quedan EMBEBIDOS dentro del sólido del muro (los rayos
+      // golpean antes la carcasa — verificado con raycast QA) y el vestíbulo seguía
+      // mostrando el crema base: la «franja gris» de la entrada. La carcasa LLEVa ahora
+      // el tinte del diseño sorteado (se fija tras el roll del hall, más abajo).
+      const portalSideMat = isPortal ? mat(`${b.id}_lado_diseno_mat`) : intMat;
+      if (isPortal) {
+        portalSideMat.diffuseColor = Color3.FromHexString(loc.portal?.lobby?.wallColor ?? '#d8d3c8');
+        portalSideMat.specularColor = new Color3(0.02, 0.02, 0.02);
+      }
       // Carcasa: forjado + fondo + laterales + techo (la lavandería SIN pared frontal).
+      // v1.51 — en el portal, laterales con portalSideMat (tinte del diseño del hall).
       view.greybox.push(
         box(`${b.id}_forjado`, w, v.slab * 2, d, cx, bottom + v.slab, cz, m),
         box(`${b.id}_fondo`, w, H, v.wall, cx, baseY + H / 2, frontZ + d - v.wall / 2, intMat),
-        box(`${b.id}_lado_i`, v.wall, H, d, cx - w / 2 + v.wall / 2, baseY + H / 2, cz, intMat),
-        box(`${b.id}_lado_d`, v.wall, H, d, cx + w / 2 - v.wall / 2, baseY + H / 2, cz, intMat),
-        box(`${b.id}_techo`, w, v.wall, d, cx, baseY + H - v.wall / 2, cz, intMat),
+        box(`${b.id}_lado_i`, v.wall, H, d, cx - w / 2 + v.wall / 2, baseY + H / 2, cz, isPortal ? portalSideMat : intMat),
+        box(`${b.id}_lado_d`, v.wall, H, d, cx + w / 2 - v.wall / 2, baseY + H / 2, cz, isPortal ? portalSideMat : intMat),
+        box(`${b.id}_techo`, w, v.wall, d, cx, baseY + H - v.wall / 2, cz, isPortal ? portalSideMat : intMat),
       );
       // Lámpara interior (caliente, como las de las viviendas; se enciende de noche si hay
       // alguien dentro o con la junta activa — el bucle de interiores la gobierna).
@@ -1428,8 +1485,12 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           lmat.diffuseTexture = locTex.tex;
           lmat.specularColor = new Color3(0.03, 0.03, 0.03);
           lmat.alpha = 0.62;
+          // v1.51 — si el local NO tiene arte dio (garaje/trasteros/sala), las losas son el
+          // suelo visible: suben a la cota viva (sobre la solera); si SÍ lo tiene (portal/
+          // lavandería), quedan bajo el suelo dio y son inertes.
+          const losasY = dioDefLoc?.wall ? baseY + 0.042 : yBottomLoc + 0.035;
           const losasInt = attach(b.id, MeshBuilder.CreateGround(`${b.id}_losas_int`, { width: rect.w, height: rect.d }, scene));
-          losasInt.position.set(x0 + rect.x + rect.w / 2, baseY + 0.042, frontZ + rect.z + rect.d / 2);
+          losasInt.position.set(x0 + rect.x + rect.w / 2, losasY, frontZ + rect.z + rect.d / 2);
           losasInt.material = lmat;
           losasInt.isPickable = false;
           void locTex.ready;
@@ -1466,7 +1527,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
             `${b.id}_int`,
             roomDef.defId,
             rect,
-            { x0, frontZ, yBottom: baseY, yTop: baseY + H },
+            { x0, frontZ, yBottom: yBottomLoc, yTop: baseY + H },
             { parent: dioRootH, variant: { tintHex: '#ffffff', mirror: false, jitter: 0, wallIndex: dioVariantIdx, salt: 0 } },
           );
           if (roomH) {
@@ -1478,7 +1539,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           const shellSurfsH = diro.shell(
             b.id,
             { w: w - v.wall, d: d - v.wall },
-            { x0: cx - w / 2 + v.wall / 2, frontZ: frontZ + v.wall / 2, yBottom: baseY, yTop: baseY + H },
+            { x0: cx - w / 2 + v.wall / 2, frontZ: frontZ + v.wall / 2, yBottom: yBottomLoc, yTop: baseY + H },
             { parent: dioRootH },
           );
           interior.dio.shell.push(...shellSurfsH);
@@ -1489,11 +1550,46 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           const sideTintsLoc = dioDefLoc?.sideTints ?? [];
           if (isPortal && sideTintsLoc.length > 0) {
             const tintHex = sideTintsLoc[dioVariantIdx % sideTintsLoc.length]!;
+            const tintC = Color3.FromHexString(tintHex);
             for (const s of shellSurfsH) {
               if (s.mesh.name.endsWith('_dio_lateral_izq') || s.mesh.name.endsWith('_dio_lateral_der')) {
-                s.mat.diffuseColor = Color3.FromHexString(tintHex);
+                s.mat.diffuseColor = tintC;
               }
             }
+            // v1.51 — la CARCASA VISIBLE (lado_i/lado_d/techo) viste el mismo tinte (con su
+            // 20% emisivo de siempre para el levantamiento nocturno): los planos dio quedan
+            // embebidos en el sólido del muro, así que el tinte debe vivir en el material
+            // que de verdad se ve desde el pasillo.
+            portalSideMat.diffuseColor = tintC;
+            portalSideMat.emissiveColor = tintC.scale(0.2);
+          }
+          // v1.51 — TAPIZ DE ENTRADA: la franja de pasillo DELANTE del portal viste el SUELO
+          // del diseño sorteado (floors[i], emparejado con walls[i]/sideTints[i]): el hall se
+          // prolonga hacia la calle y el ajedrez del pasillo deja de cortarse en seco en la
+          // puerta (la «zona gris» que el vecino marcó en la entrada). Plano sobre las losas
+          // (+12 mm, nada coplanar) que mete la punta 10 cm bajo el suelo dio del vestíbulo
+          // (el umbral queda cubierto sin escalón visible) y muere contra el fondo del
+          // pasillo (sin costura a mitad del camino de paseo).
+          const floorsLoc = dioDefLoc?.floors ?? [];
+          if (isPortal && floorsLoc.length > 0 && v.corridorDepth > 0.4) {
+            const runArt = floorsLoc[dioVariantIdx % floorsLoc.length]!;
+            const runD = v.corridorDepth;
+            const runW = Math.max(0.6, w - v.wall * 2);
+            const runH = runD + 0.1;
+            const artBaseLoc = content.interiors?.artBase ?? '/art/interiors/raw/';
+            const runMat = mat(`${b.id}_tapete_mat`);
+            runMat.diffuseTexture = plainArtTex(
+              `${b.id}_tapete_tex`,
+              `${artBaseLoc}${runArt}`,
+              Math.max(1, Math.round(runW / 2.4)),
+              Math.max(1, Math.round(runH / 2.4)),
+            );
+            runMat.specularColor = new Color3(0.03, 0.03, 0.03);
+            const runner = MeshBuilder.CreateGround(`${b.id}_tapete_entrada`, { width: runW, height: runH }, scene);
+            runner.position.set(cx, bottom + v.slab * 2 + 0.016, frontZ - runD / 2 + 0.05);
+            runner.material = runMat;
+            runner.isPickable = false;
+            runner.parent = root; // como las losas del pasillo: sobrevive al swap del bloque
           }
         }
         // ── MOBILIARIO PROPIO de cada local (todo del catálogo) ──
