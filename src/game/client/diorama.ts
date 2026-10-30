@@ -31,6 +31,7 @@ import type { Mesh, Scene, StandardMaterial, Texture, TransformNode } from '@bab
 import type { Content } from '@/game/core/types';
 import { hash01 } from '@/game/interior';
 import { B } from './babylon';
+import { reportAssetFailure, reportAssetOk } from './assetHealth';
 
 export interface DioramaSurface {
   mesh: Mesh;
@@ -280,10 +281,14 @@ export function createDioramaDirector(scene: Scene, content: Content): DioramaDi
         dt.updateURL(c.toDataURL('image/png'));
       }
       entry.loaded = true;
+      reportAssetOk();
       for (const cb of entry.onTrim) cb(entry.ar ?? 1);
       entry.onTrim.length = 0;
     };
-    img.onerror = () => console.warn(`diorama: arte no disponible (${file})`);
+    img.onerror = () => {
+      console.warn(`diorama: arte no disponible (${file})`);
+      reportAssetFailure(cat.artBase + file);
+    };
     img.src = cat.artBase + file;
     return dt;
   };

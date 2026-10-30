@@ -14,6 +14,7 @@ import {
   type DioramaVariant,
 } from './diorama';
 import { instantiateBlockAsset, type BlockMat } from './assets';
+import { reportAssetFailure, reportAssetOk } from './assetHealth';
 
 interface BlockView {
   /** Cajas greybox estructurales (se ocultan cuando llega el modelo glTF; panel/candado NO van aquí). */
@@ -405,10 +406,14 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       entry.dt.updateURL(out.toDataURL('image/png'));
       entry.ar = Math.max(0.05, out.width / Math.max(1, out.height));
       entry.loaded = true;
+      reportAssetOk();
       for (const cb of entry.onTrim) cb(entry.ar);
       entry.onTrim.length = 0;
     };
-    img.onerror = () => console.warn(`locals: arte no disponible (${file})`);
+    img.onerror = () => {
+      console.warn(`locals: arte no disponible (${file})`);
+      reportAssetFailure(file);
+    };
     img.src = file;
     return entry;
   };

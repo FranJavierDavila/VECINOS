@@ -4,6 +4,7 @@ import { hash01 } from '@/game/interior';
 import { B } from './babylon';
 import type { BackdropDirector } from './backdrop';
 import { alphaBoundsOf, stripWhite } from './diorama';
+import { reportAssetFailure } from './assetHealth';
 
 /**
  * ESCENA EXTERIOR (v1.20→v1.22) — decorado urbano a pie de calle, 100% del catálogo.
@@ -134,7 +135,10 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
       }
       tex.update(true);
     };
-    img.onerror = () => console.warn(`exterior: arte de árbol no disponible (${file})`);
+    img.onerror = () => {
+      console.warn(`exterior: arte de árbol no disponible (${file})`);
+      reportAssetFailure(file);
+    };
     img.src = file;
     return entry;
   };

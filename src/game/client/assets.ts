@@ -10,6 +10,7 @@
 import type { AnimationGroup, AssetContainer, Material, Quaternion, Scene, TransformNode } from '@babylonjs/core';
 import type { ActorAssetDef, BlockAssetDef } from '@/game/core/types';
 import { B } from './babylon';
+import { reportAssetFailure } from './assetHealth';
 
 /** El bundle del CDN ya trae el loader glTF; este script extra es idempotente y solo asegura el plugin. */
 let loadersPromise: Promise<void> | null = null;
@@ -44,6 +45,7 @@ async function loadContainer(scene: Scene, url: string): Promise<AssetContainer 
         return await B().SceneLoader.LoadAssetContainerAsync(url, '', scene);
       } catch (e) {
         console.warn(`[assets] modelo no disponible (${url}); greybox como fallback.`, e);
+        reportAssetFailure(url);
         return null;
       }
     })();
