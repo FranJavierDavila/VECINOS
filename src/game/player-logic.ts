@@ -703,10 +703,14 @@ export class PlayerLogic {
       // v1.37 — SÓLIDOS del bloque (lavadoras de la lavandería): los mismos volúmenes que
       // se ven (rects en mundo de building.walkObstacles) bloquean el paso, con el radio
       // del actor. En vivienda no hay lista → no-op.
+      // v1.53 — misma REGLA DE ESCAPE que el pasillo: si ya estás DENTRO del influjo de un
+      // sólido, no te vuelve a bloquear (salir siempre es posible; entrar desde fuera no).
       const obs = this.blockObstacles.get(this.insideBlock!);
       const or_ = this.view.actorRadius;
-      const hitsSolid = (wx: number, lz: number): boolean =>
+      const inSolidAt = (wx: number, lz: number): boolean =>
         !!obs && obs.some((o) => wx > o.x0 - or_ && wx < o.x0 + o.w + or_ && lz > o.z0 - this.frontZ - or_ && lz < o.z0 - this.frontZ + o.d + or_);
+      const startedInSolid = inSolidAt(this.x, this.z);
+      const hitsSolid = (wx: number, lz: number): boolean => !startedInSolid && inSolidAt(wx, lz);
       const cur = roomAt(geo, this.x - x0, this.z);
       const nx = clampX(this.x + dx);
       if (walkable(geo, cur, nx - x0, this.z) && !hitsSolid(nx, this.z)) this.x = nx;
@@ -751,11 +755,18 @@ export class PlayerLogic {
     // pozo delante o ya estás en el límite), cambian de carril: W hacia la fachada (interior,
     // junto a puertas y avisos), S hacia la barandilla (exterior, vía de adelantamiento).
     // v1.47 — SÓLIDOS del pasillo (tablón de anuncios): no se atraviesa, se esquiva.
+    // v1.53 — REGLA DE ESCAPE ANTI-TRAMPA: si el actor YA está dentro de la influencia de un
+    //  sólido (aterrizajes, transiciones portal↔pasillo, esquinas del clamp), los sólidos NO
+    //  bloquean mientras no salga — quedarse pegado en el bolsón del extremo izquierdo
+    //  (clamp x + carril exterior + atril) dejaba al vecino clavado «sin poder ir a la
+    //  derecha» para siempre. Entrar en un sólido desde fuera sigue prohibido.
     const lanes = corridorLanes(this.view);
     const dirZ = (input.up ? 1 : 0) - (input.down ? 1 : 0);
     const rC = this.view.actorRadius;
-    const hitsCorridor = (x: number, z: number): boolean =>
+    const solidAt = (x: number, z: number): boolean =>
       this.corridorSolids.some((o) => x > o.x0 - rC && x < o.x0 + o.w + rC && z > o.z0 - rC && z < o.z0 + o.d + rC);
+    const alreadyInSolid = solidAt(this.x, this.z);
+    const hitsCorridor = (x: number, z: number): boolean => !alreadyInSolid && solidAt(x, z);
     let climbing = false;
     if (dirZ > 0) climbing = this.startClimb(1);
     else if (dirZ < 0) climbing = this.startClimb(-1);

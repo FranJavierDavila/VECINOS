@@ -2810,6 +2810,13 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           gmat.diffuseTexture = glassDoorTex();
           gmat.specularColor = new Color3(0.25, 0.25, 0.25);
           gmat.alpha = pd.alpha; // cristal translúcido: se lee el portal detrás al abrirse
+          // v1.53 — VISTA INTERIOR del vestíbulo: las hojas del glTF son láminas (una sola
+          // cara) — con backFaceCulling el cristal DESAPARECÍA al mirarlo desde dentro
+          // (el «glitch de perspectiva» del portal) y la transparencia peleaba el orden de
+          // dibujo con el hall/fantasma de las viviendas. Doble cara + pre-pase de profundidad:
+          // se ve desde ambos lados y la transparencia ordena bien contra el resto.
+          gmat.backFaceCulling = false;
+          gmat.needDepthPrePass = true;
           for (const suffix of ['cristal_izq', 'cristal_der']) {
             const leaf = meshBySuffix(suffix);
             if (!leaf) continue;
