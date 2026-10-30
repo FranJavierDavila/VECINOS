@@ -710,6 +710,13 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     if (content.blocks[b.defId]!.features?.elevator === true) {
       view.fixedDiffuse = Color3.FromHexString(v.elevator.wallColor);
     }
+    // v1.48 — PARED FIJA (catálogo blocks.*.view.fixedWall): pasillos, cubos de escalera y
+    // todo bloque marcado se ven SIEMPRE de su color view.color — nada de tintados de
+    // estado ni mezclas (el vecino: «algunas cambian de color y queda raro»). El estado lo
+    // cuentan candado, placa y puerta; el emissive de canales/noche sigue funcionando igual.
+    if (view.fixedDiffuse === null && content.blocks[b.defId]!.view?.fixedWall === true) {
+      view.fixedDiffuse = Color3.FromHexString(content.blocks[b.defId]!.view?.color ?? '#cccccc');
+    }
     // (v1.29: la autoiluminación vive en el material INTERIOR mi — ver dwelling — no en el
     //  compartido: con el compartido las fachadas se lavaban a blanco.)
     if (b.layer === 'corridor') {
@@ -1956,8 +1963,17 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           const cur = arr[i]!;
           const prevRight = (prev.cell.col + prev.size.w) * v.cellW - v.gapW / 2;
           const curLeft = cur.cell.col * v.cellW + v.gapW / 2;
-          const a = prevRight - gf.pad;
-          const z = curLeft + gf.pad;
+          // v1.48 — JUNTA contra CUBO DE ESCALERA (los artefactos coplanares del muro
+          // izquierdo del cubo): el arte glTF se centra en col·cellW + w/2, NO en el centro
+          // lógico — sus muros quedan 6 cm corridos ([left−0.06, right−0.06]). Incrustar el
+          // relleno con pad fijo dejaba su cara justo EN la cara interior del muro del arte
+          // (z-fight visible por el ventanal/hoja) o flotando en el canto. Con vecino
+          // escalera, la cara del relleno muere DENTRO del muro del arte con jitter
+          // determinista: sella la junta igual y jamás comparte plano (regla de la casa).
+          const prevStairs = content.blocks[prev.defId]!.features?.stairs === true;
+          const curStairs = content.blocks[cur.defId]!.features?.stairs === true;
+          const a = prevStairs ? prevRight - (0.08 + hash01(`juntaL_p${floor}_${i}`, 47) * 0.05) : prevRight - gf.pad;
+          const z = curStairs ? curLeft - (0.03 + hash01(`juntaR_p${floor}_${i}`, 53) * 0.02) : curLeft + gf.pad;
           if (z - a <= 0.02) continue;
           const dep = Math.max(depthOf(prev), depthOf(cur));
           const out = (gf.protrude ?? 0.012) + hash01(`junta_p${floor}_${i}`, 41) * (gf.stagger ?? 0.008);
@@ -1991,12 +2007,133 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         const spanCells = isStairsBlk ? v.stairs.spanW ?? b.size.w : b.size.w;
         const x0 = b.cell.col * v.cellW - v.gapW / 2 - 0.004;
         const x1 = (b.cell.col + spanCells) * v.cellW + v.gapW / 2 + 0.004;
+        // v1.52 — el PORTAL sin plinto prominente (la «zona gris» en la puerta): la solera
+        // sella la ranura vertical pero ya NO sube 13 cm ni asoma delante del arte (el glTF
+        // del portal trae su propio zócalo). Así el tapete del diseño del hall cruza el
+        // umbral VISIBLE y la entrada pierde la banda gris de siempre.
+        const isPortalBlk = b.defId === 'portal';
         const yBot = b.cell.floor * v.cellH - v.gapH / 2;
-        const yTop = b.cell.floor * v.cellH + v.gapH / 2 + so.h;
+        const yTop = b.cell.floor * v.cellH + v.gapH / 2 + (isPortalBlk ? 0.012 : so.h);
         const dep = depthOf(b);
         const out = (so.protrude ?? 0.016) + hash01(b.id, 43) * (so.stagger ?? 0.008);
         const zFront = frontZ - v.wall / 2 - out;
         attach(b.id, box(`${b.id}_solera`, x1 - x0, yTop - yBot, frontZ + dep - zFront, (x0 + x1) / 2, (yBot + yTop) / 2, zFront + (frontZ + dep - zFront) / 2, soMat));
+      }
+    }
+  }
+
+  // ── v1.48 — CUADRO DE FUSIBLES (garaje) + ICONOS DE AVISO (muro de pasillo) ──
+  //  · CUADRO GENERAL: caja con tapa de fusibles en la pared interior del garaje, junto a
+  //    la puerta (el «acceso»). Con APAGÓN su LED rojo parpadea y la E cerca abre el
+  //    minijuego (mg_fusibles); rearmado = luz de nuevo. Sin apagón: LED verde y la E
+  //    informa de que todo va bien. NADA coplanar: la caja flota 1 cm del muro.
+  //  · ICONOS DE AVISO: gran icono rojo PARPADEANTE sobre el muro de pasillo de la(s)
+    //  vivienda(s) afectadas por una misión activa (pasos reach/enter) o por una incidencia
+  //    del sim (canales/params: ruido, plagas, humedades — umbrales del catálogo alerts).
+  let fuseLedMat: StandardMaterial | null = null;
+  let fuseBoxSpotW: { blockId: string; x: number; z: number; floor: number } | null = null;
+  const alertIcons = new Map<string, { mesh: Mesh; mat: StandardMaterial; glyph: string | null }>();
+  let alertT = 0; // reloj del parpadeo (iconos de aviso + LED del cuadro)
+  /** v1.48 — texturas de glifo de aviso (una por emoji, cacheadas; las pinta el catálogo). */
+  const alertGlyphTexs = new Map<string, DynamicTexture>();
+  const alertTexFor = (glyph: string): DynamicTexture => {
+    const cached = alertGlyphTexs.get(glyph);
+    if (cached) return cached;
+    const ac = v.alerts;
+    const t = new (B().DynamicTexture)(`aviso_${glyph}_tex`, { width: 256, height: 256 }, scene, true) as DynamicTexture;
+    t.hasAlpha = true;
+    const c = t.getContext() as unknown as CanvasRenderingContext2D;
+    c.clearRect(0, 0, 256, 256);
+    c.beginPath();
+    c.arc(128, 128, 116, 0, Math.PI * 2);
+    c.fillStyle = ac?.color ?? '#c0392b';
+    c.globalAlpha = 0.94;
+    c.fill();
+    c.globalAlpha = 1;
+    c.lineWidth = 10;
+    c.strokeStyle = '#ffffff';
+    c.stroke();
+    c.font = '130px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", Arial, sans-serif';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText(glyph, 128, 138);
+    t.update(true);
+    alertGlyphTexs.set(glyph, t);
+    return t;
+  };
+  {
+    const gar = Object.values(world.blocks).find((b) => b.defId === 'garaje' && b.cell.floor === 0);
+    if (gar) {
+      const gw = gar.size.w * v.cellW - v.gapW;
+      const gx0 = (gar.cell.col + gar.size.w / 2) * v.cellW - gw / 2;
+      const fz = frontZ + 0.45;
+      const fy = gar.cell.floor * v.cellH + 1.32;
+      const fx = gx0 + v.wall + 0.055;
+      const caseMat = mat('fusibles_caja_mat');
+      caseMat.diffuseColor = Color3.FromHexString('#9aa0a6');
+      caseMat.specularColor = new Color3(0.06, 0.06, 0.06);
+      const caseM = attach(gar.id, box('cuadro_fusibles_caja', 0.09, 0.68, 0.52, fx, fy, fz, caseMat));
+      caseM.isPickable = false;
+      const faceTex = new (B().DynamicTexture)('fusibles_tapa_tex', { width: 256, height: 384 }, scene, true) as DynamicTexture;
+      faceTex.hasAlpha = false;
+      const fctx = faceTex.getContext() as unknown as CanvasRenderingContext2D;
+      fctx.fillStyle = '#4a4e55';
+      fctx.fillRect(0, 0, 256, 384);
+      fctx.strokeStyle = '#2b2e33';
+      fctx.lineWidth = 10;
+      fctx.strokeRect(8, 8, 240, 368);
+      fctx.fillStyle = '#d9d4c8';
+      fctx.font = 'bold 30px Arial, sans-serif';
+      fctx.textAlign = 'center';
+      fctx.fillText('GENERAL', 128, 52);
+      const fuseCols = ['#c0392b', '#e67e22', '#27ae60', '#27ae60', '#c0392b', '#27ae60'];
+      for (let fi = 0; fi < fuseCols.length; fi++) {
+        const fyRow = 84 + fi * 46;
+        fctx.fillStyle = '#22252a';
+        fctx.fillRect(48, fyRow, 160, 30);
+        fctx.fillStyle = fuseCols[fi]!;
+        fctx.fillRect(56, fyRow + 6, 144, 18);
+      }
+      fctx.fillStyle = '#8d99ae';
+      fctx.font = '22px Arial, sans-serif';
+      fctx.fillText('FUSIBLES', 128, 372);
+      faceTex.update(true);
+      const faceMat = mat('fusibles_tapa_mat');
+      faceMat.diffuseTexture = faceTex;
+      faceMat.specularColor = new Color3(0.04, 0.04, 0.04);
+      const face = attach(gar.id, MeshBuilder.CreatePlane('cuadro_fusibles_tapa', { width: 0.44, height: 0.62 }, scene));
+      face.position.set(fx + 0.048, fy, fz);
+      face.rotation.y = Math.PI / 2; // la tapa mira DENTRO del garaje (+x)
+      face.material = faceMat;
+      face.isPickable = false;
+      fuseLedMat = mat('fusibles_led_mat');
+      fuseLedMat.emissiveColor = Color3.FromHexString('#57d06a').scale(0.8);
+      fuseLedMat.diffuseColor = Color3.FromHexString('#333');
+      const led = attach(gar.id, box('cuadro_fusibles_led', 0.06, 0.06, 0.06, fx + 0.08, fy + 0.4, fz - 0.2, fuseLedMat));
+      led.isPickable = false;
+      fuseBoxSpotW = { blockId: gar.id, x: fx + 0.62, z: fz, floor: gar.cell.floor };
+    }
+
+    const ac = v.alerts;
+    if (ac) {
+      void alertTexFor(ac.glyphs.mission); // precalienta el glifo más común
+      const iconY = (b: BlockInstance): number => b.cell.floor * v.cellH + v.privacy.doorH + ac.yOverDoor;
+      for (const b of Object.values(world.blocks)) {
+        if (b.kind !== 'dwelling') continue;
+        const view = views.get(b.id);
+        if (!view) continue;
+        const imat = mat(`${b.id}_aviso_mat`);
+        imat.diffuseTexture = alertTexFor(ac.glyphs.mission);
+        imat.emissiveColor = new Color3(1, 1, 1); // legible también de noche
+        imat.specularColor = new Color3(0, 0, 0);
+        imat.alpha = 0;
+        imat.backFaceCulling = false;
+        const icon = attach(b.id, MeshBuilder.CreatePlane(`${b.id}_aviso`, { width: ac.size, height: ac.size }, scene));
+        icon.position.set(view.centerX, iconY(b), frontZ - v.wall / 2 - 0.035);
+        icon.material = imat;
+        icon.isPickable = false;
+        icon.setEnabled(false);
+        alertIcons.set(b.id, { mesh: icon, mat: imat, glyph: 'mission' });
       }
     }
   }
@@ -3580,6 +3717,11 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
    *  v1.41 — VISTA FACHADA (tecla 0): TODO cerrado — la fachada entera se ve acristalada
    *  (cortina con ventanas a la altura del pasillo) y el interior solo se entreve por ellas. */
   let fachadaView = false;
+  /** v1.48 — FACHADA DESDE LA CALLE (petición del vecino): paseando por la acera NO se ve
+   *  el interior del edificio, se ve la fachada. Con el jugador en modo 'outside' TODAS las
+   *  fachadas se cierran (sin muros fantasma ni vestíbulos tras el cristal); en cuanto
+   *  cruza (corredor/interior), las reglas de privacidad de siempre. */
+  let streetFacade = false;
   /** v1.47 — LOCALES SIEMPRE VISIBLES tras su fachada (catálogo locals.seeThrough): el
    *  interior del portal se ve a través de las correderas cerradas (el cristal es el
    *  cristal — alpha 0.72 del arte — y el vestíbulo se intuye detrás, con o sin llave). */
@@ -3604,13 +3746,15 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     // v1.41 — en vista FACHADA todas las fachadas están CERRADAS (sin seccionar): la cámara
     // exterior ve el bloque como un edificio de verdad y el interior solo se entreve por
     // las ventanas de la cortina acristalada.
-    const wall = (fachadaView || locked || privacyClosed) && !view.lodHiddenPanels;
+    // v1.48 — igual con el jugador EN LA ACERA (streetFacade): fachada sí, interior no.
+    const wall = (fachadaView || streetFacade || locked || privacyClosed) && !view.lodHiddenPanels;
     // v1.47 — FANTASMA DEL VECINO (privacy.occupiedAlpha, 0.5): vivienda HABITADA (alguien
     // dentro del sim) con el jugador FUERA → el muro que da al pasillo, su zócalo, el
     // premarco, la hoja y el aplique quedan al 50% para «intuir que está habitado» (el
     // diorama se queda encendido: se adivina la vida detrás). En cuanto entramos (timbre),
-    // muro, premarco y puerta desaparecen — el corte de siempre.
-    const ghost = !wall && !fachadaView && !view.lodHiddenPanels && privacyOn
+    // muro, premarco y puerta desaparecen — el corte de siempre. Desde la acera (v1.48)
+    // nunca hay fantasma: fachada cerrada y punto.
+    const ghost = !wall && !fachadaView && !streetFacade && !view.lodHiddenPanels && privacyOn
       && b.kind === 'dwelling' && playerInside !== b.id && occSet.has(b.id);
     const panelsOn = wall || ghost;
     view.front?.setEnabled(panelsOn);
@@ -3648,8 +3792,8 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     // levantada o el cristal correído enseñan el vestíbulo/interior sin entrar).
     const interior = interiors.get(b.id);
     if (interior?.dioRoot) {
-      let show = !wall && !fachadaView;
-      if (!show && !fachadaView && (b.defId === 'garaje' || b.defId === 'portal')) {
+      let show = !wall && !fachadaView && !streetFacade;
+      if (!show && !fachadaView && !streetFacade && (b.defId === 'garaje' || b.defId === 'portal')) {
         const openT = b.defId === 'portal' ? portalOpen : garajeLiftT;
         // v1.36 — reveal DESDE EL PRIMER MILÍMETRO de puerta (catálogo hallDoors.revealAt):
         // «tan pronto se levanta la puerta se ve el interior sin esperar a entrar».
@@ -3658,7 +3802,8 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       // v1.47 — «El interior del portal debería verse SIEMPRE a través de las correderas»:
       // los defId del catálogo (locals.seeThrough) enseñan su vestíbulo aunque el cristal
       // esté cerrado — se ve a través del vidrio, igual que en la calle.
-      if (!show && !fachadaView && seeThrough.has(b.defId)) show = true;
+      // v1.48 — salvo cuando el jugador está en la acera: fachada, no interior.
+      if (!show && !fachadaView && !streetFacade && seeThrough.has(b.defId)) show = true;
       interior.dioRoot.setEnabled(show);
     }
   }
@@ -3914,6 +4059,11 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     corridorObstacles(): { x0: number; z0: number; w: number; d: number }[] {
       return corridorObstacleRects;
     },
+    /** v1.48 — posición (mundo) del CUADRO DE FUSIBLES (interior del garaje, junto a la
+     *  puerta): el interact 'fusebox' se ancla aquí. null si la plantilla no trae garaje. */
+    fuseBoxSpot(): { blockId: string; x: number; z: number; floor: number } | null {
+      return fuseBoxSpotW;
+    },
     hasRear(blockId: string): boolean {
       return rears.has(blockId);
     },
@@ -3940,9 +4090,12 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
      * su interior al instante, sin esperar al siguiente tick.
      * `pos` (v1.19) alimenta los carteles guía de trasteros y el apilamiento 3D.
      */
-    update(dt: number, focus?: { x: number; floor: number }, inside?: string | null, pos?: { x: number; z: number; insideBlock: string | null }, env?: { daylight: number; movers?: { x: number; y: number; z: number; outside?: boolean }[]; intent?: { portal: boolean; block: string | null } | null }) {
+    update(dt: number, focus?: { x: number; floor: number }, inside?: string | null, pos?: { x: number; z: number; insideBlock: string | null }, env?: { daylight: number; movers?: { x: number; y: number; z: number; outside?: boolean }[]; intent?: { portal: boolean; block: string | null } | null; playerMode?: string; blackout?: boolean }) {
       if (focus) lastFocus = focus;
       if (inside !== undefined) playerInside = inside;
+      // v1.48 — el jugador en la ACERA (mode 'outside') ve el edificio cerrado: fachada sí,
+      // interior no. En cuanto cruza (corredor/interior) vuelven las reglas de privacidad.
+      streetFacade = env?.playerMode === 'outside';
       // PRIVACIDAD (v1.17) cada frame: la fachada de una vivienda sin nadie dentro se cierra
       // con su puerta al pasillo y se abre en cuanto alguien entra (propietario, visita…
       // o un ladrón). Vive en update() y no en paint() para reaccionar incluso con el
@@ -3963,7 +4116,8 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         const day = env?.daylight ?? 1;
         const litWorld = day < nightCfg.dayCutoff;
         // Apliques de las puertas (v1.24): foco cálido al anochecer, apagados de día.
-        const lampGlow = litWorld ? 1.0 : 0.06;
+        // v1.48 — con APAGÓN el circuito común cae: ni apliques ni escaleras (cero luz).
+        const lampGlow = env?.blackout ? 0 : litWorld ? 1.0 : 0.06;
         for (const { mat: lm, hex } of doorLampMats) lm.emissiveColor = Color3.FromHexString(hex).scale(lampGlow);
         // PUERTAS DE ESCALERA (v1.24): se abren antes de que alguien entre o salga (cualquier
         // mover cerca del umbral) y la ILUMINACIÓN COMPARTIDA de TODOS los cubos se enciende
@@ -4094,7 +4248,14 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         }
         // v1.35 — BOMBOS de la lavandería: las máquinas «en marcha» giran (deterministas).
         for (const dr of laundryDrums) dr.mesh.rotation.z += dr.speed * dt;
-        if (al.enabled && stairLightMats.length > 0) {
+        if (env?.blackout) {
+          // v1.48 — APAGÓN: la luz de las escaleras NO funciona (petición del vecino; el
+          // circuito común está caído hasta que alguien rearma el cuadro de fusibles).
+          for (const { mat: lm } of stairLightMats) lm.emissiveColor.setAll(0);
+          stairWallGlow.setAll(0);
+          for (const { mat: wm } of stairWallMats) wm.emissiveColor = stairWallGlow;
+          stairLightLevel = 0;
+        } else if (al.enabled && stairLightMats.length > 0) {
           let busy = false;
           if (litWorld) {
             for (const mv of openers) {
@@ -4128,7 +4289,11 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         }
         for (const [blockId, interior] of interiors) {
           let lit = false;
-          if (litWorld && occSet.has(blockId)) {
+          // v1.48 — con APAGÓN los LOCALES (portal, sala, garaje, trasteros) quedan a
+          // oscuras (circuito común); las viviendas aguantan con su lámpara: la vida se
+          // intuye detrás y las quejas del pasillo son gratis.
+          const commonDark = env?.blackout === true && world.blocks[blockId]?.kind !== 'dwelling';
+          if (!commonDark && litWorld && occSet.has(blockId)) {
             lit = true;
             for (const r of Object.values(world.residents)) {
               if (r.present && r.location === blockId && r.activity === 'sleep') {
@@ -4145,6 +4310,50 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           // Diorama (v1.23): el arte ilustrado sigue la misma luz que suelos y lámparas.
           for (const m of interior.dioMats) m.emissiveColor = lit ? nightDioGlow : nightDark;
         }
+      }
+      // v1.48 — ICONOS DE AVISO (parpadeo sobre el muro de pasillo de la vivienda afectada)
+      // + LED del cuadro de fusibles (rojo parpadeante con apagón, verde en calma).
+      alertT += dt;
+      const acU = v.alerts;
+      if (acU) {
+        const blinkA = 0.38 + 0.62 * (0.5 + 0.5 * Math.sin((alertT / Math.max(0.2, acU.blinkSecs)) * Math.PI * 2));
+        const missionBlocks = new Set<string>();
+        for (const am of world.missions) {
+          if (am.state !== 'active' && am.state !== 'awaiting_choice') continue;
+          const def = content.missions[am.id];
+          for (const st of def?.steps ?? []) {
+            if (st.type === 'reach') missionBlocks.add(st.target.block);
+            else if (st.type === 'enter' || st.type === 'catch_in_act') missionBlocks.add(st.target);
+          }
+        }
+        const thr = acU.thresholds;
+        for (const [bid, icon] of alertIcons) {
+          const blk = world.blocks[bid]!;
+          const noiseLv = world.channels.noise?.[bid] ?? 0;
+          const kind = missionBlocks.has(bid)
+            ? 'mission'
+            : noiseLv >= thr.noise
+              ? 'noise'
+              : (blk.params.plague ?? 0) >= thr.plague
+                ? 'plague'
+                : (blk.params.humidity ?? 0) >= thr.humidity
+                  ? 'humidity'
+                  : null;
+          const on = kind !== null && !fachadaView && !streetFacade;
+          icon.mesh.setEnabled(on);
+          if (on) {
+            icon.mat.alpha = blinkA;
+            if (icon.glyph !== kind) {
+              icon.glyph = kind;
+              icon.mat.diffuseTexture = alertTexFor(kind);
+            }
+          }
+        }
+      }
+      if (fuseLedMat) {
+        fuseLedMat.emissiveColor = env?.blackout
+          ? Color3.FromHexString('#ff5340').scale(0.45 + 0.55 * (0.5 + 0.5 * Math.sin(alertT * 7)))
+          : Color3.FromHexString('#57d06a').scale(0.8);
       }
       // CARTELES GUÍA (v1.19): visibles solo con el jugador dentro del bloque de trasteros;
       // texto = los trasteros que tienes a cada lado según la profundidad del pasillo.

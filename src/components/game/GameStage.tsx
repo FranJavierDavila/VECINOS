@@ -18,6 +18,7 @@ import { ToastStack } from './ToastStack';
 import { TouchControls } from './TouchControls';
 import { PauseMenu } from './PauseMenu';
 import { TutorialCard } from './TutorialCard';
+import { MoveRight } from 'lucide-react';
 
 /**
  * v1.40 — Overlay de CONTEXTO GRÁFICO PERDIDO: el navegador nos quitó el WebGL/WebGPU
@@ -41,6 +42,23 @@ function LostOverlay() {
         >
           {t('lost.reload')}
         </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * v1.48 — Flecha animada del LATERAL: la entrada frontal del portal está cerrada; al
+ * empujar de frente, esta flecha manda a girar la esquina (la entrada real es la lateral).
+ */
+function SideHint() {
+  const sideHint = useGameStore((s) => s.sideHint);
+  if (!sideHint) return null;
+  return (
+    <div className="pointer-events-none absolute bottom-14 left-1/2 z-20 -translate-x-1/2" role="status" aria-live="polite">
+      <div className="flex items-center gap-2 rounded-full border border-amber-400/60 bg-neutral-900/90 px-4 py-2 shadow-lg">
+        <MoveRight className="h-5 w-5 animate-bounce text-amber-300" aria-hidden />
+        <span className="text-xs font-semibold text-amber-100">{sideHint}</span>
       </div>
     </div>
   );
@@ -180,6 +198,9 @@ export default function GameStage() {
           {prompt}
         </div>
       )}
+
+      {/* v1.48 — flecha animada: la entrada frontal está cerrada, gira la esquina. */}
+      {ready && !modalOpen && <SideHint />}
 
       <PhoneModal onNext={() => getController()?.phoneNext()} />
       <CutsceneOverlay />

@@ -79,6 +79,8 @@ export interface EcosystemDirector {
   readonly state: EcosystemState;
   /** v1.40 — ¿hay un APAGÓN activo ahora mismo? (la linterna del jugador lo lee). */
   isBlackout(): boolean;
+  /** v1.48 — rearme del cuadro de fusibles: cancela el apagón del cerebro (luz ya). */
+  endBlackout(): void;
   /** Posiciones de los extras en escena (v1.26): abren puertas de escalera y encienden
    *  su luz compartida igual que los vecinos — el repartidor ya no llega a puertas cerradas. */
   extraPositions(): { x: number; y: number; z: number }[];
@@ -93,7 +95,7 @@ export function createEcosystem(
   const eco: EcosystemContent | undefined = content.ecosystem;
   if (!eco) {
     // Sin catálogo: director nulo funcional (la partida no depende del ecosistema).
-    return { update() {}, dispose() {}, report: null, state: createEcosystemState(), extraPositions: () => [], isBlackout: () => false };
+    return { update() {}, dispose() {}, report: null, state: createEcosystemState(), extraPositions: () => [], isBlackout: () => false, endBlackout() {} };
   }
 
   const { Color3, Mesh, MeshBuilder, Quaternion, StandardMaterial, TransformNode, Vector3 } = B();
@@ -739,6 +741,13 @@ export function createEcosystem(
      *  tick del mundo no lo alcance, se considera que la luz está fuera. */
     isBlackout() {
       return brain.blackoutUntilTick !== null && world.tick < brain.blackoutUntilTick;
+    },
+    /** v1.48 — REARME DEL CUADRO DE FUSIBLES: el vecino arregló el apagón (minijuego
+     *  mg_fusibles). El param de luz lo restaura el sim (effects del catálogo); aquí se
+     *  cancela el apagón del cerebro para que pasillos/escalera/locales vuelvan a brillar. */
+    endBlackout() {
+      brain.blackoutUntilTick = null;
+      brain.blackoutEventId = null;
     },
     extraPositions() {
       const out: { x: number; y: number; z: number }[] = [];

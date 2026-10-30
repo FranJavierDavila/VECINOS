@@ -2,6 +2,7 @@ import type { Color3, DynamicTexture, HemisphericLight, DirectionalLight, Mesh, 
 import type { Content, World } from '@/game/core/types';
 import { hash01 } from '@/game/interior';
 import { B } from './babylon';
+import { playSoundAt } from './audio';
 /**
  * FONDO URBANO (v1.21) — capa de presentación pura, todo del catálogo (rules.view.backdrop).
  *
@@ -41,8 +42,10 @@ interface LayerView {
 }
 
 export interface BackdropDirector {
-  /** Avanza el cielo/sol/nubes/lluvia y las luces con la hora del sim. dt en segundos. */
-  update(dt: number): void;
+  /** Avanza el cielo/sol/nubes/lluvia y las luces con la hora del sim. dt en segundos.
+   *  v1.48 — opts.bolts: rayos visibles (solo cámaras exteriores edificio/fachada); el
+   *  FOGONAZO y el trueno valen en toda la escena igualmente. */
+  update(dt: number, opts?: { bolts?: boolean }): void;
   /** Luz de día efectiva 0..1 (1 = mediodía pleno): la usan farolas y luces interiores. */
   readonly daylight: number;
   dispose(): void;
@@ -532,13 +535,54 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
   }
   let lastRainState: string = world.weather.state;
 
+  // ── TORMENTA (v1.48): fogonazos + RAYOS desde las nubes + trueno con retardo. ──
+  //  · El FOGONAZO sube la hemisférica y el sol un instante (toda la escena reluce) y
+  //    blanquea el cielo; el RAYO (solo cámaras exteriores) es una línea dentada que baja
+  //    de una nube al suelo con parpadeo; ~2 s después llega el TRUENO (catálogo sounds).
+  const stormCfg = cfg.storm;
+  const bolts: Mesh[] = [];
+  const boltMats: StandardMaterial[] = [];
+  if (stormCfg) {
+    const boltMatProto = (): StandardMaterial => {
+      const m = new StandardMaterial('rayo_mat', scene);
+      m.emissiveColor = new Color3(1, 1, 1);
+      m.disableLighting = true;
+      m.alpha = 0;
+      return m;
+    };
+    for (let bi = 0; bi < 3; bi++) {
+      const pts: Vector3[] = [];
+      let px = 0;
+      const segs = 7;
+      for (let sgi = 0; sgi <= segs; sgi++) {
+        const t = sgi / segs;
+        const y = stormCfg.topY + (stormCfg.groundY - stormCfg.topY) * t;
+        px += (hash01(`rayo${bi}_${sgi}`, 61) - 0.5) * 3.4;
+        pts.push(new Vector3(px, y, cfg.clouds.z - 3));
+      }
+      // Rama secundaria corta (los rayos de cómic se ramifican).
+      const branch = [pts[3]!, pts[4]!].map((p, i) => new Vector3(p.x + 1.4 + i * 1.8, p.y - 3.5 - i * 3.2, p.z));
+      const mesh = MeshBuilder.CreateLineSystem(`rayo_${bi}`, { lines: [pts, branch] }, scene);
+      mesh.isPickable = false;
+      mesh.setEnabled(false);
+      const bm = boltMatProto();
+      mesh.material = bm;
+      mesh.alphaIndex = 3; // sobre las nubes, bajo nada crítico
+      bolts.push(mesh);
+      boltMats.push(bm);
+    }
+  }
+  let flashT = 0; // 1 = fogonazo recién caído; decae con flashDecay
+  let boltTimer = 3; // cuenta atrás para el próximo rayo (solo con storm)
+  let boltSlot = 0;
+
   let daylight = 1;
 
   return {
     get daylight(): number {
       return daylight;
     },
-    update(dt: number) {
+    update(dt: number, opts?: { bolts?: boolean }) {
       const hour = (world.clock.minute / 60) % 24;
       const kf = keyframeAt(cfg.sky, hour);
       // V1.28 — DÍA DE LLUVIA = CIELO CERRADO (petición del vecino): con rain/storm el cielo
@@ -605,6 +649,50 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
         skyLow.mat.emissiveColor.copyFrom(kf.horizon);
       }
       starMat.alpha = nightF * (1 - ocF); // con el cielo cerrado ni las estrellas asoman
+      // ── v1.48 — TORMENTA: cuenta atrás del próximo fogonazo/rayo; el flash decays y
+      // mientras vive EMPUJA la luz global (toda la escena) y blanquea el cielo un resto.
+      if (stormCfg) {
+        const isStorm = world.weather.state === 'storm';
+        boltTimer -= dt;
+        if (isStorm && boltTimer <= 0) {
+          const [mn, mx] = stormCfg.flashEverySecs;
+          boltTimer = mn + hash01('rayo_t', Math.floor(world.clock.minute * 60 + world.clock.day * 1440) + Math.round(boltTimer * 7)) * Math.max(0.001, mx - mn);
+          flashT = 1;
+          boltSlot = (boltSlot + 1) % bolts.length;
+          // Rayo en otro sitio de la ciudad + TRUENO con retardo (catálogo).
+          const bx = stormCfg.boltXRange[0] + hash01('rayo_x', Math.round(world.clock.minute * 3.7)) * (stormCfg.boltXRange[1] - stormCfg.boltXRange[0]);
+          bolts[boltSlot]!.position.x = bx;
+          const gain = stormCfg.thunderGain * (0.7 + hash01('rayo_g', Math.round(world.clock.minute * 1.3)) * 0.3);
+          const delayMs = Math.round(stormCfg.thunderDelaySecs * 1000);
+          const timer = setTimeout(() => playSoundAt('trueno', gain), delayMs);
+          if (typeof timer.unref === 'function') timer.unref(); // no retener el proceso en QA
+        }
+        if (flashT > 0) {
+          flashT = Math.max(0, flashT - dt / Math.max(0.2, stormCfg.flashDecay));
+          const flash = Math.pow(flashT, 1.35) * (0.72 + 0.28 * Math.sin(flashT * 47));
+          if (flash > 0.003) {
+            lights.hemi.intensity += flash * 2.6;
+            lights.dir.intensity += flash * 1.7;
+            const white = Color3.White();
+            skyTop.mat.emissiveColor = Color3.Lerp(skyTop.mat.emissiveColor, white, Math.min(0.85, flash));
+            skyLow.mat.emissiveColor = Color3.Lerp(skyLow.mat.emissiveColor, white, Math.min(0.85, flash));
+          }
+          // El rayo solo se dibuja en cámaras exteriores; parpadea mientras el flash vive.
+          const showBolts = opts?.bolts === true && flashT > 0.42;
+          for (let bi = 0; bi < bolts.length; bi++) {
+            const bm = boltMats[bi]!;
+            if (showBolts && bi === boltSlot) {
+              bolts[bi]!.setEnabled(true);
+              bm.alpha = Math.min(1, flashT * 1.6) * (0.55 + 0.45 * Math.sin(flashT * 60));
+            } else {
+              bolts[bi]!.setEnabled(false);
+              bm.alpha = 0;
+            }
+          }
+        } else {
+          for (const bolt of bolts) bolt.setEnabled(false);
+        }
+      }
       // Capas: repintan cuando cambia el nightF (cubo de 0.09) o el clima — no cada frame.
       for (let li = 0; li < layers.length; li++) {
         const lv = layers[li]!;
@@ -623,6 +711,7 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
       for (const c of clouds) c.mesh.dispose(false, true);
       for (const t of cloudTexs) t.dispose();
       for (const lv of layers) lv.plane.dispose(false, true);
+      for (const bolt of bolts) bolt.dispose(false, true);
       rain.stop();
       rain.dispose();
     },

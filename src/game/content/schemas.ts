@@ -18,7 +18,9 @@ export const paramDefSchema = z.object({
   label: z.string().optional(),
 });
 
-const viewSchema = z.object({ color: z.string(), altColor: z.string().optional() });
+/** v1.48 — fixedWall: el bloque SIEMPRE se ve del color view.color (nada de tintados de
+ *  estado ni mezclas: pasillos, escaleras y ascensor en gris fijo, petición del vecino). */
+const viewSchema = z.object({ color: z.string(), altColor: z.string().optional(), fixedWall: z.boolean().optional() });
 
 /**
  * ── Bloques EXTERIORES (v1.20) ── decorado urbano a pie de calle (aceras, carreteras,
@@ -1989,6 +1991,19 @@ export const rulesSchema = z.object({
             alphaCloudy: 0.7,
             stormScale: 1.7,
           }),
+        /** v1.48 — TORMENTA: fogonazos globales + rayos desde las nubes (cámaras exteriores)
+         *  + trueno con retardo. Opcional: sin sección, cielo tormentoso sin rayos. */
+        storm: z
+          .object({
+            flashEverySecs: z.tuple([z.number().positive(), z.number().positive()]).default([5, 14]),
+            flashDecay: z.number().positive().default(2.6),
+            boltXRange: z.tuple([z.number(), z.number()]).default([-70, 70]),
+            topY: z.number().default(30),
+            groundY: z.number().default(0),
+            thunderDelaySecs: z.number().min(0).default(2),
+            thunderGain: z.number().min(0).max(1.4).default(0.85),
+          })
+          .optional(),
       })
       .default({
         enabled: false,
@@ -2154,6 +2169,37 @@ export const rulesSchema = z.object({
         panelInset: z.number().min(0).default(0.08),
       })
       .optional(),
+    /** v1.48 — ICONOS DE AVISO (muro de pasillo de la vivienda afectada): umbral por
+     *  parámetro/canal del sim, glifo, tamaño y cadencia del parpadeo. */
+    alerts: z
+      .object({
+        thresholds: z.object({ plague: z.number().default(35), humidity: z.number().default(50), noise: z.number().default(55) }),
+        glyphs: z.object({ plague: z.string().default('🐜'), humidity: z.string().default('💧'), noise: z.string().default('📢'), mission: z.string().default('❗') }),
+        size: z.number().positive().default(0.82),
+        yOverDoor: z.number().default(0.5),
+        blinkSecs: z.number().positive().default(1.1),
+        color: z.string().default('#c0392b'),
+      })
+      .optional(),
+    /** v1.48 — ENTRADA FRONTAL CERRADA: la calle no entra de frente por el portón; texto
+     *  del aviso con la flecha animada y cadencias del recordatorio. */
+    sideEntry: z
+      .object({
+        hint: z.string().default('→ Gira la esquina: se entra por el LATERAL del portal'),
+        toast: z.string().default('🚪 La entrada frontal no es de acceso. Rodea la esquina: la puerta del portal está en el lateral.'),
+        cooldownSecs: z.number().positive().default(3.5),
+        hintSecs: z.number().positive().default(2.8),
+      })
+      .optional(),
+    /** v1.48 — COMENTARIOS CON APAGÓN: vecinos cerca sueltan bromas sobre la luz mientras
+     *  el edificio está a oscuras. */
+    blackoutJokes: z
+      .object({
+        everySecs: z.tuple([z.number().positive(), z.number().positive()]).default([12, 22]),
+        radius: z.number().positive().default(6),
+        lines: z.array(z.string()).min(1),
+      })
+      .optional(),
   }),
   demo: z.object({ resident: z.string(), block: z.string(), noise: z.number(), toast: z.string() }),
   cutscene: z.object({
@@ -2207,6 +2253,8 @@ export const rulesSchema = z.object({
     elevatorBroken: z.string(),
     mailbox: z.object({ prompt: z.string(), lines: z.array(z.string()).min(1) }),
     noticeboard: z.object({ prompt: z.string(), template: z.string() }),
+    /** v1.48 — CUADRO DE FUSIBLES (garaje): prompt de la E y línea cuando no hay apagón. */
+    fusebox: z.object({ prompt: z.string(), okLine: z.string() }).optional(),
   }),
 });
 
@@ -2234,6 +2282,9 @@ export const soundsCatalogSchema = z.object({
         /** v1.22: una secuencia puede MEZCLAR tonos y ráfagas de ruido (suspiros, motores). */
         steps: z.array(z.union([soundStepSchema, z.object({ kind: z.literal('noise'), durMs: z.number(), gain: z.number(), filterHz: z.number().default(1200), atMs: z.number().default(0) })])),
       }),
+      /** v1.48 — sonido grabado real (p. ej. el timbre de casa «timbrecasa.mp3»): se carga
+       *  perezosamente, se cachea por URL y se reproduz por el bus maestro. */
+      z.object({ kind: z.literal('file'), file: z.string().min(1), gain: z.number().default(1) }),
     ]),
   ),
   events: z.record(z.string(), z.array(z.string())),

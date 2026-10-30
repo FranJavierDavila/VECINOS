@@ -66,7 +66,8 @@
       }
     },
     "view": {
-      "color": "#a3b18a"
+      "color": "#c9cac4",
+      "fixedWall": true
     },
     "label": "la escalera"
   },
@@ -96,7 +97,8 @@
       }
     },
     "view": {
-      "color": "#d9c9a3"
+      "color": "#c8c5be",
+      "fixedWall": true
     },
     "label": "el pasillo"
   },
@@ -476,7 +478,8 @@
       }
     },
     "view": {
-      "color": "#a3b18a"
+      "color": "#c9cac4",
+      "fixedWall": true
     },
     "label": "la escalera (bajada)"
   },

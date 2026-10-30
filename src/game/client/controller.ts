@@ -105,6 +105,12 @@ class GameController {
   private flashlight: { light: unknown; update: (pos: { x: number; y: number; z: number }) => void; dispose: () => void } | null = null;
   /** Cuenta atrás del refresco de sombras (v1.32): cazamallas nuevas cada 2 s. */
   private shadowRefreshT = 2;
+  /** v1.48 — flecha del LATERAL: instante (s) hasta el que se enseña el aviso. */
+  private sideHintUntil = 0;
+  /** v1.48 — último toast de entrada frontal cerrada (cadencia, no spamea). */
+  private lastFrontToastAt = -999;
+  /** v1.48 — cuenta atrás de la próxima broma vecinal con el apagón activo. */
+  private blackoutJokeT = 6;
   // ── v1.38 — PASE DE OPTIMIZACIÓN: auto-ajuste de rendimiento ──
   /** Director que mide FPS y sube/baja la escalera de optimización (solo presentación). */
   private perf: PerfDirector | null = null;
@@ -521,6 +527,24 @@ class GameController {
     // catálogo de personalidades (reactions.greet), en el idioma del chrome.
     if (r.type === 'chat') {
       this.chatWith(r.residentId);
+      this.pump();
+      return;
+    }
+    // v1.48 — CUADRO DE FUSIBLES (garaje): con apagón abre el minijuego de rearme;
+    // en calma, el aviso del catálogo («todo en orden... de momento»).
+    if (r.type === 'fusebox') {
+      const s = useGameStore.getState();
+      if (this.ecosystem?.isBlackout()) {
+        const def = this.content.minigames['mg_fusibles'];
+        if (def) {
+          this.tutorial.tip('minigame');
+          const ov = this.scenarioOverrides[def.id];
+          const effective = ov ? ({ ...def, config: { ...def.config, ...ov } } as MinigameDef) : def;
+          s.setMinigame({ ...effective, emoji: effective.emoji ?? '💡', instruction: effective.instruction ?? null });
+        }
+      } else {
+        s.pushToast(this.content.rules.interact.fusebox?.okLine ?? 'El cuadro está en orden.', 'info');
+      }
       this.pump();
       return;
     }
@@ -963,6 +987,10 @@ class GameController {
   completeMinigame(id: string, success: boolean): void {
     if (!this.world) return;
     this.sendCommand({ type: 'complete_minigame', id, success });
+    // v1.48 — REARME DEL CUADRO DE FUSIBLES: el minijuego restaura el param de luz del
+    // pasillo (sim, effects del catálogo) y aquí se cancela el apagón del cerebro — los
+    // pasillos, escaleras y locales recuperan su luz al instante. Sin arreglo, sin luz.
+    if (id === 'mg_fusibles' && success) this.ecosystem?.endBlackout();
     this.pump();
   }
 
@@ -1079,6 +1107,11 @@ class GameController {
         getContent: () => this._content,
         // v1.45 — QA de puertas: conducir al jugador (teleport + input táctil) desde el QA.
         getLogic: () => this.logic,
+        // v1.52 — QA del apagón/cerebro: el director del ecosistema (late binding: se crea
+        // después del arranque; el getter perezoso siempre da el vivo).
+        getEcosystem: () => this.ecosystem,
+        // v1.52 — QA de flujos completos (timbre/fusibles/flecha): el controlador entero.
+        getController: () => this,
         setTouch: (v: { up?: boolean; down?: boolean; left?: boolean; right?: boolean }) => this.setTouchInput(v),
         // v1.46 — QA de locomoción determinista: despeja modales y CONGELA el bucle
         // (paused) para conducir logic.update(dt, input) a mano desde la consola sin
@@ -1146,6 +1179,8 @@ class GameController {
     this.logic.setNoticeboardSpot(this.building.noticeboardSpot());
     // v1.47 — sólidos del pasillo de planta 0 (el atril del tablón no se atraviesa).
     this.logic.setCorridorObstacles(this.building.corridorObstacles());
+    // v1.48 — el CUADRO DE FUSIBLES del garaje sale del mismo building que lo pinta.
+    this.logic.setFuseBoxSpot(this.building.fuseBoxSpot());
     this.elevators = createElevators(this.scene, this.world, this.content);
     this.actors = createActors(this.scene, this.world, this.content, this.elevators);
     // v1.37 — los vecinos tampoco atraviesan las lavadoras: los tramos de su locomoción se
@@ -1351,6 +1386,19 @@ class GameController {
           this.actors?.director?.setGesture(this.actorId(), null);
         } else if (ar.type === 'exerciseEnd') {
           this.actors?.director?.setGesture(this.actorId(), null);
+        } else if (ar.type === 'frontBlocked') {
+          // v1.48 — ENTRADA FRONTAL CERRADA del portal: flecha animada hacia la esquina
+          // (HUD) + toast con cadencia. La entrada de verdad es la LATERAL.
+          const se = this.content.rules.view.sideEntry;
+          const nowS = performance.now() / 1000;
+          useGameStore.getState().setSideHint(se?.hint ?? '→ Gira la esquina: se entra por el lateral');
+          this.sideHintUntil = nowS + (se?.hintSecs ?? 2.8);
+          if (nowS - this.lastFrontToastAt > 20) {
+            this.lastFrontToastAt = nowS;
+            const s = useGameStore.getState();
+            s.pushToast(se?.toast ?? '🚪 La entrada frontal no es de acceso.', 'info');
+            playSound('door_locked');
+          }
         }
       }
       // Ascensor (v1.5): el director mueve cabinas y puertas; el jugador llama con W/S en el
@@ -1466,8 +1514,12 @@ class GameController {
     }
     // Fondo urbano (v1.20): el cielo, el sol y las nubes siguen la hora del sim; las farolas
     // de la calle leen la luz de día resultante. Los modales no paran el ambiente (solo el reloj).
-    this.backdrop?.update(dt);
+    // v1.48 — TORMENTA: los rayos solo se dibujan en cámaras exteriores (edificio/fachada);
+    // el fogonazo y el trueno valen en toda la escena.
+    this.backdrop?.update(dt, { bolts: store.camMode === 'edificio' || store.camMode === 'fachada' });
     this.exterior?.update(dt);
+    // v1.48 — la flecha del lateral se va sola al acabar su aviso.
+    if (store.sideHint !== null && performance.now() / 1000 >= this.sideHintUntil) store.setSideHint(null);
     // v1.21/v1.22: el MOBILIARIO de la calle, los vehículos, los viandantes y las
     // manifestaciones viven en las vistas "edificio" y "planta" (v1.23: la planta baja
     // ve pasar la acera en el encuadre — no perderse la vidilla de la calle); en
@@ -1503,6 +1555,33 @@ class GameController {
     if (!this.net) this.chats?.update(dt);
     // Voces de proximidad (v1.22): se oyen en cualquier vista (pasillos incluidos).
     if (!this.net) this.voices?.update(dt);
+    // v1.48 — BROMAS CON APAGÓN: los vecinos cerca del jugador comentan la falta de luz
+    // (impago, velas, presidente distraído…) con bocadillo y gesto de charla. Cadencia y
+    // radio del catálogo (rules.view.blackoutJokes).
+    this.blackoutJokeT -= dt;
+    if (!this.net && !frozen && this.blackoutJokeT <= 0 && this.ecosystem?.isBlackout()) {
+      const bj = this.content.rules.view.blackoutJokes;
+      if (bj && bj.lines.length > 0 && this.world && this.actors) {
+        const [mn, mx] = bj.everySecs;
+        this.blackoutJokeT = mn + Math.random() * Math.max(0.001, mx - mn);
+        const posJ = this.logic.position();
+        const floorY = posJ.floor * (this.content.rules.view.cellH ?? 2.6);
+        const cand: string[] = [];
+        for (const r of Object.values(this.world.residents)) {
+          if (!r.present || r.location === null) continue;
+          const p = this.actors.director?.nodeOf(r.id);
+          if (!p || Math.abs(p.y - floorY) > 1.2) continue;
+          if (Math.hypot(p.x - posJ.x, p.z - posJ.z) < bj.radius) cand.push(r.id);
+        }
+        const who = cand.length > 0 ? cand[Math.floor(Math.random() * cand.length)]! : null;
+        if (who) {
+          this.bubbles?.sayText(who, bj.lines[this.world.tick % bj.lines.length]!, 4.2);
+          this.actors.director?.setGesture(who, 'talk', 3.2);
+        }
+      } else {
+        this.blackoutJokeT = 10;
+      }
+    }
     // Cutscene (Fase D): sus beats mueven cámara/actores DESPUÉS de los eventos y ANTES del render.
     this.cutscenePlayer?.update(dt);
     // Bocadillos (v1.10): después de actores y cámara — proyectan la posición FINAL del frame.
@@ -1551,7 +1630,7 @@ class GameController {
       // v1.24: movers → puertas de escalera + su luz compartida nocturna.
       // v1.45: intent → las puertas de planta 0 y las correderas del portal SOLO se abren
       // con el empujón del jugador (intención de cruce); pasar de largo no abre nada.
-      { daylight: this.backdrop ? this.backdrop.daylight : 1, movers, intent: this.logic.crossingIntent() },
+      { daylight: this.backdrop ? this.backdrop.daylight : 1, movers, intent: this.logic.crossingIntent(), playerMode: pos.mode, blackout: this.ecosystem?.isBlackout() ?? false },
     );
     // v1.40 — la LINTERNA viaja con el jugador (posición pies del HUD de posición).
     this.flashlight?.update({ x: pos.x, y: (pos.floor ?? 0) * this.content.rules.view.cellH, z: pos.z });
@@ -1978,6 +2057,9 @@ class GameController {
           return ic.mailbox.prompt;
         case 'noticeboard':
           return ic.noticeboard.prompt;
+        // v1.48 — cuadro de fusibles del garaje.
+        case 'fusebox':
+          return ic.fusebox?.prompt ?? 'E · revisar el cuadro de fusibles';
         case 'laptop':
           return ic.laptop;
         case 'bed':

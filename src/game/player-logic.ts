@@ -24,7 +24,10 @@ export type InteractResult =
   | { type: 'sit'; x: number; z: number; yaw: number }
   | { type: 'stand' }
   | { type: 'exerciseStart'; seconds: number }
-  | { type: 'exerciseEnd' };
+  | { type: 'exerciseEnd' }
+  /** v1.48 — empujón en la entrada FRONTAL del portal (cerrada): el controlador saca la
+   *  flecha animada que manda a girar la esquina (la entrada real es la lateral). */
+  | { type: 'frontBlocked' };
 
 /**
  * Firma de la vía de salida de comandos. En partida clásica el controlador devuelve el
@@ -103,6 +106,8 @@ export class PlayerLogic {
   // entera de la calle: su location queda en el portal (teatro puro, como el paseo). ──
   /** Fundido del cuerpo (0 invisible..1 visible) al atravesar el portal. */
   private fade = 1;
+  /** v1.48 — enfriamiento del aviso de ENTRADA FRONTAL CERRADA (no spamea la flecha). */
+  private frontHintT = 0;
   /** Sentado en un banco exterior (pose del catálogo; cualquier dirección te levanta). */
   private sitting: { x: number; z: number; yaw: number } | null = null;
   /** Segundos de calistenia restantes (parque de enfrente). */
@@ -406,6 +411,13 @@ export class PlayerLogic {
   private corridorSolids: { x0: number; z0: number; w: number; d: number }[] = [];
   setCorridorObstacles(list: { x0: number; z0: number; w: number; d: number }[]): void {
     this.corridorSolids = list;
+  }
+
+  /** v1.48 — posición (mundo) del CUADRO DE FUSIBLES (la pasa el controlador desde
+   *  building.fuseBoxSpot()): el interact 'fusebox' se consulta ahí. */
+  private fuseSpot: { blockId: string; x: number; z: number; floor: number } | null = null;
+  setFuseBoxSpot(spot: { blockId: string; x: number; z: number; floor: number } | null): void {
+    this.fuseSpot = spot;
   }
 
   /** Posición (mundo) del cuerpo dentro del interior presentable del trastero propio. */
@@ -809,6 +821,7 @@ export class PlayerLogic {
     }
     // Fundido del portal: el cuerpo reaparece al atravesar la pared (teatro del paseo).
     if (this.fade < 1) this.fade = Math.min(1, this.fade + dt / Math.max(0.05, cfg.portal.fadeSeconds));
+    this.frontHintT = Math.max(0, this.frontHintT - dt);
     // Ejercicio en curso: quieto (la presentación pone el gesto del catálogo) hasta acabar.
     if (this.exerciseT > 0) {
       this.exerciseT -= dt;
@@ -836,12 +849,18 @@ export class PlayerLogic {
     const nz = this.z + dirZ * step;
     if (nz !== this.z && inside(this.x, nz)) this.z = nz;
     // ── PORTAL SIN E: la dirección correcta ya entra (o sale). ──
+    // v1.48 — ENTRADA FRONTAL CERRADA (petición del vecino: «desde la calle en la parte
+    // frontal a la altura del portón se puede entrar frontalmente, no debe ser posible»):
+    // el empujón de frente NO entra ni abre correderas — suelta el aviso con la flecha
+    // animada que manda a girar la esquina (la entrada de verdad es la lateral).
     const portal = this.portalBlock();
     // v1.46 — el vano del portal sale del MISMO catálogo que el resto de puertas
     // (doorSpansOf): una sola verdad para el hueco acristalado desde la calle y el pasillo.
     if (input.up && this.z >= cfg.portal.inFrontZ && portal && this.atDoorGap(portal)) {
-      this.pushPortalIntent(); // v1.46: el empujón abre las correderas y las mantiene abiertas
-      this.enterPortal(true);
+      if (this.frontHintT <= 0) {
+        this.frontHintT = this.view.sideEntry?.cooldownSecs ?? 3.5;
+        this.autoEvents.push({ type: 'frontBlocked' });
+      }
       return;
     }
     if (input.right && this.x >= cfg.portal.sideEnterX && Math.abs(this.z - cfg.portal.sideZ) < 1.0 && portal) {
@@ -1018,6 +1037,11 @@ export class PlayerLogic {
       if (this.actorPos) {
         const p = this.actorPos(other.id);
         if (!p || p.floor !== this.floor) continue;
+        // v1.48 — AVISO FANTASMA EN LA ENTRADA (petición del vecino: «E · charlar con
+        // manitas pero no se ve a nadie»): en el pasillo solo cuenta quien está en EL
+        // PASILLO (franja exterior z < fachada). Un vecino DENTRO del vestíbulo del portal
+        // o de un local queda tras el cristal: no se le ve, no se le invita a charlar.
+        if (this.mode === 'corridor' && p.z > this.frontZ - 0.1) continue;
         if (Math.hypot(p.x - this.x, p.z - (this.frontZ + this.z)) < this.view.nearRadius) return other.id;
         continue;
       }
@@ -1063,7 +1087,13 @@ export class PlayerLogic {
       // v1.47 — UN SOLO SISTEMA (petición del vecino): los locales de planta 0 y el portal
       // se entran y se salen SOLO con el movimiento (sin E, sin prompt — dos mecanismos
       // distintos eran confusos). La E dentro solo habla en viviendas (salir) y objetos.
+      // v1.48 — excepción: el CUADRO DE FUSIBLES del garaje (interact propio).
       const blk = this.world.blocks[this.insideBlock!]!;
+      const fs = this.fuseSpot;
+      if (fs && this.insideBlock === fs.blockId && this.floor === fs.floor
+        && Math.hypot(this.x - fs.x, this.z - (fs.z - this.frontZ)) < this.view.itemRadius) {
+        return { kind: 'fusebox' };
+      }
       if (blk.kind !== 'dwelling') return null;
       return { kind: 'door', blockId: this.insideBlock! };
     }
@@ -1146,6 +1176,8 @@ export class PlayerLogic {
     }
     if (t?.kind === 'mailbox') return { type: 'used', kind: 'mailbox' }; // lectura: texto del catálogo en la presentación
     if (t?.kind === 'noticeboard') return { type: 'used', kind: 'noticeboard' };
+    // v1.48 — CUADRO DE FUSIBLES: el controlador decide (apagón → minijuego; en calma → aviso).
+    if (t?.kind === 'fusebox') return { type: 'fusebox' };
     if (t?.kind === 'resident') {
       // v1.40 — CRUZARSE CON UN VECINO = CHARLA (regla del barrio): está fuera, en
       // circulación; la E os planta cara a cara y el controlador saca su línea de saludo.

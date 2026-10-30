@@ -292,6 +292,9 @@ interface GameState {
   choices: ChoiceState | null;
   junta: JuntaItemUi[] | null;
   minigame: MinigameState | null;
+  /** v1.48 — flecha animada del LATERAL del portal (entrada frontal cerrada): texto activo
+   *  o null. La pinta GameStage y la limpia el controlador al caducar. */
+  sideHint: string | null;
   finale: string | null;
   engineError: boolean;
   /** v1.40 — el motor perdió el contexto gráfico (WebGL/WebGPU): el lienzo se queda negro
@@ -350,6 +353,8 @@ interface GameState {
   setChoices: (c: ChoiceState | null) => void;
   setJunta: (items: JuntaItemUi[] | null) => void;
   setMinigame: (m: MinigameState | null) => void;
+  /** v1.48 — aviso animado de «gira la esquina» (null = oculto). */
+  setSideHint: (text: string | null) => void;
   setFinale: (text: string | null) => void;
   setEngineError: (v: boolean) => void;
   /** v1.40 — contexto gráfico perdido (sin argumento: idempotente). */
@@ -421,6 +426,7 @@ export const useGameStore = create<GameState>((set) => ({
   choices: null,
   junta: null,
   minigame: null,
+  sideHint: null,
   finale: null,
   engineError: false,
   engineLost: false,
@@ -488,6 +494,7 @@ export const useGameStore = create<GameState>((set) => ({
   setChoices: (c) => set({ choices: c }),
   setJunta: (items) => set({ junta: items }),
   setMinigame: (m) => set({ minigame: m }),
+  setSideHint: (sideHint) => set({ sideHint }),
   setFinale: (text) => set({ finale: text }),
   setEngineError: (v) => set({ engineError: v }),
   /** v1.40 — solo se marca una vez; la recuperación es recargar (overlay con botón). */
@@ -523,6 +530,7 @@ export const useGameStore = create<GameState>((set) => ({
       choices: null,
       junta: null,
       minigame: null,
+      sideHint: null,
       finale: null,
       campaign: null,
       toasts: [],

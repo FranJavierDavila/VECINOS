@@ -122,12 +122,59 @@ function playSpec(spec: SoundSpec, mul = 1): void {
   const base = c.currentTime + 0.01;
   if (spec.kind === 'tone') tone(spec, base + spec.atMs / 1000, mul);
   else if (spec.kind === 'noise') noise(spec, base + spec.atMs / 1000, mul);
+  // v1.48 — sonido grabado real (timbre de casa, truenos muestreados…): carga perezosa +
+  // caché por URL. Si el fichero falla, el audio se queda en silencio sin romper la partida.
+  else if (spec.kind === 'file') void playFile(spec, base, mul);
   // Secuencia (v1.22): puede MEZCLAR tonos y ráfagas de ruido (suspiros, motores...).
   else
     for (const step of spec.steps) {
       if ('kind' in step) noise(step, base + step.atMs / 1000, mul);
       else tone(step, base + step.atMs / 1000, mul);
     }
+}
+
+/** v1.48 — caché de AudioBuffers por URL (los timbres suenan muchas veces: una sola descarga). */
+const fileBuffers = new Map<string, AudioBuffer>();
+const fileLoads = new Map<string, Promise<AudioBuffer | null>>();
+
+async function loadAudioFile(url: string): Promise<AudioBuffer | null> {
+  const cached = fileBuffers.get(url);
+  if (cached) return cached;
+  let pending = fileLoads.get(url);
+  if (!pending) {
+    pending = (async () => {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        const raw = await res.arrayBuffer();
+        const c = ensureCtx();
+        if (!c) return null;
+        const buf = await c.decodeAudioData(raw);
+        fileBuffers.set(url, buf);
+        return buf;
+      } catch {
+        console.warn(`[audio] no se pudo cargar el sonido grabado: ${url}`);
+        return null;
+      } finally {
+        fileLoads.delete(url);
+      }
+    })();
+    fileLoads.set(url, pending);
+  }
+  return pending;
+}
+
+async function playFile(spec: { file: string; gain: number }, when: number, mul: number): Promise<void> {
+  const c = ensureCtx();
+  if (!c || !master || muted) return;
+  const buf = await loadAudioFile(spec.file);
+  if (!buf || !master || muted) return;
+  const src = c.createBufferSource();
+  src.buffer = buf;
+  const g = c.createGain();
+  g.gain.value = Math.max(0.0001, spec.gain * mul);
+  src.connect(g).connect(master);
+  src.start(Math.max(c.currentTime + 0.01, when));
 }
 
 /** Reproduce una clave del catálogo (uso directo de la UI: acierto/fallo de minijuego, clics). */

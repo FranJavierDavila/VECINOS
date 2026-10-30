@@ -1,6 +1,6 @@
 {
   "bubble": {
-    "offsetY": 0.5,
+    "offsetY": 0.28,
     "sizePx": 26,
     "maxDistance": 72,
     "nearRadius": 4,

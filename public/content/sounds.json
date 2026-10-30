@@ -63,23 +63,9 @@
       ]
     },
     "doorbell": {
-      "kind": "seq",
-      "steps": [
-        {
-          "wave": "sine",
-          "freq": 784,
-          "durMs": 180,
-          "gain": 0.24,
-          "atMs": 0
-        },
-        {
-          "wave": "sine",
-          "freq": 588,
-          "durMs": 260,
-          "gain": 0.24,
-          "atMs": 220
-        }
-      ]
+      "kind": "file",
+      "file": "/art/audio/timbrecasa.mp3",
+      "gain": 0.9
     },
     "coins": {
       "kind": "seq",
@@ -802,6 +788,32 @@
           "durMs": 520,
           "gain": 0.05,
           "atMs": 0
+        }
+      ]
+    },
+    "trueno": {
+      "kind": "seq",
+      "steps": [
+        {
+          "kind": "noise",
+          "durMs": 700,
+          "gain": 0.42,
+          "filterHz": 320,
+          "atMs": 0
+        },
+        {
+          "kind": "noise",
+          "durMs": 1300,
+          "gain": 0.34,
+          "filterHz": 180,
+          "atMs": 320
+        },
+        {
+          "kind": "noise",
+          "durMs": 1600,
+          "gain": 0.26,
+          "filterHz": 110,
+          "atMs": 1200
         }
       ]
     }

@@ -949,6 +949,21 @@
         "alphaClear": 0.9,
         "alphaCloudy": 0.95,
         "stormScale": 1.7
+      },
+      "storm": {
+        "flashEverySecs": [
+          5,
+          14
+        ],
+        "flashDecay": 2.6,
+        "boltXRange": [
+          -70,
+          70
+        ],
+        "topY": 30,
+        "groundY": 0,
+        "thunderDelaySecs": 2.0,
+        "thunderGain": 0.85
       }
     },
     "lod": {
@@ -1300,7 +1315,7 @@
         "rodapie"
       ],
       "gapFill": {
-        "color": "#dbd8d2",
+        "color": "#c8c5be",
         "pad": 0.04,
         "protrude": -0.03,
         "stagger": 0.008
@@ -1338,7 +1353,7 @@
         "yFrac": 0.52,
         "out": 0.05
       },
-      "occupiedAlpha": 0.5
+      "occupiedAlpha": 0.75
     },
     "corridorFloor": {
       "color": "#d8d7d2",
@@ -1859,6 +1874,46 @@
         "planta",
         "estancia"
       ]
+    },
+    "alerts": {
+      "thresholds": {
+        "plague": 35,
+        "humidity": 50,
+        "noise": 55
+      },
+      "glyphs": {
+        "plague": "🐜",
+        "humidity": "💧",
+        "noise": "📢",
+        "mission": "❗"
+      },
+      "size": 0.82,
+      "yOverDoor": 0.3,
+      "blinkSecs": 1.1,
+      "color": "#c0392b"
+    },
+    "sideEntry": {
+      "hint": "→ Gira la esquina: se entra por el LATERAL del portal",
+      "toast": "🚪 La entrada frontal no es de acceso. Rodea la esquina: la puerta del portal está en el lateral.",
+      "cooldownSecs": 3.5,
+      "hintSecs": 2.8
+    },
+    "blackoutJokes": {
+      "everySecs": [
+        12,
+        22
+      ],
+      "radius": 6.0,
+      "lines": [
+        "¿Otra vez la luz? Esta comunidad paga la electricidad con monedas de chocolate.",
+        "Yo de pequeño también viví sin luz... era lo que había, no lo que se quería.",
+        "El que arregle los fusibles tiene mi voto en la próxima junta. Y un café.",
+        "¿Apagón? Yo lo llamo 'iluminación ambiental low-cost'.",
+        "Seguro que ha sidoPinturillas otra vez. Todo lo que pinta, lo apaga.",
+        "Las velas románticas las pone la comunidad. Gracias, cuadro de fusibles.",
+        "Mi abuela decía: donde hay apagón, hay presidente distraído.",
+        "¡Eh, la escalera es gratis pero el resbalón puede ser caro! ¡Llevad linterna!"
+      ]
     }
   },
   "demo": {
@@ -1965,6 +2020,10 @@
     "noticeboard": {
       "prompt": "E · leer el tablón de la comunidad",
       "template": "📌 Tablón · Día {day} · Caja de la comunidad: {funds} € · Ascensor: {elevator} · Cielo: {weather}. La junta agradece su lectura."
+    },
+    "fusebox": {
+      "prompt": "E · revisar el cuadro de fusibles",
+      "okLine": "💡 El cuadro está en orden: la luz del edificio va bien. De momento."
     }
   },
   "texts": {

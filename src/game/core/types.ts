@@ -36,6 +36,9 @@ export interface BlockView {
   color: string;
   /** Colores alternativos para variedad visual entre viviendas. */
   altColor?: string;
+  /** v1.48 — pared SIEMPRE del color `color` (sin tintado de estado): pasillos, escaleras
+   *  y ascensor en gris fijo; el estado lo cuentan candado/placa/puerta, no la pared. */
+  fixedWall?: boolean;
 }
 
 /** Props de bloque EXTERIOR (v1.20): aceras, carreteras y jardines del decorado urbano. */
@@ -1720,6 +1723,28 @@ export interface Rules {
       panelChance: number;
       panelInset: number;
     };
+    /** v1.48 — ICONOS DE AVISO en el muro de pasillo de la vivienda afectada (parpadeantes). */
+    alerts?: {
+      thresholds: { plague: number; humidity: number; noise: number };
+      glyphs: { plague: string; humidity: string; noise: string; mission: string };
+      size: number;
+      yOverDoor: number;
+      blinkSecs: number;
+      color: string;
+    };
+    /** v1.48 — ENTRADA FRONTAL CERRADA del portal: aviso con flecha animada al empujar. */
+    sideEntry?: {
+      hint: string;
+      toast: string;
+      cooldownSecs: number;
+      hintSecs: number;
+    };
+    /** v1.48 — BROMAS de los vecinos con el apagón activo (bocadillos ambientales). */
+    blackoutJokes?: {
+      everySecs: [number, number];
+      radius: number;
+      lines: string[];
+    };
     /** v1.41 — ACCESORIOS DE LA CALLE: paraguas abierto cuando llueve y bolsas de la compra. */
     outdoor?: {
       umbrella?: { color: string; stickColor: string; size: number; openSeconds: number };
@@ -2008,6 +2033,16 @@ export interface Rules {
         /** v1.28 — con lluvia las nubes engordan hasta cerrar el cielo (1 = sin cambio). */
         stormScale?: number;
       };
+      /** v1.48 — TORMENTA: fogonazos globales, rayos (cámaras exteriores) y trueno retardado. */
+      storm?: {
+        flashEverySecs: [number, number];
+        flashDecay: number;
+        boltXRange: [number, number];
+        topY: number;
+        groundY: number;
+        thunderDelaySecs: number;
+        thunderGain: number;
+      };
       /** Lluvia (v1.21): partículas de trazo cuando el clima es rain/storm.
        *  v1.28: `wash` apaga la ciudad del fondo con el cielo cerrado. */
       rain: {
@@ -2088,6 +2123,8 @@ export interface Rules {
     /** v1.40 — timbre de una vivienda ajena (E en su puerta) y charla con un vecino. */
     doorbell?: string;
     chat?: string;
+    /** v1.48 — cuadro de fusibles del garaje: prompt de la E y línea sin apagón. */
+    fusebox?: { prompt: string; okLine: string };
     /** v1.42 — calle: banco exterior y parque de calistenia. */
     bench?: string;
     exercise?: string;
@@ -2277,6 +2314,8 @@ export type InteractTarget =
   | { kind: 'bed' }
   | { kind: 'storageCell' }
   | { kind: 'rearExit' }
+  /** v1.48 — cuadro de fusibles del garaje (con apagón: abrir el minijuego de rearme). */
+  | { kind: 'fusebox' }
   /** v1.42 — calle: banco exterior (sentarse a contemplar el edificio). */
   | { kind: 'bench'; x: number; z: number; yaw: number }
   /** v1.42 — calle: parque de calistenia (hacer ejercicio). */
