@@ -1049,6 +1049,9 @@ class GameController {
         getScene: () => this.scene,
         getWorld: () => this.world,
         getContent: () => this._content,
+        // v1.45 — QA de puertas: conducir al jugador (teleport + input táctil) desde el QA.
+        getLogic: () => this.logic,
+        setTouch: (v: { up?: boolean; down?: boolean; left?: boolean; right?: boolean }) => this.setTouchInput(v),
       };
     }
     this.flashlight = null; // v1.40 — la linterna nueva nace con la escena nueva
@@ -1502,7 +1505,9 @@ class GameController {
       // v1.21: luz de día del fondo → luces nocturnas de interiores (encendidas solo con
       // gente despierta dentro) y pasillos a oscuras de noche salvo presencia + instalación OK.
       // v1.24: movers → puertas de escalera + su luz compartida nocturna.
-      { daylight: this.backdrop ? this.backdrop.daylight : 1, movers },
+      // v1.45: intent → las puertas de planta 0 y las correderas del portal SOLO se abren
+      // con el empujón del jugador (intención de cruce); pasar de largo no abre nada.
+      { daylight: this.backdrop ? this.backdrop.daylight : 1, movers, intent: this.logic.crossingIntent() },
     );
     // v1.40 — la LINTERNA viaja con el jugador (posición pies del HUD de posición).
     this.flashlight?.update({ x: pos.x, y: (pos.floor ?? 0) * this.content.rules.view.cellH, z: pos.z });

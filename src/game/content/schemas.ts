@@ -1164,6 +1164,14 @@ export const rulesSchema = z.object({
             sheen: z.string().default('#ffffff'),
             handle: z.string().default('#5d6b7a'),
             alpha: z.number().min(0.15).max(1).default(0.72),
+            /** v1.45 — APERTURA POR INTENCIÓN: las correderas solo se abren cuando el
+             *  jugador INTENTA atravesarlas (empuja hacia ellas desde la calle o hacia la
+             *  calle desde el vestíbulo — sin tecla E) o cuando un mover está EN el umbral
+             *  (franja NPC estrecha). false = comportamiento clásico de franja ancha. */
+            intentOpen: z.boolean().optional(),
+            /** v1.45 — franja NPC (vecinos/peatones): profundidad y semiancho X del umbral. */
+            npcOpenAhead: z.number().positive().optional(),
+            npcXRadius: z.number().positive().optional(),
           })
           .default({ slide: 0.96, openAhead: 1.7, openSeconds: 0.8, frame: '#8fa3ad', glass: '#cfe3ea', sheen: '#ffffff', handle: '#5d6b7a', alpha: 0.72 }),
         /** v1.30 — acceso al GARAJE: puerta basculante texturizada, rampa y rótulo legible.
@@ -1269,6 +1277,17 @@ export const rulesSchema = z.object({
              *  se ve DESDE QUE LA PUERTA SE MUEVE, sin esperar a entrar. */
             garageOpenAhead: z.number().positive().optional(),
             garageOpenSeconds: z.number().positive().optional(),
+            /** v1.45 — APERTURA POR INTENCIÓN en los locales de planta 0 (trastero común,
+             *  sala de juntas, garaje): la hoja solo abre cuando el jugador EMPUJA hacia
+             *  ella (avanza hacia la fachada plantado delante — sin tecla E) o cuando un
+             *  mover está EN el umbral (franja NPC estrecha). false = franja clásica. */
+            intentOpen: z.boolean().optional(),
+            /** v1.45 — franja NPC (vecinos): profundidad y semiancho X del umbral; el
+             *  garaje (hoja ancha) admite overrides propios. */
+            npcOpenAhead: z.number().positive().optional(),
+            npcXRadius: z.number().positive().optional(),
+            garageNpcOpenAhead: z.number().positive().optional(),
+            garageNpcXRadius: z.number().positive().optional(),
             /** v1.36 — fracción de apertura que revela el interior de garaje/portal. */
             revealAt: z.number().min(0).max(1).optional(),
           })

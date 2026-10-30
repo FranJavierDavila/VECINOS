@@ -1407,7 +1407,10 @@
         "glass": "#cfe3ea",
         "sheen": "#ffffff",
         "handle": "#5d6b7a",
-        "alpha": 0.72
+        "alpha": 0.72,
+        "intentOpen": true,
+        "npcOpenAhead": 0.35,
+        "npcXRadius": 1.0
       },
       "garaje": {
         "panel": "#c9ced6",
@@ -1559,7 +1562,12 @@
         "openAngle": 1.0,
         "garageOpenAhead": 2.9,
         "garageOpenSeconds": 1.15,
-        "revealAt": 0.02
+        "revealAt": 0.02,
+        "intentOpen": true,
+        "npcOpenAhead": 0.35,
+        "npcXRadius": 0.9,
+        "garageNpcOpenAhead": 0.5,
+        "garageNpcXRadius": 1.25
       },
       "portal": {
         "lobby": {

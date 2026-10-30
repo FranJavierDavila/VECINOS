@@ -22,15 +22,32 @@
   },
   "rooms": {
     "estancia_estudio_diafano": {
-      "wall": "wall_vacio_salon.png",
+      "wall": "wall_estudio_terracota.png",
       "walls": [
-        "wall_vacio_salon.png"
+        "wall_estudio_terracota.png",
+        "wall_estudio_salvia.png",
+        "wall_estudio_ladrillo.png",
+        "wall_estudio_mostaza.png",
+        "wall_estudio_estanteria.png",
+        "wall_estudio_arcos.png",
+        "wall_estudio_oliva.png",
+        "wall_estudio_arcilla.png",
+        "wall_estudio_cemento.png",
+        "wall_estudio_dado.png",
+        "wall_estudio_listones.png",
+        "wall_estudio_mosaico.png",
+        "wall_estudio_mirador.png"
       ],
       "floor": "floor_madera.png",
       "floors": [
         "floor_madera.png",
         "floor_madera_b.png",
-        "floor_parket.png"
+        "floor_parket.png",
+        "floor_madera_clara.png",
+        "floor_hidraulico.png",
+        "floor_terrazo.png",
+        "floor_damero.png",
+        "floor_nogal.png"
       ],
       "sets": [
         [

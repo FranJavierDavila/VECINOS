@@ -133,7 +133,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
    *  cierran solas. La fachada del local SOLO se desvanece cuando el jugador entra (o con
    *  la junta activa): las paredes del pasillo ya no se levantan porque un vecino pase
    *  por dentro. */
-  const hallDoors: { hinge: TransformNode; openT: number; doorX: number; doorZ: number; floorY: number; side: 1 | -1; lift?: boolean }[] = [];
+  const hallDoors: { hinge: TransformNode; openT: number; doorX: number; doorZ: number; floorY: number; side: 1 | -1; lift?: boolean; blockId?: string }[] = [];
   /** Hojas de cristal del portal: nodo vivo del arte + baseX + sentido de deslizamiento. */
   const portalLeaves: { mesh: Mesh; baseX: number; dir: number }[] = [];
   let portalDoorX = 0;
@@ -1238,7 +1238,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           leaf.position.set((side > 0 ? 1 : -1) * (lw / 2), lh / 2, 0);
           leaf.parent = hinge;
           view.doorDecor.push(hinge);
-          hallDoors.push({ hinge, openT: 0, doorX: gx, doorZ: doorZHall, floorY: baseY, side });
+          hallDoors.push({ hinge, openT: 0, doorX: gx, doorZ: doorZHall, floorY: baseY, side, blockId: b.id });
           // v1.42 — RECERCADO DEL COLOR DEL ZÓCALO alrededor de cada hoja (misma receta que
           // las viviendas: jambas + dintel en skirtingColor, caja que sobresale de la fachada
           // y queda 5 mm embebida en el muro — nada coplanar). Se oculta con la fachada
@@ -2439,7 +2439,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
               const nm = meshBySuffix(nv);
               if (nm) under(nm);
             }
-            hallDoors.push({ hinge: liftHinge, openT: 0, doorX: b.cell.col * v.cellW + w / 2, doorZ: frontZ - 0.12, floorY: b.cell.floor * v.cellH, side: 1, lift: true });
+            hallDoors.push({ hinge: liftHinge, openT: 0, doorX: b.cell.col * v.cellW + w / 2, doorZ: frontZ - 0.12, floorY: b.cell.floor * v.cellH, side: 1, lift: true, blockId: b.id });
           }
           const rotulo = meshBySuffix('rotulo');
           if (rotulo) {
@@ -3611,7 +3611,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
      * su interior al instante, sin esperar al siguiente tick.
      * `pos` (v1.19) alimenta los carteles guía de trasteros y el apilamiento 3D.
      */
-    update(dt: number, focus?: { x: number; floor: number }, inside?: string | null, pos?: { x: number; z: number; insideBlock: string | null }, env?: { daylight: number; movers?: { x: number; y: number; z: number; outside?: boolean }[] }) {
+    update(dt: number, focus?: { x: number; floor: number }, inside?: string | null, pos?: { x: number; z: number; insideBlock: string | null }, env?: { daylight: number; movers?: { x: number; y: number; z: number; outside?: boolean }[]; intent?: { portal: boolean; block: string | null } | null }) {
       if (focus) lastFocus = focus;
       if (inside !== undefined) playerInside = inside;
       // PRIVACIDAD (v1.17) cada frame: la fachada de una vivienda sin nadie dentro se cierra
@@ -3645,20 +3645,37 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         // nada — la calle es decorado, no el interior del edificio.
         const openers = movers.filter((mv) => !mv.outside);
         const al = v.stairs.activityLight;
-        // ── v1.30 — PUERTAS CORREDERAS DEL PORTAL: se separan al acercarse cualquiera
-        //  (jugador, vecino o visitante de la calle — todos viajan en `movers`) y se
-        //  cierran solas al separarse. Un solo state, speed del catálogo.
+        // ── v1.30 — PUERTAS CORREDERAS DEL PORTAL. v1.45 — APERTURA POR INTENCIÓN
+        //  (catalogo portalDoors.intentOpen): SOLO se abren cuando el jugador EMPUJA hacia
+        //  ellas (desde la calle con W, o hacia la calle desde el vestíbulo con S — sin
+        //  tecla E, locomoción como las de escalera) o cuando un vecino/visitante está EN
+        //  el umbral (franja NPC estrecha del catálogo). Pasar de largo — carril interior,
+        //  acera — ya no las abre. intentOpen:false restaura la franja clásica. ──
         if (portalLeaves.length > 0 && portalDoorX !== 0) {
           const pd = loc.portalDoors;
           let near = false;
-          for (const mv of openers) {
-            if (
-              Math.abs(mv.x - portalDoorX) < pd.openAhead &&
-              Math.abs(mv.z - portalDoorZ) < pd.openAhead + 0.6 &&
-              mv.y < v.cellH * 0.6
-            ) {
-              near = true;
-              break;
+          if (pd.intentOpen !== false) {
+            near = env?.intent?.portal === true;
+            if (!near) {
+              const nxR = pd.npcXRadius ?? 1.0;
+              const nzR = pd.npcOpenAhead ?? 0.35;
+              for (const mv of openers) {
+                if (Math.abs(mv.x - portalDoorX) < nxR && Math.abs(mv.z - portalDoorZ) < nzR && mv.y < v.cellH * 0.6) {
+                  near = true;
+                  break;
+                }
+              }
+            }
+          } else {
+            for (const mv of openers) {
+              if (
+                Math.abs(mv.x - portalDoorX) < pd.openAhead &&
+                Math.abs(mv.z - portalDoorZ) < pd.openAhead + 0.6 &&
+                mv.y < v.cellH * 0.6
+              ) {
+                near = true;
+                break;
+              }
             }
           }
           const target = near ? 1 : 0;
@@ -3692,21 +3709,45 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         }
         // v1.32 — PUERTAS DE LOS LOCALES (trastero común y sala de juntas): se abren al
         // acercarse cualquiera, con el mismo oficio que las de escalera (catálogo local).
+        // v1.45 — APERTURA POR INTENCIÓN (hallDoors.intentOpen): la hoja SOLO abre cuando
+        // el jugador EMPUJA hacia ella (plantado delante, avanzando hacia la fachada — sin
+        // tecla E; el mismo empujón que dispara la entrada) o cuando un mover está EN el
+        // umbral (franja NPC estrecha del catálogo). Pasar por el carril ya no abre nada;
+        // la basculante del garaje tampoco la abren ya los transeúntes de la acera.
+        // intentOpen:false restaura la franja clásica (garageOpenAhead incluida).
         const hd = loc.hallDoors;
+        const intentBlock = env?.intent?.block ?? null;
         if (hd?.enabled) {
           for (const d of hallDoors) {
-            // v1.36 — la basculante del garaje se ANTICIPA más (catálogo): el interior se ve
-            // desde que la puerta empieza a moverse, sin esperar a estar encima ni a entrar.
-            const ahead = d.lift ? (hd.garageOpenAhead ?? hd.openAhead) : hd.openAhead;
             let near = false;
-            for (const mv of openers) {
-              if (
-                Math.abs(mv.x - d.doorX) < 0.9 + (d.lift ? ahead - hd.openAhead : 0) &&
-                Math.abs(mv.z - d.doorZ) < ahead &&
-                Math.abs(mv.y - d.floorY) < v.cellH * 0.6
-              ) {
-                near = true;
-                break;
+            if (hd.intentOpen !== false) {
+              // v1.45 — abre con el empujón (intent) y PERMANECE abierta mientras el jugador
+              // esté dentro del local (la puerta de donde estás se queda abierta — se cierra
+              // sola al irte, como en la calle).
+              near = (!!d.blockId && intentBlock === d.blockId) || pos?.insideBlock === d.blockId;
+              if (!near) {
+                const nxR = d.lift ? (hd.garageNpcXRadius ?? 1.25) : (hd.npcXRadius ?? 0.9);
+                const nzR = d.lift ? (hd.garageNpcOpenAhead ?? hd.npcOpenAhead ?? 0.35) : (hd.npcOpenAhead ?? 0.35);
+                for (const mv of openers) {
+                  if (Math.abs(mv.x - d.doorX) < nxR && Math.abs(mv.z - d.doorZ) < nzR && Math.abs(mv.y - d.floorY) < v.cellH * 0.6) {
+                    near = true;
+                    break;
+                  }
+                }
+              }
+            } else {
+              // v1.36 — la basculante del garaje se ANTICIPA más (catálogo): el interior se ve
+              // desde que la puerta empieza a moverse, sin esperar a estar encima ni a entrar.
+              const ahead = d.lift ? (hd.garageOpenAhead ?? hd.openAhead) : hd.openAhead;
+              for (const mv of openers) {
+                if (
+                  Math.abs(mv.x - d.doorX) < 0.9 + (d.lift ? ahead - hd.openAhead : 0) &&
+                  Math.abs(mv.z - d.doorZ) < ahead &&
+                  Math.abs(mv.y - d.floorY) < v.cellH * 0.6
+                ) {
+                  near = true;
+                  break;
+                }
               }
             }
             const secs = d.lift ? (hd.garageOpenSeconds ?? hd.openSeconds) : hd.openSeconds;

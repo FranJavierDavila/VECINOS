@@ -66,6 +66,12 @@ export class PlayerLogic {
   /** v1.40 — auto-entrada en TU vivienda (sin E, como el núcleo de escaleras):
    *  última puerta que disparó la entrada automática (transición, no presión continua). */
   private autoEnterLast: string | null = null;
+  /** v1.45 — INTENCIÓN DE CRUCE (sin E): el empujón direccional de ESTE frame hacia una
+   *  puerta de planta 0 (locales) o hacia las correderas del portal. Lo consume
+   *  building.update para abrir SOLO la puerta que se intenta atravesar — pasar de largo
+   *  no abre nada. Se resetea al empezar cada update(). */
+  private intentPortal = false;
+  private intentBlock: string | null = null;
   /** v1.40 — auto-salida de tu vivienda: se arma al adentrarse (z > 0.9) y salta al
    *  volver al marco de la puerta (z ≤ 0.5). Evita el bucle entrar/salir en el umbral. */
   private exitArmed = false;
@@ -249,6 +255,16 @@ export class PlayerLogic {
     if (!f) return true;
     if (f.stairs || f.elevator) return false;
     return true;
+  }
+
+  /**
+   * v1.45 — la intención de cruce de ESTE frame: `portal` = empujar hacia las correderas
+   * (desde la calle o desde el vestíbulo); `block` = local de planta 0 cuya hoja se está
+   * empujando (avanzar hacia la fachada plantado delante de él). Sin tecla E: es mera
+   * locomoción, igual que las puertas de la escalera.
+   */
+  crossingIntent(): { portal: boolean; block: string | null } {
+    return { portal: this.intentPortal, block: this.intentBlock };
   }
 
   position(): PlayerPosition {
@@ -499,6 +515,9 @@ export class PlayerLogic {
   }
 
   update(dt: number, input: Input) {
+    // v1.45 — la intención de cruce caduca en cuanto nace: se recalcula frame a frame.
+    this.intentPortal = false;
+    this.intentBlock = null;
     // Apilamiento 3D (v1.19): el cuerpo está dentro del bloque trasero — la locomoción del
     // sim queda congelada. v1.21: DENTRO del trastero sí te mueves (libre, esquivando
     // estanterías y trastos); la salida sigue siendo la puerta (tecla E, del controlador).
@@ -639,10 +658,13 @@ export class PlayerLogic {
     }
     // v1.41 — ENTRADA DIRECTA A LOS LOCALES (sin E): la única excepción a «entrar sin E»
     // son las viviendas de los vecinos (ahí manda el timbre). Garaje, lavandería, local,
-    // trasteros…: te plantas delante y entras, igual que tu vivienda. Con candado no
-    // (norma del barrio: E avisa) y el portal queda fuera (es el vestíbulo de buzones:
-    // entrar sin querer cada vez que pasas por delante sería un fastidio).
-    if (ahead && ahead.kind !== 'dwelling' && ahead.defId !== 'portal' && ahead.access !== 'locked' && this.autoEnterLast !== ahead.id) {
+    // trasteros…: te plantas delante y ENPUJAS hacia la puerta (v1.45: avanzar hacia la
+    // fachada — mera locomoción, igual que las de escalera) y la hoja se abre y entras.
+    // Con candado no (norma del barrio: E avisa) y el portal queda fuera (es el vestíbulo
+    // de buzones: entrar sin querer cada vez que pasas por delante sería un fastidio).
+    // v1.45 — PASAR DE LARGO NO ABRIRÁ NI ENTRARÁ: solo el empujón (input.up) dispara.
+    if (ahead && input.up && ahead.kind !== 'dwelling' && ahead.defId !== 'portal' && ahead.access !== 'locked' && this.autoEnterLast !== ahead.id) {
+      this.intentBlock = ahead.id; // la hoja abre con el mismo empujón
       this.autoEnterLast = ahead.id;
       const r = this.tryEnterDoor(ahead);
       if (r.type === 'entered') this.autoEvents.push(r);
@@ -695,6 +717,7 @@ export class PlayerLogic {
     const portal = this.portalBlock();
     const [pa, pb] = portal ? this.rangeOf(portal) : [0, 0];
     if (input.up && this.z >= cfg.portal.inFrontZ && portal && this.x > pa + 0.35 && this.x < pb - 0.35) {
+      this.intentPortal = true; // v1.45: el empujón hacia la puerta abre las correderas
       this.enterPortal(true);
       return;
     }
@@ -720,6 +743,7 @@ export class PlayerLogic {
       this.approached = null;
       this.autoEvents.push({ type: 'portalOut', block: portal.id });
     } else if (input.down && this.z <= cfg.portal.frontInnerZ) {
+      this.intentPortal = true; // v1.45: empujar hacia la calle abre las correderas
       this.mode = 'outside';
       this.insideBlock = null;
       this.z = cfg.portal.outFrontZ;
