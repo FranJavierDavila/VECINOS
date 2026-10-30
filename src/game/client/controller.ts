@@ -169,6 +169,16 @@ class GameController {
       // 1) Contenido externo + validación (los errores de referencias se avisan, no abortan).
       const { content, issues } = await loadContent();
       this._content = content;
+      // v1.54 — INVITACIÓN POR ENLACE (?join=CODE): quien abre un enlace de invitación
+      // aterriza con el panel de multijugador YA ABIERTO y la tarjeta «Te han invitado»
+      // lista para entrar con un clic (el código viaja en la URL, nunca se teclea).
+      if (typeof location !== 'undefined') {
+        const invite = new URLSearchParams(location.search).get('join');
+        if (invite && /^[a-z0-9]{3,8}$/i.test(invite.trim())) {
+          useGameStore.getState().setMpInviteCode(invite.trim().toUpperCase());
+          useGameStore.getState().setMpPanelOpen(true);
+        }
+      }
       // v1.47 — REFERENCIA DE ARTE (?artref=1): overlay con la hoja de sprites del personaje
       // y descarga del PNG (el vecino monta el arte final sobre esta retícula).
       if (typeof location !== 'undefined' && new URLSearchParams(location.search).has('artref')) {
@@ -830,6 +840,7 @@ class GameController {
     store.setMpSession(null);
     store.setMpParticipants([]);
     store.setMpPanelOpen(false);
+    store.setMpInviteCode(null); // v1.54: la invitación de la URL ya no aplica
     void this.restart();
     store.pushToast(translate(store.lang, 'ev.soloResumed'), 'info');
   }
@@ -843,6 +854,7 @@ class GameController {
         this.isHost = j.isHost;
         useGameStore.getState().setMpSession({ code: j.code, isHost: j.isHost, myResidentId: j.yourResidentId });
         useGameStore.getState().setMpParticipants(j.participants);
+        useGameStore.getState().setMpInviteCode(null); // v1.54: invitación consumida
       },
       onError: (m) => {
         useGameStore.getState().pushToast(m, 'bad');

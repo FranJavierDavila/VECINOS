@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Crown, LogOut, RefreshCw, Users, UserPlus } from 'lucide-react';
+import { Copy, Crown, LogOut, Mail, RefreshCw, Users, UserPlus } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -33,6 +33,8 @@ export function MultiplayerPanel() {
   const participants = useGameStore((s) => s.mpParticipants);
   const error = useGameStore((s) => s.mpError);
   const ready = useGameStore((s) => s.ready);
+  // v1.54 — invitación que llegó por ENLACE (?join=CODE): la sirve el controller al cargar.
+  const inviteCode = useGameStore((s) => s.mpInviteCode);
   const [codeInput, setCodeInput] = useState('');
 
   const ctrl = () => getController();
@@ -41,6 +43,19 @@ export function MultiplayerPanel() {
   const handleJoin = () => {
     if (codeInput.trim().length < 3) return;
     ctrl()?.joinSession(codeInput);
+  };
+
+  /** v1.54 — enlace de invitación de la sesión en curso (host o invitado pueden reenviarlo). */
+  const shareUrl =
+    code && typeof window !== 'undefined'
+      ? `${window.location.origin}${window.location.pathname}?join=${code}`
+      : null;
+  const copyLink = (): void => {
+    if (!shareUrl) return;
+    void navigator.clipboard
+      ?.writeText(shareUrl)
+      .then(() => useGameStore.getState().pushToast('Enlace de invitación copiado. Envíaselo a tu vecino.', 'info'))
+      .catch(() => useGameStore.getState().pushToast(shareUrl, 'info'));
   };
 
   return (
@@ -58,6 +73,29 @@ export function MultiplayerPanel() {
 
         {status === 'off' && (
           <div className="flex flex-col gap-4">
+            {inviteCode && (
+              <div className="flex flex-col gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+                <p className="flex items-center gap-1.5 text-sm font-medium">
+                  <Mail className="size-4 shrink-0" aria-hidden />
+                  Te han invitado a la partida
+                  <Badge variant="secondary" className="font-mono tracking-widest">
+                    {inviteCode}
+                  </Badge>
+                </p>
+                <Button
+                  onClick={() => {
+                    setCodeInput(inviteCode);
+                    ctrl()?.joinSession(inviteCode);
+                  }}
+                  disabled={!ready}
+                  className="w-full"
+                >
+                  <UserPlus aria-hidden />
+                  Unirse a la partida
+                </Button>
+                {!ready && <p className="text-xs text-muted-foreground">Espera a que el edificio cargue.</p>}
+              </div>
+            )}
             <Button onClick={handleHost} disabled={!ready} className="w-full">
               <UserPlus aria-hidden />
               Crear partida compartida
@@ -154,6 +192,25 @@ export function MultiplayerPanel() {
                   ))}
                 </ul>
               </ScrollArea>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <p className="text-xs font-medium text-muted-foreground">Enlace de invitación</p>
+              <div className="flex items-center gap-2">
+                <Input
+                  readOnly
+                  value={shareUrl ?? ''}
+                  className="h-8 font-mono text-xs"
+                  onFocus={(e) => e.currentTarget.select()}
+                  aria-label="Enlace de invitación"
+                />
+                <Button variant="outline" size="icon" onClick={copyLink} aria-label="Copiar enlace de invitación" disabled={!shareUrl}>
+                  <Copy aria-hidden />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Envíalo por WhatsApp, Discord o email: se abre el juego y entra con un clic (sin teclear el código).
+              </p>
             </div>
 
             <Button variant="destructive" onClick={() => ctrl()?.leaveSession()} className="w-full">

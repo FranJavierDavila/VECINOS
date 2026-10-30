@@ -311,6 +311,9 @@ interface GameState {
   mpParticipants: MpParticipant[];
   mpPanelOpen: boolean;
   mpError: string | null;
+  /** v1.54 — código de invitación recibido por ENLACE (?join=CODE): el panel lo muestra
+   *  como tarjeta «Te han invitado» y se limpia al entrar (o al salir de sesión). */
+  mpInviteCode: string | null;
 
   // ── Campaña de presidencia (v1.18): chip del HUD; la lógica vive en support/campaign ──
   setCampaign: (c: CampaignHud | null) => void;
@@ -365,6 +368,7 @@ interface GameState {
   setMpParticipants: (p: MpParticipant[]) => void;
   setMpPanelOpen: (v: boolean) => void;
   setMpError: (v: string | null) => void;
+  setMpInviteCode: (v: string | null) => void;
   setAchievements: (list: AchievementUi[]) => void;
   setAchievementPopup: (p: AchievementUi | null) => void;
   /** Marca un logro como ya-anunciado (quita `newly`): el popup lo llama al mostrarlo. */
@@ -439,6 +443,7 @@ export const useGameStore = create<GameState>((set) => ({
   mpParticipants: [],
   mpPanelOpen: false,
   mpError: null,
+  mpInviteCode: null,
   achievements: [],
   achievementPopup: null,
 
@@ -506,6 +511,7 @@ export const useGameStore = create<GameState>((set) => ({
   setMpParticipants: (mpParticipants) => set({ mpParticipants }),
   setMpPanelOpen: (mpPanelOpen) => set({ mpPanelOpen }),
   setMpError: (mpError) => set({ mpError }),
+  setMpInviteCode: (mpInviteCode) => set({ mpInviteCode }),
   setCampaign: (campaign) => set({ campaign }),
   setAchievements: (achievements) => set({ achievements }),
   setAchievementPopup: (achievementPopup) => set({ achievementPopup }),
