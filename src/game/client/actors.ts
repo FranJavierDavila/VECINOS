@@ -8,6 +8,7 @@ import { hash01, interiorTarget, layoutGeometryOf, type Pt } from '@/game/interi
 import { stairGeomOf, stairPathPoints } from '@/game/stairs';
 import { horizontalLegs } from '@/game/routing';
 import { isStorageColumnBlock, storageDoorPoint } from '@/game/storage';
+import { frontDoorX } from '@/game/frontDoors';
 import type { ElevatorsDirector } from './elevator';
 
 /** Plano frontal de las viviendas: z local 0 de los interiores (la cara de la puerta). */
@@ -321,16 +322,19 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
   const frontZ = frontZOf(v.roomZ, v.commonDepth);
   /** Bloque main bajo los pies (v1.14): para salir de la banda de viviendas por SU puerta.
    *  v1.28 — doorX/geo: las viviendas aportan la x de su puerta frontal (el hueco real de la
-   *  fachada) y su geometría 2D: la salida camina por dentro hasta el hueco y cruza por él. */
+   *  fachada) y su geometría 2D: la salida camina por dentro hasta el hueco y cruza por él.
+   *  v1.47 — LOS LOCALES TAMBIÉN (frontDoors.ts): sala de juntas, garaje, trastero común y
+   *  portal aportan el vano de su puerta — los asistentes de la junta y cualquier vecino
+   *  entran y salen POR LA PUERTA, nunca atravesando la fachada por la x de su silla. */
   const hostSpanAt = (x: number, floor: number): { x0: number; w: number; doorX?: number; geo?: ReturnType<typeof layoutGeometryOf> } | null => {
     for (const b of Object.values(world.blocks)) {
       if (b.cell.floor !== floor || b.layer !== 'main') continue;
       const x0 = b.cell.col * v.cellW;
       const w = b.size.w * v.cellW;
       if (x >= x0 && x <= x0 + w) {
-        // Puerta frontal = centro del bloque (la hoja de privacidad se monta en cx) — solo vivienda.
-        const doorX = b.kind === 'dwelling' ? x0 + w / 2 : undefined;
-        const geo = b.kind === 'dwelling' ? layoutGeometryOf(content, b) : null;
+        // v1.47 — vano real del catálogo (vivienda: cx; locales: su puerta; lavandería: abierta).
+        const doorX = frontDoorX(v, b, x);
+        const geo = layoutGeometryOf(content, b) ?? null;
         return { x0, w, doorX, geo };
       }
     }
@@ -449,9 +453,13 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
               target: dest.inside.local,
               // v1.28: entrar por el HUECO de la puerta (el corte de la fachada), no por la x
               // del objetivo — la cama vive en otra x y el vecino atravesaba la pared.
-              doorX: dest.inside.block.kind === 'dwelling'
-                ? (dest.inside.block.cell.col + dest.inside.block.size.w / 2) * v.cellW
-                : undefined,
+              // v1.47 — LOCALES INCLUIDOS (frontDoors.ts): la junta entra por la puerta de la
+              // sala (el vano del catálogo), elegido el más cercano al asiento de cada uno.
+              doorX: frontDoorX(
+                v,
+                dest.inside.block,
+                dest.inside.block.cell.col * v.cellW + dest.inside.local.x,
+              ),
             }
           : null,
       hostSpan: hostSpanAt(startX, Math.round(dest.y / v.cellH)),

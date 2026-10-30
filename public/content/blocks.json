@@ -1,649 +1,659 @@
 [
- {
-  "id": "nucleo_comunicaciones",
-  "kind": "common",
-  "layer": "main",
-  "size": {
-   "w": 1,
-   "h": 1
+  {
+    "id": "nucleo_comunicaciones",
+    "kind": "common",
+    "layer": "main",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "traversable": true,
+    "alignGroup": "nucleo",
+    "features": {
+      "elevator": true
+    },
+    "params": {
+      "elevator_status": {
+        "type": "enum",
+        "values": [
+          "ok",
+          "broken",
+          "under_repair"
+        ],
+        "default": "ok",
+        "label": "Ascensor"
+      },
+      "cabin_graffiti": {
+        "type": "number",
+        "min": 0,
+        "max": 100,
+        "default": 0
+      },
+      "condition": {
+        "type": "number",
+        "min": 0,
+        "max": 100,
+        "default": 80,
+        "tier": 1,
+        "label": "Estado del núcleo"
+      }
+    },
+    "view": {
+      "color": "#8d99ae"
+    },
+    "label": "el núcleo"
   },
-  "traversable": true,
-  "alignGroup": "nucleo",
-  "features": {
-   "elevator": true
+  {
+    "id": "escaleras_planta",
+    "kind": "common",
+    "layer": "main",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "traversable": true,
+    "features": {
+      "stairs": true
+    },
+    "params": {
+      "condition": {
+        "type": "number",
+        "min": 0,
+        "max": 100,
+        "default": 85,
+        "tier": 1,
+        "label": "Estado de la escalera"
+      }
+    },
+    "view": {
+      "color": "#a3b18a"
+    },
+    "label": "la escalera"
   },
-  "params": {
-   "elevator_status": {
-    "type": "enum",
-    "values": [
-     "ok",
-     "broken",
-     "under_repair"
-    ],
-    "default": "ok",
-    "label": "Ascensor"
-   },
-   "cabin_graffiti": {
-    "type": "number",
-    "min": 0,
-    "max": 100,
-    "default": 0
-   },
-   "condition": {
-    "type": "number",
-    "min": 0,
-    "max": 100,
-    "default": 80,
-    "tier": 1,
-    "label": "Estado del núcleo"
-   }
+  {
+    "id": "pasillo_planta",
+    "kind": "common",
+    "layer": "corridor",
+    "size": {
+      "w": 9,
+      "h": 1
+    },
+    "traversable": true,
+    "params": {
+      "cleanliness": {
+        "type": "number",
+        "min": 0,
+        "max": 100,
+        "default": 70,
+        "tier": 1,
+        "label": "Limpieza del pasillo"
+      },
+      "lighting": {
+        "type": "number",
+        "min": 0,
+        "max": 100,
+        "default": 90
+      }
+    },
+    "view": {
+      "color": "#d9c9a3"
+    },
+    "label": "el pasillo"
   },
-  "view": {
-   "color": "#8d99ae"
+  {
+    "id": "portal",
+    "kind": "common",
+    "layer": "main",
+    "size": {
+      "w": 2,
+      "h": 1
+    },
+    "traversable": true,
+    "features": {
+      "mailboxes": true,
+      "noticeboard": true,
+      "bench": true
+    },
+    "params": {
+      "condition": {
+        "type": "number",
+        "min": 0,
+        "max": 100,
+        "default": 75,
+        "tier": 1,
+        "label": "Estado del portal"
+      },
+      "hype": {
+        "type": "number",
+        "min": 0,
+        "max": 100,
+        "default": 0,
+        "tier": 2,
+        "label": "Hype del barrio"
+      }
+    },
+    "view": {
+      "color": "#b08968"
+    },
+    "label": "el portal",
+    "container": {
+      "childKind": "room",
+      "layout": "layout_portal"
+    }
   },
-  "label": "el núcleo"
- },
- {
-  "id": "escaleras_planta",
-  "kind": "common",
-  "layer": "main",
-  "size": {
-   "w": 1,
-   "h": 1
+  {
+    "id": "trasteros",
+    "kind": "common",
+    "layer": "main",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "traversable": true,
+    "params": {
+      "mystery": {
+        "type": "number",
+        "min": 0,
+        "max": 100,
+        "default": 50
+      }
+    },
+    "view": {
+      "color": "#9c6644"
+    },
+    "label": "los trasteros",
+    "container": {
+      "childKind": "room",
+      "layout": "layout_trastero_comunal"
+    }
   },
-  "traversable": true,
-  "features": {
-   "stairs": true
+  {
+    "id": "garaje",
+    "kind": "infrastructure",
+    "layer": "main",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "traversable": true,
+    "params": {
+      "condition": {
+        "type": "number",
+        "min": 0,
+        "max": 100,
+        "default": 65,
+        "tier": 1,
+        "label": "Estado del garaje"
+      }
+    },
+    "view": {
+      "color": "#6d6875"
+    },
+    "label": "el garaje",
+    "container": {
+      "childKind": "room",
+      "layout": "layout_garaje_comunal"
+    }
   },
-  "params": {
-   "condition": {
-    "type": "number",
-    "min": 0,
-    "max": 100,
-    "default": 85,
-    "tier": 1,
-    "label": "Estado de la escalera"
-   }
+  {
+    "id": "local_comercial",
+    "kind": "commercial",
+    "layer": "main",
+    "size": {
+      "w": 2,
+      "h": 1
+    },
+    "traversable": true,
+    "params": {
+      "condition": {
+        "type": "number",
+        "min": 0,
+        "max": 100,
+        "default": 75,
+        "tier": 1,
+        "label": "Estado del local"
+      },
+      "soundproofing": {
+        "type": "number",
+        "min": 0,
+        "max": 1,
+        "default": 0.15,
+        "tier": 1,
+        "label": "Aislamiento del local"
+      }
+    },
+    "view": {
+      "color": "#e07a5f"
+    },
+    "label": "el local",
+    "container": {
+      "childKind": "room",
+      "layout": "layout_local_juntas"
+    }
   },
-  "view": {
-   "color": "#a3b18a"
+  {
+    "id": "lavanderia_comunal",
+    "kind": "common",
+    "layer": "main",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "traversable": true,
+    "params": {
+      "condition": {
+        "type": "number",
+        "min": 0,
+        "max": 100,
+        "default": 70,
+        "tier": 1,
+        "label": "Estado de la lavandería"
+      }
+    },
+    "view": {
+      "color": "#84a59d"
+    },
+    "label": "la lavandería",
+    "container": {
+      "childKind": "room",
+      "layout": "layout_lavanderia_comunal"
+    }
   },
-  "label": "la escalera"
- },
- {
-  "id": "pasillo_planta",
-  "kind": "common",
-  "layer": "corridor",
-  "size": {
-   "w": 9,
-   "h": 1
+  {
+    "id": "trasteros_planta",
+    "kind": "common",
+    "layer": "main",
+    "size": {
+      "w": 9,
+      "h": 1
+    },
+    "traversable": true,
+    "params": {
+      "condition": {
+        "type": "number",
+        "min": 0,
+        "max": 100,
+        "default": 80,
+        "tier": 1,
+        "label": "Estado de los trasteros"
+      }
+    },
+    "view": {
+      "color": "#a47148"
+    },
+    "label": "la planta de trasteros"
   },
-  "traversable": true,
-  "params": {
-   "cleanliness": {
-    "type": "number",
-    "min": 0,
-    "max": 100,
-    "default": 70,
-    "tier": 1,
-    "label": "Limpieza del pasillo"
-   },
-   "lighting": {
-    "type": "number",
-    "min": 0,
-    "max": 100,
-    "default": 90
-   }
+  {
+    "id": "bajocubierta",
+    "kind": "common",
+    "layer": "main",
+    "size": {
+      "w": 9,
+      "h": 1
+    },
+    "traversable": true,
+    "params": {
+      "condition": {
+        "type": "number",
+        "min": 0,
+        "max": 100,
+        "default": 75,
+        "tier": 1,
+        "label": "Estado de la bajocubierta"
+      }
+    },
+    "view": {
+      "color": "#7f8c99"
+    },
+    "label": "la bajocubierta"
   },
-  "view": {
-   "color": "#d9c9a3"
+  {
+    "id": "tejado",
+    "kind": "common",
+    "layer": "main",
+    "size": {
+      "w": 10,
+      "h": 1
+    },
+    "traversable": false,
+    "view": {
+      "color": "#a44a3f"
+    },
+    "label": "el tejado"
   },
-  "label": "el pasillo"
- },
- {
-  "id": "portal",
-  "kind": "common",
-  "layer": "main",
-  "size": {
-   "w": 2,
-   "h": 1
+  {
+    "id": "vivienda_estandar",
+    "kind": "dwelling",
+    "layer": "main",
+    "size": {
+      "w": 2,
+      "h": 1
+    },
+    "container": {
+      "childKind": "room",
+      "layout": "layout_vivienda_v1"
+    },
+    "params": {
+      "style": {
+        "type": "enum",
+        "values": [
+          "moderno",
+          "clasico",
+          "retro",
+          "caotico",
+          "duplex"
+        ],
+        "default": "clasico",
+        "tier": 2,
+        "label": "Estilo"
+      },
+      "condition": {
+        "type": "number",
+        "min": 0,
+        "max": 100,
+        "default": 70,
+        "tier": 1,
+        "label": "Estado"
+      },
+      "soundproofing": {
+        "type": "number",
+        "min": 0,
+        "max": 1,
+        "default": 0.4,
+        "tier": 1,
+        "label": "Aislamiento"
+      },
+      "humidity": {
+        "type": "number",
+        "min": 0,
+        "max": 100,
+        "default": 10,
+        "tier": 1,
+        "label": "Humedad"
+      },
+      "plague": {
+        "type": "number",
+        "min": 0,
+        "max": 100,
+        "default": 0,
+        "tier": 2,
+        "label": "Plagas"
+      },
+      "soot": {
+        "type": "number",
+        "min": 0,
+        "max": 100,
+        "default": 0,
+        "tier": 2,
+        "label": "Hollín"
+      },
+      "rent": {
+        "type": "number",
+        "min": 0,
+        "default": 40,
+        "tier": 2,
+        "label": "Alquiler/día"
+      },
+      "hype": {
+        "type": "number",
+        "min": 0,
+        "max": 100,
+        "default": 0,
+        "tier": 2,
+        "label": "Hype del barrio"
+      },
+      "dust": {
+        "type": "number",
+        "min": 0,
+        "max": 100,
+        "default": 8,
+        "tier": 1,
+        "label": "Polvo de obra"
+      },
+      "okupa_evicted": {
+        "type": "enum",
+        "values": [
+          "no",
+          "si"
+        ],
+        "default": "no",
+        "tier": 3,
+        "label": "Desalojo"
+      }
+    },
+    "view": {
+      "color": "#f4a261",
+      "altColor": "#e9c46a"
+    }
   },
-  "traversable": true,
-  "features": {
-   "mailboxes": true,
-   "noticeboard": true,
-   "bench": true
+  {
+    "id": "trasteros_columna",
+    "kind": "common",
+    "layer": "main",
+    "size": {
+      "w": 2,
+      "h": 1
+    },
+    "traversable": true,
+    "features": {
+      "innerCorridor": true
+    },
+    "params": {
+      "condition": {
+        "type": "number",
+        "min": 0,
+        "max": 100,
+        "default": 80,
+        "tier": 1,
+        "label": "Estado de los trasteros"
+      }
+    },
+    "view": {
+      "color": "#a47148"
+    },
+    "label": "el bloque de trasteros"
   },
-  "params": {
-   "condition": {
-    "type": "number",
-    "min": 0,
-    "max": 100,
-    "default": 75,
-    "tier": 1,
-    "label": "Estado del portal"
-   },
-   "hype": {
-    "type": "number",
-    "min": 0,
-    "max": 100,
-    "default": 0,
-    "tier": 2,
-    "label": "Hype del barrio"
-   }
+  {
+    "id": "escaleras_cota",
+    "kind": "common",
+    "layer": "main",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "traversable": true,
+    "features": {
+      "stairs": true
+    },
+    "params": {
+      "condition": {
+        "type": "number",
+        "min": 0,
+        "max": 100,
+        "default": 85,
+        "tier": 1,
+        "label": "Estado de la escalera (bajada)"
+      }
+    },
+    "view": {
+      "color": "#a3b18a"
+    },
+    "label": "la escalera (bajada)"
   },
-  "view": {
-   "color": "#b08968"
+  {
+    "id": "acera",
+    "kind": "common",
+    "layer": "main",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "traversable": false,
+    "view": {
+      "color": "#cfc5ab"
+    },
+    "label": "la acera",
+    "exterior": {
+      "height": 0.14,
+      "curbColor": "#b8ad92",
+      "curbW": 0.16,
+      "benchEvery": 7.5,
+      "benchColor": "#8a5a33",
+      "benchLegColor": "#3b3129",
+      "lampEvery": 6,
+      "lampColor": "#3b3129",
+      "lampHeadColor": "#ffd166",
+      "lampH": 3.6,
+      "binEvery": 7.5,
+      "binColor": "#5d6b7a"
+    }
   },
-  "label": "el portal",
-  "container": {
-   "childKind": "room",
-   "layout": "layout_portal"
+  {
+    "id": "carretera",
+    "kind": "common",
+    "layer": "main",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "traversable": false,
+    "view": {
+      "color": "#57534e"
+    },
+    "label": "la carretera",
+    "exterior": {
+      "height": 0.02,
+      "laneDash": 1.6,
+      "laneDashColor": "#f4e9d8",
+      "curbColor": "#8f887a",
+      "curbW": 0.22
+    }
+  },
+  {
+    "id": "jardin",
+    "kind": "common",
+    "layer": "main",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "traversable": false,
+    "view": {
+      "color": "#7fa05f"
+    },
+    "label": "el jardín",
+    "exterior": {
+      "height": 0.18,
+      "treesPer10m": 2.2,
+      "bushesPer10m": 4.2,
+      "flowerChance": 0.45,
+      "gridScatter": true,
+      "maxTrees": 10,
+      "maxBushes": 16,
+      "trunkColor": "#6f4926",
+      "leafColors": [
+        "#5a9367",
+        "#84a59d",
+        "#708c5a",
+        "#6f9b72"
+      ],
+      "bushColors": [
+        "#5a9367",
+        "#6f9b72",
+        "#8fb573"
+      ],
+      "flowerColors": [
+        "#e07a5f",
+        "#ffd166",
+        "#f2cc8f",
+        "#e56b6f"
+      ],
+      "grassColor": "#7fa05f"
+    }
+  },
+  {
+    "id": "carretera_cruce",
+    "kind": "common",
+    "layer": "main",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "traversable": false,
+    "view": {
+      "color": "#57534e"
+    },
+    "label": "el paso de cebra",
+    "exterior": {
+      "height": 0.02,
+      "zebra": true,
+      "zebraColor": "#f2ead9",
+      "zebraStripeW": 0.55,
+      "zebraGap": 0.6,
+      "curbColor": "#8f887a",
+      "curbW": 0.22
+    }
+  },
+  {
+    "id": "carretera_bifurcacion",
+    "kind": "common",
+    "layer": "main",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "traversable": false,
+    "view": {
+      "color": "#57534e"
+    },
+    "label": "la calle lateral",
+    "exterior": {
+      "height": 0.02,
+      "laneDash": 1.6,
+      "laneDashColor": "#f4e9d8",
+      "curbColor": "#8f887a",
+      "curbW": 0.22
+    }
+  },
+  {
+    "id": "campo",
+    "kind": "common",
+    "layer": "main",
+    "size": {
+      "w": 1,
+      "h": 1
+    },
+    "traversable": false,
+    "view": {
+      "color": "#7c9a58"
+    },
+    "label": "el campo",
+    "exterior": {
+      "height": 0.16,
+      "treesPer10m": 0.8,
+      "bushesPer10m": 1.6,
+      "flowerChance": 0.18,
+      "maxTrees": 18,
+      "maxBushes": 26,
+      "gridScatter": true,
+      "trunkColor": "#6f4926",
+      "leafColors": [
+        "#5a9367",
+        "#84a59d",
+        "#708c5a",
+        "#6f9b72"
+      ],
+      "bushColors": [
+        "#5a9367",
+        "#6f9b72",
+        "#8fb573"
+      ],
+      "flowerColors": [
+        "#e07a5f",
+        "#ffd166",
+        "#f2cc8f"
+      ],
+      "grassColor": "#7c9a58"
+    }
   }
- },
- {
-  "id": "trasteros",
-  "kind": "common",
-  "layer": "main",
-  "size": {
-   "w": 1,
-   "h": 1
-  },
-  "traversable": true,
-  "params": {
-   "mystery": {
-    "type": "number",
-    "min": 0,
-    "max": 100,
-    "default": 50
-   }
-  },
-  "view": {
-   "color": "#9c6644"
-  },
-  "label": "los trasteros",
-  "container": {
-   "childKind": "room",
-   "layout": "layout_trastero_comunal"
-  }
- },
- {
-  "id": "garaje",
-  "kind": "infrastructure",
-  "layer": "main",
-  "size": {
-   "w": 1,
-   "h": 1
-  },
-  "traversable": true,
-  "params": {
-   "condition": {
-    "type": "number",
-    "min": 0,
-    "max": 100,
-    "default": 65,
-    "tier": 1,
-    "label": "Estado del garaje"
-   }
-  },
-  "view": {
-   "color": "#6d6875"
-  },
-  "label": "el garaje",
-  "container": {
-   "childKind": "room",
-   "layout": "layout_garaje_comunal"
-  }
- },
- {
-  "id": "local_comercial",
-  "kind": "commercial",
-  "layer": "main",
-  "size": {
-   "w": 2,
-   "h": 1
-  },
-  "traversable": true,
-  "params": {
-   "condition": {
-    "type": "number",
-    "min": 0,
-    "max": 100,
-    "default": 75,
-    "tier": 1,
-    "label": "Estado del local"
-   },
-   "soundproofing": {
-    "type": "number",
-    "min": 0,
-    "max": 1,
-    "default": 0.15,
-    "tier": 1,
-    "label": "Aislamiento del local"
-   }
-  },
-  "view": {
-   "color": "#e07a5f"
-  },
-  "label": "el local",
-  "container": {
-   "childKind": "room",
-   "layout": "layout_local_juntas"
-  }
- },
- {
-  "id": "lavanderia_comunal",
-  "kind": "common",
-  "layer": "main",
-  "size": {
-   "w": 1,
-   "h": 1
-  },
-  "traversable": true,
-  "params": {
-   "condition": {
-    "type": "number",
-    "min": 0,
-    "max": 100,
-    "default": 70,
-    "tier": 1,
-    "label": "Estado de la lavandería"
-   }
-  },
-  "view": {
-   "color": "#84a59d"
-  },
-  "label": "la lavandería",
-  "container": {
-   "childKind": "room",
-   "layout": "layout_lavanderia_comunal"
-  }
- },
- {
-  "id": "trasteros_planta",
-  "kind": "common",
-  "layer": "main",
-  "size": {
-   "w": 9,
-   "h": 1
-  },
-  "traversable": true,
-  "params": {
-   "condition": {
-    "type": "number",
-    "min": 0,
-    "max": 100,
-    "default": 80,
-    "tier": 1,
-    "label": "Estado de los trasteros"
-   }
-  },
-  "view": {
-   "color": "#a47148"
-  },
-  "label": "la planta de trasteros"
- },
- {
-  "id": "bajocubierta",
-  "kind": "common",
-  "layer": "main",
-  "size": {
-   "w": 9,
-   "h": 1
-  },
-  "traversable": true,
-  "params": {
-   "condition": {
-    "type": "number",
-    "min": 0,
-    "max": 100,
-    "default": 75,
-    "tier": 1,
-    "label": "Estado de la bajocubierta"
-   }
-  },
-  "view": {
-   "color": "#7f8c99"
-  },
-  "label": "la bajocubierta"
- },
- {
-  "id": "tejado",
-  "kind": "common",
-  "layer": "main",
-  "size": {
-   "w": 10,
-   "h": 1
-  },
-  "traversable": false,
-  "view": {
-   "color": "#a44a3f"
-  },
-  "label": "el tejado"
- },
- {
-  "id": "vivienda_estandar",
-  "kind": "dwelling",
-  "layer": "main",
-  "size": {
-   "w": 2,
-   "h": 1
-  },
-  "container": {
-   "childKind": "room",
-   "layout": "layout_vivienda_v1"
-  },
-  "params": {
-   "style": {
-    "type": "enum",
-    "values": [
-     "moderno",
-     "clasico",
-     "retro",
-     "caotico",
-     "duplex"
-    ],
-    "default": "clasico",
-    "tier": 2,
-    "label": "Estilo"
-   },
-   "condition": {
-    "type": "number",
-    "min": 0,
-    "max": 100,
-    "default": 70,
-    "tier": 1,
-    "label": "Estado"
-   },
-   "soundproofing": {
-    "type": "number",
-    "min": 0,
-    "max": 1,
-    "default": 0.4,
-    "tier": 1,
-    "label": "Aislamiento"
-   },
-   "humidity": {
-    "type": "number",
-    "min": 0,
-    "max": 100,
-    "default": 10,
-    "tier": 1,
-    "label": "Humedad"
-   },
-   "plague": {
-    "type": "number",
-    "min": 0,
-    "max": 100,
-    "default": 0,
-    "tier": 2,
-    "label": "Plagas"
-   },
-   "soot": {
-    "type": "number",
-    "min": 0,
-    "max": 100,
-    "default": 0,
-    "tier": 2,
-    "label": "Hollín"
-   },
-   "rent": {
-    "type": "number",
-    "min": 0,
-    "default": 40,
-    "tier": 2,
-    "label": "Alquiler/día"
-   },
-   "hype": {
-    "type": "number",
-    "min": 0,
-    "max": 100,
-    "default": 0,
-    "tier": 2,
-    "label": "Hype del barrio"
-   },
-   "dust": {
-    "type": "number",
-    "min": 0,
-    "max": 100,
-    "default": 8,
-    "tier": 1,
-    "label": "Polvo de obra"
-   }
-  },
-  "view": {
-   "color": "#f4a261",
-   "altColor": "#e9c46a"
-  }
- },
- {
-  "id": "trasteros_columna",
-  "kind": "common",
-  "layer": "main",
-  "size": {
-   "w": 2,
-   "h": 1
-  },
-  "traversable": true,
-  "features": {
-   "innerCorridor": true
-  },
-  "params": {
-   "condition": {
-    "type": "number",
-    "min": 0,
-    "max": 100,
-    "default": 80,
-    "tier": 1,
-    "label": "Estado de los trasteros"
-   }
-  },
-  "view": {
-   "color": "#a47148"
-  },
-  "label": "el bloque de trasteros"
- },
- {
-  "id": "escaleras_cota",
-  "kind": "common",
-  "layer": "main",
-  "size": {
-   "w": 1,
-   "h": 1
-  },
-  "traversable": true,
-  "features": {
-   "stairs": true
-  },
-  "params": {
-   "condition": {
-    "type": "number",
-    "min": 0,
-    "max": 100,
-    "default": 85,
-    "tier": 1,
-    "label": "Estado de la escalera (bajada)"
-   }
-  },
-  "view": {
-   "color": "#a3b18a"
-  },
-  "label": "la escalera (bajada)"
- },
- {
-  "id": "acera",
-  "kind": "common",
-  "layer": "main",
-  "size": {
-   "w": 1,
-   "h": 1
-  },
-  "traversable": false,
-  "view": {
-   "color": "#cfc5ab"
-  },
-  "label": "la acera",
-  "exterior": {
-   "height": 0.14,
-   "curbColor": "#b8ad92",
-   "curbW": 0.16,
-   "benchEvery": 7.5,
-   "benchColor": "#8a5a33",
-   "benchLegColor": "#3b3129",
-   "lampEvery": 6,
-   "lampColor": "#3b3129",
-   "lampHeadColor": "#ffd166",
-   "lampH": 3.6,
-   "binEvery": 7.5,
-   "binColor": "#5d6b7a"
-  }
- },
- {
-  "id": "carretera",
-  "kind": "common",
-  "layer": "main",
-  "size": {
-   "w": 1,
-   "h": 1
-  },
-  "traversable": false,
-  "view": {
-   "color": "#57534e"
-  },
-  "label": "la carretera",
-  "exterior": {
-   "height": 0.02,
-   "laneDash": 1.6,
-   "laneDashColor": "#f4e9d8",
-   "curbColor": "#8f887a",
-   "curbW": 0.22
-  }
- },
- {
-  "id": "jardin",
-  "kind": "common",
-  "layer": "main",
-  "size": {
-   "w": 1,
-   "h": 1
-  },
-  "traversable": false,
-  "view": {
-   "color": "#7fa05f"
-  },
-  "label": "el jardín",
-  "exterior": {
-   "height": 0.18,
-   "treesPer10m": 2.2,
-   "bushesPer10m": 4.2,
-   "flowerChance": 0.45,
-   "gridScatter": true,
-   "maxTrees": 10,
-   "maxBushes": 16,
-   "trunkColor": "#6f4926",
-   "leafColors": [
-    "#5a9367",
-    "#84a59d",
-    "#708c5a",
-    "#6f9b72"
-   ],
-   "bushColors": [
-    "#5a9367",
-    "#6f9b72",
-    "#8fb573"
-   ],
-   "flowerColors": [
-    "#e07a5f",
-    "#ffd166",
-    "#f2cc8f",
-    "#e56b6f"
-   ],
-   "grassColor": "#7fa05f"
-  }
- },
- {
-  "id": "carretera_cruce",
-  "kind": "common",
-  "layer": "main",
-  "size": {
-   "w": 1,
-   "h": 1
-  },
-  "traversable": false,
-  "view": {
-   "color": "#57534e"
-  },
-  "label": "el paso de cebra",
-  "exterior": {
-   "height": 0.02,
-   "zebra": true,
-   "zebraColor": "#f2ead9",
-   "zebraStripeW": 0.55,
-   "zebraGap": 0.6,
-   "curbColor": "#8f887a",
-   "curbW": 0.22
-  }
- },
- {
-  "id": "carretera_bifurcacion",
-  "kind": "common",
-  "layer": "main",
-  "size": {
-   "w": 1,
-   "h": 1
-  },
-  "traversable": false,
-  "view": {
-   "color": "#57534e"
-  },
-  "label": "la calle lateral",
-  "exterior": {
-   "height": 0.02,
-   "laneDash": 1.6,
-   "laneDashColor": "#f4e9d8",
-   "curbColor": "#8f887a",
-   "curbW": 0.22
-  }
- },
- {
-  "id": "campo",
-  "kind": "common",
-  "layer": "main",
-  "size": {
-   "w": 1,
-   "h": 1
-  },
-  "traversable": false,
-  "view": {
-   "color": "#7c9a58"
-  },
-  "label": "el campo",
-  "exterior": {
-   "height": 0.16,
-   "treesPer10m": 0.8,
-   "bushesPer10m": 1.6,
-   "flowerChance": 0.18,
-   "maxTrees": 18,
-   "maxBushes": 26,
-   "gridScatter": true,
-   "trunkColor": "#6f4926",
-   "leafColors": [
-    "#5a9367",
-    "#84a59d",
-    "#708c5a",
-    "#6f9b72"
-   ],
-   "bushColors": [
-    "#5a9367",
-    "#6f9b72",
-    "#8fb573"
-   ],
-   "flowerColors": [
-    "#e07a5f",
-    "#ffd166",
-    "#f2cc8f"
-   ],
-   "grassColor": "#7c9a58"
-  }
- }
 ]

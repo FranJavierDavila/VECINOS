@@ -3,6 +3,7 @@ import { dispatch, nextStepTowards } from '@/game/sim';
 import { layoutGeometryOf, roomAt, walkable, type LayoutGeometry } from '@/game/interior';
 import { stairGeomOf, stairPathPoints } from './stairs';
 import { corridorLanes, isStorageColumnBlock, storageCorridorX, storageDoorPoint, storageGeomOf } from './storage';
+import { frontDoorSpans, type DoorSpan } from './frontDoors';
 
 
 export type InteractResult =
@@ -203,11 +204,22 @@ export class PlayerLogic {
     return layoutGeometryOf(this.content, block);
   }
 
-  /** Aterriza dentro de una vivienda: plano frontal, y si cae en estancia cerrada, a la abierta más al frente. */
+  /** Aterriza dentro de una vivienda: plano frontal, y si cae en estancia cerrada, a la abierta más al frente.
+   *  v1.47 — el aterrizaje es SIEMPRE EN EL UMBRAL DE LA PUERTA: la x se ajusta al vano real
+   *  (locales) o al centro de la hoja (viviendas) — entrar por el borde del hueco ya no
+   *  aparece dentro del montante ni atraviesa visualmente la fachada. */
   private landInside(block: BlockInstance): void {
     this.mode = 'inside';
     this.insideBlock = block.id;
     this.z = 0.45;
+    const spans = frontDoorSpans(this.view, block);
+    if (spans.length > 0) {
+      const s = spans.find((sp) => this.x >= sp.x0 && this.x <= sp.x1) ?? this.nearestSpan(spans, this.x);
+      const [a, b] = this.rangeOf(block);
+      this.x = Math.min(b - this.view.margin, Math.max(a + this.view.margin, (s.x0 + s.x1) / 2));
+    } else if (block.kind === 'dwelling') {
+      this.x = this.centerOf(block); // la hoja de privacidad vive en cx (misma caja que building)
+    }
     const geo = this.geometryOf(block);
     if (geo) {
       const room = roomAt(geo, this.x - block.cell.col * this.view.cellW, this.z);
@@ -251,33 +263,18 @@ export class PlayerLogic {
   }
 
   /** v1.46 — HUECOS DE PUERTA de un bloque (x de mundo): los MISMOS vanos que dibuja
-   *  building.ts, medidos con el catálogo (trasteroComunal.doorDx/doorW,
-   *  juntaHall.doorW, garaje.doorW) más walkIn.doorPad de tolerancia. La lavandería es
-   *  fachada ABIERTA y el portal acristalado ancho; las viviendas no imponen hueco
-   *  (comportamiento de siempre). [] = sin disciplina de hueco. */
+   *  building.ts, medidos con el catálogo — UNA sola verdad compartida con los vecinos
+   *  (src/game/frontDoors.ts). v1.47: el portal mide su apertura REAL (2 × slide).
+   *  [] = sin disciplina de hueco (viviendas: siempre por su hoja central). */
   private doorSpansOf(b: BlockInstance): { x0: number; x1: number }[] {
-    if (b.kind === 'dwelling') return [];
-    const [a, z] = this.rangeOf(b);
-    const cx = (a + z) / 2;
-    const loc = this.view.locals;
-    const pad = loc.walkIn?.doorPad ?? 0.05;
-    const span = (w: number, x: number) => [{ x0: x - w / 2 - pad, x1: x + w / 2 + pad }];
-    switch (b.defId) {
-      case 'trasteros': {
-        const tc = loc.trasteroComunal;
-        return [...span(tc.doorW, cx - tc.doorDx), ...span(tc.doorW, cx + tc.doorDx)];
-      }
-      case 'local_comercial':
-        return span(loc.juntaHall.doorW, cx);
-      case 'garaje':
-        return span(loc.garaje.doorW ?? 2.16, cx);
-      case 'lavanderia_comunal':
-        return [{ x0: a + 0.1, x1: z - 0.1 }]; // fachada abierta: el frente entero es vano
-      case 'portal':
-        return [{ x0: a + 0.35, x1: z - 0.35 }]; // correderas de cristal (mismo margen que la calle)
-      default:
-        return [];
-    }
+    return frontDoorSpans(this.view, b);
+  }
+
+  /** v1.47 — vano más cercano a una x (para aterrizar dentro por SU puerta). */
+  private nearestSpan(spans: DoorSpan[], x: number): DoorSpan {
+    return spans.reduce((acc, s) =>
+      Math.abs((s.x0 + s.x1) / 2 - x) < Math.abs((acc.x0 + acc.x1) / 2 - x) ? s : acc,
+    );
   }
 
   /** v1.46 — ¿está el jugador EN el hueco de la puerta de este bloque? (x dentro de algún vano). */
@@ -287,11 +284,8 @@ export class PlayerLogic {
   }
 
   /** v1.46 — umbral de salida de un local: en el hueco y pegado a la puerta (z ≤ exitZ).
-   *  Ahí funciona tanto la salida andando (armada) como la E de respaldo. */
-  private localeExitReady(b: BlockInstance): boolean {
-    const exitZ = this.view.locals.walkIn?.exitZ ?? 0.5;
-    return this.z <= exitZ && this.atDoorGap(b);
-  }
+   *  v1.47 — la salida es SIEMPRE andando (armada al cruzar el umbral, update interior).
+   *  El chequeo vive inline; este helper ya no tiene llamadores. */
 
   /** Objetivos de puerta: viviendas siempre; locales comunes transitables sin features (bar,
    *  lavandería…); bloques con PASILLO INTERIOR (v1.18, trasteros por columna) también; y los
@@ -393,6 +387,13 @@ export class PlayerLogic {
   private noticeSpot: { x: number; floor: number } | null = null;
   setNoticeboardSpot(spot: { x: number; floor: number } | null): void {
     this.noticeSpot = spot;
+  }
+
+  /** v1.47 — SÓLIDOS del pasillo de planta 0 (mundo): el atril del tablón NO se atraviesa
+   *  (los mismos volúmenes que se ven; los registra building al levantar la geometría). */
+  private corridorSolids: { x0: number; z0: number; w: number; d: number }[] = [];
+  setCorridorObstacles(list: { x0: number; z0: number; w: number; d: number }[]): void {
+    this.corridorSolids = list;
   }
 
   /** Posición (mundo) del cuerpo dentro del interior presentable del trastero propio. */
@@ -636,16 +637,26 @@ export class PlayerLogic {
     const speedMul = input.run ? this.view.runMultiplier : 1;
     if (this.mode === 'inside') {
       const home = this.world.blocks[this.insideBlock!]!;
+      // v1.47 — el cuerpo CRUZANDO una pared (teatro del portal lateral) reaparece dentro:
+      // el fundido se recupera también en interiores, no solo en la calle.
+      if (this.fade < 1) this.fade = Math.min(1, this.fade + dt / Math.max(0.05, this.view.outside?.portal.fadeSeconds ?? 0.35));
       const dx = dir * this.view.roomSpeed * speedMul * dt;
       const dz = ((input.up ? 1 : 0) - (input.down ? 1 : 0)) * this.view.roomSpeed * speedMul * dt;
       // ── Pasillo interior (v1.18, trasteros por columna): banda central transitable en X,
       //  fondo libre en Z hasta el tabique trasero. TODO sale del catálogo (storage.ts).
+      //  v1.47 — SALIDA NATURAL (sin E): andar hacia la puerta (S en el vano) te devuelve
+      //  al pasillo, igual que en los demás locales de planta 0.
       if (this.content.blocks[home.defId]!.features?.innerCorridor) {
         const sg = storageGeomOf(this.view);
         const [ca, cb] = storageCorridorX(home.cell.col * this.view.cellW, sg);
         const m = this.view.margin;
         this.x = Math.min(cb - m, Math.max(ca + m, this.x + dx));
         this.z = Math.min(sg.depth - m, Math.max(m, this.z + dz));
+        const exitZc = this.view.locals.walkIn?.exitZ ?? 0.5;
+        if (input.down && this.z <= exitZc && this.atDoorGap(home)) {
+          const r = this.tryExitHome();
+          if (r.type === 'exited') this.autoEvents.push(r);
+        }
         this.sync();
         return;
       }
@@ -689,9 +700,13 @@ export class PlayerLogic {
       const exitZ = wi?.exitZ ?? 0.5;
       const ownHome = home.ownerId === this.actorId;
       const locale = home.kind !== 'dwelling' && home.defId !== 'portal';
+      // v1.47 — ARMADA AL ENTRAR (walkIn.armOnEnter) + DIRECCIÓN MANDA: cruzar el umbral
+      // arma la salida, pero solo salta EMPUJANDO hacia la puerta (S — la dirección del
+      // cruce). Sin el requisito de dirección, entrar con W disparaba la salida del frame
+      // siguiente (el aterrizaje z=0.45 ya está ≤ exitZ): entrar y salir era un bucle.
       if (ownHome || locale) {
         if (this.z > armZ) this.exitArmed = true;
-        else if (this.exitArmed && this.z <= exitZ && (ownHome || this.atDoorGap(home))) {
+        else if (this.exitArmed && input.down && this.z <= exitZ && (ownHome || this.atDoorGap(home))) {
           const r = this.tryExitHome();
           if (r.type === 'exited') this.autoEvents.push(r);
         }
@@ -707,15 +722,21 @@ export class PlayerLogic {
     // Pasillo (v1.19): DOS carriles. A/D avanza en X; W/S, si no arrancan escalada (no hay
     // pozo delante o ya estás en el límite), cambian de carril: W hacia la fachada (interior,
     // junto a puertas y avisos), S hacia la barandilla (exterior, vía de adelantamiento).
+    // v1.47 — SÓLIDOS del pasillo (tablón de anuncios): no se atraviesa, se esquiva.
     const lanes = corridorLanes(this.view);
     const dirZ = (input.up ? 1 : 0) - (input.down ? 1 : 0);
+    const rC = this.view.actorRadius;
+    const hitsCorridor = (x: number, z: number): boolean =>
+      this.corridorSolids.some((o) => x > o.x0 - rC && x < o.x0 + o.w + rC && z > o.z0 - rC && z < o.z0 + o.d + rC);
     let climbing = false;
     if (dirZ > 0) climbing = this.startClimb(1);
     else if (dirZ < 0) climbing = this.startClimb(-1);
     if (!climbing && dirZ !== 0) {
-      this.z = Math.min(lanes.maxZ, Math.max(lanes.minZ, this.z + dirZ * this.view.walkSpeed * speedMul * dt));
+      const nz = Math.min(lanes.maxZ, Math.max(lanes.minZ, this.z + dirZ * this.view.walkSpeed * speedMul * dt));
+      if (!hitsCorridor(this.x, nz)) this.z = nz;
     }
-    this.x = Math.min(this.width - this.view.margin, Math.max(this.view.margin, this.x + dir * this.view.walkSpeed * speedMul * dt));
+    const nxCor = Math.min(this.width - this.view.margin, Math.max(this.view.margin, this.x + dir * this.view.walkSpeed * speedMul * dt));
+    if (!hitsCorridor(nxCor, this.z)) this.x = nxCor;
     this.sync();
     const door = this.doorInFront()?.id ?? null;
     if (door !== this.approached) {
@@ -829,13 +850,17 @@ export class PlayerLogic {
       this.approached = null;
       this.autoEvents.push({ type: 'portalOut', block: portal.id });
     } else if (input.down && this.z <= cfg.portal.frontInnerZ) {
-      this.pushPortalIntent(); // v1.46: empujar hacia la calle abre las correderas (y las deja abrir)
-      this.mode = 'outside';
+      // v1.47 — SALIDA AL FRENTE = PASILLO DE PLANTA 0: empujar hacia las correderas te
+      // planta en la acera cubierta del pasillo (como espera el vecino: salir del portal es
+      // SEGUIR ANDANDO por la planta 0, no un muro invisible alineado con la pared derecha
+      // del vestíbulo). A la calle se va por la ruta oficial del perímetro (pared izquierda).
+      this.pushPortalIntent(); // las correderas se abren con el empujón (y las deja abrir)
+      this.mode = 'corridor';
       this.insideBlock = null;
-      this.z = cfg.portal.outFrontZ;
-      this.fade = 0;
+      this.z = this.view.corridorZ;
+      this.fade = 1; // visible: se cruza por la puerta ya abierta, sin teatro
       this.approached = null;
-      this.autoEvents.push({ type: 'portalOut', block: portal.id });
+      this.autoEvents.push({ type: 'exited', block: portal.id });
     }
   }
 
@@ -867,13 +892,18 @@ export class PlayerLogic {
     this.mode = 'inside';
     this.insideBlock = portal.id;
     if (fromFront) {
+      // v1.47 — se entra VISIBLE por las correderas ya abiertas (el empujón del mismo frame
+      // las abre): desaparecer al entrar era el bug «ya no se mira por dónde va».
       this.x = Math.min(this.rangeOf(portal)[1] - this.view.margin, Math.max(this.rangeOf(portal)[0] + this.view.margin, this.x));
       this.z = 0.45;
+      this.fade = 1;
     } else {
+      // Teatro de la pared oeste: el cuerpo se funde al cruzarla y reaparece dentro
+      // (la recuperación del fade también vive en el modo interior).
       this.x = cfg.portal.wallInnerX - 0.1;
       this.z = cfg.portal.sideZ - this.frontZ; // z local del vestíbulo (world 0.35)
+      this.fade = 0;
     }
-    this.fade = 0;
     this.approached = portal.id;
     this.autoEnterLast = null;
     this.exitArmed = false;
@@ -983,7 +1013,7 @@ export class PlayerLogic {
         if (cell && Math.abs(this.x - cell.x) < this.view.itemRadius * 0.75 && Math.abs(worldZ - cell.z) < this.view.itemRadius) {
           return { kind: 'storageCell' };
         }
-        return { kind: 'door', blockId: this.insideBlock! };
+        return null; // v1.47 — salir del bloque de trasteros es ANDAR hacia su puerta (sin E)
       }
       if (b.ownerId === this.actorId) {
         // Interactivos de la estancia actual (portátil/cama): posición 2D del catálogo, no offsets.
@@ -998,18 +1028,11 @@ export class PlayerLogic {
           }
         }
       }
-      // v1.46 — el aviso de puerta solo donde la E sirve: en los locales, en el HUECO y
-      // pegado a la puerta (localeExitReady); el portal calla al fondo (W te lleva al
-      // pasillo). Vivir el «salir es andar hacia la puerta» sin ruido de prompt en
-      // mitad de la sala; la vivienda conserva su aviso de siempre.
+      // v1.47 — UN SOLO SISTEMA (petición del vecino): los locales de planta 0 y el portal
+      // se entran y se salen SOLO con el movimiento (sin E, sin prompt — dos mecanismos
+      // distintos eran confusos). La E dentro solo habla en viviendas (salir) y objetos.
       const blk = this.world.blocks[this.insideBlock!]!;
-      if (blk.kind !== 'dwelling') {
-        if (blk.defId === 'portal') {
-          const backZ = this.view.locals.portal?.backZoneZ ?? 2.0;
-          return this.z >= backZ ? null : { kind: 'door', blockId: blk.id };
-        }
-        return this.localeExitReady(blk) ? { kind: 'door', blockId: blk.id } : null;
-      }
+      if (blk.kind !== 'dwelling') return null;
       return { kind: 'door', blockId: this.insideBlock! };
     }
     // Prioridad (v1.18): las fijaciones del portal (buzones, proximidad exacta) van
@@ -1025,7 +1048,9 @@ export class PlayerLogic {
       const [za] = this.rangeOf(zoneFirst);
       if (this.content.blocks[zoneFirst.defId]!.features?.mailboxes && Math.abs(this.x - (za + 1.2)) < this.view.itemRadius) return { kind: 'mailbox' };
       const door = this.doorInFront();
-      if (door) return { kind: 'door', blockId: door.id };
+      // v1.47 — la E solo anuncia puertas de VIVIENDA: los locales se entran andando
+      // (empujón hacia la fachada) y anunciar «E · entrar» era el segundo sistema confuso.
+      if (door && door.kind === 'dwelling') return { kind: 'door', blockId: door.id };
     }
     const neighbor = this.residentNearby();
     if (neighbor) return { kind: 'resident', residentId: neighbor };
@@ -1109,7 +1134,9 @@ export class PlayerLogic {
     // vecino está dentro se acerca a abrir (y nos deja pasar). Vacías ni se plantean:
     // nadie abriría (el controlador lo dice con su bocadillo de siempre).
     if (door.kind === 'dwelling') return { type: 'doorbell', block: door.id };
-    return this.tryEnterDoor(door);
+    // v1.47 — LOCALES SIN E: entrar es ANDAR (empujón hacia la fachada, mismo frame);
+    // la E ya no participa en locales de planta 0 ni en el portal.
+    return { type: 'none' };
   }
 
   /** v1.42 — E en la calle: levantarse del banco, sentarse a contemplar el edificio o
@@ -1151,16 +1178,17 @@ export class PlayerLogic {
         return { type: 'rearEnter', block: homeBlock.id };
       }
     }
-    // v1.46 — la E también sale POR LA PUERTA en los locales (hueco + umbral del
-    // catálogo): nada de atravesar paredes — el movimiento (S hacia la puerta) es la
-    // salida natural y la E es el respaldo en el umbral. Tu vivienda conserva la salida
-    // clásica desde cualquier punto y el portal la suya (vestíbulo: calle/pasillo).
+    // v1.47 — UN SOLO SISTEMA: en locales y portal la salida es MOVIÉNDOSE hacia la puerta
+    // (S en el vano; W al fondo del vestíbulo; S/A a la calle). La E dentro solo sale de
+    // VIVIENDAS — y aquí sigue valiendo desde cualquier punto (salida clásica).
     const hb = this.world.blocks[home]!;
-    if (hb.kind !== 'dwelling' && hb.defId !== 'portal' && !this.localeExitReady(hb)) return { type: 'none' };
+    if (hb.kind !== 'dwelling') return { type: 'none' };
     return this.tryExitHome();
   }
 
-  /** v1.40 — salir del bloque interior al pasillo (compartido por la E y la auto-salida). */
+  /** v1.40 — salir del bloque interior al pasillo (compartido por la E y la auto-salida).
+   *  v1.47 — el cuerpo sale VISIBLE (fade = 1): salir de un local/vivienda/portal al pasillo
+   *  ya no hereda el fundido del portal (bug «el jugador desaparece en el edificio»). */
   private tryExitHome(): InteractResult {
     const home = this.insideBlock!;
     const corridorId = this.corridor().id;
@@ -1169,6 +1197,7 @@ export class PlayerLogic {
     this.mode = 'corridor';
     this.insideBlock = null;
     this.z = this.view.corridorZ;
+    this.fade = 1;
     this.lastMoveTarget = corridorId; // ya está en vuelo este move
     this.approached = home; // sigue delante de la misma puerta, sin repetir el aviso
     this.autoEnterLast = home; // delante de tu puerta: la auto-entrada NO re-dispara
@@ -1195,7 +1224,10 @@ export class PlayerLogic {
       return { type: 'locked', block: door.id, reason: door.lockReason, price: door.availability?.price ?? null };
     }
     this.lastMoveTarget = door.id; // ya está en vuelo este move
-    this.exitArmed = false; // recién entrado: la auto-salida espera a que te adentres
+    // v1.47 — ARMADA AL ENTRAR (walkIn.armOnEnter): cruzar el umbral ya arma la salida
+    // natural (entrar y darte la vuelta te deja fuera). walkIn.armOnEnter=false restaura
+    // el armado clásico al adentrarse (z > armZ).
+    this.exitArmed = this.view.locals.walkIn?.armOnEnter ?? true;
     if (door.kind === 'dwelling') {
       this.landInside(door);
     } else if (this.content.blocks[door.defId]!.features?.innerCorridor) {

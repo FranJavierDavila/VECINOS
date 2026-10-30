@@ -1401,6 +1401,9 @@ export interface Rules {
       /** v1.28 — candado SOBRE la puerta (dx del centro en fracción del ancho, yFrac de la
        *  hoja desde su base — altura del tirador — y out separado del plano de la hoja). */
       lockOnDoor?: { dx: number; yFrac: number; out: number };
+      /** v1.47 — FANTASMA DEL VECINO: alpha del muro del pasillo (con premarco/puerta/aplique)
+       *  cuando la vivienda está habitada y el jugador fuera (0.5 del catálogo). */
+      occupiedAlpha?: number;
       night?: { dayCutoff: number; dioGlow: number; floorGlow: number; lampGlow: number; wallSelf?: number };
       lamp?: { side: -1 | 1; dx: number; dy: number; color: string; glowColor: string };
     };
@@ -1416,6 +1419,12 @@ export interface Rules {
       corridorWall: string;
       /** Nodos glTF que sobran por defId (los retira el loader). */
       hideNodes: Record<string, string[]>;
+      /** v1.47 — locales cuyo interior se ve SIEMPRE tras su fachada (a través del cristal
+       *  cerrado — «el interior del portal debería verse siempre a través de las correderas»). */
+      seeThrough?: string[];
+      /** v1.46/v1.47 — cruce por movimiento: armZ/exitZ del umbral, tolerancia lateral del
+       *  vano (doorPad) y armOnEnter (armar la salida al cruzar — entrar y darse la vuelta). */
+      walkIn?: { armZ?: number; exitZ?: number; doorPad?: number; armOnEnter?: boolean };
       portalDoors: {
         slide: number;
         openAhead: number;
@@ -1535,10 +1544,34 @@ export interface Rules {
       /** v1.35 — vestíbulo del portal. v1.36: el interior es UNA IMAGEN del hall
        *  (wall_portal_hall.png); del catálogo solo quedan los colores del diorama. */
       portal?: {
+        /** v1.46 — empujar W al fondo del hall (z local ≥ backZoneZ) te deja en el pasillo. */
+        backZoneZ?: number;
         lobby?: {
           wallColor: string;
           floorColor: string;
         };
+      };
+    };
+    /** v1.47 — CARTELES de disponibilidad y OKUPAS (todo del catálogo, estados del sim). */
+    housing?: {
+      signs?: {
+        venta: { text: string; bg: string; fg: string };
+        alquiler: { text: string; bg: string; fg: string };
+        /** Cartel colgado sobre la hoja: dy desde la cima de la puerta (negativo = en la hoja). */
+        w: number;
+        h: number;
+        dy: number;
+        out: number;
+      };
+      okupa?: {
+        archetypes: string[];
+        text: string;
+        color: string;
+        w: number;
+        h: number;
+        dx: number;
+        dy: number;
+        out: number;
       };
     };
     /** v1.37 — ATRIL del tablón de anuncios (planta 0, extremo del pasillo): la consulta
@@ -1570,6 +1603,9 @@ export interface Rules {
       headlineFg: string;
       paperColors: string[];
       notes: string[];
+      /** v1.47 — sólido del atril en el pasillo (no se atraviesa). */
+      colliderW?: number;
+      colliderD?: number;
     };
     /** v1.37 — PASEO VECINAL: los vecinos salen a la calle, cruzan por el paso de peatones
      *  mirando a ambos lados y van al jardín de enfrente a practicar algo de deporte. */

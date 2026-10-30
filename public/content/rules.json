@@ -1020,7 +1020,9 @@
         "Se busca gata llamada Bola. No responde… a nada, en realidad.",
         "El parque de calistenia de enfrente ya está abierto. ¡A sudar!",
         "El ascensor funciona. Crucemos los dedos hasta el próximo aviso."
-      ]
+      ],
+      "colliderW": 0.95,
+      "colliderD": 0.5
     },
     "paseo": {
       "enabled": true,
@@ -1335,7 +1337,8 @@
         "dx": 0.22,
         "yFrac": 0.52,
         "out": 0.05
-      }
+      },
+      "occupiedAlpha": 0.5
     },
     "corridorFloor": {
       "color": "#d8d7d2",
@@ -1572,7 +1575,8 @@
       "walkIn": {
         "armZ": 0.9,
         "exitZ": 0.5,
-        "doorPad": 0.05
+        "doorPad": 0.05,
+        "armOnEnter": true
       },
       "portal": {
         "backZoneZ": 2.0,
@@ -1580,7 +1584,10 @@
           "wallColor": "#d8d3c8",
           "floorColor": "#b9b3a4"
         }
-      }
+      },
+      "seeThrough": [
+        "portal"
+      ]
     },
     "shadows": {
       "enabled": true,
@@ -1812,6 +1819,36 @@
           "El médico dijo ejercicio. El médico no vive aquí.",
           "Calistenia gratis, con espectáculo de coches incluido."
         ]
+      }
+    },
+    "housing": {
+      "signs": {
+        "venta": {
+          "text": "EN VENTA",
+          "bg": "#8a3b2f",
+          "fg": "#ffe9d2"
+        },
+        "alquiler": {
+          "text": "EN ALQUILER",
+          "bg": "#3f6b5f",
+          "fg": "#eafff5"
+        },
+        "w": 0.72,
+        "h": 0.2,
+        "dy": -0.35,
+        "out": 0.012
+      },
+      "okupa": {
+        "archetypes": [
+          "okupa"
+        ],
+        "text": "OKUPA",
+        "color": "#c23b2e",
+        "w": 0.85,
+        "h": 0.42,
+        "dx": 0.5,
+        "dy": 1.45,
+        "out": 0.006
       }
     }
   },

@@ -66,6 +66,11 @@ class GameController {
   private bubbles: BubblesDirector | null = null;
   private ecosystem: EcosystemDirector | null = null;
   private rig: CameraRig | null = null;
+  /** v1.47 — CÁMARA PREVIA (petición del vecino): al entrar en un local/vivienda/portal se
+   *  recuerda la cámara que había y al salir SE RESTAURA — salir de la sala de juntas con la
+   *  cámara de planta activa ya no te cambia a otra. Si el usuario cambia de cámara DENTRO,
+   *  manda su elección (no se restaura nada). */
+  private camReturn: CamMode | null = null;
   /** Fondo urbano + calle (v1.20): cielo dinámico, parallax y decorado exterior. */
   private backdrop: BackdropDirector | null = null;
   private exterior: ExteriorDirector | null = null;
@@ -361,6 +366,22 @@ class GameController {
     useGameStore.getState().setCamMode(mode);
   }
 
+  /** v1.47 — entra en un interior con cámara de ESTANCIA recordando la previa (una vez). */
+  private enterInteriorCam(): void {
+    const cur = useGameStore.getState().camMode;
+    if (this.camReturn === null && cur !== 'estancia') this.camReturn = cur;
+    this.setCamMode('estancia');
+  }
+
+  /** v1.47 — sale de un interior: devuelve la cámara previa SOLO si el usuario no cambió
+   *  de cámara dentro (su elección manda). Sin previa conocida, no toca nada. */
+  private exitInteriorCam(): void {
+    const cur = useGameStore.getState().camMode;
+    const back = this.camReturn;
+    this.camReturn = null;
+    if (back && cur === 'estancia') this.setCamMode(back);
+  }
+
   /** Siguiente cámara de la rueda Edificio → Fachada → Planta → Estancia (teclado 1/2/3/0 y mando Y). */
   cycleCam(): void {
     const order: CamMode[] = ['edificio', 'fachada', 'planta', 'estancia'];
@@ -487,7 +508,7 @@ class GameController {
       const opened = this.ringDoorbell(r.block);
       if (opened && this.logic && this.world) {
         const er = this.logic.enterBlock(r.block);
-        if (er.type === 'entered') this.setCamMode('estancia');
+        if (er.type === 'entered') this.enterInteriorCam();
         else if (er.type === 'locked') {
           const s = useGameStore.getState();
           s.pushToast(translate(s.lang, er.reason === 'vacant' ? 'door.vacant' : 'door.lockedGeneric'), 'info');
@@ -524,17 +545,17 @@ class GameController {
     if (r.type === 'rearEnter') {
       // Apilamiento 3D (v1.19): el swap lo ejecuta building.update por fases; aquí solo
       // encuadra la cámara dentro del bloque trasero.
-      this.setCamMode('estancia');
+      this.enterInteriorCam();
       this.pump();
       return;
     }
     if (r.type === 'rearExit') {
-      this.setCamMode('planta');
+      this.exitInteriorCam();
       this.pump();
       return;
     }
-    if (r.type === 'entered') this.setCamMode('estancia');
-    else if (r.type === 'exited') this.setCamMode('planta');
+    if (r.type === 'entered') this.enterInteriorCam();
+    else if (r.type === 'exited') this.exitInteriorCam();
     else if (r.type === 'used') this.presentInteraction(r.kind);
     this.pump();
   }
@@ -1116,6 +1137,8 @@ class GameController {
     // ATRIL del tablón salen del mismo building que los pinta: una sola verdad.
     this.logic.setBlockObstacles(this.building.walkObstacles());
     this.logic.setNoticeboardSpot(this.building.noticeboardSpot());
+    // v1.47 — sólidos del pasillo de planta 0 (el atril del tablón no se atraviesa).
+    this.logic.setCorridorObstacles(this.building.corridorObstacles());
     this.elevators = createElevators(this.scene, this.world, this.content);
     this.actors = createActors(this.scene, this.world, this.content, this.elevators);
     // v1.37 — los vecinos tampoco atraviesan las lavadoras: los tramos de su locomoción se
@@ -1243,6 +1266,7 @@ class GameController {
     const wanted: CamMode = pos.mode === 'inside' ? 'estancia' : store.camMode === 'estancia' ? 'planta' : store.camMode;
     this.rig.mode = wanted;
     store.setCamMode(wanted);
+    this.camReturn = null; // v1.47 — el (re)cargo de mundo limpia la cámara previa recordada
 
     this.clockAcc = 0;
     this.keys.clear();
@@ -1307,13 +1331,13 @@ class GameController {
       // v1.40 — acciones automáticas (entrar/salir de TU vivienda sin E): la cámara sigue.
       // v1.42 — la calle: portal sin E, banco y calistenia también llegan por aquí.
       for (const ar of this.logic.drainAuto()) {
-        if (ar.type === 'entered') this.setCamMode('estancia');
-        else if (ar.type === 'exited') this.setCamMode('planta');
+        if (ar.type === 'entered') this.enterInteriorCam();
+        else if (ar.type === 'exited') this.exitInteriorCam();
         else if (ar.type === 'portalOut') {
-          this.setCamMode('planta');
+          this.exitInteriorCam();
           this.sayOutdoorLine('out');
         } else if (ar.type === 'portalIn') {
-          this.setCamMode('estancia');
+          this.enterInteriorCam();
           this.sayOutdoorLine('into');
         } else if (ar.type === 'stand') {
           this.actors?.director?.standUp(this.actorId());

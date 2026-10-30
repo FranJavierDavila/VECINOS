@@ -1431,6 +1431,38 @@
                     "amount": 10
                   }
                 ]
+              },
+              {
+                "id": "desalojo_okupa",
+                "title": "Desalojo del 2A",
+                "description": "Votos suficientes: el piso vuelve a estar en cartel, el taladro se queda y Nando busca techo. El 2A recupera su cartel de SE VENDE.",
+                "cost": 0,
+                "effects": [
+                  {
+                    "op": "setParam",
+                    "target": "blk_p2_a",
+                    "param": "okupa_evicted",
+                    "value": "si"
+                  },
+                  {
+                    "op": "unlock",
+                    "target": "blk_p2_a",
+                    "availability": {
+                      "mode": "for_sale",
+                      "price": 46500
+                    }
+                  },
+                  {
+                    "op": "addReputation",
+                    "resident": "okupa",
+                    "amount": -8
+                  },
+                  {
+                    "op": "toast",
+                    "text": "Desalojo del 2A ejecutado: el piso vuelve a la cartelera y la pared amanece limpia.",
+                    "tone": "info"
+                  }
+                ]
               }
             ]
           }

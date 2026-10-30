@@ -1070,6 +1070,10 @@ export const rulesSchema = z.object({
             out: z.number().min(0).default(0.05),
           })
           .default({ dx: 0.22, yFrac: 0.52, out: 0.05 }),
+        /** v1.47 — FANTASMA DEL VECINO: opacidad del muro del pasillo (y premarco/puerta/
+         *  aplique) cuando la vivienda está habitada y el jugador está fuera — «intuir que
+         *  está habitado» sin quitar la visibilidad. Al entrar desaparece (corte). */
+        occupiedAlpha: z.number().min(0.1).max(1).default(0.5),
         /** v1.25 — luces nocturnas de interiores: cuánto brilla una estancia habitada
          *  de noche (emissive del diorama, suelos y lámparas). dayCutoff corta el día. */
         night: z
@@ -1151,6 +1155,9 @@ export const rulesSchema = z.object({
         corridorWall: z.string().default('#dbd8d2'),
         /** Nodos glTF que sobran por tipo de local (la fachada la levanta el runtime). */
         hideNodes: z.record(z.string(), z.array(z.string())).default({}),
+        /** v1.47 — LOCALES VISIBLES SIEMPRE tras su fachada (a través del cristal cerrado):
+         *  «el interior del portal debería verse siempre a través de las correderas». */
+        seeThrough: z.array(z.string()).default(['portal']),
         /** v1.30 — puertas correderas ACRISTALADAS del portal (se separan al acercarse y
          *  se cierran al separarse; por ellas entran y salen vecinos Y visitantes). Las
          *  hojas son los nodos cristal_izq/cristal_der del arte glTF del portal. */
@@ -1334,6 +1341,9 @@ export const rulesSchema = z.object({
             armZ: z.number().positive().default(0.9),
             exitZ: z.number().positive().default(0.5),
             doorPad: z.number().min(0).default(0.05),
+            /** v1.47 — ARMADA AL ENTRAR: cruzar el umbral ya arma la salida natural (entrar y
+             *  darte la vuelta te deja fuera sin adentrarte antes). false = armado clásico. */
+            armOnEnter: z.boolean().default(true),
           })
           .optional(),
         /** v1.35 — VESTÍBULO del portal: colores interiores del local. v1.36 — el interior
@@ -1605,6 +1615,48 @@ export const rulesSchema = z.object({
         headlineFg: z.string().default('#ffd166'),
         paperColors: z.array(z.string()).min(1).default(['#f6f1e2']),
         notes: z.array(z.string()).min(1).default(['TABLÓN DE ANUNCIOS']),
+        /** v1.47 — SÓLIDO del atril (mundo): el tablón NO se atraviesa por el pasillo. */
+        colliderW: z.number().positive().optional(),
+        colliderD: z.number().positive().optional(),
+      })
+      .optional(),
+    /** v1.47 — CARTELES DE VIVIENDA + OKUPAS (petición del vecino): pisos sin nadie muestran
+     *  «EN VENTA»/«EN ALQUILER» sobre la puerta según su estado del sim; un vecino de
+     *  arquetipo okupa que ocupe una vivienda pone graffiti en el muro del pasillo (y los
+     *  carteles desaparecen); al desalojarlo (misión → params.okupa_evicted) todo vuelve. */
+    housing: z
+      .object({
+        signs: z
+          .object({
+            venta: z
+              .object({ text: z.string().default('EN VENTA'), bg: z.string().default('#8a3b2f'), fg: z.string().default('#ffe9d2') })
+              .default({ text: 'EN VENTA', bg: '#8a3b2f', fg: '#ffe9d2' }),
+            alquiler: z
+              .object({ text: z.string().default('EN ALQUILER'), bg: z.string().default('#3f6b5f'), fg: z.string().default('#eafff5') })
+              .default({ text: 'EN ALQUILER', bg: '#3f6b5f', fg: '#eafff5' }),
+            /** Centro del cartel sobre la hoja: dy desde la cima de la puerta (negativo = colgado
+             *  en la hoja) y out separación de la hoja (nada coplanar). */
+            w: z.number().positive().default(0.72),
+            h: z.number().positive().default(0.2),
+            dy: z.number().default(-0.35),
+            out: z.number().positive().default(0.012),
+          })
+          .default({}),
+        okupa: z
+          .object({
+            /** Arquetipos que cuentan como okupas (scenarios.json → residents[].archetype). */
+            archetypes: z.array(z.string()).min(1).default(['okupa']),
+            text: z.string().default('OKUPA'),
+            color: z.string().default('#c23b2e'),
+            /** Grafiti sobre el muro del pasillo, al lado de la puerta (dx desde el canto
+             *  derecho del vano; dy altura desde la base del bloque; out separación del muro). */
+            w: z.number().positive().default(0.85),
+            h: z.number().positive().default(0.42),
+            dx: z.number().default(0.5),
+            dy: z.number().default(1.45),
+            out: z.number().default(0.006),
+          })
+          .default({}),
       })
       .optional(),
     /** v1.37 — PASEO VECINAL: los vecinos salen a la calle, cruzan por el paso de peatones

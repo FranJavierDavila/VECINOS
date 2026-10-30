@@ -54,6 +54,19 @@ interface BlockView {
   /** v1.24: decoración de la puerta de privacidad (marco + aplique) — se activa junto a view.door.
    *  v1.32: también las BISAGRAS de las hojas de los locales de planta 0 (TransformNode). */
   doorDecor: (Mesh | TransformNode)[];
+  /** v1.47 — piezas frontales sin grupo propio (zócalo del frente): conmutan con la fachada
+   *  y participan del FANTASMA del vecino (muro del pasillo al 50% con alguien dentro). */
+  frontExtras: Mesh[];
+  /** v1.47 — materiales del fantasma (muro, zócalo del frente, hoja, premarco, aplique):
+   *  alpha = privacy.occupiedAlpha mientras haya vecino dentro y el jugador esté fuera. */
+  ghostMats: StandardMaterial[];
+  /** true mientras el fantasma está activo (los materiales solo se tocan en transición). */
+  ghostOn: boolean;
+  /** v1.47 — cartel de disponibilidad sobre la hoja («EN VENTA» / «EN ALQUILER») y graffiti
+   *  OKUPA del muro del pasillo. Estado del sim; textos/colores del catálogo (view.housing). */
+  signSale: Mesh | null;
+  signRent: Mesh | null;
+  okupaGraffiti: Mesh | null;
   /** v1.25: color FIJO de la vivienda (pared gris clarito) — el tintado de estado no la repinta;
    *  el emissive de canales (ruido/agua) sigue funcionando. null = tintado clásico. */
   fixedDiffuse: Color3 | null;
@@ -275,6 +288,8 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
   /** v1.37 — posición (mundo) del ATRIL del tablón de anuncios (planta 0, extremo del
    *  pasillo): el interact 'noticeboard' se ancla aquí. null si el catálogo no lo activa. */
   let noticeboardSpot: { x: number; z: number; floor: number } | null = null;
+  /** v1.47 — sólidos del pasillo de planta 0 (mundo): el atril del tablón no se atraviesa. */
+  const corridorObstacleRects: { x0: number; z0: number; w: number; d: number }[] = [];
   /** v1.35 — textura de LOSETAS compartida (pasillos + locales + vestíbulo): 2×2 baldosas
    *  con alternancia ajedrezada, VARIACIÓN por baldosa (terrazo) y veteado/suciedad leve —
    *  el vecino: «se debe notar las losetas del suelo». Todo del catálogo (corridorFloor):
@@ -634,6 +649,12 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       glowForced: false,
       lodHiddenPanels: false,
       doorDecor: [],
+      frontExtras: [],
+      ghostMats: [],
+      ghostOn: false,
+      signSale: null,
+      signRent: null,
+      okupaGraffiti: null,
       fixedDiffuse: null,
       selfGlow: null,
     };
@@ -688,6 +709,11 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         const nbX = cx - spanWc / 2 + (nbCfg.side === 'left' ? nbCfg.inset : spanWc - nbCfg.inset);
         const nbZ = v.corridorZ + nbCfg.z; // offset desde la línea de paseo (negativo = hacia la calle)
         noticeboardSpot = { x: nbX, z: nbZ, floor: nbCfg.floor };
+        // v1.47 — SÓLIDO del atril (catálogo colliderW/colliderD): el tablón NO se atraviesa
+        // por el pasillo — el mismo volumen que se ve estorba (lo registra el controlador).
+        const cwN = nbCfg.colliderW ?? 0.95;
+        const cdN = nbCfg.colliderD ?? 0.5;
+        corridorObstacleRects.push({ x0: nbX - cwN / 2, z0: nbZ - cdN / 2, w: cwN, d: cdN });
         const nbRoot = new (B().TransformNode)(`${b.id}_atril`, scene);
         nbRoot.position.set(nbX, bottom + v.slab * 2, nbZ);
         nbRoot.rotation.y = nbCfg.yaw;
@@ -878,6 +904,9 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       frontPiece(`${b.id}_puerta_d`, x1w - gapR, h, (gapR + x1w) / 2, y); // tramo derecho completo
       frontPiece(`${b.id}_puerta_dintel`, gapR - gapL, y + h / 2 - doorTopY, (gapL + gapR) / 2, (doorTopY + y + h / 2) / 2); // dintel
       frontPiece(`${b.id}_puerta_umbral`, gapR - gapL, doorFloorY - (y - h / 2), (gapL + gapR) / 2, (doorFloorY + y - h / 2) / 2); // umbral bajo la hoja
+      // v1.47 — el MURO frontal (material compartido del bloque) participa del fantasma:
+      // en viviendas `m` SOLO viste estos tramos (el resto de muros usan `mi`).
+      view.ghostMats.push(m);
       // ── ZÓCALO (v1.25→v1.26): banda gris de ~25 cm desde el suelo, CORTADA en la puerta
       //  (dos tramos, sin cruzar el acceso — petición expresa del vecino). Continúa en el
       //  MARCO de la puerta (mismo material). Todo del catálogo (rules.view.privacy).
@@ -885,15 +914,25 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       const skMat = mat(`${b.id}_zocalo_mat`);
       skMat.diffuseColor = Color3.FromHexString(pv.skirtingColor ?? '#a3a19b');
       skMat.specularColor = new Color3(0.02, 0.02, 0.02);
+      // v1.47 — el zócalo DEL FRENTE (el que da al pasillo) lleva material PROPIO: participa
+      // del fantasma del vecino (50%) sin lavar el zócalo de las paredes laterales.
+      const skFrontMat = mat(`${b.id}_zocalo_frente_mat`);
+      skFrontMat.diffuseColor = Color3.FromHexString(pv.skirtingColor ?? '#a3a19b');
+      skFrontMat.specularColor = new Color3(0.02, 0.02, 0.02);
+      view.ghostMats.push(skFrontMat);
       const ySk = bottom + v.slab + v.wall + skH / 2;
       const cutSkirting = pv.skirtingDoorGap ?? false;
       const skL = cutSkirting ? Math.max(x0w, cx - pv.doorW / 2) : x0w;
       const skR = cutSkirting ? Math.min(x1w, cx + pv.doorW / 2) : x1w;
       if (skL - x0w > 0.02) {
-        view.greybox.push(attach(b.id, box(`${b.id}_zocalo_frente_i`, skL - x0w, skH, v.wall + 0.02, (x0w + skL) / 2, ySk, frontZ, skMat)));
+        const zi = attach(b.id, box(`${b.id}_zocalo_frente_i`, skL - x0w, skH, v.wall + 0.02, (x0w + skL) / 2, ySk, frontZ, skFrontMat));
+        view.greybox.push(zi);
+        view.frontExtras.push(zi);
       }
       if (x1w - skR > 0.02) {
-        view.greybox.push(attach(b.id, box(`${b.id}_zocalo_frente_d`, x1w - skR, skH, v.wall + 0.02, (skR + x1w) / 2, ySk, frontZ, skMat)));
+        const zd = attach(b.id, box(`${b.id}_zocalo_frente_d`, x1w - skR, skH, v.wall + 0.02, (skR + x1w) / 2, ySk, frontZ, skFrontMat));
+        view.greybox.push(zd);
+        view.frontExtras.push(zd);
       }
       view.greybox.push(
         attach(b.id, box(`${b.id}_zocalo_izq`, v.wall + 0.02, skH, d - 2 * v.wall, cx - w / 2 + v.wall / 2, ySk, cz, skMat)),
@@ -943,6 +982,8 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       view.door.material = doorMat;
       view.door.isPickable = true; // v1.29: la hoja cerrada OCULTA bocadillos (rayo de oclusión)
       view.door.setEnabled(false);
+      // v1.47 — la hoja participa del fantasma del vecino (muro del pasillo al 50%).
+      view.ghostMats.push(doorMat);
       // RECERCADO DEL COLOR DEL ZÓCALO (v1.25, v1.42): jambas + dintel que ENMARCAN la hoja
       // (petición del vecino: «que no parezcan pegotes o planos pegados»). Mismo gris que el
       // zócalo (pv.skirtingColor) — el zócalo se CORTA en la puerta y el recercado retoma el
@@ -968,6 +1009,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           j.setEnabled(false);
           view.doorDecor.push(j);
         }
+        view.ghostMats.push(frameMat); // v1.47 — el premarco también se ve al 50% con vecino dentro
       }
       // Aplique de luz ENCIMA a un lado (catálogo): cuerpo oscuro + foco cálido que amaanece de noche.
       if (pv.lamp) {
@@ -985,6 +1027,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         lampGlow.isPickable = false;
         lampGlow.setEnabled(false);
         view.doorDecor.push(lampGlow);
+        view.ghostMats.push(bodyMat, glowMat); // v1.47 — el aplique acompaña al fantasma
       }
 
       // ── Cartel numerado (v1.6): rótulo sobre la puerta con el identificador de la vivienda
@@ -1012,6 +1055,93 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       plate.material = pmat;
       plate.position.set(cx, bottom + pl.y, frontZ + pl.z);
       view.greybox.push(plate);
+
+      // ── v1.47 — CARTELES DE DISPONIBILIDAD sobre la hoja («EN VENTA» / «EN ALQUILER»):
+      // viviendas SIN nadie viviendo y según su estado del sim (availability/lockReason/
+      // ownerId). Textos, colores y medidas del catálogo (rules.view.housing.signs). El
+      // applyPanels los conmuta cada frame; al comprar/alquilar desaparecen solos.
+      const hsCfg = v.housing;
+      if (hsCfg?.signs) {
+        const sg = hsCfg.signs;
+        const signMesh = (name: string, s: { text: string; bg: string; fg: string }): Mesh => {
+          const cv = document.createElement('canvas');
+          cv.width = 256;
+          cv.height = 72;
+          const c2 = cv.getContext('2d');
+          if (c2) {
+            c2.fillStyle = s.bg;
+            c2.fillRect(0, 0, 256, 72);
+            c2.strokeStyle = s.fg;
+            c2.lineWidth = 5;
+            c2.strokeRect(5, 5, 246, 62);
+            c2.font = 'bold 38px Arial, sans-serif';
+            c2.fillStyle = s.fg;
+            c2.textAlign = 'center';
+            c2.textBaseline = 'middle';
+            c2.fillText(s.text, 128, 39);
+          }
+          const sm = mat(`${name}_mat`);
+          sm.diffuseTexture = canvasTex(`${name}_tex`, cv);
+          sm.specularColor = new Color3(0, 0, 0);
+          sm.emissiveColor = Color3.FromHexString(s.bg).scale(0.5); // legible en fachada norte
+          const plane = MeshBuilder.CreatePlane(name, { width: sg.w, height: sg.h }, scene);
+          plane.material = sm;
+          plane.isPickable = false;
+          plane.position.set(cx, doorFloorY + pv.doorH + sg.dy, doorZ - sg.out);
+          plane.setEnabled(false);
+          return plane;
+        };
+        view.signSale = signMesh(`${b.id}_cartel_venta`, sg.venta);
+        view.signRent = signMesh(`${b.id}_cartel_alquiler`, sg.alquiler);
+      }
+
+      // ── v1.47 — GRAFITI OKUPA en el muro del pasillo: vive aquí un vecino de arquetipo
+      // okupa (catálogo rules.view.housing.okupa) → quad con transparencia (pipeline del
+      // candado: canvas + useAlphaFromDiffuseTexture) con el texto en spray y goteos
+      // deterministas. Desaparece al desalojarlo (misión → params.okupa_evicted) y con él
+      // la vivienda recupera su cartel de venta/alquiler.
+      const okCfg = hsCfg?.okupa;
+      if (okCfg) {
+        const cv = document.createElement('canvas');
+        cv.width = 512;
+        cv.height = 256;
+        const c2 = cv.getContext('2d');
+        if (c2) {
+          const col = Color3.FromHexString(okCfg.color);
+          const rgb = `${Math.round(col.r * 255)},${Math.round(col.g * 255)},${Math.round(col.b * 255)}`;
+          const g2 = c2.createRadialGradient(256, 128, 30, 256, 128, 235);
+          g2.addColorStop(0, `rgba(${rgb},0.3)`);
+          g2.addColorStop(1, `rgba(${rgb},0)`);
+          c2.fillStyle = g2;
+          c2.fillRect(0, 0, 512, 256);
+          c2.fillStyle = `rgba(${rgb},0.92)`;
+          c2.font = 'bold 108px Arial, sans-serif';
+          c2.textAlign = 'center';
+          c2.textBaseline = 'middle';
+          c2.save();
+          c2.translate(256, 112);
+          c2.rotate(-0.06);
+          c2.fillText(okCfg.text, 0, 0);
+          c2.restore();
+          for (let i = 0; i < 7; i++) {
+            const gdx = 130 + hash01(b.id, 3300 + i) * 250;
+            const glen = 16 + hash01(b.id, 3400 + i) * 44;
+            c2.fillRect(gdx, 152, 5, glen);
+          }
+          const gm = mat(`${b.id}_decal_okupa_mat`);
+          gm.diffuseTexture = canvasTex(`${b.id}_decal_okupa_tex`, cv);
+          gm.specularColor = new Color3(0, 0, 0);
+          gm.emissiveColor = new Color3(0.22, 0.22, 0.22);
+          gm.useAlphaFromDiffuseTexture = true;
+          gm.backFaceCulling = false;
+          const plane = MeshBuilder.CreatePlane(`${b.id}_decal_okupa`, { width: okCfg.w, height: okCfg.h }, scene);
+          plane.material = gm;
+          plane.isPickable = false;
+          plane.position.set(cx + pv.doorW / 2 + okCfg.dx, bottom + okCfg.dy, frontZ - v.wall / 2 - okCfg.out);
+          plane.setEnabled(false);
+          view.okupaGraffiti = plane;
+        }
+      }
 
       // ── Interior 2D (Fase C): suelos por estancia + lámparas + diorama. ──
       // TODO sale del layout del catálogo (rects + doorways); sin rects no hay interior 2D.
@@ -3273,11 +3403,30 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
   const nightFloorGlow = nightWarm.scale(nightCfg.floorGlow);
   const nightDioGlow = nightWarm.scale(nightCfg.dioGlow);
   const nightDark = new Color3(0, 0, 0);
+  // v1.47 — FANTASMA DEL VECINO + CARTELES + GRAFITI OKUPA (catálogo view.privacy.occupiedAlpha
+  // y view.housing). El okupa desalojado (misión → params.okupa_evicted='si') deja de contar
+  // como "dentro": su vivienda recupera fachada cerrada, cartel y sin graffiti.
+  const okupaArchs = v.housing?.okupa?.archetypes ?? ['okupa'];
+  const isOkupaArch = (rid: string): boolean => okupaArchs.includes(world.residents[rid]!.archetype);
+  const evictedOkupa = (b: BlockInstance | undefined): boolean => !!b && b.params.okupa_evicted === 'si';
+  const okupaResidentIn = (b: BlockInstance): boolean => {
+    if (evictedOkupa(b)) return false;
+    for (const r of Object.values(world.residents)) {
+      if (r.present && r.home === b.id && isOkupaArch(r.id)) return true;
+    }
+    return false;
+  };
+  const hasLiveIn = (b: BlockInstance): boolean => {
+    for (const r of Object.values(world.residents)) {
+      if (r.present && r.home === b.id && !(isOkupaArch(r.id) && evictedOkupa(world.blocks[r.home]))) return true;
+    }
+    return false;
+  };
   const computeOccupancy = (): Set<string> => {
     const occ = new Set<string>();
     if (playerInside) occ.add(playerInside);
     for (const r of Object.values(world.residents)) {
-      if (r.present && r.location) occ.add(r.location);
+      if (r.present && r.location && !(isOkupaArch(r.id) && evictedOkupa(world.blocks[r.home]))) occ.add(r.location);
     }
     // v1.30 — sala de juntas activa: los asistentes (presentación) están dentro aunque el
     // sim no mueva su location; el local se abre, se ilumina y se ve la reunión.
@@ -3291,6 +3440,10 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
    *  v1.41 — VISTA FACHADA (tecla 0): TODO cerrado — la fachada entera se ve acristalada
    *  (cortina con ventanas a la altura del pasillo) y el interior solo se entreve por ellas. */
   let fachadaView = false;
+  /** v1.47 — LOCALES SIEMPRE VISIBLES tras su fachada (catálogo locals.seeThrough): el
+   *  interior del portal se ve a través de las correderas cerradas (el cristal es el
+   *  cristal — alpha 0.72 del arte — y el vestíbulo se intuye detrás, con o sin llave). */
+  const seeThrough = new Set<string>(v.locals.seeThrough ?? ['portal']);
   function applyPanels(view: BlockView, b: BlockInstance, occ?: Set<string>) {
     const locked = b.kind === 'dwelling' && b.access === 'locked';
     // v1.30 — los locales con interior (trastero comunitario, sala de juntas) usaban la
@@ -3299,10 +3452,11 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     // ENTRAMOS por la puerta (jugador dentro) o con la junta activa — que un vecino esté
     // dentro ya no levanta la fachada; la puerta, eso sí, se abre con el resto.
     const isHall = halls.has(b.id);
+    const occSet = occ ?? computeOccupancy();
     let privacyClosed = false;
     if (privacyOn) {
       if (b.kind === 'dwelling') {
-        privacyClosed = !(occ ?? computeOccupancy()).has(b.id);
+        privacyClosed = !occSet.has(b.id);
       } else if (isHall) {
         privacyClosed = playerInside !== b.id && juntaHallId !== b.id;
       }
@@ -3311,12 +3465,38 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     // exterior ve el bloque como un edificio de verdad y el interior solo se entreve por
     // las ventanas de la cortina acristalada.
     const wall = (fachadaView || locked || privacyClosed) && !view.lodHiddenPanels;
-    view.front?.setEnabled(wall);
-    for (const p of view.frontParts) p.setEnabled(wall); // v1.28: fachada partida — todo o nada
-    view.door?.setEnabled(wall);
-    view.handle?.setEnabled(wall);
-    for (const d of view.doorDecor) d.setEnabled(wall);
-    view.lock?.setEnabled(locked && !view.lodHiddenPanels);
+    // v1.47 — FANTASMA DEL VECINO (privacy.occupiedAlpha, 0.5): vivienda HABITADA (alguien
+    // dentro del sim) con el jugador FUERA → el muro que da al pasillo, su zócalo, el
+    // premarco, la hoja y el aplique quedan al 50% para «intuir que está habitado» (el
+    // diorama se queda encendido: se adivina la vida detrás). En cuanto entramos (timbre),
+    // muro, premarco y puerta desaparecen — el corte de siempre.
+    const ghost = !wall && !fachadaView && !view.lodHiddenPanels && privacyOn
+      && b.kind === 'dwelling' && playerInside !== b.id && occSet.has(b.id);
+    const panelsOn = wall || ghost;
+    view.front?.setEnabled(panelsOn);
+    for (const p of view.frontParts) p.setEnabled(panelsOn); // v1.28: fachada partida
+    for (const e of view.frontExtras) e.setEnabled(panelsOn); // v1.47: zócalo del frente
+    view.door?.setEnabled(panelsOn);
+    view.handle?.setEnabled(panelsOn);
+    for (const d of view.doorDecor) d.setEnabled(panelsOn);
+    view.lock?.setEnabled(locked && !view.lodHiddenPanels && !ghost);
+    if (view.ghostOn !== ghost) {
+      view.ghostOn = ghost;
+      const ga = v.privacy.occupiedAlpha ?? 0.5;
+      for (const gm of view.ghostMats) gm.alpha = ghost ? ga : 1;
+    }
+    // v1.47 — CARTELES + GRAFITI (estado del sim, textos/colores del catálogo):
+    // · «EN VENTA» — sin nadie viviendo y en cartel (availability/lockReason).
+    // · «EN ALQUILER» — sin nadie viviendo, con dueño (ni en cartel ni habitada).
+    // · Grafiti OKUPA — vive un vecino de arquetipo okupa (se va al desalojarlo).
+    if (view.signSale || view.signRent || view.okupaGraffiti) {
+      const vacant = !hasLiveIn(b);
+      const forSale = vacant && (b.availability?.mode === 'for_sale' || b.lockReason === 'for_sale');
+      const forRent = vacant && !forSale && b.ownerId !== null;
+      view.signSale?.setEnabled(forSale && !fachadaView);
+      view.signRent?.setEnabled(forRent && !fachadaView);
+      view.okupaGraffiti?.setEnabled(okupaResidentIn(b) && !fachadaView);
+    }
     // v1.34 — GARAJE y v1.35 PORTAL: la fachada es el ARTE glTF (basculante + rótulo o
     // cristal + marcos). Al entrar, el modelo entero se desvanece y queda el interior del
     // catálogo — la misma regla que las viviendas, con la fachada de verdad del arte.
@@ -3335,6 +3515,10 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         // «tan pronto se levanta la puerta se ve el interior sin esperar a entrar».
         if (openT > (v.locals.hallDoors?.revealAt ?? 0.12)) show = true;
       }
+      // v1.47 — «El interior del portal debería verse SIEMPRE a través de las correderas»:
+      // los defId del catálogo (locals.seeThrough) enseñan su vestíbulo aunque el cristal
+      // esté cerrado — se ve a través del vidrio, igual que en la calle.
+      if (!show && !fachadaView && seeThrough.has(b.defId)) show = true;
       interior.dioRoot.setEnabled(show);
     }
   }
@@ -3584,6 +3768,11 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
      *  pasillo): el interact 'noticeboard' se ancla aquí. null si el catálogo no lo activa. */
     noticeboardSpot(): { x: number; z: number; floor: number } | null {
       return noticeboardSpot;
+    },
+    /** v1.47 — sólidos del pasillo de planta 0 (mundo): el atril del tablón NO se atraviesa
+     *  (los registra el controlador en player-logic; el mismo volumen que se ve estorba). */
+    corridorObstacles(): { x0: number; z0: number; w: number; d: number }[] {
+      return corridorObstacleRects;
     },
     hasRear(blockId: string): boolean {
       return rears.has(blockId);
