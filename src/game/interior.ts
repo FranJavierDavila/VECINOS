@@ -31,9 +31,34 @@ export interface Pt {
   z: number;
 }
 
+/**
+ * v1.53 — ID DE LAYOUT DE UN BLOQUE (una sola verdad para las 6 lecturas de presentación:
+ * interior.ts, building.ts ×4 y actors.ts). Las viviendas REPARTEN las variantes del catálogo
+ * (rules.view.dwellingVariants.layouts) por RANGO (floor·16+col) + desfase del catálogo
+ * (seed): viviendas distintas → variantes DISTINTAS siempre (reparto estratificado — con 9
+ * viviendas y 12 layouts se ven 9 variantes de golpe, jamás dos gemelas contiguas), y el
+ * reparto es determinista (la misma partida es siempre la misma; QA reproducible).
+ * Los locales y bloques sin sorteo usan container.layout (y el SIM sigue leyendo
+ * container.layout directo: sus instancias de estancia no cambian).
+ */
+export function layoutIdOf(
+  content: Content,
+  block: { id: string; defId: string; cell?: { floor: number; col: number } },
+): string | undefined {
+  const def = content.blocks[block.defId];
+  const dv = content.rules.view.dwellingVariants;
+  if (def?.kind === 'dwelling' && dv && dv.layouts.length > 0) {
+    const n = dv.layouts.length;
+    const rank = block.cell ? block.cell.floor * 16 + block.cell.col : 0;
+    const offset = Math.floor(hash01('dwellingDeal', dv.seed) * n) % n;
+    return dv.layouts[(rank + offset) % n]!;
+  }
+  return def?.container?.layout;
+}
+
 /** Geometría 2D del layout de una vivienda; null si el layout no declara rects (catálogo antiguo). */
 export function layoutGeometryOf(content: Content, block: BlockInstance): LayoutGeometry | null {
-  const layoutId = content.blocks[block.defId]?.container?.layout;
+  const layoutId = layoutIdOf(content, block);
   const layout = layoutId ? content.layouts[layoutId] : undefined;
   const declared = layout?.rooms.filter((r) => r.rect !== undefined) ?? [];
   if (!layout || declared.length === 0) return null;

@@ -711,12 +711,20 @@ export class PlayerLogic {
         !!obs && obs.some((o) => wx > o.x0 - or_ && wx < o.x0 + o.w + or_ && lz > o.z0 - this.frontZ - or_ && lz < o.z0 - this.frontZ + o.d + or_);
       const startedInSolid = inSolidAt(this.x, this.z);
       const hitsSolid = (wx: number, lz: number): boolean => !startedInSolid && inSolidAt(wx, lz);
+      // v1.53 — CONTENCIÓN ESTRICTA en layouts multi-sala: los rects del layout teselan la
+      // huella transitable; el fallback «estancia más cercana» de roomAt sirve para CONSULTAR,
+      // no para pisar — sin este guardo el jugador se colaba por el lateral de un baño
+      // estrecho y caminaba sobre el vacío (fuera de toda estancia). Si el punto de PARTIDA
+      // ya está fuera (guardado viejo/teletransporte), se permite moverse: escapatoria.
+      const inAnyRoom = (lx: number, lz: number): boolean =>
+        geo.rooms.some((r) => lx >= r.rect.x && lx < r.rect.x + r.rect.w && lz >= r.rect.z && lz < r.rect.z + r.rect.d);
+      const startedOutside = !inAnyRoom(this.x - x0, this.z);
       const cur = roomAt(geo, this.x - x0, this.z);
       const nx = clampX(this.x + dx);
-      if (walkable(geo, cur, nx - x0, this.z) && !hitsSolid(nx, this.z)) this.x = nx;
+      if (walkable(geo, cur, nx - x0, this.z) && (startedOutside || inAnyRoom(nx - x0, this.z)) && !hitsSolid(nx, this.z)) this.x = nx;
       const cur2 = roomAt(geo, this.x - x0, this.z);
       const nz = clampZ(this.z + dz);
-      if (walkable(geo, cur2, this.x - x0, nz) && !hitsSolid(this.x, nz)) this.z = nz;
+      if (walkable(geo, cur2, this.x - x0, nz) && (startedOutside || inAnyRoom(this.x - x0, nz)) && !hitsSolid(this.x, nz)) this.z = nz;
       // v1.40/v1.46 — SALIDA SIN E POR LA PUERTA: en TU vivienda se arma al adentrarse
       // (z > walkIn.armZ) y salta al volver al marco (z ≤ walkIn.exitZ) — de siempre.
       // v1.46 — LOS LOCALES DE PLANTA 0 (garaje, trastero común, sala de juntas, lavandería)

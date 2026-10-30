@@ -1461,6 +1461,19 @@ export const rulesSchema = z.object({
      *  (viviendas depth+module; comunes commonDepth+module; naves y tejado igual). */
     depthModule: z.number().min(0).default(0),
     commonDepth: z.number().default(1.4),
+    /** ── v1.53 — VARIANTES DE VIVIENDA (≥10 layouts) ── cada vivienda SORTEA su layout
+     *  entre esta lista (determinista por hash01 del id del bloque: la misma vivienda es
+     *  siempre la misma variante dentro de la partida). Ausente o vacía = todas usan
+     *  container.layout (comportamiento clásico). Los layouts viven en layouts.json y
+     *  combinan estancia principal (estudio/salón-cocina) + cuarto trasero (dormitorio,
+     *  baño, trastero…). El SIM no se entera: sus instancias de estancia siguen naciendo
+     *  del container.layout del defId. */
+    dwellingVariants: z
+      .object({
+        seed: z.number().int().default(7),
+        layouts: z.array(z.string().min(1)).default([]),
+      })
+      .optional(),
     /** ── Apilamiento 3D de bloques (v1.19) ── bloques traseros INACTIVOS (interiores de
      *  trasteros, cuartos traseros de vivienda) que se activan al entrar: el bloque
      *  precedente se desvanece y el nuevo aparece con transparencia hasta visualizarse,

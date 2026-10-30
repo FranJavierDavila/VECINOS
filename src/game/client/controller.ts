@@ -1655,16 +1655,18 @@ class GameController {
       if (b && b.kind === 'dwelling') {
         const geo = layoutGeometryOf(this.content, b);
         const depth = this.content.rules.view.depth;
-        const rear = geo?.rooms.find((r) => r.rect.z + r.rect.d > depth + 0.01);
-        if (geo && rear) {
+        // v1.53 — VARIAS salas traseras: cualquier estancia más profunda que el bloque
+        // principal activa el apilamiento (el nodo trasero las contiene TODAS).
+        const rearRooms = (geo?.rooms ?? []).filter((r) => r.rect.z + r.rect.d > depth + 0.01);
+        if (geo && rearRooms.length > 0) {
           const localX = pos.x - b.cell.col * this.content.rules.view.cellW;
           const room = roomAt(geo, localX, pos.z);
-          const rearDoor = geo.doorways.find((d) => d.axis === 'x' && d.b === rear.key);
+          const rearDoors = geo.doorways.filter((d) => d.axis === 'x' && rearRooms.some((r) => r.key === d.b));
+          const inRear = rearRooms.some((r) => r.key === room.key);
           const near =
-            rearDoor &&
             pos.z > depth - this.content.rules.view.rearBlock.peekDistance &&
-            Math.abs(localX - rearDoor.at) < rearDoor.width / 2 + 0.3;
-          if (room.key === rear.key) {
+            rearDoors.some((d) => Math.abs(localX - d.at) < d.width / 2 + 0.3);
+          if (inRear) {
             activeId = b.id;
             phase = 'inside';
           } else if (near) {

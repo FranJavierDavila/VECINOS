@@ -4,7 +4,7 @@ import { B } from './babylon';
 import { instantiateActorAsset, type ActorRig } from './assets';
 import { buildCharacterBillboard, type CharacterDetailRig } from './character-detail';
 import { buildCharacterSheet } from './character-sheet';
-import { hash01, interiorTarget, layoutGeometryOf, type Pt } from '@/game/interior';
+import { hash01, interiorTarget, layoutGeometryOf, layoutIdOf, type Pt } from '@/game/interior';
 import { stairGeomOf, stairPathPoints } from '@/game/stairs';
 import { horizontalLegs } from '@/game/routing';
 import { isStorageColumnBlock, storageDoorPoint } from '@/game/storage';
@@ -286,7 +286,9 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
    *  v1.19: en vivienda manda el LAYOUT — las salas traseras viven más allá de view.depth. */
   const depthOfBlock = (b: BlockInstance): number => {
     if (b.kind === 'dwelling') {
-      const layoutId = content.blocks[b.defId]?.container?.layout;
+      // v1.53 — el layout viene del REPARTO de variantes (layoutIdOf): la profundidad de
+      // cada vivienda es la de SU variante (los cuartos traseros cuentan).
+      const layoutId = layoutIdOf(content, b);
       const layout = layoutId ? content.layouts[layoutId] : undefined;
       const rects = (layout?.rooms ?? []).map((r) => r.rect).filter((r): r is NonNullable<typeof r> => !!r);
       if (rects.length > 0) return Math.max(...rects.map((r) => r.z + r.d));

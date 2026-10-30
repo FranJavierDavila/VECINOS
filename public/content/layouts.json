@@ -1,103 +1,552 @@
 [
- {
-  "id": "layout_vivienda_v1",
-  "rooms": [
-   {
-    "key": "estudio",
-    "defId": "estancia_estudio_diafano",
-    "startsUnlocked": true,
-    "rect": {
-     "x": 0,
-     "z": 0,
-     "w": 4.8,
-     "d": 4.8
-    }
-   }
-  ],
-  "doorways": []
- },
- {
-  "id": "layout_trastero_comunal",
-  "rooms": [
-   {
-    "key": "trastero_comun",
-    "defId": "estancia_trastero_comunal",
-    "startsUnlocked": true,
-    "rect": {
-     "x": 0,
-     "z": 0,
-     "w": 2.28,
-     "d": 2.8
-    }
-   }
-  ],
-  "doorways": []
- },
- {
-  "id": "layout_local_juntas",
-  "rooms": [
-   {
-    "key": "sala_juntas",
-    "defId": "estancia_local_juntas",
-    "startsUnlocked": true,
-    "rect": {
-     "x": 0,
-     "z": 0,
-     "w": 4.68,
-     "d": 2.8
-    }
-   }
-  ],
-  "doorways": []
- },
- {
-  "id": "layout_garaje_comunal",
-  "rooms": [
-   {
-    "key": "garaje_comun",
-    "defId": "estancia_garaje",
-    "startsUnlocked": true,
-    "rect": {
-     "x": 0,
-     "z": 0,
-     "w": 2.28,
-     "d": 2.8
-    }
-   }
-  ],
-  "doorways": []
- },
- {
-  "id": "layout_lavanderia_comunal",
-  "rooms": [
-   {
-    "key": "lavanderia_comun",
-    "defId": "estancia_lavanderia",
-    "startsUnlocked": true,
-    "rect": {
-     "x": 0,
-     "z": 0,
-     "w": 2.28,
-     "d": 2.8
-    }
-   }
-  ],
-  "doorways": []
- },
- {
-  "id": "layout_portal",
-  "rooms": [
-   {
-    "key": "portal_lobby",
-    "defId": "estancia_portal",
-    "startsUnlocked": true,
-    "rect": {
-     "x": 0.06,
-     "z": 0.06,
-     "w": 4.56,
-     "d": 2.56
-    }
-   }
-  ]
- }
+  {
+    "id": "layout_vivienda_v1",
+    "rooms": [
+      {
+        "key": "estudio",
+        "defId": "estancia_estudio_diafano",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 0,
+          "z": 0,
+          "w": 4.8,
+          "d": 4.8
+        }
+      }
+    ],
+    "doorways": []
+  },
+  {
+    "id": "layout_trastero_comunal",
+    "rooms": [
+      {
+        "key": "trastero_comun",
+        "defId": "estancia_trastero_comunal",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 0,
+          "z": 0,
+          "w": 2.28,
+          "d": 2.8
+        }
+      }
+    ],
+    "doorways": []
+  },
+  {
+    "id": "layout_local_juntas",
+    "rooms": [
+      {
+        "key": "sala_juntas",
+        "defId": "estancia_local_juntas",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 0,
+          "z": 0,
+          "w": 4.68,
+          "d": 2.8
+        }
+      }
+    ],
+    "doorways": []
+  },
+  {
+    "id": "layout_garaje_comunal",
+    "rooms": [
+      {
+        "key": "garaje_comun",
+        "defId": "estancia_garaje",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 0,
+          "z": 0,
+          "w": 2.28,
+          "d": 2.8
+        }
+      }
+    ],
+    "doorways": []
+  },
+  {
+    "id": "layout_lavanderia_comunal",
+    "rooms": [
+      {
+        "key": "lavanderia_comun",
+        "defId": "estancia_lavanderia",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 0,
+          "z": 0,
+          "w": 2.28,
+          "d": 2.8
+        }
+      }
+    ],
+    "doorways": []
+  },
+  {
+    "id": "layout_portal",
+    "rooms": [
+      {
+        "key": "portal_lobby",
+        "defId": "estancia_portal",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 0.06,
+          "z": 0.06,
+          "w": 4.56,
+          "d": 2.56
+        }
+      }
+    ]
+  },
+  {
+    "id": "layout_vivienda_dormitorio",
+    "rooms": [
+      {
+        "key": "estudio",
+        "defId": "estancia_estudio_diafano",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 0,
+          "z": 0,
+          "w": 4.8,
+          "d": 4.8
+        }
+      },
+      {
+        "key": "dormitorio",
+        "defId": "estancia_dormitorio",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 0.2,
+          "z": 4.8,
+          "w": 4.4,
+          "d": 2.4
+        }
+      }
+    ],
+    "doorways": [
+      {
+        "a": "estudio",
+        "b": "dormitorio",
+        "axis": "x",
+        "at": 2.4,
+        "width": 0.95
+      }
+    ]
+  },
+  {
+    "id": "layout_vivienda_bano",
+    "rooms": [
+      {
+        "key": "estudio",
+        "defId": "estancia_estudio_diafano",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 0,
+          "z": 0,
+          "w": 4.8,
+          "d": 4.8
+        }
+      },
+      {
+        "key": "bano",
+        "defId": "estancia_bano",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 1.45,
+          "z": 4.8,
+          "w": 1.9,
+          "d": 2.2
+        }
+      }
+    ],
+    "doorways": [
+      {
+        "a": "estudio",
+        "b": "bano",
+        "axis": "x",
+        "at": 2.4,
+        "width": 0.9
+      }
+    ]
+  },
+  {
+    "id": "layout_vivienda_trasera",
+    "rooms": [
+      {
+        "key": "estudio",
+        "defId": "estancia_estudio_diafano",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 0,
+          "z": 0,
+          "w": 4.8,
+          "d": 4.8
+        }
+      },
+      {
+        "key": "trasera",
+        "defId": "estancia_trasera",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 0.2,
+          "z": 4.8,
+          "w": 4.4,
+          "d": 2.2
+        }
+      }
+    ],
+    "doorways": [
+      {
+        "a": "estudio",
+        "b": "trasera",
+        "axis": "x",
+        "at": 1.8,
+        "width": 0.95
+      }
+    ]
+  },
+  {
+    "id": "layout_vivienda_salon",
+    "rooms": [
+      {
+        "key": "salon",
+        "defId": "estancia_salon_cocina",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 0,
+          "z": 0,
+          "w": 4.8,
+          "d": 4.8
+        }
+      }
+    ],
+    "doorways": []
+  },
+  {
+    "id": "layout_vivienda_salon_dormitorio",
+    "rooms": [
+      {
+        "key": "salon",
+        "defId": "estancia_salon_cocina",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 0,
+          "z": 0,
+          "w": 4.8,
+          "d": 4.8
+        }
+      },
+      {
+        "key": "dormitorio",
+        "defId": "estancia_dormitorio",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 0.2,
+          "z": 4.8,
+          "w": 4.4,
+          "d": 2.4
+        }
+      }
+    ],
+    "doorways": [
+      {
+        "a": "salon",
+        "b": "dormitorio",
+        "axis": "x",
+        "at": 2.4,
+        "width": 0.95
+      }
+    ]
+  },
+  {
+    "id": "layout_vivienda_salon_bano",
+    "rooms": [
+      {
+        "key": "salon",
+        "defId": "estancia_salon_cocina",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 0,
+          "z": 0,
+          "w": 4.8,
+          "d": 4.8
+        }
+      },
+      {
+        "key": "bano",
+        "defId": "estancia_bano",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 1.45,
+          "z": 4.8,
+          "w": 1.9,
+          "d": 2.2
+        }
+      }
+    ],
+    "doorways": [
+      {
+        "a": "salon",
+        "b": "bano",
+        "axis": "x",
+        "at": 2.4,
+        "width": 0.9
+      }
+    ]
+  },
+  {
+    "id": "layout_vivienda_salon_trasera",
+    "rooms": [
+      {
+        "key": "salon",
+        "defId": "estancia_salon_cocina",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 0,
+          "z": 0,
+          "w": 4.8,
+          "d": 4.8
+        }
+      },
+      {
+        "key": "trasera",
+        "defId": "estancia_trasera",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 0.2,
+          "z": 4.8,
+          "w": 4.4,
+          "d": 2.2
+        }
+      }
+    ],
+    "doorways": [
+      {
+        "a": "salon",
+        "b": "trasera",
+        "axis": "x",
+        "at": 1.4,
+        "width": 0.95
+      }
+    ]
+  },
+  {
+    "id": "layout_vivienda_dormitorio_bano",
+    "rooms": [
+      {
+        "key": "estudio",
+        "defId": "estancia_estudio_diafano",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 0,
+          "z": 0,
+          "w": 4.8,
+          "d": 4.8
+        }
+      },
+      {
+        "key": "dormitorio",
+        "defId": "estancia_dormitorio",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 0.15,
+          "z": 4.8,
+          "w": 2.6,
+          "d": 2.4
+        }
+      },
+      {
+        "key": "bano",
+        "defId": "estancia_bano",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 2.73,
+          "z": 4.8,
+          "w": 1.92,
+          "d": 2.2
+        }
+      }
+    ],
+    "doorways": [
+      {
+        "a": "estudio",
+        "b": "dormitorio",
+        "axis": "x",
+        "at": 1.45,
+        "width": 0.95
+      },
+      {
+        "a": "estudio",
+        "b": "bano",
+        "axis": "x",
+        "at": 3.69,
+        "width": 0.9
+      }
+    ]
+  },
+  {
+    "id": "layout_vivienda_salon_dormitorio_bano",
+    "rooms": [
+      {
+        "key": "salon",
+        "defId": "estancia_salon_cocina",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 0,
+          "z": 0,
+          "w": 4.8,
+          "d": 4.8
+        }
+      },
+      {
+        "key": "dormitorio",
+        "defId": "estancia_dormitorio",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 0.15,
+          "z": 4.8,
+          "w": 2.6,
+          "d": 2.4
+        }
+      },
+      {
+        "key": "bano",
+        "defId": "estancia_bano",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 2.73,
+          "z": 4.8,
+          "w": 1.92,
+          "d": 2.2
+        }
+      }
+    ],
+    "doorways": [
+      {
+        "a": "salon",
+        "b": "dormitorio",
+        "axis": "x",
+        "at": 1.45,
+        "width": 0.95
+      },
+      {
+        "a": "salon",
+        "b": "bano",
+        "axis": "x",
+        "at": 3.69,
+        "width": 0.9
+      }
+    ]
+  },
+  {
+    "id": "layout_vivienda_dormitorio_trasera",
+    "rooms": [
+      {
+        "key": "estudio",
+        "defId": "estancia_estudio_diafano",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 0,
+          "z": 0,
+          "w": 4.8,
+          "d": 4.8
+        }
+      },
+      {
+        "key": "dormitorio",
+        "defId": "estancia_dormitorio",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 0.15,
+          "z": 4.8,
+          "w": 2.6,
+          "d": 2.4
+        }
+      },
+      {
+        "key": "trasera",
+        "defId": "estancia_trasera",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 2.73,
+          "z": 4.8,
+          "w": 1.92,
+          "d": 2.2
+        }
+      }
+    ],
+    "doorways": [
+      {
+        "a": "estudio",
+        "b": "dormitorio",
+        "axis": "x",
+        "at": 1.45,
+        "width": 0.95
+      },
+      {
+        "a": "estudio",
+        "b": "trasera",
+        "axis": "x",
+        "at": 3.69,
+        "width": 0.9
+      }
+    ]
+  },
+  {
+    "id": "layout_vivienda_bano_trasera",
+    "rooms": [
+      {
+        "key": "estudio",
+        "defId": "estancia_estudio_diafano",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 0,
+          "z": 0,
+          "w": 4.8,
+          "d": 4.8
+        }
+      },
+      {
+        "key": "bano",
+        "defId": "estancia_bano",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 1.45,
+          "z": 4.8,
+          "w": 1.9,
+          "d": 2.2
+        }
+      },
+      {
+        "key": "trasera",
+        "defId": "estancia_trasera",
+        "startsUnlocked": true,
+        "rect": {
+          "x": 2.73,
+          "z": 4.8,
+          "w": 1.92,
+          "d": 2.2
+        }
+      }
+    ],
+    "doorways": [
+      {
+        "a": "estudio",
+        "b": "bano",
+        "axis": "x",
+        "at": 2.4,
+        "width": 0.9
+      },
+      {
+        "a": "estudio",
+        "b": "trasera",
+        "axis": "x",
+        "at": 3.69,
+        "width": 0.9
+      }
+    ]
+  }
 ]

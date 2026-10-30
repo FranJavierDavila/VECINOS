@@ -1176,6 +1176,9 @@ export interface Rules {
     bedOffset?: number;
     itemRadius: number;
     corridorZ: number;
+    /** v1.53 — VARIANTES DE VIVIENDA: cada vivienda reparte estos layouts (determinista
+     *  por rango floor·16+col + desfase seed). Ausente/vacío = todas usan container.layout. */
+    dwellingVariants?: { seed: number; layouts: string[] };
     /** Calado del pasillo exterior (tiras transitables): saliente hacia la calle. */
     corridorDepth: number;
     /** Altura de la barandilla del pasillo (0 = sin barandilla). */

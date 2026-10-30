@@ -1,7 +1,7 @@
 import type { Color3, Color4, DynamicTexture, Mesh, Scene, StandardMaterial, Texture, TransformNode } from '@babylonjs/core';
 import { blockLabel } from '@/game/core/types';
 import type { BlockInstance, Content, World } from '@/game/core/types';
-import { hash01 } from '@/game/interior';
+import { hash01, layoutIdOf } from '@/game/interior';
 import { storageCorridorX, storageGeomOf, storageUnitPlan, storageUnitZ } from '@/game/storage';
 import { B } from './babylon';
 import {
@@ -882,10 +882,12 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       view.fixedDiffuse = Color3.FromHexString(pv.wallColor ?? '#dbd8d2');
       // ── Puerta a sala TRASERA (v1.19, apilamiento 3D): la pared del fondo se parte con el
       // hueco del layout (doorway hacia una estancia más profunda que el bloque principal).
-      const layoutId0 = content.blocks[b.defId]?.container?.layout;
+      // v1.53 — el layout viene del REPARTO de variantes (layoutIdOf) y puede haber VARIOS
+      // cuartos traseros: la pared del fondo se abre con TODOS sus huecos (rearDoors0).
+      const layoutId0 = layoutIdOf(content, b);
       const layout0 = layoutId0 ? content.layouts[layoutId0] : undefined;
       const rearKeys = new Set((layout0?.rooms ?? []).filter((r) => r.rect && r.rect.z + r.rect.d > v.depth + 0.01).map((r) => r.key));
-      const rearDoor = (layout0?.doorways ?? []).find((dw) => dw.axis === 'x' && rearKeys.has(dw.b));
+      const rearDoors0 = (layout0?.doorways ?? []).filter((dw) => dw.axis === 'x' && rearKeys.has(dw.b)).sort((da, db) => da.at - db.at);
       const x0w = cx - w / 2;
       const x1w = cx + w / 2;
       // v1.29 — MUROS A CÉLULA COMPLETA: las paredes del fondo y laterales suben hasta el
@@ -902,21 +904,29 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       mi.diffuseColor = view.fixedDiffuse ?? Color3.FromHexString(pv.wallColor ?? '#dbd8d2');
       mi.specularColor = new Color3(0.02, 0.02, 0.02);
       mi.emissiveColor = Color3.FromHexString(pv.wallColor ?? '#dbd8d2').scale(pv.night?.wallSelf ?? 0.3);
-      if (rearDoor) {
-        const gapA = Math.max(x0w, x0w + rearDoor.at - rearDoor.width / 2);
-        const gapB = Math.min(x1w, x0w + rearDoor.at + rearDoor.width / 2);
+      if (rearDoors0.length > 0) {
+        // v1.53 — VARIOS HUECOS al fondo (dormitorio + baño…): tramos de pared ENTRE huecos,
+        // ordenados por x, más un dintel por hueco. El primero/último tramo heredan el papel
+        // de edgesMesh/edgesMesh2 (borde blanco de la vivienda del jugador).
         const doorH = Math.min(h - 0.15, 1.95);
-        // v1.29 — el dintel de la puerta trasera sube hasta el CANTO del bloque: antes
-        // terminaba en cellH − gapH y por la rendija (sobre el arte del diorama) se veía el
-        // fondo urbano a oscuras a través del interior abierto (la banda negra del techo).
         const doorTopY = bottom + v.slab + v.wall + doorH;
         const lintelH = Math.max(0.02, bottom + v.cellH - doorTopY);
-        view.edgesMesh = box(`${b.id}_fondo_i`, gapA - x0w, hFull, v.wall, (x0w + gapA) / 2, yFull, frontZ + d, mi);
-        view.edgesMesh2 = box(`${b.id}_fondo_d`, x1w - gapB, hFull, v.wall, (gapB + x1w) / 2, yFull, frontZ + d, mi);
+        const gaps = rearDoors0.map((dw) => ({
+          a: Math.max(x0w, x0w + dw.at - dw.width / 2),
+          b: Math.min(x1w, x0w + dw.at + dw.width / 2),
+        }));
+        const segs: Mesh[] = [];
+        let cursor = x0w;
+        for (const g of gaps) {
+          if (g.a - cursor > 0.02) segs.push(box(`${b.id}_fondo_${segs.length}`, g.a - cursor, hFull, v.wall, (cursor + g.a) / 2, yFull, frontZ + d, mi));
+          segs.push(box(`${b.id}_fondo_dintel_${segs.length}`, g.b - g.a, lintelH, v.wall, (g.a + g.b) / 2, doorTopY + lintelH / 2, frontZ + d, mi));
+          cursor = g.b;
+        }
+        if (x1w - cursor > 0.02) segs.push(box(`${b.id}_fondo_${segs.length}`, x1w - cursor, hFull, v.wall, (cursor + x1w) / 2, yFull, frontZ + d, mi));
+        view.edgesMesh = segs[0] ?? null;
+        view.edgesMesh2 = segs[segs.length - 1] ?? null;
         view.greybox.push(
-          view.edgesMesh,
-          view.edgesMesh2,
-          box(`${b.id}_fondo_dintel`, gapB - gapA, lintelH, v.wall, (gapA + gapB) / 2, doorTopY + lintelH / 2, frontZ + d, mi),
+          ...segs,
           box(`${b.id}_izq`, v.wall, hFull, d, cx - w / 2, yFull, cz, mi),
           box(`${b.id}_der`, v.wall, hFull, d, cx + w / 2, yFull, cz, mi),
           box(`${b.id}_suelo`, w, v.wall, d, cx, bottom + v.slab + v.wall / 2, cz, mi),
@@ -1201,7 +1211,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       // pequeños para que no exista ninguna pared divisoria entre ellos». Las estancias se
       // leen por su SUELO tintado (cerrada = lockedColor) y por el arte del diorama; la
       // verdad de accesibilidad vive en el sim (walkable), no en una hoja de puerta visual.
-      const layoutId = content.blocks[b.defId]?.container?.layout;
+      const layoutId = layoutIdOf(content, b);
       const layout = layoutId ? content.layouts[layoutId] : undefined;
       // Apilamiento 3D (v1.19): las salas TRASERAS no se pintan en el bloque principal — viven
       // en su propio bloque trasero (más abajo, se activan al entrar).
@@ -1253,11 +1263,13 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           geoRooms.forEach((lr, ri) => {
             const r = lr.rect!;
             // ¿La puerta a la sala trasera cae DENTRO de esta estancia? → pared con hueco + puerta pintada.
-            const gapCenter = rearDoor ? x0w + rearDoor.at : NaN;
-            const hostsDoor = !!rearDoor && gapCenter >= x0 + r.x && gapCenter <= x0 + r.x + r.w;
-            const wallGap = hostsDoor && rearDoor
-              ? { a: Math.max(x0w, x0w + rearDoor.at - rearDoor.width / 2), b: Math.min(x1w, x0w + rearDoor.at + rearDoor.width / 2) }
-              : null;
+            // v1.53 — VARIOS huecos posibles (dormitorio + baño): el que caiga en el rect manda.
+            const gapsHere = rearDoors0
+              .map((dw) => ({ cx: x0w + dw.at, a: Math.max(x0w, x0w + dw.at - dw.width / 2), b: Math.min(x1w, x0w + dw.at + dw.width / 2) }))
+              .filter((g) => g.cx >= x0 + r.x && g.cx <= x0 + r.x + r.w);
+            const gapHere = gapsHere[0] ?? null;
+            const hostsDoor = gapHere !== null;
+            const wallGap = hostsDoor ? { a: gapHere!.a, b: gapHere!.b } : null;
             const room = diro.room(
               `${b.id}_${lr.key}`,
               lr.defId,
@@ -1466,7 +1478,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       }
       // Interiores 2D + diorama + carcaso (las mismas tripas que una vivienda: suelos
       // tintados, lámpara y paredes con paralaje — el catálogo elige el arte).
-      const layoutIdH = content.blocks[b.defId]?.container?.layout;
+      const layoutIdH = layoutIdOf(content, b);
       const layoutH = layoutIdH ? content.layouts[layoutIdH] : undefined;
       const roomDef = layoutH?.rooms[0];
       if (layoutH && roomDef?.rect) {
@@ -3390,7 +3402,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
   //   · Cuarto trasero de cada vivienda (layout con estancia más profunda que el bloque).
   //   · Interior presentable del trastero PROPIO (bloques por columna: solo tu puerta abre).
   const rb = v.rearBlock;
-  const rears = new Map<string, { node: TransformNode; outline: Mesh[]; doorLeaf: Mesh | null; mainRoot: TransformNode; phase: 'idle' | 'peek' | 'inside'; mainAlpha: number; rearAlpha: number; settled: boolean; frontParts: Mesh[] }>();
+  const rears = new Map<string, { node: TransformNode; outline: Mesh[]; doorLeaves: Mesh[]; mainRoot: TransformNode; phase: 'idle' | 'peek' | 'inside'; mainAlpha: number; rearAlpha: number; settled: boolean; frontParts: Mesh[] }>();
   const matRearWall = mat('rear_muro_mat');
   matRearWall.diffuseColor = Color3.FromHexString('#d8d2c4');
   const matRearOutline = mat('rear_contorno_mat');
@@ -3413,127 +3425,137 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       box(`${name}_co_der`, t, hR, t, cxr + wR / 2, yBase + hR / 2, zF, matRearOutline),
     ];
   };
-  const registerRear = (blockId: string, node: TransformNode, outline: Mesh[], doorLeaf: Mesh | null, frontParts: Mesh[] = []): void => {
+  const registerRear = (blockId: string, node: TransformNode, outline: Mesh[], doorLeaves: Mesh[], frontParts: Mesh[] = []): void => {
     node.setEnabled(false);
-    rears.set(blockId, { node, outline, doorLeaf, mainRoot: roots.get(blockId)!, phase: 'idle', mainAlpha: 1, rearAlpha: 0, settled: true, frontParts });
+    rears.set(blockId, { node, outline, doorLeaves, mainRoot: roots.get(blockId)!, phase: 'idle', mainAlpha: 1, rearAlpha: 0, settled: true, frontParts });
   };
   // ── Cuartos traseros de vivienda ──
+  // v1.53 — VARIAS SALAS TRASERAS por vivienda (el layout de variantes puede declarar
+  // dormitorio + baño, etc.): UN nodo trasero por vivienda (la máquina de fases del
+  // apilamiento 3D no cambia) con la carcasa, diorama, hueco y hoja de puerta POR SALA.
   for (const b of Object.values(world.blocks)) {
     if (b.kind !== 'dwelling') continue;
-    const layoutId = content.blocks[b.defId]?.container?.layout;
+    const layoutId = layoutIdOf(content, b);
     const layout = layoutId ? content.layouts[layoutId] : undefined;
     const rearRooms = (layout?.rooms ?? []).filter((r) => r.rect && r.rect.z + r.rect.d > v.depth + 0.01);
     if (rearRooms.length === 0) continue;
-    const rect = rearRooms[0]!.rect!;
-    const rdef = content.rooms[rearRooms[0]!.defId];
-    const rearDoor = (layout?.doorways ?? []).find((dw) => dw.axis === 'x' && rearRooms.some((r) => r.key === dw.b));
     const bottom = b.cell.floor * v.cellH;
     const x0 = b.cell.col * v.cellW;
-    const rx = x0 + rect.x;
-    const rw = rect.w;
-    const rz0 = frontZ + rect.z;
-    const rd = rect.d;
     const hR = v.cellH - v.gapH;
     const yR = bottom + v.cellH / 2;
     const baseR = bottom + v.slab * 2;
     const node = new TransformNode(`${b.id}_rear_root`, scene);
-    const matFloor = mat(`${b.id}_rear_suelo_mat`);
-    matFloor.diffuseColor = Color3.FromHexString(rdef?.view?.color ?? '#b08968');
-    box(`${b.id}_rear_suelo`, rw, v.slab * 2, rd, rx + rw / 2, baseR - v.slab, rz0 + rd / 2, matFloor).parent = node;
-    // Pared del FONDO (v1.21): con VENTANA al paisaje urbano del fondo (fachadas parallax y
-    // cielo) — el cuarto trasero ya no es un cubo ciego. Muro partido en 4 segmentos + marco
-    // con cruceta + cristal translúcido. Sin sitio (estancias estrechas) sigue siendo muro ciego.
-    const wv = v.rearBlock.window;
-    const wallTop = bottom + (v.cellH + hR) / 2;
-    const winCx = rx + rw / 2;
-    const winZ = rz0 + rd - v.wall / 2;
-    const canWindow = rw >= wv.w + 0.5 && baseR + wv.sill + wv.h + 0.12 <= wallTop;
-    const matFrame = mat(`${b.id}_rear_ventana_marco_mat`);
-    matFrame.diffuseColor = Color3.FromHexString(wv.frame);
-    if (canWindow) {
-      const wx0 = winCx - wv.w / 2;
-      const wx1 = winCx + wv.w / 2;
-      const wy0 = baseR + wv.sill;
-      const wy1 = wy0 + wv.h;
-      // Segmentos del muro alrededor del hueco.
-      if (wx0 - rx > 0.02) box(`${b.id}_rear_fondo_i`, wx0 - rx, hR, v.wall, (rx + wx0) / 2, yR, winZ, matRearWall).parent = node;
-      if (rx + rw - wx1 > 0.02) box(`${b.id}_rear_fondo_d`, rx + rw - wx1, hR, v.wall, (wx1 + rx + rw) / 2, yR, winZ, matRearWall).parent = node;
-      if (wy0 - baseR > 0.02) box(`${b.id}_rear_fondo_vago`, wv.w, wy0 - baseR, v.wall, winCx, baseR + (wy0 - baseR) / 2, winZ, matRearWall).parent = node;
-      if (wallTop - wy1 > 0.02) box(`${b.id}_rear_fondo_dintel_v`, wv.w, wallTop - wy1, v.wall, winCx, wy1 + (wallTop - wy1) / 2, winZ, matRearWall).parent = node;
-      // Marco (4 listones) + cruceta: lectura de ventana incluso desde lejos.
-      const ft = 0.06;
-      box(`${b.id}_rear_vmarco_sup`, wv.w + ft * 2, ft, 0.1, winCx, wy1 + ft / 2, winZ, matFrame).parent = node;
-      box(`${b.id}_rear_vmarco_inf`, wv.w + ft * 2, ft, 0.1, winCx, wy0 - ft / 2, winZ, matFrame).parent = node;
-      box(`${b.id}_rear_vmarco_izq`, ft, wv.h, 0.1, wx0 - ft / 2, wy0 + wv.h / 2, winZ, matFrame).parent = node;
-      box(`${b.id}_rear_vmarco_der`, ft, wv.h, 0.1, wx1 + ft / 2, wy0 + wv.h / 2, winZ, matFrame).parent = node;
-      box(`${b.id}_rear_vmarco_mullion`, 0.045, wv.h, 0.08, winCx, wy0 + wv.h / 2, winZ, matFrame).parent = node;
-      box(`${b.id}_rear_vmarco_travesano`, wv.w, 0.045, 0.08, winCx, wy0 + wv.h / 2, winZ, matFrame).parent = node;
-      // Cristal translúcido: el paisaje (fachadas parallax + cielo) se ve a través.
-      const glassMat = mat(`${b.id}_rear_vidrio_mat`);
-      glassMat.diffuseColor = Color3.FromHexString(wv.glass);
-      glassMat.alpha = wv.glassAlpha;
-      glassMat.specularColor = new Color3(0.1, 0.1, 0.1);
-      const glass = MeshBuilder.CreatePlane(`${b.id}_rear_vidrio`, { width: wv.w, height: wv.h, sideOrientation: B().Mesh.DOUBLESIDE }, scene);
-      glass.material = glassMat;
-      glass.isPickable = false;
-      glass.position.set(winCx, wy0 + wv.h / 2, winZ);
-      glass.parent = node;
-    } else {
-      box(`${b.id}_rear_fondo`, rw, hR, v.wall, rx + rw / 2, yR, winZ, matRearWall).parent = node;
-    }
-    box(`${b.id}_rear_izq`, v.wall, hR, rd, rx + v.wall / 2, yR, rz0 + rd / 2, matRearWall).parent = node;
-    box(`${b.id}_rear_der`, v.wall, hR, rd, rx + rw - v.wall / 2, yR, rz0 + rd / 2, matRearWall).parent = node;
-    box(`${b.id}_rear_techo`, rw, v.wall, rd, rx + rw / 2, bottom + v.cellH - v.slab - v.wall / 2, rz0 + rd / 2, matRearWall).parent = node;
-    box(`${b.id}_rear_lampara`, Math.min(1.2, rw * 0.4), 0.06, 0.1, rx + rw / 2, bottom + v.cellH - v.slab - v.wall - 0.08, rz0 + rd / 2, matRearLamp).parent = node;
-    // Diorama del cuarto trasero (v1.23): pared ilustrada + suelo + billboards, colgando del
-    // nodo trasero (aparece/desaparece con el bloque en el apilamiento 3D).
+    const pv = v.privacy;
     const rearInterior = interiors.get(b.id);
-    if (diro && rearInterior) {
-      const dioRoom = diro.room(`${b.id}_rear`, rearRooms[0]!.defId, rect, { x0, frontZ, yBottom: baseR, yTop: bottom + v.cellH - v.slab - v.wall }, { parent: node });
-      if (dioRoom) {
-        rearInterior.dio.rooms.set(`rear_${b.id}`, dioRoom);
-        for (const s of dioRoom.wall) rearInterior.dioMats.push(s.mat);
-        if (dioRoom.floor) rearInterior.dioMats.push(dioRoom.floor.mat);
-        for (const s of dioRoom.sprites) rearInterior.dioMats.push(s.mat);
+    const frontParts: Mesh[] = [];
+    const doorLeaves: Mesh[] = [];
+    const outline: Mesh[] = [];
+    for (const rr of rearRooms) {
+      const rect = rr.rect!;
+      const rdef = content.rooms[rr.defId];
+      const rearDoor = (layout?.doorways ?? []).find((dw) => dw.axis === 'x' && dw.b === rr.key);
+      const rx = x0 + rect.x;
+      const rw = rect.w;
+      const rz0 = frontZ + rect.z;
+      const rd = rect.d;
+      const matFloor = mat(`${b.id}_rear_${rr.key}_suelo_mat`);
+      matFloor.diffuseColor = Color3.FromHexString(rdef?.view?.color ?? '#b08968');
+      box(`${b.id}_rear_${rr.key}_suelo`, rw, v.slab * 2, rd, rx + rw / 2, baseR - v.slab, rz0 + rd / 2, matFloor).parent = node;
+      // Pared del FONDO (v1.21): con VENTANA al paisaje urbano del fondo (fachadas parallax y
+      // cielo) — el cuarto trasero ya no es un cubo ciego. Muro partido en 4 segmentos + marco
+      // con cruceta + cristal translúcido. Sin sitio (estancias estrechas) sigue siendo muro ciego.
+      const wv = v.rearBlock.window;
+      const wallTop = bottom + (v.cellH + hR) / 2;
+      const winCx = rx + rw / 2;
+      const winZ = rz0 + rd - v.wall / 2;
+      const canWindow = rw >= wv.w + 0.5 && baseR + wv.sill + wv.h + 0.12 <= wallTop;
+      const matFrame = mat(`${b.id}_rear_${rr.key}_ventana_marco_mat`);
+      matFrame.diffuseColor = Color3.FromHexString(wv.frame);
+      if (canWindow) {
+        const wx0 = winCx - wv.w / 2;
+        const wx1 = winCx + wv.w / 2;
+        const wy0 = baseR + wv.sill;
+        const wy1 = wy0 + wv.h;
+        // Segmentos del muro alrededor del hueco.
+        if (wx0 - rx > 0.02) box(`${b.id}_rear_${rr.key}_fondo_i`, wx0 - rx, hR, v.wall, (rx + wx0) / 2, yR, winZ, matRearWall).parent = node;
+        if (rx + rw - wx1 > 0.02) box(`${b.id}_rear_${rr.key}_fondo_d`, rx + rw - wx1, hR, v.wall, (wx1 + rx + rw) / 2, yR, winZ, matRearWall).parent = node;
+        if (wy0 - baseR > 0.02) box(`${b.id}_rear_${rr.key}_fondo_vago`, wv.w, wy0 - baseR, v.wall, winCx, baseR + (wy0 - baseR) / 2, winZ, matRearWall).parent = node;
+        if (wallTop - wy1 > 0.02) box(`${b.id}_rear_${rr.key}_fondo_dintel_v`, wv.w, wallTop - wy1, v.wall, winCx, wy1 + (wallTop - wy1) / 2, winZ, matRearWall).parent = node;
+        // Marco (4 listones) + cruceta: lectura de ventana incluso desde lejos.
+        const ft = 0.06;
+        box(`${b.id}_rear_${rr.key}_vmarco_sup`, wv.w + ft * 2, ft, 0.1, winCx, wy1 + ft / 2, winZ, matFrame).parent = node;
+        box(`${b.id}_rear_${rr.key}_vmarco_inf`, wv.w + ft * 2, ft, 0.1, winCx, wy0 - ft / 2, winZ, matFrame).parent = node;
+        box(`${b.id}_rear_${rr.key}_vmarco_izq`, ft, wv.h, 0.1, wx0 - ft / 2, wy0 + wv.h / 2, winZ, matFrame).parent = node;
+        box(`${b.id}_rear_${rr.key}_vmarco_der`, ft, wv.h, 0.1, wx1 - ft / 2, wy0 + wv.h / 2, winZ, matFrame).parent = node;
+        box(`${b.id}_rear_${rr.key}_vmarco_mullion`, 0.045, wv.h, 0.08, winCx, wy0 + wv.h / 2, winZ, matFrame).parent = node;
+        box(`${b.id}_rear_${rr.key}_vmarco_travesano`, wv.w, 0.045, 0.08, winCx, wy0 + wv.h / 2, winZ, matFrame).parent = node;
+        // Cristal translúcido: el paisaje (fachadas parallax + cielo) se ve a través.
+        const glassMat = mat(`${b.id}_rear_${rr.key}_vidrio_mat`);
+        glassMat.diffuseColor = Color3.FromHexString(wv.glass);
+        glassMat.alpha = wv.glassAlpha;
+        glassMat.specularColor = new Color3(0.1, 0.1, 0.1);
+        const glass = MeshBuilder.CreatePlane(`${b.id}_rear_${rr.key}_vidrio`, { width: wv.w, height: wv.h, sideOrientation: B().Mesh.DOUBLESIDE }, scene);
+        glass.material = glassMat;
+        glass.isPickable = false;
+        glass.position.set(winCx, wy0 + wv.h / 2, winZ);
+        glass.parent = node;
+      } else {
+        box(`${b.id}_rear_${rr.key}_fondo`, rw, hR, v.wall, rx + rw / 2, yR, winZ, matRearWall).parent = node;
+      }
+      box(`${b.id}_rear_${rr.key}_izq`, v.wall, hR, rd, rx + v.wall / 2, yR, rz0 + rd / 2, matRearWall).parent = node;
+      box(`${b.id}_rear_${rr.key}_der`, v.wall, hR, rd, rx + rw - v.wall / 2, yR, rz0 + rd / 2, matRearWall).parent = node;
+      box(`${b.id}_rear_${rr.key}_techo`, rw, v.wall, rd, rx + rw / 2, bottom + v.cellH - v.slab - v.wall / 2, rz0 + rd / 2, matRearWall).parent = node;
+      box(`${b.id}_rear_${rr.key}_lampara`, Math.min(1.2, rw * 0.4), 0.06, 0.1, rx + rw / 2, bottom + v.cellH - v.slab - v.wall - 0.08, rz0 + rd / 2, matRearLamp).parent = node;
+      // Diorama del cuarto trasero (v1.23): pared ilustrada + suelo + billboards, colgando del
+      // nodo trasero (aparece/desaparece con el bloque en el apilamiento 3D).
+      if (diro && rearInterior) {
+        const dioRoom = diro.room(`${b.id}_rear_${rr.key}`, rr.defId, rect, { x0, frontZ, yBottom: baseR, yTop: bottom + v.cellH - v.slab - v.wall }, { parent: node });
+        if (dioRoom) {
+          rearInterior.dio.rooms.set(`rear_${b.id}_${rr.key}`, dioRoom);
+          for (const s of dioRoom.wall) rearInterior.dioMats.push(s.mat);
+          if (dioRoom.floor) rearInterior.dioMats.push(dioRoom.floor.mat);
+          for (const s of dioRoom.sprites) rearInterior.dioMats.push(s.mat);
+        }
+      }
+      // Frente con el hueco de la puerta (mismas medidas que la pared partida del bloque).
+      // v1.20: esta PARED DIVISORIA se recoge: al ENTRAR en el cuarto trasero desaparece
+      // (mismo corte que la fachada del bloque exterior) para que la cámara vea el interior.
+      const gapA = rx + (rearDoor ? Math.max(0, rearDoor.at - rearDoor.width / 2) : rw / 2 - 0.5);
+      const gapB = rx + (rearDoor ? Math.min(rw, rearDoor.at + rearDoor.width / 2) : rw / 2 + 0.5);
+      const doorH = Math.min(hR - 0.15, 1.95);
+      if (gapA - rx > 0.02) {
+        const fi = box(`${b.id}_rear_${rr.key}_frente_i`, gapA - rx, hR, v.wall, (rx + gapA) / 2, yR, rz0 + v.wall / 2 + 0.005, matRearWall);
+        fi.parent = node;
+        frontParts.push(fi);
+      }
+      if (rx + rw - gapB > 0.02) {
+        const fd = box(`${b.id}_rear_${rr.key}_frente_d`, rx + rw - gapB, hR, v.wall, (gapB + rx + rw) / 2, yR, rz0 + v.wall / 2 + 0.005, matRearWall);
+        fd.parent = node;
+        frontParts.push(fd);
+      }
+      if (hR - doorH > 0.02) {
+        const din = box(`${b.id}_rear_${rr.key}_frente_dintel`, gapB - gapA, hR - doorH, v.wall, (gapA + gapB) / 2, yR + hR / 2 - (hR - doorH) / 2, rz0 + v.wall / 2 + 0.005, matRearWall);
+        din.parent = node;
+        frontParts.push(din);
+      }
+      // Hoja de puerta cerrada: visible solo con el bloque inactivo (se abre al activarse).
+      const doorLeaf = box(`${b.id}_rear_${rr.key}_hoja`, gapB - gapA - 0.04, doorH - 0.04, 0.05, (gapA + gapB) / 2, baseR + (doorH - 0.04) / 2, rz0 + v.wall + 0.05, mat(`${b.id}_rear_${rr.key}_hoja_mat`));
+      (doorLeaf.material as StandardMaterial).diffuseColor = Color3.FromHexString(pv.doorColor);
+      doorLeaf.parent = node;
+      doorLeaves.push(doorLeaf);
+      // Bártulos deterministas (hash01 del bloque + sala — jamás RNG del sim).
+      for (let j = 0; j < rb.junk; j++) {
+        const jw = 0.35 + hash01(b.id + rr.key, 1100 + j) * 0.6;
+        const jh = 0.25 + hash01(b.id + rr.key, 1200 + j) * 0.45;
+        const jm = matRearJunk[Math.floor(hash01(b.id + rr.key, 1300 + j) * matRearJunk.length) % matRearJunk.length]!;
+        box(`${b.id}_rear_${rr.key}_trasto_${j}`, jw, jh, 0.5, rx + 0.4 + hash01(b.id + rr.key, 1400 + j) * Math.max(0.1, rw - 0.9), baseR + jh / 2, rz0 + 0.5 + hash01(b.id + rr.key, 1500 + j) * Math.max(0.1, rd - 1.0), jm).parent = node;
+      }
+      for (const o of outlineFrame(`${b.id}_rear_${rr.key}`, rx + rw / 2, rw, hR, baseR, rz0 - 0.04)) {
+        o.parent = node;
+        outline.push(o);
       }
     }
-    // Frente con el hueco de la puerta (mismas medidas que la pared partida del bloque).
-    // v1.20: esta PARED DIVISORIA se recoge: al ENTRAR en el cuarto trasero desaparece
-    // (mismo corte que la fachada del bloque exterior) para que la cámara vea el interior.
-    const gapA = rx + (rearDoor ? Math.max(0, rearDoor.at - rearDoor.width / 2) : rw / 2 - 0.5);
-    const gapB = rx + (rearDoor ? Math.min(rw, rearDoor.at + rearDoor.width / 2) : rw / 2 + 0.5);
-    const doorH = Math.min(hR - 0.15, 1.95);
-    const frontParts: Mesh[] = [];
-    if (gapA - rx > 0.02) {
-      const fi = box(`${b.id}_rear_frente_i`, gapA - rx, hR, v.wall, (rx + gapA) / 2, yR, rz0 + v.wall / 2 + 0.005, matRearWall);
-      fi.parent = node;
-      frontParts.push(fi);
-    }
-    if (rx + rw - gapB > 0.02) {
-      const fd = box(`${b.id}_rear_frente_d`, rx + rw - gapB, hR, v.wall, (gapB + rx + rw) / 2, yR, rz0 + v.wall / 2 + 0.005, matRearWall);
-      fd.parent = node;
-      frontParts.push(fd);
-    }
-    if (hR - doorH > 0.02) {
-      const din = box(`${b.id}_rear_frente_dintel`, gapB - gapA, hR - doorH, v.wall, (gapA + gapB) / 2, yR + hR / 2 - (hR - doorH) / 2, rz0 + v.wall / 2 + 0.005, matRearWall);
-      din.parent = node;
-      frontParts.push(din);
-    }
-    // Hoja de puerta cerrada: visible solo con el bloque inactivo (se abre al activarse).
-    const pv = v.privacy;
-    const doorLeaf = box(`${b.id}_rear_hoja`, gapB - gapA - 0.04, doorH - 0.04, 0.05, (gapA + gapB) / 2, baseR + (doorH - 0.04) / 2, rz0 + v.wall + 0.05, mat(`${b.id}_rear_hoja_mat`));
-    (doorLeaf.material as StandardMaterial).diffuseColor = Color3.FromHexString(pv.doorColor);
-    doorLeaf.parent = node;
-    // Bártulos deterministas (hash01 del bloque — jamás RNG del sim).
-    for (let j = 0; j < rb.junk; j++) {
-      const jw = 0.35 + hash01(b.id, 1100 + j) * 0.6;
-      const jh = 0.25 + hash01(b.id, 1200 + j) * 0.45;
-      const jm = matRearJunk[Math.floor(hash01(b.id, 1300 + j) * matRearJunk.length) % matRearJunk.length]!;
-      box(`${b.id}_rear_trasto_${j}`, jw, jh, 0.5, rx + 0.4 + hash01(b.id, 1400 + j) * Math.max(0.1, rw - 0.9), baseR + jh / 2, rz0 + 0.5 + hash01(b.id, 1500 + j) * Math.max(0.1, rd - 1.0), jm).parent = node;
-    }
-    const outline = outlineFrame(`${b.id}_rear`, rx + rw / 2, rw, hR, baseR, rz0 - 0.04);
-    for (const o of outline) o.parent = node;
-    registerRear(b.id, node, outline, doorLeaf, frontParts);
+    registerRear(b.id, node, outline, doorLeaves, frontParts);
   }
   // ── Interior presentable del TRASTERO PROPIO (uno por bloque de columna; solo tu puerta abre).
   // v1.21: los RECTS de sus estanterías y trastos se registran aquí (cellObstacles) — una sola
@@ -3615,7 +3637,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       }
       const outline = outlineFrame(`${blk.id}_cell`, cxr, W, H, baseR, frontZ - 0.04);
       for (const o of outline) o.parent = node;
-      registerRear(blk.id, node, outline, null);
+      registerRear(blk.id, node, outline, []);
     }
   }
 
@@ -4450,7 +4472,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         for (const k of rearKids) k.visibility = r.rearAlpha;
         r.node.setEnabled(r.rearAlpha > 0.002);
         for (const o of r.outline) o.setEnabled(r.mainAlpha < 0.55 && r.rearAlpha > 0.4);
-        if (r.doorLeaf) r.doorLeaf.setEnabled(r.rearAlpha < 0.2);
+        for (const dl of r.doorLeaves) dl.setEnabled(r.rearAlpha < 0.2);
       }
       for (const [id, left] of shakes) {
         const view = views.get(id)!;

@@ -1914,6 +1914,23 @@
         "Mi abuela decía: donde hay apagón, hay presidente distraído.",
         "¡Eh, la escalera es gratis pero el resbalón puede ser caro! ¡Llevad linterna!"
       ]
+    },
+    "dwellingVariants": {
+      "seed": 7,
+      "layouts": [
+        "layout_vivienda_v1",
+        "layout_vivienda_dormitorio",
+        "layout_vivienda_bano",
+        "layout_vivienda_trasera",
+        "layout_vivienda_salon",
+        "layout_vivienda_salon_dormitorio",
+        "layout_vivienda_salon_bano",
+        "layout_vivienda_salon_trasera",
+        "layout_vivienda_dormitorio_bano",
+        "layout_vivienda_salon_dormitorio_bano",
+        "layout_vivienda_dormitorio_trasera",
+        "layout_vivienda_bano_trasera"
+      ]
     }
   },
   "demo": {
