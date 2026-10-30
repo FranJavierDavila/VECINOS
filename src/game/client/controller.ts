@@ -1052,6 +1052,15 @@ class GameController {
         // v1.45 — QA de puertas: conducir al jugador (teleport + input táctil) desde el QA.
         getLogic: () => this.logic,
         setTouch: (v: { up?: boolean; down?: boolean; left?: boolean; right?: boolean }) => this.setTouchInput(v),
+        // v1.46 — QA de locomoción determinista: despeja modales y CONGELA el bucle
+        // (paused) para conducir logic.update(dt, input) a mano desde la consola sin
+        // interferencias del frame loop.
+        qaHold: () => {
+          useGameStore.setState({ paused: true, pauseMenuOpen: false, cutscene: null, phone: null, choices: null, junta: null, minigame: null, finale: null, elevatorPanel: null });
+        },
+        qaResume: () => {
+          useGameStore.setState({ paused: false, pauseMenuOpen: false, cutscene: null, phone: null, choices: null, junta: null, minigame: null, finale: null, elevatorPanel: null });
+        },
       };
     }
     this.flashlight = null; // v1.40 — la linterna nueva nace con la escena nueva

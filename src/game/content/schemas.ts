@@ -1324,11 +1324,26 @@ export const rulesSchema = z.object({
             topColor: z.string().optional(),
           })
           .default({ machines: 4, art: '/art/interiors/raw/f_lavadora.png', artH: 1.02, machineColor: '#e8e6e0', sign: 'LAVANDERÍA', signBg: '#3b3129', signText: '#ffd166' }),
+        /** v1.46 — CRUCE POR MOVIMIENTO en los locales de planta 0 (sin tecla E): la
+         *  salida se arma al adentrarse (armZ) y salta al volver al marco de la puerta
+         *  (exitZ) DENTRO del vano (doorPad = tolerancia lateral alrededor del hueco,
+         *  mismo catálogo que dibuja building.ts). Tu vivienda usa armZ/exitZ de siempre;
+         *  en los locales entrar y salir es ANDAR hacia la puerta, nunca atravesar paredes. */
+        walkIn: z
+          .object({
+            armZ: z.number().positive().default(0.9),
+            exitZ: z.number().positive().default(0.5),
+            doorPad: z.number().min(0).default(0.05),
+          })
+          .optional(),
         /** v1.35 — VESTÍBULO del portal: colores interiores del local. v1.36 — el interior
          *  es UNA IMAGEN del hall (interiors.json → wall_portal_hall.png); del catálogo solo
-         *  quedan los colores de pared y suelo del diorama. */
+         *  quedan los colores de pared y suelo del diorama. v1.46 — backZoneZ: empujar
+         *  hacia el fondo del hall (W, z local ≥ backZoneZ) te deja en el pasillo de la
+         *  planta 0 SIN tecla E: el portal se cruza andando en ambos sentidos. */
         portal: z
           .object({
+            backZoneZ: z.number().positive().optional(),
             lobby: z
               .object({
                 wallColor: z.string().default('#d8d3c8'),

@@ -72,6 +72,10 @@ export class PlayerLogic {
    *  no abre nada. Se resetea al empezar cada update(). */
   private intentPortal = false;
   private intentBlock: string | null = null;
+  /** v1.46 — PERMANENCIA del intent del portal: la corredera tarda portalDoors.openSeconds
+   *  en abrirse y el cruce (teatro) dura un frame — el empujón mantiene la intención durante
+   *  la apertura para que la hoja SE VEA abrir al atravesarla; se cierra sola al agotarse. */
+  private intentPortalHold = 0;
   /** v1.40 — auto-salida de tu vivienda: se arma al adentrarse (z > 0.9) y salta al
    *  volver al marco de la puerta (z ≤ 0.5). Evita el bucle entrar/salir en el umbral. */
   private exitArmed = false;
@@ -233,11 +237,60 @@ export class PlayerLogic {
 
   /** Vivienda o local justo delante (la puerta que puede abrir), si la hay.
    *  v1.19: desde el carril EXTERIOR del pasillo no hay puertas delante — es la vía de
-   *  adelantamiento: ni avisos ni approach; los elementos de pared no se activan. */
+   *  adelantamiento: ni avisos ni approach; los elementos de pared no se activan.
+   *  v1.46 — LOS LOCALES SOLO «ESTÁN DELANTE» EN SU PUERTA: el aviso, la E y el empujón
+   *  viven en el HUECO del vano (mismas medidas que dibuja building.ts, del catálogo);
+   *  al lado de la ventana la fachada es pared — nada que activar. Así se entra y se
+   *  sale por la puerta (el vecino: «no atravesando las paredes como ahora»). */
   doorInFront(): BlockInstance | null {
     if (this.mode !== 'corridor') return null;
     if (this.onOuterLane()) return null;
-    return this.onFloor(this.floor).find((b) => this.isDoorTarget(b) && this.within(this.x, b)) ?? null;
+    const b = this.onFloor(this.floor).find((t) => this.isDoorTarget(t) && this.within(this.x, t)) ?? null;
+    if (b && b.kind !== 'dwelling' && !this.atDoorGap(b)) return null;
+    return b;
+  }
+
+  /** v1.46 — HUECOS DE PUERTA de un bloque (x de mundo): los MISMOS vanos que dibuja
+   *  building.ts, medidos con el catálogo (trasteroComunal.doorDx/doorW,
+   *  juntaHall.doorW, garaje.doorW) más walkIn.doorPad de tolerancia. La lavandería es
+   *  fachada ABIERTA y el portal acristalado ancho; las viviendas no imponen hueco
+   *  (comportamiento de siempre). [] = sin disciplina de hueco. */
+  private doorSpansOf(b: BlockInstance): { x0: number; x1: number }[] {
+    if (b.kind === 'dwelling') return [];
+    const [a, z] = this.rangeOf(b);
+    const cx = (a + z) / 2;
+    const loc = this.view.locals;
+    const pad = loc.walkIn?.doorPad ?? 0.05;
+    const span = (w: number, x: number) => [{ x0: x - w / 2 - pad, x1: x + w / 2 + pad }];
+    switch (b.defId) {
+      case 'trasteros': {
+        const tc = loc.trasteroComunal;
+        return [...span(tc.doorW, cx - tc.doorDx), ...span(tc.doorW, cx + tc.doorDx)];
+      }
+      case 'local_comercial':
+        return span(loc.juntaHall.doorW, cx);
+      case 'garaje':
+        return span(loc.garaje.doorW ?? 2.16, cx);
+      case 'lavanderia_comunal':
+        return [{ x0: a + 0.1, x1: z - 0.1 }]; // fachada abierta: el frente entero es vano
+      case 'portal':
+        return [{ x0: a + 0.35, x1: z - 0.35 }]; // correderas de cristal (mismo margen que la calle)
+      default:
+        return [];
+    }
+  }
+
+  /** v1.46 — ¿está el jugador EN el hueco de la puerta de este bloque? (x dentro de algún vano). */
+  private atDoorGap(b: BlockInstance): boolean {
+    const spans = this.doorSpansOf(b);
+    return spans.length === 0 || spans.some((s) => this.x >= s.x0 && this.x <= s.x1);
+  }
+
+  /** v1.46 — umbral de salida de un local: en el hueco y pegado a la puerta (z ≤ exitZ).
+   *  Ahí funciona tanto la salida andando (armada) como la E de respaldo. */
+  private localeExitReady(b: BlockInstance): boolean {
+    const exitZ = this.view.locals.walkIn?.exitZ ?? 0.5;
+    return this.z <= exitZ && this.atDoorGap(b);
   }
 
   /** Objetivos de puerta: viviendas siempre; locales comunes transitables sin features (bar,
@@ -255,6 +308,14 @@ export class PlayerLogic {
     if (!f) return true;
     if (f.stairs || f.elevator) return false;
     return true;
+  }
+
+  /** v1.46 — el empujón hacia las correderas del portal: intención INMEDIATA y permanente
+   *  lo que tarda la hoja en abrir (catálogo) — el cruce es un corte de teatro de un frame
+   *  y sin permanencia la corredera solo daría un temblor. */
+  private pushPortalIntent(): void {
+    this.intentPortal = true;
+    this.intentPortalHold = (this.view.locals.portalDoors?.openSeconds ?? 0.8) + 0.25;
   }
 
   /**
@@ -518,6 +579,11 @@ export class PlayerLogic {
     // v1.45 — la intención de cruce caduca en cuanto nace: se recalcula frame a frame.
     this.intentPortal = false;
     this.intentBlock = null;
+    // v1.46 — permanencia del empujón del portal (mientras dura la apertura de la hoja).
+    if (this.intentPortalHold > 0) {
+      this.intentPortalHold = Math.max(0, this.intentPortalHold - dt);
+      this.intentPortal = true;
+    }
     // Apilamiento 3D (v1.19): el cuerpo está dentro del bloque trasero — la locomoción del
     // sim queda congelada. v1.21: DENTRO del trastero sí te mueves (libre, esquivando
     // estanterías y trastos); la salida sigue siendo la puerta (tecla E, del controlador).
@@ -612,12 +678,20 @@ export class PlayerLogic {
       const cur2 = roomAt(geo, this.x - x0, this.z);
       const nz = clampZ(this.z + dz);
       if (walkable(geo, cur2, this.x - x0, nz) && !hitsSolid(this.x, nz)) this.z = nz;
-      // v1.40 — SALIDA DIRECTA DE TU VIVIENDA: te acercas al marco de la puerta y sales
-      // sin E (la misma regla de cortesía que al entrar). Se arma al adentrarse de verdad
-      // (z > 0.9) para no salir recién entrado; la E sigue saliendo desde cualquier punto.
-      if (home.ownerId === this.actorId) {
-        if (this.z > 0.9) this.exitArmed = true;
-        else if (this.exitArmed && this.z <= 0.5) {
+      // v1.40/v1.46 — SALIDA SIN E POR LA PUERTA: en TU vivienda se arma al adentrarse
+      // (z > walkIn.armZ) y salta al volver al marco (z ≤ walkIn.exitZ) — de siempre.
+      // v1.46 — LOS LOCALES DE PLANTA 0 (garaje, trastero común, sala de juntas, lavandería)
+      // heredan la misma regla Y la disciplina de hueco: la salida solo salta DENTRO del
+      // vano de su puerta — entrar y salir es ANDAR hacia la puerta, nunca atravesar
+      // paredes; la E de respaldo también se queda en el umbral (interactInside).
+      const wi = this.view.locals.walkIn;
+      const armZ = wi?.armZ ?? 0.9;
+      const exitZ = wi?.exitZ ?? 0.5;
+      const ownHome = home.ownerId === this.actorId;
+      const locale = home.kind !== 'dwelling' && home.defId !== 'portal';
+      if (ownHome || locale) {
+        if (this.z > armZ) this.exitArmed = true;
+        else if (this.exitArmed && this.z <= exitZ && (ownHome || this.atDoorGap(home))) {
           const r = this.tryExitHome();
           if (r.type === 'exited') this.autoEvents.push(r);
         }
@@ -625,6 +699,9 @@ export class PlayerLogic {
       // v1.42 — SALIDA DEL PORTAL SIN E: en el vestíbulo, caminar hacia la PARED IZQUIERDA
       // (ruta oficial del perímetro) o hacia las CORREDERAS DEL FRENTE ya te echa a la calle.
       this.portalExitTriggers(input);
+      // v1.46 — VESTÍBULO → PASILLO sin E: empujar hacia el fondo del hall (W) te deja en
+      // el pasillo de planta 0: el portal se CRUZA andando en ambos sentidos.
+      this.portalInnerExit(input);
       return;
     }
     // Pasillo (v1.19): DOS carriles. A/D avanza en X; W/S, si no arrancan escalada (no hay
@@ -656,18 +733,26 @@ export class PlayerLogic {
       const r = this.tryEnterDoor(ahead);
       if (r.type === 'entered') this.autoEvents.push(r);
     }
-    // v1.41 — ENTRADA DIRECTA A LOS LOCALES (sin E): la única excepción a «entrar sin E»
-    // son las viviendas de los vecinos (ahí manda el timbre). Garaje, lavandería, local,
-    // trasteros…: te plantas delante y ENPUJAS hacia la puerta (v1.45: avanzar hacia la
-    // fachada — mera locomoción, igual que las de escalera) y la hoja se abre y entras.
-    // Con candado no (norma del barrio: E avisa) y el portal queda fuera (es el vestíbulo
-    // de buzones: entrar sin querer cada vez que pasas por delante sería un fastidio).
-    // v1.45 — PASAR DE LARGO NO ABRIRÁ NI ENTRARÁ: solo el empujón (input.up) dispara.
-    if (ahead && input.up && ahead.kind !== 'dwelling' && ahead.defId !== 'portal' && ahead.access !== 'locked' && this.autoEnterLast !== ahead.id) {
-      this.intentBlock = ahead.id; // la hoja abre con el mismo empujón
-      this.autoEnterLast = ahead.id;
-      const r = this.tryEnterDoor(ahead);
-      if (r.type === 'entered') this.autoEvents.push(r);
+    // v1.41/v1.46 — ENTRADA DIRECTA A LOS LOCALES (sin E): la única excepción a «entrar
+    // sin E» son las viviendas de los vecinos (ahí manda el timbre). Garaje, lavandería,
+    // local, trasteros…: te plantas DELANTE DE SU PUERTA (v1.46: solo en el hueco —
+    // doorInFront ya filtra) y ENPUJAS hacia ella (v1.45: avanzar hacia la fachada —
+    // mera locomoción, igual que las de escalera) y la hoja se abre y entras. Con candado
+    // no (norma del barrio: E avisa). Pasar de largo no abre ni entra (solo input.up).
+    // v1.46 — EL PORTAL TAMBIÉN SE CRUZA ANDANDO: el empujón desde el pasillo entra al
+    // vestíbulo (las correderas se abren con el mismo intent); desde el vestíbulo, W al
+    // fondo te deja en el pasillo (portalInnerExit). Fin de la exclusión de v1.41: con el
+    // empujón explícito ya no hay «entrar sin querer» al pasar de largo.
+    if (ahead && input.up && ahead.kind !== 'dwelling' && ahead.access !== 'locked' && this.autoEnterLast !== ahead.id) {
+      if (ahead.defId === 'portal') {
+        this.pushPortalIntent(); // las correderas se abren con el empujón (y duran la apertura)
+        this.enterPortal(true);
+      } else {
+        this.intentBlock = ahead.id; // la hoja abre con el mismo empujón
+        this.autoEnterLast = ahead.id;
+        const r = this.tryEnterDoor(ahead);
+        if (r.type === 'entered') this.autoEvents.push(r);
+      }
     }
   }
 
@@ -715,9 +800,10 @@ export class PlayerLogic {
     if (nz !== this.z && inside(this.x, nz)) this.z = nz;
     // ── PORTAL SIN E: la dirección correcta ya entra (o sale). ──
     const portal = this.portalBlock();
-    const [pa, pb] = portal ? this.rangeOf(portal) : [0, 0];
-    if (input.up && this.z >= cfg.portal.inFrontZ && portal && this.x > pa + 0.35 && this.x < pb - 0.35) {
-      this.intentPortal = true; // v1.45: el empujón hacia la puerta abre las correderas
+    // v1.46 — el vano del portal sale del MISMO catálogo que el resto de puertas
+    // (doorSpansOf): una sola verdad para el hueco acristalado desde la calle y el pasillo.
+    if (input.up && this.z >= cfg.portal.inFrontZ && portal && this.atDoorGap(portal)) {
+      this.pushPortalIntent(); // v1.46: el empujón abre las correderas y las mantiene abiertas
       this.enterPortal(true);
       return;
     }
@@ -743,13 +829,28 @@ export class PlayerLogic {
       this.approached = null;
       this.autoEvents.push({ type: 'portalOut', block: portal.id });
     } else if (input.down && this.z <= cfg.portal.frontInnerZ) {
-      this.intentPortal = true; // v1.45: empujar hacia la calle abre las correderas
+      this.pushPortalIntent(); // v1.46: empujar hacia la calle abre las correderas (y las deja abrir)
       this.mode = 'outside';
       this.insideBlock = null;
       this.z = cfg.portal.outFrontZ;
       this.fade = 0;
       this.approached = null;
       this.autoEvents.push({ type: 'portalOut', block: portal.id });
+    }
+  }
+
+  /** v1.46 — VESTÍBULO → PASILLO sin E: empujar hacia el FONDO del hall (W, z local ≥
+   *  backZoneZ del catálogo) te deja en el pasillo de planta 0 — el portal se cruza
+   *  andando en ambos sentidos (calle ↔ vestíbulo ↔ pasillo), sin tecla E. tryExitHome
+   *  ya deja approached/autoEnterLast apuntando al portal: al aterrizar no se re-entra
+   *  solo; alejarse del vano lo rearma. */
+  private portalInnerExit(input: Input): void {
+    const portal = this.portalBlock();
+    if (!portal || this.insideBlock !== portal.id) return;
+    const backZ = this.view.locals.portal?.backZoneZ ?? 2.0;
+    if (input.up && this.z >= backZ) {
+      const r = this.tryExitHome();
+      if (r.type === 'exited') this.autoEvents.push(r);
     }
   }
 
@@ -897,6 +998,18 @@ export class PlayerLogic {
           }
         }
       }
+      // v1.46 — el aviso de puerta solo donde la E sirve: en los locales, en el HUECO y
+      // pegado a la puerta (localeExitReady); el portal calla al fondo (W te lleva al
+      // pasillo). Vivir el «salir es andar hacia la puerta» sin ruido de prompt en
+      // mitad de la sala; la vivienda conserva su aviso de siempre.
+      const blk = this.world.blocks[this.insideBlock!]!;
+      if (blk.kind !== 'dwelling') {
+        if (blk.defId === 'portal') {
+          const backZ = this.view.locals.portal?.backZoneZ ?? 2.0;
+          return this.z >= backZ ? null : { kind: 'door', blockId: blk.id };
+        }
+        return this.localeExitReady(blk) ? { kind: 'door', blockId: blk.id } : null;
+      }
       return { kind: 'door', blockId: this.insideBlock! };
     }
     // Prioridad (v1.18): las fijaciones del portal (buzones, proximidad exacta) van
@@ -1038,6 +1151,12 @@ export class PlayerLogic {
         return { type: 'rearEnter', block: homeBlock.id };
       }
     }
+    // v1.46 — la E también sale POR LA PUERTA en los locales (hueco + umbral del
+    // catálogo): nada de atravesar paredes — el movimiento (S hacia la puerta) es la
+    // salida natural y la E es el respaldo en el umbral. Tu vivienda conserva la salida
+    // clásica desde cualquier punto y el portal la suya (vestíbulo: calle/pasillo).
+    const hb = this.world.blocks[home]!;
+    if (hb.kind !== 'dwelling' && hb.defId !== 'portal' && !this.localeExitReady(hb)) return { type: 'none' };
     return this.tryExitHome();
   }
 
@@ -1062,6 +1181,12 @@ export class PlayerLogic {
   private tryEnterDoor(door: BlockInstance): InteractResult {
     if (door.kind === 'dwelling' && door.occupancy !== 'occupied') {
       return { type: 'locked', block: door.id, reason: 'vacant', price: null };
+    }
+    // v1.46 — el portal SIEMPRE entra por su teatro (fade + portalIn + correderas con el
+    // intent del mismo frame): la E desde el pasillo y el empujón comparten la misma vía.
+    if (door.defId === 'portal' && this.view.outside) {
+      this.enterPortal(true);
+      return { type: 'entered', block: door.id };
     }
     const res = this.exec({ type: 'move', resident: this.actorId, to: door.id });
     // Rechazo = candado. En clásico lo dice el sim (res.ok false); en remoto el resultado llega

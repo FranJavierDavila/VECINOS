@@ -1569,7 +1569,13 @@
         "garageNpcOpenAhead": 0.5,
         "garageNpcXRadius": 1.25
       },
+      "walkIn": {
+        "armZ": 0.9,
+        "exitZ": 0.5,
+        "doorPad": 0.05
+      },
       "portal": {
+        "backZoneZ": 2.0,
         "lobby": {
           "wallColor": "#d8d3c8",
           "floorColor": "#b9b3a4"
