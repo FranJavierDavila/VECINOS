@@ -508,7 +508,21 @@
       "lampHeadColor": "#ffd166",
       "lampH": 3.6,
       "binEvery": 7.5,
-      "binColor": "#5d6b7a"
+      "binColor": "#5d6b7a",
+      "paving": {
+        "tile": 1.2,
+        "base": "#cfc5ab",
+        "tones": [
+          "#cfc5ab",
+          "#c6bca2",
+          "#d6ccb2",
+          "#beb49a"
+        ],
+        "joint": "#a89e84",
+        "jointW": 3,
+        "sheen": 0.1,
+        "note": "v1.61 textura de acera: losas de hormigon con juntas, canvas determinista seamless, UV en espacio mundo (continua a lo largo de la tira)."
+      }
     }
   },
   {
@@ -571,7 +585,20 @@
         "#f2cc8f",
         "#e56b6f"
       ],
-      "grassColor": "#7fa05f"
+      "grassColor": "#7fa05f",
+      "lawn": {
+        "tile": 2.2,
+        "base": "#7fa05f",
+        "tones": [
+          "#79995a",
+          "#86a867",
+          "#6f8f52",
+          "#8fb06e"
+        ],
+        "blade": "#a9c67f",
+        "bladeChance": 0.35,
+        "note": "v1.61 textura de cesped: manto con briznas y motas deterministas, seamless, UV mundo."
+      }
     }
   },
   {
@@ -656,7 +683,19 @@
         "#ffd166",
         "#f2cc8f"
       ],
-      "grassColor": "#7c9a58"
+      "grassColor": "#7c9a58",
+      "lawn": {
+        "tile": 2.6,
+        "base": "#7c9a58",
+        "tones": [
+          "#759355",
+          "#82a060",
+          "#6c8b4e",
+          "#8bac66"
+        ],
+        "blade": "#a2c078",
+        "bladeChance": 0.28
+      }
     }
   }
 ]

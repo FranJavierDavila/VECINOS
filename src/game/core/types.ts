@@ -75,6 +75,23 @@ export interface ExteriorBlockView {
   bushColors: string[];
   flowerColors: string[];
   grassColor: string;
+  /** v1.61 — TEXTURA DE ACERA: losas de hormigón con juntas (canvas determinista, UV mundo). */
+  paving?: {
+    tile: number;
+    base: string;
+    tones: string[];
+    joint: string;
+    jointW: number;
+    sheen: number;
+  };
+  /** v1.61 — TEXTURA DE CÉSPED: manto de hierba con briznas (canvas determinista, UV mundo). */
+  lawn?: {
+    tile: number;
+    base: string;
+    tones: string[];
+    blade: string;
+    bladeChance: number;
+  };
 }
 
 export interface BlockDef {
@@ -1709,6 +1726,9 @@ export interface Rules {
         wallInnerX: number;
         frontInnerZ: number;
         fadeSeconds: number;
+        /** v1.61 — ZONA DE AVISO FRONTAL (x del vano + margen, z al ras de fachada): empujar
+         *  aquí suelta el aviso «se entra por el lateral». El vano ya NO es transitable. */
+        frontZone?: { x0: number; x1: number; zMin: number };
       };
       /** Banco exterior: radio de sentarse (la pose usa el yaw del catálogo del paseo). */
       benchRadius: number;
@@ -1754,12 +1774,24 @@ export interface Rules {
       blinkSecs: number;
       color: string;
     };
-    /** v1.48 — ENTRADA FRONTAL CERRADA del portal: aviso con flecha animada al empujar. */
+    /** v1.48 — ENTRADA FRONTAL CERRADA del portal: aviso con flecha animada al empujar.
+     *  v1.61 — SEÑAL FÍSICA en la fachada: placa sobre el vano del portal. */
     sideEntry?: {
       hint: string;
       toast: string;
       cooldownSecs: number;
       hintSecs: number;
+      sign?: {
+        text: string;
+        arrow: string;
+        x: number;
+        y: number;
+        w: number;
+        h: number;
+        plate: string;
+        ink: string;
+        edge: string;
+      };
     };
     /** v1.48 — BROMAS de los vecinos con el apagón activo (bocadillos ambientales). */
     blackoutJokes?: {
@@ -1890,6 +1922,18 @@ export interface Rules {
         signFg: string;
         barH: number;
         dipH: number;
+      };
+      /** v1.61 — SOMBRA DEL EDIFICIO sobre la escena exterior (aproximación sin luces
+       *  ni shadow-maps extra): franjas oscuras translúcidas a la cota de cada tira de
+       *  calle, con degradado, longitud y desplazamiento según el sol visible del fondo. */
+      buildingShadow?: {
+        enabled: boolean;
+        color: string;
+        alpha: number;
+        minLen: number;
+        maxLen: number;
+        spread: number;
+        skew: number;
       };
     };
     /** ── Tráfico (v1.22) ── vehículos ocasionales (coches, bus, patrulla) por carriles;

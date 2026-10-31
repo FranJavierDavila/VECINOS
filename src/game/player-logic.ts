@@ -890,10 +890,17 @@ export class PlayerLogic {
     // frontal a la altura del portón se puede entrar frontalmente, no debe ser posible»):
     // el empujón de frente NO entra ni abre correderas — suelta el aviso con la flecha
     // animada que manda a girar la esquina (la entrada de verdad es la lateral).
+    // v1.61 — LA FACHADA NO SE ATRAVIESA (el vecino lo reitera): el entrante del portal
+    // dejó de ser transitable (walk del catálogo SIN el rect del vano — el jugador se
+    // queda al ras de la fachada) y el aviso salta en la ZONA FRONTAL del catálogo
+    // (portal.frontZone: x del vano + margen, z a la altura de la fachada), que ya no
+    // depende de llegar al fondo del entrante.
     const portal = this.portalBlock();
-    // v1.46 — el vano del portal sale del MISMO catálogo que el resto de puertas
-    // (doorSpansOf): una sola verdad para el hueco acristalado desde la calle y el pasillo.
-    if (input.up && this.z >= cfg.portal.inFrontZ && portal && this.atDoorGap(portal)) {
+    const fz = cfg.portal.frontZone;
+    const atFront = fz
+      ? this.x >= fz.x0 && this.x <= fz.x1 && this.z >= fz.zMin
+      : portal !== null && this.z >= cfg.portal.inFrontZ && this.atDoorGap(portal);
+    if (input.up && portal && atFront) {
       if (this.frontHintT <= 0) {
         this.frontHintT = this.view.sideEntry?.cooldownSecs ?? 3.5;
         this.autoEvents.push({ type: 'frontBlocked' });

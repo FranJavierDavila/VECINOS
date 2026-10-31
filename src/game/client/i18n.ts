@@ -27,7 +27,7 @@ const DICT: Record<string, { es: string; en: string }> = {
     es: 'Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.',
     en: 'Move-ins, noise, smells, wifi, pests, smoke and levies: the neighborhood simulator.',
   },
-  'header.version': { es: 'v1.60 · paños ciegos de ladrillo en la fachada exterior', en: 'v1.60 · brick blind panels on the outer facade' },
+  'header.version': { es: 'v1.61 · aceras y césped con textura, fachada sólida y sombra del edificio', en: 'v1.61 · textured sidewalks & lawns, solid facade, building shadow' },
   // ── Apagón de assets (v1.47: servidor de arte caído → mundo vacío/cápsulas) ──
   'assets.outage': {
     es: '⚠ No se pudo cargar el arte del juego (¿servidor caído?). El vecindario se recargará en {n} s…',

@@ -565,6 +565,16 @@
         "signFg": "#ffd166",
         "barH": 2.15,
         "dipH": 1.22
+      },
+      "buildingShadow": {
+        "enabled": true,
+        "color": "#1e241c",
+        "alpha": 0.26,
+        "minLen": 4.5,
+        "maxLen": 17.0,
+        "spread": 1.14,
+        "skew": 1.05,
+        "note": "v1.61 sombra aproximada del edificio sobre la calle: franjas translucidas a la cota de cada tira, degradado hacia el extremo, longitud/desvio segun el sol visible del fondo. Sin luces ni shadow-maps extra."
       }
     },
     "traffic": {
@@ -1821,12 +1831,6 @@
           "z0": -17.6,
           "x1": 19.0,
           "z1": -13.8
-        },
-        {
-          "x0": 0.35,
-          "z0": -4.4,
-          "x1": 4.45,
-          "z1": -1.5
         }
       ],
       "portal": {
@@ -1837,7 +1841,12 @@
         "sideZ": 0.35,
         "wallInnerX": 0.55,
         "frontInnerZ": 0.42,
-        "fadeSeconds": 0.35
+        "fadeSeconds": 0.35,
+        "frontZone": {
+          "x0": -0.7,
+          "x1": 5.5,
+          "zMin": -4.9
+        }
       },
       "benchRadius": 1.3,
       "exercise": {
@@ -1931,7 +1940,19 @@
       "hint": "→ Gira la esquina: se entra por el LATERAL del portal",
       "toast": "🚪 La entrada frontal no es de acceso. Rodea la esquina: la puerta del portal está en el lateral.",
       "cooldownSecs": 3.5,
-      "hintSecs": 2.8
+      "hintSecs": 2.8,
+      "sign": {
+        "text": "ENTRADA POR EL LATERAL",
+        "arrow": "←",
+        "x": 2.4,
+        "y": 2.62,
+        "w": 2.9,
+        "h": 0.66,
+        "plate": "#2e3a4a",
+        "ink": "#f2ead9",
+        "edge": "#ffd166",
+        "note": "v1.61 señal física sobre el vano del portal: la entrada es siempre por el lateral izquierdo."
+      }
     },
     "blackoutJokes": {
       "everySecs": [

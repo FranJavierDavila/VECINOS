@@ -69,6 +69,33 @@ export const exteriorBlockSchema = z.object({
   flowerColors: z.array(z.string()).default(['#e07a5f', '#ffd166', '#f2cc8f', '#e56b6f']),
   /** Césped del jardín (tapa del cuerpo). */
   grassColor: z.string().default('#7fa05f'),
+  /** v1.61 — TEXTURA DE ACERA (petición del vecino: «las aceras exteriores deben tener
+   *  textura de acera»): losas de hormigón con juntas, canvas determinista y seamless;
+   *  UV en espacio mundo (el dibujo es continuo a lo largo de la tira). tile = lado del
+   *  mosaico en metros; tones = variación por losa; joint/jointW = junta; sheen = relieve. */
+  paving: z
+    .object({
+      tile: z.number().positive().default(1.2),
+      base: z.string().default('#b8b2a4'),
+      tones: z.array(z.string()).min(1).default(['#bcb6a8', '#b1ab9d', '#c2bcad', '#aca696']),
+      joint: z.string().default('#8f897c'),
+      jointW: z.number().min(0).default(3),
+      sheen: z.number().min(0).max(1).default(0.1),
+    })
+    .optional(),
+  /** v1.61 — TEXTURA DE CÉSPED (petición del vecino: «los bloques de césped deben tener
+   *  textura de césped para que parezca realista»): manto de hierba con briznas y motas
+   *  deterministas, canvas seamless y UV en espacio mundo. tile = lado del mosaico;
+   *  tones = variación del manto; blade = brizna clara; bladeChance = densidad. */
+  lawn: z
+    .object({
+      tile: z.number().positive().default(2.2),
+      base: z.string().default('#7fa05f'),
+      tones: z.array(z.string()).min(1).default(['#79995a', '#86a867', '#6f8f52', '#8fb06e']),
+      blade: z.string().default('#a9c67f'),
+      bladeChance: z.number().min(0).max(1).default(0.35),
+    })
+    .optional(),
 });
 
 export const blockDefSchema = z.object({
@@ -1618,6 +1645,27 @@ export const rulesSchema = z.object({
             dipH: z.number().positive().default(1.22),
           })
           .optional(),
+        /** v1.61 — SOMBRA DEL EDIFICIO (petición del vecino: «el sol del fondo proyecte por
+         *  lo menos la sombra del edificio completo — se puede simplificar a un volumen con
+         *  el tamaño aproximado del edificio según el número de plantas»). Representación
+         *  aproximada SIN luces ni shadow-maps extra: franjas oscuras translúcidas sobre
+         *  aceras/carretera/jardín (una por tira de calle, a su cota + holgura), con
+         *  degradado hacia el extremo, longitud y desplazamiento lateral según la altura
+         *  del sol visible (el sol siempre está detrás: la sombra va de atrás hacia
+         *  adelante). Cero coste: 3-4 planos, sin pase de profundidad adicional.
+         *  minLen/maxLen = longitud de sombra a mediodía / al alba; spread = ensanche
+         *  lateral; skew = desplazamiento con la azimut del sol; alpha = densidad. */
+        buildingShadow: z
+          .object({
+            enabled: z.boolean().default(true),
+            color: z.string().default('#1e241c'),
+            alpha: z.number().min(0).max(1).default(0.26),
+            minLen: z.number().min(0).default(4.5),
+            maxLen: z.number().min(0).default(17),
+            spread: z.number().min(1).default(1.14),
+            skew: z.number().min(0).default(1.05),
+          })
+          .optional(),
       })
       .default({ enabled: false, rows: [], ground: { color: '#a89a7c', size: 220, backZ: 0 }, treeArt: [], keepOut: [], forcedTrees: [] }),
     /** v1.37 — ATRIL del tablón de anuncios (planta 0, extremo del pasillo): tablón con
@@ -2150,6 +2198,13 @@ export const rulesSchema = z.object({
             wallInnerX: z.number().default(0.55),
             frontInnerZ: z.number().default(0.42),
             fadeSeconds: z.number().positive().default(0.35),
+            /** v1.61 — ZONA DE AVISO FRONTAL: empujar hacia la fachada dentro de este rect
+             *  (x del vano del portal + margen, z al ras de la fachada) suelta el aviso
+             *  «se entra por el lateral». Sustituye al disparador del entrante (el vano
+             *  deja de ser transitable: la fachada NO se atraviesa). */
+            frontZone: z
+              .object({ x0: z.number(), x1: z.number(), zMin: z.number() })
+              .optional(),
           })
           .default({ outFrontZ: -2.2, inFrontZ: -1.75, sideExitX: -2.9, sideEnterX: -0.6, sideZ: 0.35, wallInnerX: 0.55, frontInnerZ: 0.42, fadeSeconds: 0.35 }),
         benchRadius: z.number().positive().default(1.3),
@@ -2230,13 +2285,28 @@ export const rulesSchema = z.object({
       })
       .optional(),
     /** v1.48 — ENTRADA FRONTAL CERRADA: la calle no entra de frente por el portón; texto
-     *  del aviso con la flecha animada y cadencias del recordatorio. */
+     *  del aviso con la flecha animada y cadencias del recordatorio. v1.61 — SEÑAL FÍSICA
+     *  en la fachada (petición del vecino: «si es necesario que una señal lo indique»):
+     *  placa sobre el vano del portal con el texto y la flecha del catálogo. */
     sideEntry: z
       .object({
         hint: z.string().default('→ Gira la esquina: se entra por el LATERAL del portal'),
         toast: z.string().default('🚪 La entrada frontal no es de acceso. Rodea la esquina: la puerta del portal está en el lateral.'),
         cooldownSecs: z.number().positive().default(3.5),
         hintSecs: z.number().positive().default(2.8),
+        sign: z
+          .object({
+            text: z.string().default('ENTRADA POR EL LATERAL'),
+            arrow: z.string().default('\u2190'),
+            x: z.number().default(2.4),
+            y: z.number().default(2.62),
+            w: z.number().positive().default(2.9),
+            h: z.number().positive().default(0.66),
+            plate: z.string().default('#2e3a4a'),
+            ink: z.string().default('#f2ead9'),
+            edge: z.string().default('#ffd166'),
+          })
+          .optional(),
       })
       .optional(),
     /** v1.48 — COMENTARIOS CON APAGÓN: vecinos cerca sueltan bromas sobre la luz mientras

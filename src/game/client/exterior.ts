@@ -39,6 +39,24 @@ export interface ExteriorDirector {
   dispose(): void;
 }
 
+/** Texturas de suelo del catálogo (v1.61): aceras con losas y césped con hierba. */
+interface PavingCfg {
+  tile: number;
+  base: string;
+  tones: string[];
+  joint: string;
+  jointW: number;
+  sheen: number;
+}
+
+interface LawnCfg {
+  tile: number;
+  base: string;
+  tones: string[];
+  blade: string;
+  bladeChance: number;
+}
+
 export function createExterior(scene: Scene, world: World, content: Content, backdrop: BackdropDirector): ExteriorDirector {
   const { Color3, Mesh, MeshBuilder, StandardMaterial, TransformNode } = B();
   const cfg = content.rules.view.exterior;
@@ -160,6 +178,132 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
   ground.material = matOf(cfg.ground.color, 'suelo');
   ground.isPickable = false;
 
+  // ── v1.61 — TEXTURAS DE SUELO (petición del vecino: «las aceras exteriores deben tener
+  //  textura de acera; los bloques de césped, textura de césped»): canvas DETERMINISTA y
+  //  seamless (hash01, cero RNG) subido por el camino verificado DynamicTexture. Las UV de
+  //  los cuerpos se reescriben en ESPACIO MUNDO (groundUv): el dibujo es CONTINUO a lo
+  //  largo de las tiras y entre filas — nada de losa/hierba estirada por fila.
+  const groundTexCache = new Map<string, DynamicTexture>();
+  const groundTex = (key: string, paint: (ctx: CanvasRenderingContext2D, S: number) => void): DynamicTexture | null => {
+    const hit = groundTexCache.get(key);
+    if (hit) return hit;
+    const S = 256;
+    const tex = new (B().DynamicTexture)(`suelo_tex_${groundTexCache.size}`, { width: S, height: S }, scene, true);
+    const ctx = tex.getContext() as unknown as CanvasRenderingContext2D;
+    if (!ctx) return null;
+    paint(ctx, S);
+    tex.update(true);
+    tex.wrapU = 1; // WRAP: el mosaico repite por el mundo (u/v enormes en tiras largas)
+    tex.wrapV = 1;
+    tex.anisotropicFilteringLevel = 8; // nítido en rasante (cámara de paseo)
+    groundTexCache.set(key, tex);
+    return tex;
+  };
+  /** Losa de hormigón (2×2 losas por mosaico, junta perimetral, bisel de luz): seamless
+   *  por construcción — la retícula cierra exacta en el borde del canvas. */
+  const paintPaving = (p: PavingCfg) => (ctx: CanvasRenderingContext2D, S: number): void => {
+    ctx.fillStyle = p.joint;
+    ctx.fillRect(0, 0, S, S);
+    const n = 2; // losas por lado del mosaico (losa ≈ tile/2 m)
+    const cw = S / n;
+    const g = Math.min(cw * 0.3, Math.max(1, p.jointW * (S / 128)));
+    for (let r = 0; r < n; r++) {
+      for (let c = 0; c < n; c++) {
+        const hex = p.tones[Math.floor(hash01('losa_tono', r * 17 + c * 31) * p.tones.length) % p.tones.length]!;
+        const col = Color3.FromHexString(hex);
+        const j = 1 + (hash01('losa_jit', r * 17 + c * 31) - 0.5) * 0.1;
+        const px = c * cw + g / 2;
+        const py = r * cw + g / 2;
+        const sz = cw - g;
+        ctx.fillStyle = `rgb(${Math.min(255, Math.round(col.r * 255 * j))},${Math.min(255, Math.round(col.g * 255 * j))},${Math.min(255, Math.round(col.b * 255 * j))})`;
+        ctx.fillRect(px, py, sz, sz);
+        // Relieve: luz arriba, sombra abajo (losa con músculo, no pegatina plana).
+        ctx.fillStyle = `rgba(255,255,255,${(0.06 + p.sheen * 0.45).toFixed(3)})`;
+        ctx.fillRect(px, py, sz, Math.max(1, sz * 0.18));
+        ctx.fillStyle = 'rgba(42,36,26,0.10)';
+        ctx.fillRect(px, py + sz * 0.82, sz, Math.max(1, sz * 0.18));
+        // Motitas de desgaste (hormigón vivo, no plano) — deterministas por losa.
+        const dots = 6;
+        for (let d = 0; d < dots; d++) {
+          const dx = px + hash01('losa_dot', r * 17 + c * 31 + d * 7) * sz;
+          const dy = py + hash01('losa_doty', r * 17 + c * 31 + d * 7) * sz;
+          ctx.fillStyle = `rgba(60,54,42,${(0.05 + hash01('losa_dota', d) * 0.08).toFixed(3)})`;
+          ctx.fillRect(dx, dy, 2, 2);
+        }
+      }
+    }
+  };
+  /** Manto de hierba: fondo con parches tonales + briznas claras/oscuras. Las copias en
+   *  ±S mantienen el mosaico seamless (las motas del borde continúan al repetirse). */
+  const paintLawn = (p: LawnCfg) => (ctx: CanvasRenderingContext2D, S: number): void => {
+    ctx.fillStyle = p.base;
+    ctx.fillRect(0, 0, S, S);
+    const put = (x: number, y: number, w: number, h: number, style: string): void => {
+      ctx.fillStyle = style;
+      for (const ox of [-S, 0, S]) for (const oy of [-S, 0, S]) ctx.fillRect(x + ox, y + oy, w, h);
+    };
+    const n = 1500;
+    for (let i = 0; i < n; i++) {
+      const x = hash01('cesped_x', i) * S;
+      const y = hash01('cesped_y', i) * S;
+      const hex = p.tones[Math.floor(hash01('cesped_t', i) * p.tones.length) % p.tones.length]!;
+      const col = Color3.FromHexString(hex);
+      const j = 1 + (hash01('cesped_j', i) - 0.5) * 0.22;
+      const patch = hash01('cesped_p', i) < 0.55; // parches de manto (manchas grandes suaves)
+      put(x, y, patch ? 7 + hash01('cesped_w', i) * 14 : 2, patch ? 5 + hash01('cesped_h', i) * 10 : 3, `rgba(${Math.min(255, Math.round(col.r * 255 * j))},${Math.min(255, Math.round(col.g * 255 * j))},${Math.min(255, Math.round(col.b * 255 * j))},${patch ? 0.5 : 0.9})`);
+    }
+    for (let i = 0; i < Math.round(n * p.bladeChance); i++) {
+      const x = hash01('brizna_x', i) * S;
+      const y = hash01('brizna_y', i) * S;
+      const h = 3 + hash01('brizna_h', i) * 5;
+      put(x, y, 1.4, h, hash01('brizna_c', i) < 0.6 ? p.blade : 'rgba(38,58,30,0.55)');
+    }
+  };
+  /** UV EN ESPACIO MUNDO para los cuerpos de suelo: la tapa (±y) muestrea x/z — el dibujo
+   *  es continuo a lo largo de las tiras; los cantos mapean por su eje dominante. */
+  const groundUv = (mesh: Mesh, tile: number): void => {
+    if (tile <= 0) return;
+    const pos = mesh.getVerticesData('position');
+    const nor = mesh.getVerticesData('normal');
+    const uvs = mesh.getVerticesData('uv');
+    if (!pos || !nor || !uvs || pos.length !== nor.length || uvs.length < (pos.length / 3) * 2) return;
+    const out = new Array<number>(uvs.length);
+    for (let i = 0; i < out.length / 2; i++) {
+      const nx = Math.abs(nor[i * 3]!);
+      const ny = Math.abs(nor[i * 3 + 1]!);
+      const nz = Math.abs(nor[i * 3 + 2]!);
+      const wx = mesh.position.x + pos[i * 3]!;
+      const wy = mesh.position.y + pos[i * 3 + 1]!;
+      const wz = mesh.position.z + pos[i * 3 + 2]!;
+      let u: number;
+      let v: number;
+      if (ny >= nx && ny >= nz) {
+        u = wx;
+        v = wz;
+      } else if (nx >= nz) {
+        u = wz;
+        v = wy;
+      } else {
+        u = wx;
+        v = wy;
+      }
+      out[i * 2] = u / tile;
+      out[i * 2 + 1] = -v / tile;
+    }
+    mesh.setVerticesData('uv', out);
+  };
+  /** Material texturizado del suelo por defId (compartido entre filas del mismo bloque). */
+  const groundMat = (key: string, tex: DynamicTexture): StandardMaterial => {
+    let m = mats.get(key);
+    if (!m) {
+      m = new StandardMaterial(key, scene);
+      m.diffuseTexture = tex;
+      m.specularColor = new Color3(0, 0, 0);
+      mats.set(key, m);
+    }
+    return m;
+  };
+
   // Farolas encendidas/apagadas: sus materiales emisivos se actualizan por frame.
   const lampMats: { mat: StandardMaterial; hex: string }[] = [];
   // v1.41 — bancos exteriores (asientos del paseo vecinal).
@@ -184,15 +328,27 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
     const vCenter = v0 + vLen / 2;
     // (u, v) → mundo: para orient z el eje largo corre por Z y el transversal por X.
     const at = (u: number, v: number): { x: number; z: number } => (horizontal ? { x: u, z: v } : { x: v, z: u });
-    const boxRow = (key: string, bucket: Bucket, uLen2: number, h: number, vLen2: number, u: number, y: number, v: number, m: StandardMaterial): void => {
+    const boxRow = (key: string, bucket: Bucket, uLen2: number, h: number, vLen2: number, u: number, y: number, v: number, m: StandardMaterial): Mesh => {
       const p = at(u, v);
-      box(key, bucket, horizontal ? uLen2 : vLen2, h, horizontal ? vLen2 : uLen2, p.x, y, p.z, m);
+      return box(key, bucket, horizontal ? uLen2 : vLen2, h, horizontal ? vLen2 : uLen2, p.x, y, p.z, m);
     };
 
     // ── Cuerpo del bloque (bajo): color del catálogo; el jardín tapa con césped. ──
     if (row.body) {
       const bodyHex = ex.grassColor && ex.treesPer10m > 0 ? ex.grassColor : def.view.color;
-      boxRow(`calle_${ri}_cuerpo`, statics, uLen, Math.max(0.02, ex.height), vLen, uCenter, ex.height / 2 - 0.02, vCenter, matOf(bodyHex, 'cuerpo'));
+      const bodyMesh = boxRow(`calle_${ri}_cuerpo`, statics, uLen, Math.max(0.02, ex.height), vLen, uCenter, ex.height / 2 - 0.02, vCenter, matOf(bodyHex, 'cuerpo'));
+      // v1.61 — TEXTURA del suelo (catálogo por bloque): acera con losas, jardín/campo con
+      // hierba. Material compartido por defId (las filas gemelas comparten) y UV de mundo:
+      // el dibujo cruza las juntas de fila sin cortes ni estiramientos. Sin textura en el
+      // catálogo, el color plano de siempre.
+      const groundCfg = ex.paving ?? ex.lawn;
+      if (groundCfg) {
+        const tex = groundTex(`suelo:${def.id}`, ex.paving ? paintPaving(ex.paving) : paintLawn(ex.lawn!));
+        if (tex) {
+          bodyMesh.material = groundMat(`suelo_mat:${def.id}`, tex);
+          groundUv(bodyMesh, groundCfg.tile);
+        }
+      }
       // Bordillo: listón fino en AMBOS bordes largos (empalme correcto con lo de al lado).
       if (ex.curbColor && ex.curbW > 0) {
         const cm = matOf(ex.curbColor, 'bordillo');
@@ -345,6 +501,61 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
       }
     }
   });
+
+  // ── v1.61 — SOMBRA DEL EDIFICIO sobre la escena exterior (petición del vecino: «el sol
+  //  que tenemos y se mueve al fondo proyecte por lo menos la sombra del edificio completo;
+  //  se puede simplificar a un volumen con el tamaño aproximado del edificio en función del
+  //  número de plantas… la sombra vendría de atrás hacia adelante»). Representación
+  //  APROXIMADA sin luces ni shadow-maps extra (cero coste): una franja translúcida por
+  //  tira de calle delante de la fachada, a su cota + 6 mm (nada coplanar), con:
+  //  · LONGITUD según la altura del sol visible (mediodía corta, alba/ocaso larga),
+  //  · DESVÍO lateral con la azimut (el sol entra por -X y se va por +X: la sombra barre),
+  //  · CAÍDA de densidad con la distancia (fake del degradado) y DESVANECIDO en la punta,
+  //  · alpha 0 de noche, con cielo cerrado o apagón (la luz la manda backdrop.daylight).
+  const bsCfg = cfg.buildingShadow;
+  const shadowStrips: { mesh: Mesh; mat: StandardMaterial; d0: number; d1: number; frac0: number }[] = [];
+  let shadowX0 = 0;
+  let shadowX1 = 0;
+  let shadowFrontZ = 0;
+  let shadowH = 12; // altura aproximada del volumen (floors × cellH); la manda el mundo
+  if (bsCfg?.enabled) {
+    const vv = content.rules.view;
+    const corridor = blocks.filter((b) => b.layer === 'corridor');
+    if (corridor.length > 0) {
+      shadowX0 = Math.min(...corridor.map((b) => b.cell.col * vv.cellW));
+      shadowX1 = Math.max(...corridor.map((b) => (b.cell.col + b.size.w) * vv.cellW));
+      const floors = Math.max(...corridor.map((b) => b.cell.floor)) + 1;
+      shadowH = floors * vv.cellH;
+      shadowFrontZ = vv.roomZ - vv.commonDepth / 2 - vv.corridorDepth; // la fachada (misma fórmula que la cortina)
+      const shadowMat = (i: number): StandardMaterial => {
+        const m = new StandardMaterial(`decal_sombra_edificio_mat_${i}`, scene);
+        m.diffuseColor = Color3.FromHexString(bsCfg.color);
+        m.specularColor = new Color3(0, 0, 0);
+        m.alpha = 0;
+        return m;
+      };
+      const usedBands: { z0: number; z1: number }[] = []; // parches sobre la misma tira (cruce): UNA sola franja
+      cfg.rows.forEach((row, ri) => {
+        if (row.orient !== 'x' || !row.body) return;
+        const zNear = row.z0 + row.depth; // lado del edificio (z mayor)
+        const zFar = row.z0;
+        if (zNear > shadowFrontZ + 0.01) return; // la tira pisa la fachada o está detrás: sin sombra
+        if (usedBands.some((b) => zNear > b.z0 + 0.01 && zFar < b.z1 - 0.01)) return;
+        const defR = content.blocks[row.defId];
+        if (!defR) return;
+        usedBands.push({ z0: zFar, z1: zNear });
+        const topY = (defR.exterior?.height ?? 0.1) + 0.006; // 6 mm sobre el canto: cero z-fighting
+        const w = (shadowX1 - shadowX0) * bsCfg.spread + bsCfg.maxLen * bsCfg.skew;
+        const plane = MeshBuilder.CreatePlane(`decal_sombra_edificio_${ri}`, { width: w, height: row.depth }, scene);
+        plane.rotation.x = Math.PI / 2; // horizontal, cara arriba
+        plane.position.set((shadowX0 + shadowX1) / 2, topY, (zNear + zFar) / 2);
+        plane.material = shadowMat(ri);
+        plane.isPickable = false;
+        root.push(plane);
+        shadowStrips.push({ mesh: plane, mat: plane.material as StandardMaterial, d0: shadowFrontZ - zNear, d1: shadowFrontZ - zFar, frac0: (shadowFrontZ - zNear) / Math.max(0.001, bsCfg.maxLen) });
+      });
+    }
+  }
 
   // ── Árboles COLOCADOS (v1.28, catálogo): posiciones EXPLÍCITAS del mundo — el vecino pidió
   // desplazar el que tapaba el portal "a la parte derecha de la imagen": el keepOut lo retira
@@ -513,6 +724,24 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
       const day = backdrop.daylight;
       const glow = Math.max(0, Math.min(1, (0.42 - day) / 0.42));
       for (const { mat, hex } of lampMats) mat.emissiveColor = Color3.FromHexString(hex).scale(0.05 + glow * 1.1);
+      // v1.61 — SOMBRA DEL EDIFICIO: longitud y desvío según el sol VISIBLE del fondo (el
+      // mismo arco que pinta el disco), densidad con la luz de día (noche/tormenta → 0).
+      // Física aproximada: L = H/(sin elev + holgura) — mediodía corto, rasante larga —
+      // con topes del catálogo; el desvío sigue la azimut (el sol entra por -X). Cero
+      // allocations: solo position.x y alpha por franja.
+      if (bsCfg && shadowStrips.length > 0) {
+        const sun = backdrop.sunState();
+        const sinA = sun.up ? Math.max(0, Math.sin(sun.arc)) : 0;
+        const L = Math.min(bsCfg.maxLen, Math.max(bsCfg.minLen, shadowH / (sinA + 0.35)));
+        const shift = sun.up ? Math.cos(sun.arc) * bsCfg.skew * L * 0.45 : 0;
+        const vis = sun.up ? Math.max(0, Math.min(1, (day - 0.05) / 0.18)) : 0;
+        for (const s of shadowStrips) {
+          s.mesh.position.x = (shadowX0 + shadowX1) / 2 + shift;
+          const tip = Math.min(1, Math.max(0, (L - s.d0) / Math.max(0.001, s.d1 - s.d0)));
+          const fall = 1 - 0.5 * Math.min(1, s.frac0 * 1.15); // densidad que cae con la distancia
+          s.mat.alpha = bsCfg.alpha * vis * tip * fall;
+        }
+      }
     },
     setPropsVisible(visible: boolean) {
       if (propsVisible === visible) return; // idempotente: sin churn por frame

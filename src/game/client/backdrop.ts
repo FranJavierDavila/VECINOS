@@ -48,6 +48,10 @@ export interface BackdropDirector {
   update(dt: number, opts?: { bolts?: boolean }): void;
   /** Luz de día efectiva 0..1 (1 = mediodía pleno): la usan farolas y luces interiores. */
   readonly daylight: number;
+  /** v1.61 — ESTADO DEL SOL VISIBLE (el disco del fondo): up = disco en el cielo y
+   *  arc = 0..π (0 al alba, π/2 a mediodía, π al ocaso). La sombra del edificio la lee
+   *  para alargarse y barrer con el mismo sol que se ve — una sola verdad. */
+  sunState(): { up: boolean; arc: number };
   dispose(): void;
 }
 
@@ -80,7 +84,7 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
   const { Color3, DynamicTexture, MeshBuilder, ParticleSystem, StandardMaterial, Vector3 } = B();
   const cfg = content.rules.view.backdrop;
   if (!cfg.enabled) {
-    return { update() {}, daylight: 1, dispose() {} };
+    return { update() {}, daylight: 1, sunState: () => ({ up: false, arc: 0 }), dispose() {} };
   }
   const v = content.rules.view;
   const width = Math.max(...Object.values(world.blocks).map((b) => b.cell.col + b.size.w)) * v.cellW;
@@ -577,10 +581,16 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
   let boltSlot = 0;
 
   let daylight = 1;
+  // v1.61 — último estado del sol visible (lo escribe update, lo lee la sombra del edificio).
+  let sunVisible = false;
+  let sunArc = Math.PI / 2;
 
   return {
     get daylight(): number {
       return daylight;
+    },
+    sunState() {
+      return { up: sunVisible, arc: sunArc };
     },
     update(dt: number, opts?: { bolts?: boolean }) {
       const hour = (world.clock.minute / 60) % 24;
@@ -599,8 +609,10 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
       const sunAngle = ((hour - 6) / 14) * Math.PI; // 6:00 → 20:00
       const sunUp = hour >= 5.5 && hour <= 20.5 && kf.sun > 0.02 && ocF < 0.5; // bajo nubes cerradas no hay disco
       sun.mesh.setEnabled(sunUp);
+      sunVisible = sunUp; // v1.61 — el estado que lee la sombra del edificio
       if (sunUp) {
         const arc = Math.min(Math.PI, Math.max(0, sunAngle));
+        sunArc = arc;
         sun.mesh.position.set(cx - Math.cos(arc) * 70, 3 + Math.sin(arc) * cfg.sky.sunArcHeight, cfg.sky.sunZ);
         const low = 1 - Math.min(1, Math.sin(arc) / 0.45);
         sun.mat.emissiveColor = Color3.Lerp(Color3.FromHexString(cfg.sky.sunColorDay), Color3.FromHexString(cfg.sky.sunColorLow), low);

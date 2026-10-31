@@ -4137,6 +4137,51 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         }
       }
     }
+    // v1.61 — SEÑAL DE ENTRADA LATERAL (petición del vecino: «la entrada siempre es por el
+    // lateral izquierdo del edificio; si es necesario que una señal lo indique»): placa
+    // sobre el vano del portal, texto/flecha/colores del catálogo (view.sideEntry.sign).
+    // Canvas determinista; cuelga de fachadaRoot = SE VE exactamente cuando se ve la
+    // fachada exterior (acera y vista FACHADA, v1.60) — en las vistas de interior no flota.
+    // NADA COPLANAR: 9 cm por delante de la línea de fachada (el vidrio va a −4,5 cm).
+    const seSign = v.sideEntry?.sign;
+    if (seSign) {
+      const CW = 1024;
+      const CH = Math.max(96, Math.round((CW * seSign.h) / seSign.w));
+      const sTex = new (B().DynamicTexture)('indicador_entrada_tex', { width: CW, height: CH }, scene, true);
+      const sctx = sTex.getContext() as unknown as CanvasRenderingContext2D;
+      if (sctx) {
+        sctx.fillStyle = seSign.plate;
+        sctx.fillRect(0, 0, CW, CH);
+        sctx.strokeStyle = seSign.edge;
+        sctx.lineWidth = Math.max(6, CH * 0.055);
+        sctx.strokeRect(sctx.lineWidth / 2, sctx.lineWidth / 2, CW - sctx.lineWidth, CH - sctx.lineWidth);
+        sctx.fillStyle = seSign.ink;
+        sctx.textBaseline = 'middle';
+        // Flecha grande a la izquierda (hacia el lateral de la entrada).
+        sctx.font = `bold ${Math.round(CH * 0.62)}px Arial, sans-serif`;
+        sctx.textAlign = 'center';
+        sctx.fillText(seSign.arrow, CH * 0.52, CH * 0.54);
+        // Texto del catálogo, partido en hasta 2 líneas centradas en el resto de la placa.
+        const words = seSign.text.split(' ');
+        const mid = Math.ceil(words.length / 2);
+        const lines = words.length > 3 ? [words.slice(0, mid).join(' '), words.slice(mid).join(' ')] : [seSign.text];
+        sctx.font = `bold ${Math.round(CH * (lines.length > 1 ? 0.3 : 0.42))}px Arial, sans-serif`;
+        const tx0 = CH * 1.05;
+        lines.forEach((ln, li) => {
+          sctx.fillText(ln, tx0 + (CW - tx0) / 2, CH * (lines.length > 1 ? 0.32 + 0.38 * li : 0.54));
+        });
+        sTex.update(true);
+        const sMat = mat('indicador_entrada_mat');
+        sMat.diffuseTexture = sTex;
+        sMat.specularColor = new Color3(0.03, 0.03, 0.03);
+        sMat.backFaceCulling = false; // placa vista de frente y en trasdós
+        const sign = MeshBuilder.CreatePlane('indicador_entrada_lateral', { width: seSign.w, height: seSign.h }, scene);
+        sign.position.set(seSign.x, seSign.y, railZ - 0.09);
+        sign.material = sMat;
+        sign.isPickable = false;
+        sign.parent = fachadaRoot;
+      }
+    }
     fachadaRoot.setEnabled(false);
   }
 
