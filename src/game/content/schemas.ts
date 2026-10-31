@@ -2197,6 +2197,26 @@ export const rulesSchema = z.object({
         panelInset: z.number().min(0).default(0.08),
       })
       .optional(),
+    /** v1.58 — FACHADA DE LADRILLO (petición del vecino: «los paños grises con textura de
+     *  ladrillo como las fachadas traseras del horizonte»): textura de ladrillo generada
+     *  (canvas determinista, mosaico seamless) sobre las fachadas de vivienda, escalera y
+     *  locales. tileMeters = lado del mosaico en mundo (las UV se reescriben en ESPACIO
+     *  MUNDO: el rosetón de ladrillo es continuo entre plantas y bloques); cols/rows =
+     *  ladrillos por mosaico con fila sorda alternada; brickTones = variación por ladrillo;
+     *  sheen = relieve (bisel luz/sombra). enabled=false vuelve al paño gris de siempre. */
+    facadeBrick: z
+      .object({
+        enabled: z.boolean().default(true),
+        tileMeters: z.number().positive().default(1.6),
+        cols: z.number().int().min(1).default(4),
+        rows: z.number().int().min(2).default(16),
+        mortar: z.string().default('#cdbfae'),
+        mortarW: z.number().min(0).default(5),
+        brick: z.string().default('#b06a4f'),
+        brickTones: z.array(z.string()).min(1).default(['#a25a43', '#b8755a', '#98503c', '#c08068']),
+        sheen: z.number().min(0).max(1).default(0.12),
+      })
+      .optional(),
     /** v1.48 — ICONOS DE AVISO (muro de pasillo de la vivienda afectada): umbral por
      *  parámetro/canal del sim, glifo, tamaño y cadencia del parpadeo. */
     alerts: z

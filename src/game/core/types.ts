@@ -1729,6 +1729,22 @@ export interface Rules {
       panelChance: number;
       panelInset: number;
     };
+    /** v1.58 — FACHADA DE LADRILLO: los paños grises del exterior (vivienda, locales y
+     *  escalera) visten ladrillo con junta clara, el mismo dialecto que las fachadas del
+     *  horizonte. tileMeters = lado del mosaico en mundo (UV en espacio mundo, aparejo
+     *  continuo entre plantas y bloques); cols/rows = ladrillos por mosaico con fila sorda
+     *  alternada; brickTones = variación determinista por ladrillo; sheen = relieve. */
+    facadeBrick?: {
+      enabled: boolean;
+      tileMeters: number;
+      cols: number;
+      rows: number;
+      mortar: string;
+      mortarW: number;
+      brick: string;
+      brickTones: string[];
+      sheen: number;
+    };
     /** v1.48 — ICONOS DE AVISO en el muro de pasillo de la vivienda afectada (parpadeantes). */
     alerts?: {
       thresholds: { plague: number; humidity: number; noise: number };

@@ -106,6 +106,12 @@ interface InteriorView {
 export function createBuilding(scene: Scene, world: World, content: Content) {
   const { Color3, Color4, MeshBuilder, StandardMaterial, TransformNode } = B();
   const v = content.rules.view;
+  // v1.58 — FACHADA DE LADRILLO (petición del vecino: «los paños grises con textura de
+  // ladrillo como las fachadas traseras del horizonte»): config del catálogo
+  // (rules.view.facadeBrick). Sin bloque o con enabled=false → los paños grises de siempre.
+  const fbCfg = v.facadeBrick ?? null;
+  const brickOn = fbCfg?.enabled === true;
+  const brickTile = fbCfg?.tileMeters ?? 1.6;
   const glow = Object.fromEntries(Object.entries(v.channelGlow).map(([k, hex]) => [k, Color3.FromHexString(hex)])) as Record<string, Color3>;
   const views = new Map<string, BlockView>();
   const shakes = new Map<string, number>();
@@ -596,6 +602,100 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     t.hasAlpha = true;
     return t;
   };
+  // ── v1.58 — FACHADA DE LADRILLO ────────────────────────────────────────────────────
+  /** Textura de LADRILLO de la fachada (mosaico seamless, canvas determinista): colores y
+   *  retícula del catálogo (rules.view.facadeBrick); fila sorda alternada con copias en
+   *  ±SIZE (el mosaico repite SIN costura), tono por ladrillo con hash01 (cero RNG) y
+   *  relieve biselado (sheen del catálogo). UNA sola textura compartida por todos los
+   *  paños: las UV viven en ESPACIO MUNDO (brickUv) y el aparejo es continuo entre tramos,
+   *  plantas y bloques — como en las fachadas reales. Subida por el camino verificado
+   *  canvas → Texture(dataURL) (makeTileTex/candado/decals). */
+  let brickTexCache: Texture | null = null;
+  const brickTex = (): Texture | null => {
+    if (!fbCfg || !brickOn) return null;
+    if (brickTexCache) return brickTexCache;
+    const SIZE = 512;
+    const c = document.createElement('canvas');
+    c.width = SIZE;
+    c.height = SIZE;
+    const bctx = c.getContext('2d', { willReadFrequently: true });
+    if (!bctx) return null;
+    bctx.fillStyle = Color3.FromHexString(fbCfg.mortar).toHexString();
+    bctx.fillRect(0, 0, SIZE, SIZE);
+    const cols = Math.max(1, fbCfg.cols);
+    const rows = Math.max(1, fbCfg.rows);
+    const bw = SIZE / cols;
+    const bh = SIZE / rows;
+    const g = Math.min(bh * 0.4, (fbCfg.mortarW ?? 5) * (SIZE / 256)); // junta en px de canvas
+    const tones = fbCfg.brickTones.length > 0 ? fbCfg.brickTones : [fbCfg.brick];
+    const s = fbCfg.sheen ?? 0.12;
+    const paintBrick = (px: number, py: number, seed: number): void => {
+      const hex = tones[Math.floor(hash01('ladrillo_tono', seed) * tones.length) % tones.length]!;
+      const col = Color3.FromHexString(hex);
+      // Variación fina de luminancia por ladrillo (misma semilla → copias idénticas).
+      const j = 1 + (hash01('ladrillo_jit', seed) - 0.5) * 0.16;
+      bctx.fillStyle = `rgb(${Math.min(255, Math.round(col.r * 255 * j))},${Math.min(255, Math.round(col.g * 255 * j))},${Math.min(255, Math.round(col.b * 255 * j))})`;
+      bctx.fillRect(px, py, bw - g, bh - g);
+      // Relieve: bisel de luz arriba y sombra abajo (ladrillo con músculo, no pegatina plana).
+      bctx.fillStyle = `rgba(255,255,255,${(0.1 + s * 0.5).toFixed(3)})`;
+      bctx.fillRect(px, py, bw - g, Math.max(1, (bh - g) * 0.24));
+      bctx.fillStyle = `rgba(42,26,18,${(0.08 + s * 0.4).toFixed(3)})`;
+      bctx.fillRect(px, py + (bh - g) * 0.76, bw - g, Math.max(1, (bh - g) * 0.24));
+    };
+    for (let r = 0; r < rows; r++) {
+      const py = r * bh;
+      const shift = r % 2 === 1 ? -bw / 2 : 0; // fila sorda (a soga, aparejo español suave)
+      for (let k = -1; k <= cols; k++) {
+        const seed = r * 1009 + k * 331 + 7; // estable por (fila, posición): las copias del borde son el MISMO ladrillo
+        const px = shift + k * bw;
+        paintBrick(px, py, seed);
+        paintBrick(px + SIZE, py, seed);
+        paintBrick(px - SIZE, py, seed);
+      }
+    }
+    const t = canvasTex('fachada_ladrillo_tex', c);
+    t.hasAlpha = false; // muro opaco: sin canal alpha (la junta es color, no transparencia)
+    t.anisotropicFilteringLevel = 8; // nítido en ángulo rasante (vista de paseo)
+    brickTexCache = t;
+    return t;
+  };
+  /** UV EN ESPACIO MUNDO para los paños de ladrillo: cada vértice muestrea la textura según
+   *  su posición MUNDIAL (u/v = metros/tile) — el aparejo es continuo entre tramos, plantas
+   *  y bloques (nada del «ladrillo estirado» por paño). El par de ejes lo elige la NORMAL
+   *  del vértice: caras ±x muestrean z/y (jambas y cantos laterales), ±y x/z (forjados y
+   *  cantos horizontales) y ±z x/y (la fachada, la cara que manda). Funciona con caja de
+   *  cualquier tamaño y no toca posición/escala — solo el buffer de UV. */
+  const brickUv = (mesh: Mesh, tile: number): void => {
+    if (tile <= 0) return;
+    const pos = mesh.getVerticesData('position');
+    const nor = mesh.getVerticesData('normal');
+    const uvs = mesh.getVerticesData('uv');
+    if (!pos || !nor || !uvs || pos.length !== nor.length || uvs.length < pos.length / 3 * 2) return;
+    const out = new Array<number>(uvs.length);
+    for (let i = 0; i < out.length / 2; i++) {
+      const nx = Math.abs(nor[i * 3]!);
+      const ny = Math.abs(nor[i * 3 + 1]!);
+      const nz = Math.abs(nor[i * 3 + 2]!);
+      const wx = mesh.position.x + pos[i * 3]!;
+      const wy = mesh.position.y + pos[i * 3 + 1]!;
+      const wz = mesh.position.z + pos[i * 3 + 2]!;
+      let u: number;
+      let v: number;
+      if (nx >= ny && nx >= nz) {
+        u = wz;
+        v = wy;
+      } else if (ny >= nz) {
+        u = wx;
+        v = wz;
+      } else {
+        u = wx;
+        v = wy;
+      }
+      out[i * 2] = u / tile;
+      out[i * 2 + 1] = -v / tile;
+    }
+    mesh.setVerticesData('uv', out);
+  };
   const padlockTex = (): Texture => {
     if (lockTex) return lockTex;
     const c = document.createElement('canvas');
@@ -880,6 +980,10 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       // repinta; el glow de canales sigue) + ZÓCALO gris de 25 cm desde el suelo + marcos de
       // puerta DEL COLOR del zócalo. Todo del catálogo (rules.view.privacy).
       view.fixedDiffuse = Color3.FromHexString(pv.wallColor ?? '#dbd8d2');
+      // v1.58 — FACHADA DE LADRILLO: el paño frontal (frontParts, material compartido m)
+      // viste ladrillo — el mismo dialecto que las fachadas del horizonte. El diffuseColor
+      // fijo queda como tinte (ladrillo apenas desaturado); el fantasma y el glow intactos.
+      if (brickOn) m.diffuseTexture = brickTex();
       // ── Puerta a sala TRASERA (v1.19, apilamiento 3D): la pared del fondo se parte con el
       // hueco del layout (doorway hacia una estancia más profunda que el bloque principal).
       // v1.53 — el layout viene del REPARTO de variantes (layoutIdOf) y puede haber VARIOS
@@ -957,6 +1061,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       const frontPiece = (name: string, pw: number, ph: number, px: number, py: number): void => {
         if (pw < 0.02 || ph < 0.02) return;
         const piece = box(name, pw, ph, v.wall, px, py, frontZ, m);
+        if (brickOn) brickUv(piece, brickTile); // v1.58: aparejo continuo en espacio mundo
         view.frontParts.push(piece);
         if (!view.front) view.front = piece;
       };
@@ -1356,6 +1461,9 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       // a baseY (sus bases quedan bajo el suelo y se leen apoyadas en él).
       const yBottomLoc = Math.max(baseY, bottom + v.slab + v.wall);
       const frontMat = hallFrontMat;
+      // v1.58 — FACHADA DE LADRILLO también en los locales (mismo dialecto que las
+      // viviendas; el interior sigue al crema/gris del local — el ladrillo es DE FUERA).
+      if (brickOn && !frontMat.diffuseTexture) frontMat.diffuseTexture = brickTex();
       const intMat = isLaundry || isGaraje ? (isGaraje ? hallGarajeMat : hallLaundryMat) : isPortal ? hallPortalMat : hallInnerMat;
       // v1.51 — MATERIAL PROPIO de los laterales del portal: v1.50 tintaba los planos dio
       // del carcaso, pero estos quedan EMBEBIDOS dentro del sólido del muro (los rayos
@@ -1406,6 +1514,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       const fp = (name: string, pw: number, ph: number, px: number, py: number): void => {
         if (pw < 0.02 || ph < 0.02) return;
         const mesh = box(name, pw, ph, v.wall, px, py, frontZ, frontMat);
+        if (brickOn) brickUv(mesh, brickTile); // v1.58: aparejo continuo en espacio mundo
         view.frontParts.push(mesh);
         if (!view.front) view.front = mesh;
       };
@@ -2595,6 +2704,9 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     const wallMat = mat('escalera_fachada_mat');
     wallMat.diffuseColor = Color3.FromHexString(stF.color);
     wallMat.specularColor = new Color3(0.02, 0.02, 0.02);
+    // v1.58 — FACHADA DE LADRILLO: el cubo de escalera también viste ladrillo por fuera
+    // (su interior se ve por el ventanal — el aparejo continuo lo lee como un shaft real).
+    if (brickOn) wallMat.diffuseTexture = brickTex();
     stairWallMats.push({ mat: wallMat as unknown as BlockMat }); // v1.27: el muro también se autoilumina
     /** Textura de la hoja por PLANTA: arte de zonas comunes + gran número centrado.
      *  v1.27: ENCAJE PERFECTO — doorLeafCanvas recorta el arte a la caja de la hoja y lo
@@ -2657,14 +2769,16 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       const wv = stF.window;
       const wallSeg = (x0: number, x1: number, yA: number, yB: number): void => {
         if (x1 - x0 < 0.02 || yB - yA < 0.02) return;
-        attach(b.id, box(`${b.id}_fachada_${x0.toFixed(2)}_${yA.toFixed(2)}`, x1 - x0, yB - yA, stF.wallT, (x0 + x1) / 2, yA + (yB - yA) / 2, zF, wallMat));
+        const seg = attach(b.id, box(`${b.id}_fachada_${x0.toFixed(2)}_${yA.toFixed(2)}`, x1 - x0, yB - yA, stF.wallT, (x0 + x1) / 2, yA + (yB - yA) / 2, zF, wallMat));
+        if (brickOn) brickUv(seg, brickTile); // v1.58: aparejo continuo en espacio mundo
       };
       // Muro trasero del cubo (v1.27, catálogo): con el ventanal abierto, sin fondo se veía
       // el horizontal a través del vidrio; el muro trasero devuelve la caja cerrada (la luz
       // nocturna del cubo rebota y se LEE desde la calle).
       if (wv?.rear) {
         const dep = depthOf(b);
-        attach(b.id, box(`${b.id}_fondo_cubo`, right - left, hFull, stF.wallT, (left + right) / 2, y0 + hFull / 2, frontZ + dep - stF.wallT / 2, wallMat));
+        const rear = attach(b.id, box(`${b.id}_fondo_cubo`, right - left, hFull, stF.wallT, (left + right) / 2, y0 + hFull / 2, frontZ + dep - stF.wallT / 2, wallMat));
+        if (brickOn) brickUv(rear, brickTile); // v1.58: el fondo del cubo, también de ladrillo
       }
       if (!wv?.enabled) {
         // Comportamiento v1.26 intacto si el ventanal viene apagado del catálogo.
