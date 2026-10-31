@@ -106,10 +106,22 @@ interface InteriorView {
 export function createBuilding(scene: Scene, world: World, content: Content) {
   const { Color3, Color4, MeshBuilder, StandardMaterial, TransformNode } = B();
   const v = content.rules.view;
-  // v1.59 — FACHADA DE LADRILLO, SOLO VISTA DESDE FUERA (petición del vecino, aclarada:
-  // «las fachadas interiores, de textura gris clara; las de ladrillo son las que se ven
-  // desde fuera, las de la fachada exterior»): config del catálogo (rules.view.facadeBrick).
-  // Sin bloque o con enabled=false → los paños grises de siempre en TODAS las vistas.
+  // v1.60 — FACHADA DE LADRILLO EN LOS PAÑOS CIEGOS DE LA FACHADA EXTERIOR (la aclaración
+  //  definitiva del vecino, con captura: «las paredes interiores que dan a los pasillos de
+  //  las diferentes plantas son siempre igual, GRISES; cuando digo paredes de ladrillo me
+  //  refiero exclusivamente a las paredes que se ven exteriores — la fachada que vemos
+  //  desde la cámara 0. Siempre que estemos fuera del edificio veremos la fachada exterior
+  //  y lo que tiene textura de ladrillo son los paños ciegos de ESA fachada, no las paredes
+  //  interiores que se ven a través de los cristales»). Receto:
+  //  · CORTINA ACRISTALADA (fachada_cortina, v1.41): sus BANDAS ciegas (arriba/abajo) y sus
+  //    PANELES ciegos visten LADRILLO (rules.view.facadeBrick, UV de mundo) — son los paños
+  //    rayados en rojo de la captura. Visible en vista FACHADA Y paseando por la acera.
+  //  · PASILLOS (frontParts de vivienda, fachadas de locales): GRIS CLARO SIEMPRE, en
+  //    todas las vistas — jamás visten ladrillo.
+  //  · CUBO DE ESCALERA: única excepción — su fachada exterior (la torre de la captura)
+  //    viste ladrillo desde fuera y gris de dentro (applyStreetSkin, v1.59 intacta).
+  //  Config del catálogo (rules.view.facadeBrick); sin bloque o enabled=false → paños
+  //  grises de siempre en TODAS las vistas.
   const fbCfg = v.facadeBrick ?? null;
   const brickOn = fbCfg?.enabled === true;
   const brickTile = fbCfg?.tileMeters ?? 1.6;
@@ -697,14 +709,17 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     }
     mesh.setVerticesData('uv', out);
   };
-  /** v1.59 — REGISTRO DE LA PIEL EXTERIOR: los paños que se ven desde la calle (frontales
-   *  de vivienda, fachadas de locales y muros de los cubos de escalera) con su material de
-   *  INTERIOR (gris). La piel viste ladrillo SOLO cuando el edificio se contempla cerrado
-   *  desde fuera (jugador en la acera, mode 'outside', o vista FACHADA tecla 0); en las
-   *  vistas de interior (cámara de edificio, pasillo, estancia) vuelven al gris de siempre.
-   *  El intercambio es de MATERIAL por malla — las UV de mundo (brickUv) van horneadas y
-   *  con material liso sobran. */
-  const streetSkin: { mesh: Mesh; mat: StandardMaterial; kind: 'vivienda' | 'local' | 'escalera' }[] = [];
+  /** v1.60 — REGISTRO DE LA PIEL EXTERIOR: SOLO los muros del cubo de escalera (la torre
+   *  que asoma a la calle en la captura del vecino) registran aquí su material de INTERIOR
+   *  (gris). Visten ladrillo cuando el edificio se contempla desde fuera (jugador en la
+   *  acera, mode 'outside', o vista FACHADA tecla 0); en las vistas de interior (cámara de
+   *  edificio, pasillo, estancia) vuelven al gris. Los frontParts de vivienda y las
+   *  fachadas de locales ya NO van aquí (v1.60): son paredes del PASILLO, grises siempre.
+   *  Los paños ciegos de ladrillo son las bandas/paneles de la cortina (v1.60), con
+   *  materiales propios siempre de ladrillo — no necesitan intercambio.
+   *  El intercambio del cubo es de MATERIAL por malla — las UV de mundo (brickUv) van
+   *  horneadas y con material liso sobran. */
+  const streetSkin: { mesh: Mesh; mat: StandardMaterial; kind: 'escalera' }[] = [];
   const padlockTex = (): Texture => {
     if (lockTex) return lockTex;
     const c = document.createElement('canvas');
@@ -1068,11 +1083,11 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       const doorTopY = Math.min(y + h / 2, doorFloorY + pv.doorH);
       const frontPiece = (name: string, pw: number, ph: number, px: number, py: number): void => {
         if (pw < 0.02 || ph < 0.02) return;
+        // v1.60 — la pared que da al PASILLO es INTERIOR: gris claro SIEMPRE (m), en todas
+        // las vistas. Ni ladrillo permanente (v1.58) ni piel intercambiable (v1.59): a
+        // través del cristal de la fachada exterior se siguen viendo grises — la captura
+        // del vecino no marca ni uno de estos paños.
         const piece = box(name, pw, ph, v.wall, px, py, frontZ, m);
-        if (brickOn) {
-          brickUv(piece, brickTile); // v1.58: aparejo continuo en espacio mundo
-          streetSkin.push({ mesh: piece, mat: m, kind: 'vivienda' }); // v1.59: piel solo desde fuera
-        }
         view.frontParts.push(piece);
         if (!view.front) view.front = piece;
       };
@@ -1523,11 +1538,9 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       let prevEdge = cx - w / 2;
       const fp = (name: string, pw: number, ph: number, px: number, py: number): void => {
         if (pw < 0.02 || ph < 0.02) return;
+        // v1.60 — fachada de local = pared del pasillo: GRIS SIEMPRE (hallFrontMat), como
+        // las viviendas. El ladrillo vive SOLO en los paños ciegos de la fachada exterior.
         const mesh = box(name, pw, ph, v.wall, px, py, frontZ, frontMat);
-        if (brickOn) {
-          brickUv(mesh, brickTile); // v1.58: aparejo continuo en espacio mundo
-          streetSkin.push({ mesh, mat: frontMat, kind: 'local' }); // v1.59: piel solo desde fuera
-        }
         view.frontParts.push(mesh);
         if (!view.front) view.front = mesh;
       };
@@ -4080,21 +4093,36 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       // ENTREVE la franja central: vecinos paseando, luces de noche.
       const fc = v.fachadaCortina;
       if (fc) {
+        // v1.60 — PAÑOS CIEGOS DE LADRILLO (los rayados en rojo de la captura del vecino):
+        // bandas ciegas (pie de fachada + dinteles de planta) y paneles ciegos de la
+        // cortina visten la textura del catálogo (rules.view.facadeBrick) con UV de mundo
+        // — el aparejo continúa con el cubo de escalera y entre plantas. Tinte blanco:
+        // los tonos LOS DA la textura (brickTones del catálogo). Sin catálogo de ladrillo
+        // (brickOn=false o textura fallida) quedan los acabados planos de siempre
+        // (bandColor/panelColor). Van DETRÁS del vidrio — dentro de la galería,
+        // z = railZ+0.04 con calado 0.08: nada coplanar con el vidrio (−4,5 cm) ni con los
+        // montantes (−6 cm) ni con el canto de la losa (railZ exacto). Por el vidrio solo
+        // se ENTREVE la franja central: vecinos paseando, luces de noche.
+        const brickT = brickOn ? brickTex() : null;
         const bandM = mat('fachada_ciega_banda');
-        bandM.diffuseColor = Color3.FromHexString(fc.bandColor);
+        bandM.diffuseColor = brickT ? new Color3(1, 1, 1) : Color3.FromHexString(fc.bandColor);
         bandM.specularColor = new Color3(0.02, 0.02, 0.02);
+        if (brickT) bandM.diffuseTexture = brickT;
         const panelM = mat('fachada_ciega_panel');
-        panelM.diffuseColor = Color3.FromHexString(fc.panelColor);
+        panelM.diffuseColor = brickT ? new Color3(1, 1, 1) : Color3.FromHexString(fc.panelColor);
         panelM.specularColor = new Color3(0.02, 0.02, 0.02);
+        if (brickT) panelM.diffuseTexture = brickT;
         const blindZ = railZ + 0.04;
         const midH = Math.max(0.2, openH - fc.bottomBlind - fc.topBlind);
         if (fc.bottomBlind > 0.01) {
           const low = box(`fachada_ciega_abajo_${b.id}`, W - 0.05, fc.bottomBlind, 0.08, cxm, y0 + fc.bottomBlind / 2, blindZ, bandM);
+          if (brickT) brickUv(low, brickTile); // v1.60: aparejo continuo en espacio mundo
           low.isPickable = false;
           low.parent = fachadaRoot;
         }
         if (fc.topBlind > 0.01) {
           const top = box(`fachada_ciega_arriba_${b.id}`, W - 0.05, fc.topBlind, 0.08, cxm, y0 + openH - fc.topBlind / 2, blindZ, bandM);
+          if (brickT) brickUv(top, brickTile); // v1.60: aparejo continuo en espacio mundo
           top.isPickable = false;
           top.parent = fachadaRoot;
         }
@@ -4103,6 +4131,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           const px = x0 + (k + 0.5) * v.cellW;
           const pw = v.cellW - fc.panelInset * 2;
           const panel = box(`fachada_ciega_panel_${b.id}_${k}`, pw, midH, 0.08, px, y0 + fc.bottomBlind + midH / 2, blindZ, panelM);
+          if (brickT) brickUv(panel, brickTile); // v1.60: aparejo continuo en espacio mundo
           panel.isPickable = false;
           panel.parent = fachadaRoot;
         }
@@ -4111,35 +4140,25 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     fachadaRoot.setEnabled(false);
   }
 
-  // ── v1.59 — PIEL DE LADRILLO SOLO DESDE FUERA (applyStreetSkin) ─────────────────────
-  //  El vecino aclaró: «las fachadas interiores, de textura gris clara (aunque podrán
-  //  cambiarse); las que son de ladrillo son las que se ven desde fuera, las de la fachada
-  //  exterior; no las paredes interiores. Cuando caminamos por el exterior se ve la fachada
-  //  exterior, la que lleva la textura de ladrillo». Los mismos paños (frontales de
-  //  vivienda, fachadas de locales y muros de cubo registrados en streetSkin) visten GRIS
-  //  en las vistas de interior y LADRILLO cuando el edificio se contempla cerrado desde
-  //  fuera: jugador en la acera (mode 'outside') o vista FACHADA (tecla 0). Materiales de
-  //  ladrillo PEREZOSOS (uno por dialecto, la textura es compartida): el de cubo se apunta
-  //  en stairWallMats para conservar la autoiluminación nocturna del cubo. Intercambio de
-  //  material por malla, idempotente y sin allocations: solo corre al cambiar de modo.
+  // ── v1.60 — PIEL DE LADRILLO DEL CUBO DE ESCALERA (applyStreetSkin) ─────────────────
+  //  La aclaración definitiva del vecino (v1.60, con captura): las paredes del PASILLO
+  //  (frontParts de vivienda, fachadas de locales) son INTERIORES y grises SIEMPRE — el
+  //  ladrillo de la fachada exterior vive en los paños ciegos de la cortina (materiales
+  //  propios, siempre puestos). El ÚNICO paño que cambia de vestido es la fachada del
+  //  CUBO DE ESCALERA (la torre que asoma a la calle en la captura): gris visto de dentro
+  //  y ladrillo cuando el edificio se contempla cerrado desde fuera — jugador en la acera
+  //  (mode 'outside') o vista FACHADA (tecla 0). Material de ladrillo PEREZOSO (la
+  //  textura es compartida) apuntado en stairWallMats para conservar la autoiluminación
+  //  nocturna del cubo. Intercambio de material por malla, idempotente y sin allocations:
+  //  solo corre al cambiar de modo.
   let skinBrick = false;
-  let brickMatVivienda: StandardMaterial | null = null;
-  let brickMatLocal: StandardMaterial | null = null;
   let brickMatEscalera: StandardMaterial | null = null;
   const applyStreetSkin = (on: boolean): void => {
     const want = on && brickOn;
     if (skinBrick === want) return;
     skinBrick = want;
-    if (!brickMatVivienda) {
-      if (!want) return; // nunca se vistió ladrillo: los paños ya están en su gris
-      brickMatVivienda = mat('fachada_brick_vivienda_mat');
-      brickMatVivienda.diffuseColor = Color3.FromHexString(v.privacy.wallColor ?? '#dbd8d2');
-      brickMatVivienda.specularColor = new Color3(0.02, 0.02, 0.02);
-      brickMatVivienda.diffuseTexture = brickTex();
-      brickMatLocal = mat('fachada_brick_local_mat');
-      brickMatLocal.diffuseColor = Color3.FromHexString(loc.corridorWall);
-      brickMatLocal.specularColor = new Color3(0.02, 0.02, 0.02);
-      brickMatLocal.diffuseTexture = brickTex();
+    if (!brickMatEscalera) {
+      if (!want) return; // nunca se vistió ladrillo: el cubo ya está en su gris
       brickMatEscalera = mat('fachada_brick_escalera_mat');
       brickMatEscalera.diffuseColor = Color3.FromHexString(stF.color);
       brickMatEscalera.specularColor = new Color3(0.02, 0.02, 0.02);
@@ -4147,21 +4166,19 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       stairWallMats.push({ mat: brickMatEscalera as unknown as BlockMat }); // la piel del cubo también se autoilumina
     }
     for (const s of streetSkin) {
-      s.mesh.material = want
-        ? s.kind === 'vivienda' ? brickMatVivienda! : s.kind === 'local' ? brickMatLocal! : brickMatEscalera!
-        : s.mat;
+      s.mesh.material = want ? brickMatEscalera! : s.mat;
     }
   };
 
   return {
     /** v1.41 — conmutador de la VISTA FACHADA (el controlador lo manda al cambiar de cámara):
      *  cierra todas las fachadas (applyPanels) y muestra la cortina acristalada.
-     *  v1.59 — la vista FACHADA también viste la piel de ladrillo (el edificio cerrado se
-     *  ve desde fuera). */
+     *  v1.60 — la cortina ES la fachada exterior: visible también paseando por la acera
+     *  (streetFacade) y sus paños ciegos llevan el ladrillo del catálogo de serie. */
     setFachadaView(on: boolean): void {
       if (fachadaView === on) return;
       fachadaView = on;
-      fachadaRoot.setEnabled(on);
+      fachadaRoot.setEnabled(on || streetFacade);
       applyStreetSkin(on || streetFacade);
       for (const b of Object.values(world.blocks)) {
         const view = views.get(b.id);
@@ -4303,8 +4320,15 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       // v1.48 — el jugador en la ACERA (mode 'outside') ve el edificio cerrado: fachada sí,
       // interior no. En cuanto cruza (corredor/interior) vuelven las reglas de privacidad.
       streetFacade = env?.playerMode === 'outside';
-      // v1.59 — la piel de ladrillo solo se ve desde fuera (acera o vista FACHADA); en las
-      // vistas de interior los paños vuelven al gris claro. Idempotente: sin cambio, no corre.
+      // v1.60 — la CORTINA (fachada exterior con sus paños ciegos de ladrillo) se ve SIEMPRE
+      // que estamos fuera del edificio: vista FACHADA (tecla 0) Y acera (mode outside).
+      // Idempotente: sin cambio de estado, ni toca el nodo.
+      {
+        const cortinaOn = fachadaView || streetFacade;
+        if (fachadaRoot.isEnabled() !== cortinaOn) fachadaRoot.setEnabled(cortinaOn);
+      }
+      // v1.60 — la piel de ladrillo del cubo solo se ve desde fuera (acera o vista FACHADA);
+      // en las vistas de interior el cubo vuelve al gris. Idempotente: sin cambio, no corre.
       applyStreetSkin(streetFacade || fachadaView);
       // PRIVACIDAD (v1.17) cada frame: la fachada de una vivienda sin nadie dentro se cierra
       // con su puerta al pasillo y se abre en cuanto alguien entra (propietario, visita…

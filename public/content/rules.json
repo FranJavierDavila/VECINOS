@@ -1032,7 +1032,7 @@
         "#aa6449"
       ],
       "sheen": 0.12,
-      "note": "v1.59 FACHADA DE LADRILLO SOLO DESDE FUERA: los paños (frontales de vivienda, fachadas de locales y muros de cubo de escalera) se ven GRIS CLARO desde dentro (pasillo/vistas de interior) y visten ladrillo cuando el edificio se contempla cerrado desde la calle (jugador en la acera) o en la vista FACHADA (tecla 0). tileMeters = lado del mosaico en mundo; cols/rows = ladrillos por mosaico (fila sorda alternada, mosaico seamless); brickTones = variación determinista por ladrillo; sheen = relieve (luz arriba/sombra abajo)."
+      "note": "v1.60 PAÑOS CIEGOS DE LADRILLO EN LA FACHADA EXTERIOR (aclaración definitiva del vecino, con captura): el ladrillo viste SOLO los paños ciegos de la fachada exterior — bandas ciegas (arriba/abajo) y paneles ciegos de la cortina acristalada (fachada_cortina), visible en la vista FACHADA (tecla 0) y paseando por la acera — y la fachada del cubo de escalera desde fuera. Las paredes del PASILLO (frontParts de vivienda y fachadas de locales, las que se ven a través de los cristales) son INTERIORES: GRIS CLARO SIEMPRE, en todas las vistas. tileMeters = lado del mosaico en mundo; cols/rows = ladrillos por mosaico (fila sorda alternada, mosaico seamless); brickTones = variación determinista por ladrillo; sheen = relieve (luz arriba/sombra abajo)."
     },
     "noticeboard": {
       "enabled": true,
