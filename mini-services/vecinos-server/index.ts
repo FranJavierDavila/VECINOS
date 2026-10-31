@@ -12,6 +12,18 @@
  *   C→S  session:create {scenarioId?} (ack) | session:join {code} (ack)
  *        session:command {cmd} (actor SOBRESCRITO por el servidor) | session:minigame_time {id, secs} | session:set_speed {speed} | session:leave
  *   S→C  session:joined | session:participants | session:score {rows} | session:state {seq, world, events} | session:error
+ *
+ * v1.56 — COOPERATIVA REAL + VOZ (catálogo opcional content.multiplayer):
+ *   C→S  coop:claim {missionId, roleId} | coop:progress {missionId, roleId} | coop:skip
+ *        voice:join | voice:leave | voice:state {muted, speaking} | voice:signal {to, data}
+ *        session:rejoin {code, residentId} (ack) — reconexión transparente tras caída de
+ *        transporte (pestaña en segundo plano, red móvil): re-vincula el MISMO residente
+ *        y re-difunde score/co-op/voz para sincronizar lo perdido.
+ *   S→C  coop:state {active, done} | voice:roster {members} | voice:state {from, muted, speaking}
+ *        voice:signal {from, data} | voice:error {message}
+ *   El audio NUNCA pasa por el servidor: solo la señalización WebRTC (offer/answer/ICE).
+ *   En solitario (1 participante) el co-op no se ofrece y NADA se bloquea: las misiones
+ *   normales del sim siguen igual que siempre.
  */
 import { createServer } from 'node:http';
 import { Server, type Socket } from 'socket.io';
@@ -65,14 +77,24 @@ function newSession(code: string, scenarioId: string, world: World): Session {
     participants: new Map(),
     guestCounter: 0,
     timer: setInterval(() => {
-      for (let i = 0; i < session.speed; i++) tick(session.world, content);
-      broadcastState(session);
+      // v1.56 — blindaje: si el sim lanzara una excepción, Bun se la tragaría en silencio
+      // y el mundo se congelaría sin error visible; se registra y el bucle sigue.
+      try {
+        for (let i = 0; i < session.speed; i++) tick(session.world, content);
+        broadcastState(session);
+      } catch (e) {
+        console.error(`[${code}] 💥 excepción en tick:`, e instanceof Error ? e.stack ?? e.message : e);
+      }
     }, content.rules.multiplayer.tickSecondsPerTick * 1000),
     cleanup: null,
     // v1.55 — marcador «Vecino del mes»: el criterio completo vive en rules.multiplayer.score.
     scores: new Map(),
     lastMinigame: null,
     lastRecordAt: new Map(),
+    // v1.56 — co-op + voz (el criterio vive en content.multiplayer; aquí solo estado).
+    coop: { activeIdx: -1, assignments: new Map(), done: [], lastOfferAt: 0 },
+    voice: new Map(),
+    grace: new Map(),
   };
   sessions.set(code, session);
   return session;
@@ -112,8 +134,114 @@ function award(session: Session, residentId: string, points: number, name?: stri
   emitScore(session);
 }
 
+// ── v1.56 — MISIONES COOPERATIVAS REALES ──
+// El criterio vive en content.multiplayer.coop (roles con objetivos verificables);
+// aquí solo orquestación: oferta, reparto de roles, progreso y bonus. El objetivo de un
+// rol lo detecta SU cliente (minijuego completado / bloque alcanzado) y el servidor lo
+// verifica contra la asignación (nadie puede marcar el rol de otro).
+
+type CoopCfg = NonNullable<import('@/game/core/types').Content['multiplayer']>['coop'] | undefined;
+const coopCfg = (): CoopCfg => content.multiplayer?.coop;
+
+/** Payload exacto de coop:state (misión activa con sus roles + historial). */
+function coopStatePayload(session: Session): {
+  active: null | { mission: NonNullable<CoopCfg>['missions'][number]; roles: { roleId: string; residentId: string | null; name: string | null; done: boolean }[] };
+  done: string[];
+} {
+  const cfg = coopCfg();
+  if (!cfg || session.coop.activeIdx < 0 || session.coop.activeIdx >= cfg.missions.length) {
+    return { active: null, done: session.coop.done };
+  }
+  const mission = cfg.missions[session.coop.activeIdx]!;
+  return {
+    active: {
+      mission,
+      roles: mission.roles.map((r) => {
+        const a = session.coop.assignments.get(r.id);
+        return { roleId: r.id, residentId: a?.residentId ?? null, name: a?.name ?? null, done: a?.done ?? false };
+      }),
+    },
+    done: session.coop.done,
+  };
+}
+
+function emitCoopState(session: Session): void {
+  io.to(session.code).emit('coop:state', coopStatePayload(session));
+}
+
+/** Oferta la siguiente misión co-op del catálogo si toca (cooldown + minPlayers + ninguna activa). */
+function coopTick(session: Session): void {
+  const cfg = coopCfg();
+  if (!cfg || !cfg.enabled) return;
+  if (session.coop.activeIdx >= 0) return;
+  // EN SOLITARIO no se ofrece nada: las misiones normales del sim siguen como siempre.
+  if (session.participants.size < cfg.minPlayers) return;
+  const now = Date.now();
+  if (now - session.coop.lastOfferAt < cfg.cooldownSecs * 1000) return;
+  let next = cfg.missions.find((m) => !session.coop.done.includes(m.id));
+  if (!next) {
+    session.coop.done = []; // catálogo agotado: ronda nueva (el vecino del mes manda)
+    next = cfg.missions[0];
+  }
+  session.coop.activeIdx = cfg.missions.indexOf(next!);
+  session.coop.assignments.clear();
+  session.coop.lastOfferAt = now;
+  applyEffects(session.world, content, [{ op: 'toast', text: cfg.offerToast.replace('{title}', next!.title), tone: 'good' }], {});
+  emitCoopState(session);
+  console.log(`[${session.code}] 🤝 co-op ofertada: «${next!.title}»`);
+}
+
+/** Cierra la misión co-op: bonus a cada rol asignado + toast del catálogo + cooldown. */
+function completeCoop(session: Session): void {
+  const cfg = coopCfg();
+  if (!cfg || session.coop.activeIdx < 0) return;
+  const mission = cfg.missions[session.coop.activeIdx]!;
+  const names = mission.roles.map((r) => session.coop.assignments.get(r.id)?.name ?? '').filter((n) => n.length > 0);
+  for (const a of session.coop.assignments.values()) {
+    award(session, a.residentId, mission.pointsBonus, a.name);
+  }
+  let text = mission.completeToast.replace('{title}', mission.title).replace('{points}', String(mission.pointsBonus));
+  names.forEach((n, i) => {
+    text = text.replace(`{${String.fromCharCode(97 + i)}}`, n); // {a} {b} {c}…
+  });
+  applyEffects(session.world, content, [{ op: 'toast', text, tone: 'good' }], {});
+  session.coop.done.push(mission.id);
+  session.coop.activeIdx = -1;
+  session.coop.assignments.clear();
+  session.coop.lastOfferAt = Date.now();
+  console.log(`[${session.code}] ✅ co-op completada: «${mission.title}» (+${mission.pointsBonus} pts × ${names.length})`);
+}
+
+/** Libera los roles co-op de un residente (al salir). true si cambió algo. */
+function releaseCoopRoles(session: Session, residentId: string): boolean {
+  let changed = false;
+  for (const [roleId, a] of session.coop.assignments) {
+    if (a.residentId === residentId) {
+      session.coop.assignments.delete(roleId);
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+// ── v1.56 — CANAL DE VOZ (solo señalización WebRTC; el audio es P2P entre navegadores) ──
+
+function voiceRoster(session: Session): { id: string; name: string; muted: boolean; speaking: boolean }[] {
+  return [...session.voice.entries()].map(([id, v]) => ({
+    id,
+    name: [...session.participants.values()].find((p) => p.residentId === id)?.name ?? id,
+    muted: v.muted,
+    speaking: v.speaking,
+  }));
+}
+
+function emitVoiceRoster(session: Session): void {
+  io.to(session.code).emit('voice:roster', { members: voiceRoster(session) });
+}
+
 /** Drena eventos del mundo y emite session:state a la room; registra el minijuego pendiente si lo hay. */
 function broadcastState(session: Session): void {
+  coopTick(session); // v1.56 — puede ofertar una misión co-op (toast + coop:state propios)
   const events = drainEvents(session.world);
   let awarded = false;
   const cfg = scoreCfg();
@@ -147,9 +275,17 @@ function lookup(socketId: string): { session: Session; participant: Participant 
 
 /**
  * Sale de la sesión ('session:leave' o disconnect): marca el residente ausente, aplica el
- * leaveToast del catálogo y avisa a la room. Si queda sin participantes, programa su borrado.
+ * leaveToast del catálogo y avisa a la room.
+ *
+ * v1.56 — GRACIA DE RECONEXIÓN: si la salida es por DISCONNECT del transporte (pestaña en
+ * segundo plano, red móvil que flaquea), el participante SOBREVIVE 30 s como ausente y su
+ * purga queda diferida: el session:rejoin del cliente (reconexión + re-vinculación) lo
+ * recupera con roles co-op, voz y marcador intactos. La salida EXPLÍCITA (botón «Salir»)
+ * purga al instante: es decisión del vecino.
  */
-function leaveSession(socket: Socket): void {
+const GRACE_MS = 30_000;
+
+function leaveSession(socket: Socket, fromDisconnect = false): void {
   const code = sessionOfSocket.get(socket.id);
   if (!code) return;
   sessionOfSocket.delete(socket.id);
@@ -157,12 +293,46 @@ function leaveSession(socket: Socket): void {
   const session = sessions.get(code);
   const participant = session?.participants.get(socket.id);
   if (!session || !participant) return;
-  session.participants.delete(socket.id);
-  const resident = session.world.residents[participant.residentId];
-  if (resident) resident.present = false;
-  applyEffects(session.world, content, [{ op: 'toast', text: content.rules.multiplayer.leaveToast.replace('{name}', participant.name) }], {});
-  io.to(code).emit('session:participants', { participants: participantsList(session) });
+
+  if (fromDisconnect) {
+    // GRACIA: el socket murió pero el vecino puede volver. Purga diferida (roles co-op,
+    // voz y fila del marcador se conservan intactos para el rejoin).
+    if (session.grace.has(participant.residentId)) return; // ya está en gracia (socket zombi)
+    const resident = session.world.residents[participant.residentId];
+    if (resident) resident.present = false;
+    io.to(code).emit('session:participants', { participants: participantsList(session) });
+    console.log(`[${code}] ⏳ ${participant.residentId} pierde el transporte · gracia ${GRACE_MS / 1000} s`);
+    const purge = setTimeout(() => {
+      session.grace.delete(participant.residentId);
+      purgeParticipant(session, participant.residentId, participant.name);
+    }, GRACE_MS);
+    purge.unref();
+    session.grace.set(participant.residentId, purge);
+    return;
+  }
+
+  purgeParticipant(session, participant.residentId, participant.name, socket.id);
   console.log(`[${code}] sale ${participant.residentId} (${socket.id}) · quedan ${session.participants.size}`);
+  if (session.participants.size === 0) {
+    session.cleanup ??= setTimeout(() => destroySession(code), SESSION_TTL_MS);
+    session.cleanup.unref();
+  }
+}
+
+/** Purga real de un residente: fila de participantes, roles co-op, voz y avisos. */
+function purgeParticipant(session: Session, residentId: string, name: string, socketId?: string): void {
+  const code = session.code;
+  if (socketId) session.participants.delete(socketId);
+  else {
+    const entry = [...session.participants.entries()].find(([, p]) => p.residentId === residentId);
+    if (entry) session.participants.delete(entry[0]);
+  }
+  const resident = session.world.residents[residentId];
+  if (resident) resident.present = false;
+  applyEffects(session.world, content, [{ op: 'toast', text: content.rules.multiplayer.leaveToast.replace('{name}', name) }], {});
+  io.to(code).emit('session:participants', { participants: participantsList(session) });
+  if (releaseCoopRoles(session, residentId)) emitCoopState(session);
+  if (session.voice.delete(residentId)) emitVoiceRoster(session);
   if (session.participants.size === 0) {
     session.cleanup ??= setTimeout(() => destroySession(code), SESSION_TTL_MS);
     session.cleanup.unref();
@@ -363,8 +533,174 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('session:leave', () => leaveSession(socket));
-  socket.on('disconnect', () => leaveSession(socket));
+  // ── v1.56 — CO-OP: reclamar rol, marcar progreso del PROPIO rol y saltar (anfitrión) ──
+
+  socket.on('coop:claim', (payload: { missionId?: string; roleId?: string } | undefined) => {
+    const found = lookup(socket.id);
+    if (!found) return;
+    const cfg = coopCfg();
+    if (!cfg || !cfg.enabled || found.session.coop.activeIdx < 0) return;
+    const mission = cfg.missions[found.session.coop.activeIdx]!;
+    const roleId = payload?.roleId;
+    if (payload?.missionId !== mission.id || typeof roleId !== 'string') return;
+    if (!mission.roles.some((r) => r.id === roleId)) return;
+    if (found.session.coop.assignments.get(roleId)) return; // rol ocupado
+    // Un vecino, un rol por misión (el reparto ES la cooperación).
+    const already = [...found.session.coop.assignments.values()].some((a) => a.residentId === found.participant.residentId);
+    if (already) return;
+    found.session.coop.assignments.set(roleId, { residentId: found.participant.residentId, name: found.participant.name, done: false });
+    emitCoopState(found.session);
+    console.log(`[${found.session.code}] 🤝 ${found.participant.name} reclama «${roleId}» en ${mission.id}`);
+  });
+
+  socket.on('coop:progress', (payload: { missionId?: string; roleId?: string } | undefined) => {
+    const found = lookup(socket.id);
+    if (!found) return;
+    const cfg = coopCfg();
+    if (!cfg || found.session.coop.activeIdx < 0) return;
+    const mission = cfg.missions[found.session.coop.activeIdx]!;
+    const roleId = payload?.roleId;
+    if (payload?.missionId !== mission.id || typeof roleId !== 'string') return;
+    const a = found.session.coop.assignments.get(roleId);
+    // Solo el ASIGNADO marca su rol (y una sola vez): el resto no toca la ajena.
+    if (!a || a.residentId !== found.participant.residentId || a.done) return;
+    a.done = true;
+    const allDone = mission.roles.every((r) => found.session.coop.assignments.get(r.id)?.done === true);
+    if (allDone) {
+      completeCoop(found.session);
+      broadcastState(found.session); // el toast del catálogo viaja con el estado
+    }
+    emitCoopState(found.session);
+    console.log(`[${found.session.code}] 🤝 ${found.participant.name} completa «${roleId}» (${mission.id}${allDone ? ', ¡CIERRE!' : ''})`);
+  });
+
+  socket.on('coop:skip', () => {
+    const found = lookup(socket.id);
+    if (!found || !found.participant.isHost) return;
+    if (found.session.coop.activeIdx < 0) return;
+    found.session.coop.activeIdx = -1;
+    found.session.coop.assignments.clear();
+    found.session.coop.lastOfferAt = Date.now();
+    emitCoopState(found.session);
+    console.log(`[${found.session.code}] 🤝 el anfitrión salta la misión co-op`);
+  });
+
+  // ── v1.56 — VOZ: join/leave + estado de micro + señalización WebRTC (relay puro) ──
+
+  socket.on('voice:join', () => {
+    const found = lookup(socket.id);
+    if (!found) return;
+    const cfg = content.multiplayer?.voice;
+    if (!cfg || !cfg.enabled) return;
+    if (!found.session.voice.has(found.participant.residentId)) {
+      if (found.session.voice.size >= cfg.maxPeers) {
+        socket.emit('voice:error', { message: 'voice_full' });
+        return;
+      }
+      found.session.voice.set(found.participant.residentId, { socketId: socket.id, muted: false, speaking: false });
+    } else {
+      found.session.voice.get(found.participant.residentId)!.socketId = socket.id; // reconexión
+    }
+    emitVoiceRoster(found.session);
+    console.log(`[${found.session.code}] 🎙️ ${found.participant.name} entra en el canal (${found.session.voice.size})`);
+  });
+
+  socket.on('voice:leave', () => {
+    const found = lookup(socket.id);
+    if (!found) return;
+    if (found.session.voice.delete(found.participant.residentId)) {
+      emitVoiceRoster(found.session);
+      console.log(`[${found.session.code}] 🎙️ ${found.participant.name} sale del canal`);
+    }
+  });
+
+  socket.on('voice:state', (payload: { muted?: boolean; speaking?: boolean } | undefined) => {
+    const found = lookup(socket.id);
+    if (!found) return;
+    const entry = found.session.voice.get(found.participant.residentId);
+    if (!entry) return;
+    if (typeof payload?.muted === 'boolean') entry.muted = payload.muted;
+    if (typeof payload?.speaking === 'boolean') entry.speaking = payload.speaking;
+    io.to(found.session.code).emit('voice:state', {
+      from: found.participant.residentId,
+      muted: entry.muted,
+      speaking: entry.speaking,
+    });
+  });
+
+  socket.on('voice:signal', (payload: { to?: string; data?: unknown } | undefined) => {
+    const found = lookup(socket.id);
+    if (!found) return;
+    const to = typeof payload?.to === 'string' ? found.session.voice.get(payload.to) : undefined;
+    if (!to || payload?.data === undefined) return;
+    // v1.56 (auditoría H4) — tope de tamaño por mensaje de señalización (offer/answer/ICE
+    // caben de sobra en 64 KB; algo mayor es abuso o un cliente roto).
+    if (JSON.stringify(payload.data).length > 65_536) return;
+    io.to(to.socketId).emit('voice:signal', { from: found.participant.residentId, data: payload.data });
+  });
+
+  // ── v1.56 — RECONEXIÓN CON REJOIN: re-vincula el MISMO residente tras caída del transporte ──
+
+  socket.on(
+    'session:rejoin',
+    (payload: { code?: string; residentId?: string } | undefined, ack?: (res: CreateAck | { ok: false; error: string }) => void) => {
+      const code = (payload?.code ?? '').trim().toUpperCase();
+      const residentId = payload?.residentId ?? '';
+      const session = sessions.get(code);
+      if (!session) return ack?.({ ok: false, error: 'unknown_code' });
+      const prev = [...session.participants.entries()].find(([, p]) => p.residentId === residentId);
+      if (!prev) return ack?.({ ok: false, error: 'not_in_session' });
+      const [oldSocketId, participant] = prev;
+      // El socket viejo (si aún respira) sale limpio; el nuevo lo sustituye 1:1.
+      if (oldSocketId !== socket.id) {
+        session.participants.delete(oldSocketId);
+        sessionOfSocket.delete(oldSocketId);
+      }
+      // v1.56 — si estaba en gracia (socket muerto), se cancela la purga: ¡volvió!
+      const pendingPurge = session.grace.get(residentId);
+      if (pendingPurge) {
+        clearTimeout(pendingPurge);
+        session.grace.delete(residentId);
+      }
+      participant.socketId = socket.id;
+      session.participants.set(socket.id, participant);
+      sessionOfSocket.set(socket.id, code);
+      socket.join(code);
+      const resident = session.world.residents[residentId];
+      if (resident) resident.present = true;
+      if (session.cleanup) {
+        clearTimeout(session.cleanup);
+        session.cleanup = null;
+      }
+      ack?.({ ok: true, code, isHost: participant.isHost, yourResidentId: residentId, scenarioId: session.scenarioId });
+      socket.emit('session:joined', {
+        code,
+        isHost: participant.isHost,
+        yourResidentId: residentId,
+        scenarioId: session.scenarioId,
+        participants: participantsList(session),
+      });
+      io.to(code).emit('session:participants', { participants: participantsList(session) });
+      // Todo lo que el vecino perdió mientras volaba: mundo, marcador, co-op y voz.
+      broadcastState(session);
+      emitScore(session);
+      emitCoopState(session);
+      emitVoiceRoster(session);
+      // La entrada de voz sobrevive a la caída: el roster lo conserva y el socket nuevo
+      // hereda el asiento (voice:join del cliente refresca el socketId si hiciera falta).
+      const voiceEntry = session.voice.get(residentId);
+      if (voiceEntry) voiceEntry.socketId = socket.id;
+      console.log(`[${code}] reconexión ${residentId} (${socket.id})`);
+    },
+  );
+
+  socket.on('session:leave', () => leaveSession(socket, false));
+  socket.on('disconnect', (reason: string) => {
+    // v1.56 — diagnóstico: ¿por qué se va el vecino? (ping timeout, transporte, cliente…)
+    const code = sessionOfSocket.get(socket.id);
+    if (code) console.log(`[${code}] ⚠ disconnect (${socket.id}): ${reason}`);
+    leaveSession(socket, true);
+  });
 });
 
 httpServer.listen(PORT, () => {

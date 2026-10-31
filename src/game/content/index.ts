@@ -1,4 +1,4 @@
-import type { AchievementsCatalog, AssetsCatalog, Content, CrossingsCatalog, EcosystemContent, Effect, EmotesCatalog, InteriorsCatalog, StreetCatalog, SoundsCatalog, MusicCatalog, OnboardingCatalog, ProjectCatalog, PersonalitiesCatalog, CharacterDetailsCatalog, CharacterSpritesCatalog } from '@/game/core/types';
+import type { AchievementsCatalog, AssetsCatalog, Content, CrossingsCatalog, EcosystemContent, Effect, EmotesCatalog, InteriorsCatalog, StreetCatalog, SoundsCatalog, MusicCatalog, OnboardingCatalog, ProjectCatalog, PersonalitiesCatalog, CharacterDetailsCatalog, CharacterSpritesCatalog, MultiplayerCatalog } from '@/game/core/types';
 import {
   achievementsCatalogSchema,
   blockListSchema,
@@ -27,6 +27,7 @@ import {
   personalitiesCatalogSchema,
   characterDetailsCatalogSchema,
   characterSpritesCatalogSchema,
+  multiplayerCatalogSchema,
 } from './schemas';
 
 export interface Issue {
@@ -207,6 +208,17 @@ export async function loadContent(baseUrl: string = '/content/'): Promise<{ cont
       throw new Error(`character-sprites.json (hojas de sprites) inválido: ${e instanceof Error ? e.message : String(e)}`);
     }
 
+    // v1.56 — MULTIPLAYER (OPCIONAL): misiones cooperativas reales (roles con objetivos
+    // verificables) + canal de voz. Sin fichero, el multijugador queda como en v1.55 y
+    // en solitario NADA cambia: las misiones normales del sim nunca se bloquean.
+    let multiplayer: MultiplayerCatalog | undefined;
+    try {
+      const res = await fetch(`${baseUrl}multiplayer.json`);
+      if (res.ok) multiplayer = multiplayerCatalogSchema.parse(await res.json()) as MultiplayerCatalog;
+    } catch (e) {
+      throw new Error(`multiplayer.json (cooperativa + voz) inválido: ${e instanceof Error ? e.message : String(e)}`);
+    }
+
     const content: Content = {
       rules,
       blocks: indexById(blocks),
@@ -235,6 +247,7 @@ export async function loadContent(baseUrl: string = '/content/'): Promise<{ cont
       personalities,
       characterDetails,
       characterSprites,
+      multiplayer,
     };
 
     const issues = validateContent(content);

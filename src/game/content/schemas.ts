@@ -3104,3 +3104,53 @@ export const characterSpritesCatalogSchema = z.object({
 });
 
 export type CharacterSpritesCatalogParsed = z.infer<typeof characterSpritesCatalogSchema>;
+
+// ── v1.56 — Catálogo MULTIPLAYER (OPCIONAL, patrón emotes/ecosystem): misiones
+// cooperativas REALES (roles con objetivos verificables) + canal de voz del vecindario.
+// Sin el fichero, todo el multijugador funciona como en v1.55 (sesión + marcador +
+// duelo de fusibles) y las misiones cooperativas simplemente no se ofrecen.
+
+export const mpCoopObjectiveSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('minigame'), id: z.string().min(1) }),
+  z.object({ type: z.literal('reach'), block: z.string().min(1) }),
+]);
+
+export const mpCoopRoleSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  hint: z.string().min(1),
+  objective: mpCoopObjectiveSchema,
+});
+
+export const mpCoopMissionSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  brief: z.string().min(1),
+  /** Mínimo 2 roles: sin reparto no hay cooperación (la misión en solitario es la normal del sim). */
+  roles: z.array(mpCoopRoleSchema).min(2),
+  pointsBonus: z.number().int().positive(),
+  /** Tokens: {a} {b} (nombres de los roles asignados), {title}, {points}. */
+  completeToast: z.string().min(1),
+});
+
+export const multiplayerCatalogSchema = z.object({
+  coop: z.object({
+    enabled: z.boolean().default(true),
+    /** Participantes mínimos para OFERTAR co-op (1 jugador = misiones normales, nunca bloquea). */
+    minPlayers: z.number().int().min(2).default(2),
+    /** Segundos tras completar/saltar una misión antes de ofrecer la siguiente. */
+    cooldownSecs: z.number().min(0).default(10),
+    /** Tokens: {title}. Viaja como ui_toast del mundo (todos los clientes lo ven). */
+    offerToast: z.string().min(1),
+    missions: z.array(mpCoopMissionSchema).min(1),
+  }),
+  voice: z.object({
+    enabled: z.boolean().default(true),
+    maxPeers: z.number().int().min(2).max(8).default(4),
+    startToast: z.string().min(1),
+    stopToast: z.string().min(1),
+    noMicToast: z.string().min(1),
+  }),
+});
+
+export type MultiplayerCatalog = z.infer<typeof multiplayerCatalogSchema>;

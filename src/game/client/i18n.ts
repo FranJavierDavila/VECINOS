@@ -27,7 +27,7 @@ const DICT: Record<string, { es: string; en: string }> = {
     es: 'Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.',
     en: 'Move-ins, noise, smells, wifi, pests, smoke and levies: the neighborhood simulator.',
   },
-  'header.version': { es: 'v1.55 · vecino del mes', en: 'v1.55 · neighbor of the month' },
+  'header.version': { es: 'v1.56 · co-op real + voz', en: 'v1.56 · real co-op + voice' },
   // ── Apagón de assets (v1.47: servidor de arte caído → mundo vacío/cápsulas) ──
   'assets.outage': {
     es: '⚠ No se pudo cargar el arte del juego (¿servidor caído?). El vecindario se recargará en {n} s…',
@@ -52,6 +52,10 @@ const DICT: Record<string, { es: string; en: string }> = {
   // v1.55 — chip del marcador de comunidad (HudBar)
   'hud.mpScore': { es: '🏅 {name} lidera ({top} pts) · tú {mine}', en: '🏅 {name} leads ({top} pts) · you {mine}' },
   'hud.mpScoreAria': { es: 'Marcador de la comunidad: vecino del mes', en: 'Community scoreboard: neighbor of the month' },
+  'hud.mpCoop': { es: '🤝 {title}', en: '🤝 {title}' },
+  'hud.mpCoopAria': { es: 'Misión cooperativa activa', en: 'Active co-op mission' },
+  'hud.mpVoice': { es: '🎙️ Voz ({n})', en: '🎙️ Voice ({n})' },
+  'hud.mpVoiceAria': { es: 'Canal de voz del vecindario', en: 'Neighborhood voice channel' },
   'hud.campaignAria': { es: 'Días de mandato restantes', en: 'Days of your term remaining' },
   'hud.campaignOver': { es: '{label} · Día {d}/{n} · ¡juzgado pronto!', en: '{label} · Day {d}/{n} · judged soon!' },
   'footer.text': {

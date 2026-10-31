@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Copy, Crown, LogOut, Mail, RefreshCw, Trophy, Users, UserPlus } from 'lucide-react';
+import { Check, CircleDot, Handshake, Mic, MicOff, PhoneOff, SkipForward, Copy, Crown, LogOut, Mail, RefreshCw, Trophy, Users, UserPlus } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -38,6 +38,9 @@ export function MultiplayerPanel() {
   const inviteCode = useGameStore((s) => s.mpInviteCode);
   // v1.55 — marcador «Vecino del mes» (session:score del servidor).
   const scoreRows = useGameStore((s) => s.mpScore);
+  // v1.56 — misión cooperativa + canal de voz.
+  const coop = useGameStore((s) => s.mpCoop);
+  const voice = useGameStore((s) => s.mpVoice);
   const [codeInput, setCodeInput] = useState('');
 
   const ctrl = () => getController();
@@ -197,6 +200,118 @@ export function MultiplayerPanel() {
               </ScrollArea>
             </div>
 
+            {/* v1.56 — MISIÓN COOPERATIVA REAL: roles con objetivos verificables. En solitario
+                nunca se ofrece (el catálogo exige minPlayers) y las misiones normales del sim
+                siguen funcionando exactamente igual: cooperar es siempre opcional. */}
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
+              {coop?.active ? (
+                <div className="flex flex-col gap-2">
+                  <p className="flex items-center gap-1.5 text-sm font-semibold">
+                    <Handshake className="size-4 text-emerald-600" aria-hidden />
+                    {coop.active.mission.title}
+                    <Badge variant="secondary" className="ml-auto">+{coop.active.mission.pointsBonus} pts × rol</Badge>
+                  </p>
+                  <p className="text-xs text-muted-foreground">{coop.active.mission.brief}</p>
+                  <ul className="flex flex-col gap-1.5">
+                    {coop.active.roles.map((r) => {
+                      const def = coop.active!.mission.roles.find((d) => d.id === r.roleId);
+                      if (!def) return null;
+                      const mine = r.residentId === myResidentId;
+                      return (
+                        <li key={r.roleId} className={cn('rounded-md border px-2 py-1.5 text-sm', mine && 'border-primary/40 bg-primary/5', r.done && 'opacity-75')}>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="flex items-center gap-1.5 font-medium">
+                              {r.done ? (
+                                <Check className="size-3.5 text-emerald-600" aria-hidden />
+                              ) : (
+                                <CircleDot className="size-3.5 text-muted-foreground" aria-hidden />
+                              )}
+                              {def.label}
+                              {mine && <Badge variant="secondary">tu rol</Badge>}
+                            </span>
+                            <span className="text-xs text-muted-foreground">{r.done ? 'hecho' : (r.name ?? 'libre')}</span>
+                          </div>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            {def.hint}
+                            {def.objective.type === 'reach' && ` (${blockLabel(def.objective.block)})`}
+                          </p>
+                          {!r.done && !r.residentId && (
+                            <Button size="sm" variant="outline" className="mt-1.5 w-full" onClick={() => ctrl()?.coopClaim(coop.active!.mission.id, r.roleId)}>
+                              <Handshake aria-hidden />
+                              Reclamar rol
+                            </Button>
+                          )}
+                          {!r.done && mine && def.objective.type === 'minigame' && (
+                            <Button size="sm" className="mt-1.5 w-full" onClick={() => ctrl()?.openCoopMinigame(def.objective.id)}>
+                              Realizar minijuego
+                            </Button>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  {isHost && (
+                    <Button size="sm" variant="ghost" className="w-full" onClick={() => ctrl()?.coopSkip()}>
+                      <SkipForward aria-hidden />
+                      Saltar misión
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Handshake className="size-3.5" aria-hidden />
+                  Sin misión cooperativa activa
+                  {coop && coop.done.length > 0 && ` · ${coop.done.length} completadas con la comunidad`}
+                  {participants.length < 2 && ' · invita a un vecino para activarlas'}
+                </p>
+              )}
+            </div>
+
+            {/* v1.56 — CANAL DE VOZ: WebRTC P2P (el audio nunca pasa por el servidor). */}
+            <div className="rounded-lg border p-3">
+              <p className="mb-1.5 flex items-center gap-1.5 text-sm font-medium">
+                {voice.muted ? <MicOff className="size-4 text-muted-foreground" aria-hidden /> : <Mic className="size-4 text-rose-500" aria-hidden />}
+                Canal de voz
+                {voice.active && <Badge variant="secondary" className="ml-auto">en directo</Badge>}
+              </p>
+              {voice.active ? (
+                <div className="flex flex-col gap-2">
+                  <ul className="flex flex-col gap-1">
+                    {voice.members.map((m) => (
+                      <li key={m.id} className="flex items-center justify-between rounded-md border px-2 py-1.5 text-sm">
+                        <span className="flex items-center gap-1.5">
+                          {m.speaking && !m.muted ? (
+                            <Mic className="size-3.5 animate-pulse text-emerald-600" aria-label="hablando" />
+                          ) : (
+                            <MicOff className="size-3.5 text-muted-foreground" aria-label="silencio" />
+                          )}
+                          {m.name}
+                          {m.id === myResidentId && <span className="text-xs text-muted-foreground">(tú)</span>}
+                        </span>
+                        {m.muted && <span className="text-xs text-muted-foreground">silenciado</span>}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" className="flex-1" onClick={() => ctrl()?.voiceMuteToggle()}>
+                      {voice.muted ? <Mic aria-hidden /> : <MicOff aria-hidden />}
+                      {voice.muted ? 'Reactivar micro' : 'Silenciar'}
+                    </Button>
+                    <Button size="sm" variant="destructive" className="flex-1" onClick={() => ctrl()?.voiceToggle()}>
+                      <PhoneOff aria-hidden />
+                      Salir
+                    </Button>
+                  </div>
+                  {voice.synthetic && <p className="text-xs text-amber-600">Sin micrófono disponible: modo escucha (silencio).</p>}
+                </div>
+              ) : (
+                <Button size="sm" className="w-full" onClick={() => ctrl()?.voiceToggle()}>
+                  <Mic aria-hidden />
+                  Entrar al canal de voz
+                </Button>
+              )}
+            </div>
+
             {/* v1.55 — MARCADOR «VECINO DEL MES»: llega por session:score; corona al que
                 más puntos suma y muestra la mejor marca de fusibles de cada vecino. */}
             {scoreRows && scoreRows.length > 0 && (
@@ -221,7 +336,13 @@ export function MultiplayerPanel() {
                           {r.residentId === myResidentId && <span className="text-xs text-muted-foreground">(tú)</span>}
                         </span>
                         <span className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
-                          {r.best['mg_fusibles'] !== undefined && <span title="Mejor rearme de fusibles">🔌 {r.best['mg_fusibles'].toFixed(1).replace('.', ',')} s</span>}
+                          {/* v1.56 — mejores marcas del catálogo (rules.multiplayer.score.minigames),
+                              sin hardcodear ids: cada minijuego con récord se pinta con su label. */}
+                          {Object.entries(r.best).map(([mgId, secs]) => (
+                            <span key={mgId} title={`Mejor marca: ${mgId}`}>
+                              ⏱️ {secs.toFixed(1).replace('.', ',')} s
+                            </span>
+                          ))}
                           <span className="font-semibold text-foreground">{r.points} pts</span>
                         </span>
                       </li>

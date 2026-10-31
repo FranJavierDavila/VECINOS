@@ -1,0 +1,80 @@
+{
+  "coop": {
+    "enabled": true,
+    "minPlayers": 2,
+    "cooldownSecs": 10,
+    "offerToast": "🤝 MISIÓN COOPERATIVA disponible: «{title}». Reclama tu rol en el panel Multijugador.",
+    "missions": [
+      {
+        "id": "coop_apagon",
+        "title": "Apagón en la comunidad",
+        "brief": "El cuadro eléctrico del portal ha saltado y el vecindario pide explicaciones a gritos. Dos manos hacen la faena: una en el cuadro, otra calmando a la gente.",
+        "roles": [
+          {
+            "id": "electricista",
+            "label": "Electricista de guardia",
+            "hint": "Rearma el cuadro: completa el minijuego de fusibles",
+            "objective": { "type": "minigame", "id": "mg_fusibles" }
+          },
+          {
+            "id": "mediador",
+            "label": "Mediador vecinal",
+            "hint": "Calma a la comunidad: plantado en el portal",
+            "objective": { "type": "reach", "block": "blk_p0_portal" }
+          }
+        ],
+        "pointsBonus": 150,
+        "completeToast": "🤝 {a} y {b} resolvieron «{title}» en equipo: +{points} pts para cada uno."
+      },
+      {
+        "id": "coop_goteo",
+        "title": "Operación goteo",
+        "brief": "La lavadora de Esperanza vuelve a las andadas y el goteo ya tiene coreografía. Fontanería arriba, paraguas humano abajo.",
+        "roles": [
+          {
+            "id": "fontanero",
+            "label": "Fontanero de guardia",
+            "hint": "Desatasca: completa el minijuego de la manivela",
+            "objective": { "type": "minigame", "id": "mg_desatascar" }
+          },
+          {
+            "id": "paraguas",
+            "label": "Paraguas humano",
+            "hint": "Cubre a Esperanza: llega a la puerta del 2C",
+            "objective": { "type": "reach", "block": "blk_p2_c" }
+          }
+        ],
+        "pointsBonus": 150,
+        "completeToast": "🤝 {a} y {b} frenaron «{title}» en equipo: +{points} pts para cada uno."
+      },
+      {
+        "id": "coop_negociacion",
+        "title": "Mesa de negociación",
+        "brief": "El 2A (okupa incluido) y las reclamaciones del rellano han reventado el grupo de WhatsApp. Hay que negociar en paralelo: puño de hierro arriba, acta abajo.",
+        "roles": [
+          {
+            "id": "negociador",
+            "label": "Negociador jefe",
+            "hint": "Cierra el trato: completa el minijuego de diplomacia",
+            "objective": { "type": "minigame", "id": "mg_trato_vecino" }
+          },
+          {
+            "id": "notario",
+            "label": "Notario del rellano",
+            "hint": "Levanta acta: plantado en el portal",
+            "objective": { "type": "reach", "block": "blk_p0_portal" }
+          }
+        ],
+        "pointsBonus": 150,
+        "completeToast": "🤝 {a} y {b} cerraron «{title}» en equipo: +{points} pts para cada uno."
+      }
+    ]
+  },
+  "voice": {
+    "enabled": true,
+    "maxPeers": 4,
+    "startToast": "🎙️ Canal de voz del vecindario abierto. Tus vecinos te oyen (modera el volumen de las quejas).",
+    "stopToast": "🎙️ Canal de voz cerrado. Vuelven los gritos de ventana en ventana.",
+    "noMicToast": "🎙️ Sin micrófono disponible: entras al canal en modo escucha (silencio)."
+  }
+}

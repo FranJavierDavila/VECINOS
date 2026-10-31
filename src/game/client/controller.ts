@@ -42,6 +42,7 @@ import { PerfDirector } from './perf';
 import { startGamepadPolling } from './gamepad';
 import { loadUnlocked, saveUnlocked } from './achievements-store';
 import { NetSession, type SessionStatePayload } from './net';
+import { VoiceChannel } from './voice';
 import { setController } from './bridge';
 import { selectModalOpen, useGameStore, type AchievementUi, type Speed, type Tone } from './store';
 
@@ -161,6 +162,8 @@ class GameController {
   private appliedSeq = 0;
   /** v1.55 — instante en que se abrió el minijuego en curso (cronómetro del duelo). */
   private minigameStartedAt = 0;
+  /** v1.56 — canal de voz del vecindario (WebRTC P2P sobre el transporte de la sesión). */
+  private voice: VoiceChannel | null = null;
 
   async init(canvas: HTMLCanvasElement): Promise<void> {
     if (this.engine || this.initializing) return;
@@ -855,11 +858,14 @@ class GameController {
     this.myResidentId = null;
     this.isHost = false;
     this.appliedSeq = 0;
+    this.stopVoice(); // v1.56 — fuera del vecindario no hay canal de voz
     const store = useGameStore.getState();
     store.setMpStatus('off');
     store.setMpSession(null);
     store.setMpParticipants([]);
     store.setMpScore(null); // v1.55: sin sesión, sin marcador
+    store.setMpCoop(null); // v1.56: sin oferta co-op
+    store.setMpVoice({ active: false, muted: false, members: [] });
     store.setMpPanelOpen(false);
     store.setMpInviteCode(null); // v1.54: la invitación de la URL ya no aplica
     void this.restart();
@@ -871,6 +877,19 @@ class GameController {
       onState: (s) => this.applyRemoteState(s),
       onParticipants: (p) => useGameStore.getState().setMpParticipants(p),
       onScore: (rows) => useGameStore.getState().setMpScore(rows), // v1.55 — marcador de comunidad
+      onCoopState: (s) => useGameStore.getState().setMpCoop(s), // v1.56 — misión cooperativa
+      onVoiceRoster: (members) => {
+        // v1.56 — canal de voz: roster + (re)montaje de la malla de peers.
+        useGameStore.getState().setMpVoice({ members });
+        this.voice?.setRoster(members);
+      },
+      onVoiceSignal: (from, data) => {
+        void this.voice?.handleSignal(from, data);
+      },
+      onVoiceState: (from, muted, speaking) => {
+        const st = useGameStore.getState();
+        st.setMpVoice({ members: st.mpVoice.members.map((m) => (m.id === from ? { ...m, muted, speaking } : m)) });
+      },
       onJoined: (j) => {
         this.myResidentId = j.yourResidentId;
         this.isHost = j.isHost;
@@ -883,10 +902,42 @@ class GameController {
       },
       onStatus: (st) => {
         if (!this.net) return;
-        if (st === 'connected' && useGameStore.getState().mpStatus === 'connecting') return; // el ack decide
-        if (st === 'disconnected' && useGameStore.getState().mpStatus === 'connected') {
-          useGameStore.getState().setMpStatus('error');
-          useGameStore.getState().setMpError('Conexión perdida con el servidor de la comunidad.');
+        const store = useGameStore.getState();
+        if (st === 'connected') {
+          if (store.mpStatus === 'connecting') return; // el ack decide
+          // v1.56 — RECONEXIÓN TRANSPARENTE: el transporte volvió (pestaña en segundo plano,
+          // red móvil inestable). Si teníamos sesión, re-vinculamos el MISMO residente: el
+          // servidor re-difunde mundo, marcador, co-op y voz, y seguimos donde estábamos.
+          const sess = store.mpSession;
+          if (sess && this.myResidentId) {
+            void this.net.rejoin(sess.code, this.myResidentId).then((res) => {
+              if (res.ok) {
+                useGameStore.getState().setMpStatus('connected'); // de vuelta: el panel deja el error
+                // El asiento de voz sobrevive en el servidor (gracia): re-afirmo con el socket nuevo.
+                if (useGameStore.getState().mpVoice.active) this.net?.voiceJoin();
+              } else {
+                // v1.56 (auditoría H1) — rejoin imposible (sesión TTL/reinicio): limpieza
+                // COMPLETA, si no el net huérfano bloquea «Crear/Unirse» y el micro queda capturado.
+                this.net?.disconnect();
+                this.net = null;
+                this.myResidentId = null;
+                this.isHost = false;
+                this.appliedSeq = 0;
+                this.stopVoice();
+                const s2 = useGameStore.getState();
+                s2.setMpStatus('error');
+                s2.setMpError('La sesión de la comunidad ya no existe. Crea otra partida o únete a un vecino.');
+                s2.setMpCoop(null);
+                s2.setMpVoice({ active: false, muted: false, members: [] });
+              }
+            });
+          }
+          return;
+        }
+        if (st === 'disconnected' && store.mpStatus === 'connected') {
+          // NO se limpia la sesión: el rejoin del próximo 'connect' la recupera.
+          store.setMpStatus('error');
+          store.setMpError('Conexión perdida con el servidor de la comunidad. Reconectando…');
         }
       },
     });
@@ -903,6 +954,113 @@ class GameController {
     // onJoined ya habrá fijado myResidentId/isHost/código con session:joined.
   }
 
+  // ── v1.56 — MISIONES COOPERATIVAS REALES (orquestación cliente; el sim no se toca) ──
+
+  /** Reclama un rol libre de la misión co-op activa (panel Multijugador). */
+  coopClaim(missionId: string, roleId: string): void {
+    this.net?.coopClaim(missionId, roleId);
+  }
+
+  /** El anfitrión salta la misión co-op activa (el catálogo ofertará la siguiente). */
+  coopSkip(): void {
+    this.net?.coopSkip();
+  }
+
+  /**
+   * Abre localmente el minijuego del catálogo que exige el rol co-op propio (sin pasar
+   * por el sim: las misiones del sim siguen siendo la vía normal; esto ES la tarea
+   * co-op). Misma puerta que minigame_requested: modal + overrides de escenario + cronómetro.
+   */
+  openCoopMinigame(id: string): void {
+    if (!this.world) return;
+    const def = this.content.minigames[id];
+    if (!def) return;
+    this.minigameStartedAt = performance.now(); // el duelo también puede sonreír al co-op
+    const ov = this.scenarioOverrides[def.id];
+    const effective = ov ? ({ ...def, config: { ...def.config, ...ov } } as MinigameDef) : def;
+    useGameStore.getState().setMinigame({ ...effective, emoji: effective.emoji ?? '🎮', instruction: effective.instruction ?? null });
+  }
+
+  /** Si el objetivo de mi rol asignado era ESTE minijuego completado, marco progreso. */
+  private coopProgressMinigame(id: string): void {
+    const coop = useGameStore.getState().mpCoop;
+    if (!coop?.active || !this.net || !this.myResidentId) return;
+    const { mission } = coop.active;
+    for (const r of coop.active.roles) {
+      if (r.residentId !== this.myResidentId || r.done) continue;
+      const def = mission.roles.find((d) => d.id === r.roleId);
+      if (def?.objective.type === 'minigame' && def.objective.id === id) {
+        this.net.coopProgress(mission.id, r.roleId);
+        return;
+      }
+    }
+  }
+
+  /**
+   * Detección de objetivos «reach» (llegar a un bloque): con cada estado del servidor
+   * compruebo DÓNDE está MI residente (el mundo espejo es autoridad). Uno por tick: el
+   * servidor difunde el nuevo estado y el siguiente, si toca, saldrá con él.
+   */
+  private coopTickLocal(): void {
+    const coop = useGameStore.getState().mpCoop;
+    if (!coop?.active || !this.net || !this.myResidentId || !this.world) return;
+    const loc = this.world.residents[this.myResidentId]?.location ?? null;
+    if (!loc) return;
+    for (const r of coop.active.roles) {
+      if (r.residentId !== this.myResidentId || r.done) continue;
+      const def = coop.active.mission.roles.find((d) => d.id === r.roleId);
+      if (def?.objective.type === 'reach' && def.objective.block === loc) {
+        this.net.coopProgress(coop.active.mission.id, r.roleId);
+        return;
+      }
+    }
+  }
+
+  // ── v1.56 — CANAL DE VOZ (WebRTC P2P; el servidor solo reenvía señalización) ──
+
+  /** Entra/sale del canal de voz del vecindario. */
+  voiceToggle(): void {
+    const store = useGameStore.getState();
+    if (this.voice) {
+      this.stopVoice();
+      this.net?.voiceLeave();
+      store.setMpVoice({ active: false, muted: false, members: [] });
+      store.pushToast(this.content.multiplayer?.voice.stopToast ?? '🎙️ Canal de voz cerrado.', 'info');
+      return;
+    }
+    if (!this.net || !this.myResidentId) return;
+    const myId = this.myResidentId;
+    const channel = new VoiceChannel({
+      myId,
+      sendSignal: (to, data) => this.net?.voiceSignal(to, data),
+      sendState: (muted, speaking) => this.net?.voiceState(muted, speaking),
+      onMuteChanged: (muted) => useGameStore.getState().setMpVoice({ muted }),
+    });
+    this.voice = channel;
+    void channel.start().then(() => {
+      if (this.voice !== channel) return; // se cerró mientras arrancaba el micro
+      this.net?.voiceJoin();
+      const st = useGameStore.getState();
+      st.setMpVoice({ active: true, synthetic: channel.isSynthetic(), muted: false });
+      st.pushToast(
+        channel.isSynthetic()
+          ? this.content.multiplayer?.voice.noMicToast ?? '🎙️ Sin micrófono: modo escucha.'
+          : this.content.multiplayer?.voice.startToast ?? '🎙️ Canal de voz abierto.',
+        'info',
+      );
+    });
+  }
+
+  /** Silencia/reactiva mi micrófono. */
+  voiceMuteToggle(): void {
+    this.voice?.toggleMute();
+  }
+
+  private stopVoice(): void {
+    this.voice?.stop();
+    this.voice = null;
+  }
+
   /** Adopta el estado del servidor (autoridad). Primera vez: reinicia la escena con ese mundo. */
   private applyRemoteState(s: SessionStatePayload): void {
     if (s.seq <= this.appliedSeq) return;
@@ -913,6 +1071,7 @@ class GameController {
         this.world.events = s.events.slice();
         this.handleEvents();
         this.reconcile();
+        this.coopTickLocal(); // v1.56 — objetivos reach con el mundo recién llegado
         this.syncHud();
       });
       return;
@@ -923,6 +1082,7 @@ class GameController {
     this.handleEvents();
     this.paintBuilding();
     this.reconcile();
+    this.coopTickLocal(); // v1.56 — objetivos reach con la posición autoridad
     this.syncHud();
   }
 
@@ -1029,6 +1189,8 @@ class GameController {
       if (cfg) this.net.minigameTime(id, (performance.now() - this.minigameStartedAt) / 1000);
     }
     this.minigameStartedAt = 0;
+    // v1.56 — MISIÓN COOPERATIVA: si el objetivo de mi rol era ESTE minijuego, marco progreso.
+    if (success && this.net) this.coopProgressMinigame(id);
     // v1.48 — REARME DEL CUADRO DE FUSIBLES: el minijuego restaura el param de luz del
     // pasillo (sim, effects del catálogo) y aquí se cancela el apagón del cerebro — los
     // pasillos, escaleras y locales recuperan su luz al instante. Sin arreglo, sin luz.
@@ -1154,6 +1316,9 @@ class GameController {
         getEcosystem: () => this.ecosystem,
         // v1.52 — QA de flujos completos (timbre/fusibles/flecha): el controlador entero.
         getController: () => this,
+        // v1.56 — QA del canal de voz: estados de conexión de la malla de peers.
+        getVoicePeers: () => this.voice?.peerStates() ?? {},
+        getVoiceState: () => ({ active: this.voice !== null, synthetic: this.voice?.isSynthetic() ?? false, muted: this.voice?.isMuted() ?? false }),
         setTouch: (v: { up?: boolean; down?: boolean; left?: boolean; right?: boolean }) => this.setTouchInput(v),
         // v1.46 — QA de locomoción determinista: despeja modales y CONGELA el bucle
         // (paused) para conducir logic.update(dt, input) a mano desde la consola sin

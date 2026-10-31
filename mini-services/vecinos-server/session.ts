@@ -48,6 +48,23 @@ export interface Session {
   lastMinigame: { id: string; actor: string; at: number } | null;
   /** Última marca aceptada por participante (rate limit del duelo de fusibles). */
   lastRecordAt: Map<string, number>;
+  // ── v1.56 — MISIONES COOPERATIVAS (catálogo rules→content.multiplayer.coop) ──
+  coop: {
+    /** Índice de la misión activa en el catálogo (-1 = ninguna activa). */
+    activeIdx: number;
+    /** Asignación por roleId (solo roles de la misión activa; null = libre). */
+    assignments: Map<string, { residentId: string; name: string; done: boolean }>;
+    /** Ids de misiones co-op ya completadas (no se repiten hasta agotar el catálogo). */
+    done: string[];
+    /** Instante (ms) de la última oferta/completado: gobierna el cooldown del catálogo. */
+    lastOfferAt: number;
+  };
+  // ── v1.56 — CANAL DE VOZ (WebRTC P2P; aquí SOLO se reenvía la señalización) ──
+  /** Residentes en el canal, con su estado de micro (el audio va P2P, nunca por el servidor). */
+  voice: Map<string, { socketId: string; muted: boolean; speaking: boolean }>;
+  // ── v1.56 — GRACIA DE RECONEXIÓN: participante cuyo socket murió; purga diferida ──
+  /** residentId → timer de purga (30 s). Si rejoin llega antes, se cancela. */
+  grace: Map<string, ReturnType<typeof setTimeout>>;
 }
 
 /** Lista plana de participantes con el formato exacto del protocolo ({ id, name, home }). */

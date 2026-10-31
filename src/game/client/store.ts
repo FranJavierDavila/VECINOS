@@ -5,7 +5,7 @@ import type { Access, MinigameDef, Weather } from '@/game/core/types';
 import { isMuted } from './audio';
 import { loadOptions } from './options';
 import type { ColorblindMode, Lang, PerfTarget, TextScale } from './options';
-import type { MpScoreRow } from './net';
+import type { MpScoreRow, MpCoopState, MpVoiceMember, MpVoiceState } from './net';
 
 // ───────────────────────── Tipos de la interfaz ─────────────────────────
 
@@ -317,6 +317,10 @@ interface GameState {
   mpInviteCode: string | null;
   /** v1.55 — marcador «Vecino del mes» (session:score): null = sin sesión o sin puntos aún. */
   mpScore: MpScoreRow[] | null;
+  /** v1.56 — misión cooperativa activa (coop:state): null = sin oferta (también en solitario). */
+  mpCoop: MpCoopState | null;
+  /** v1.56 — canal de voz del vecindario (roster + estado propio). */
+  mpVoice: MpVoiceState;
 
   // ── Campaña de presidencia (v1.18): chip del HUD; la lógica vive en support/campaign ──
   setCampaign: (c: CampaignHud | null) => void;
@@ -373,6 +377,9 @@ interface GameState {
   setMpError: (v: string | null) => void;
   setMpInviteCode: (v: string | null) => void;
   setMpScore: (rows: MpScoreRow[] | null) => void;
+  setMpCoop: (v: MpCoopState | null) => void;
+  /** v1.56 — parche del estado de voz (fusiona; members sustituye el roster entero). */
+  setMpVoice: (v: { active?: boolean; synthetic?: boolean; muted?: boolean; members?: MpVoiceMember[] }) => void;
   setAchievements: (list: AchievementUi[]) => void;
   setAchievementPopup: (p: AchievementUi | null) => void;
   /** Marca un logro como ya-anunciado (quita `newly`): el popup lo llama al mostrarlo. */
@@ -449,6 +456,8 @@ export const useGameStore = create<GameState>((set) => ({
   mpError: null,
   mpInviteCode: null,
   mpScore: null,
+  mpCoop: null,
+  mpVoice: { active: false, synthetic: false, muted: false, members: [] },
   achievements: [],
   achievementPopup: null,
 
@@ -518,6 +527,16 @@ export const useGameStore = create<GameState>((set) => ({
   setMpError: (mpError) => set({ mpError }),
   setMpInviteCode: (mpInviteCode) => set({ mpInviteCode }),
   setMpScore: (mpScore) => set({ mpScore }),
+  setMpCoop: (mpCoop) => set({ mpCoop }),
+  setMpVoice: (v) =>
+    set((s) => ({
+      mpVoice: {
+        active: v.active ?? s.mpVoice.active,
+        synthetic: v.synthetic ?? s.mpVoice.synthetic,
+        muted: v.muted ?? s.mpVoice.muted,
+        members: v.members ?? s.mpVoice.members,
+      },
+    })),
   setCampaign: (campaign) => set({ campaign }),
   setAchievements: (achievements) => set({ achievements }),
   setAchievementPopup: (achievementPopup) => set({ achievementPopup }),
@@ -550,5 +569,7 @@ export const useGameStore = create<GameState>((set) => ({
       achievementPopup: null,
       saveState: 'idle',
       savedAt: null,
+      mpCoop: null,
+      mpVoice: { active: false, synthetic: false, muted: false, members: [] },
     }),
 }));

@@ -8,7 +8,9 @@
 
 import {
   Drama,
+  Handshake,
   Home,
+  Mic,
   Star,
   Trophy,
 } from 'lucide-react';
@@ -54,6 +56,9 @@ export function HudBar() {
   const myResidentId = useGameStore((s) => s.mpMyResidentId);
   const topRow = mpScore?.find((r) => r.top) ?? null;
   const myRow = myResidentId ? mpScore?.find((r) => r.residentId === myResidentId) : undefined;
+  // v1.56 — chips de co-op y voz (solo con comunidad activa).
+  const mpCoop = useGameStore((s) => s.mpCoop);
+  const mpVoice = useGameStore((s) => s.mpVoice);
 
   return (
     <Card className="gap-2 py-3">
@@ -69,6 +74,18 @@ export function HudBar() {
         {topRow && (
           <Chip icon={Trophy} iconClassName="text-amber-500" label={t('hud.mpScoreAria')}>
             {t('hud.mpScore', { name: topRow.name, top: topRow.points, mine: myRow?.points ?? 0 })}
+          </Chip>
+        )}
+
+        {mpCoop?.active && (
+          <Chip icon={Handshake} iconClassName="text-emerald-500" label={t('hud.mpCoopAria')}>
+            {t('hud.mpCoop', { title: mpCoop.active.mission.title })}
+          </Chip>
+        )}
+
+        {mpVoice.active && (
+          <Chip icon={Mic} iconClassName={mpVoice.muted ? 'text-muted-foreground' : 'text-rose-500'} label={t('hud.mpVoiceAria')}>
+            {t('hud.mpVoice', { n: mpVoice.members.length })}
           </Chip>
         )}
 

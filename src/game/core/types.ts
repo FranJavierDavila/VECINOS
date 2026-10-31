@@ -1,4 +1,4 @@
-import type { StreetCatalog, SoundsCatalog, InteriorsCatalog } from '@/game/content/schemas';
+import type { MultiplayerCatalog, StreetCatalog, SoundsCatalog, InteriorsCatalog } from '@/game/content/schemas';
 
 // Re-exportados: los consumidores del contrato importan TODO desde aquí (types.ts es la
 // única fuente de verdad; los esquemas Zod son su espejo de validación).
@@ -1087,6 +1087,9 @@ export interface Content {
   characterDetails?: CharacterDetailsCatalog;
   /** v1.46 — hojas de sprites animadas del personaje (retícula + PNG externos por arquetipo). */
   characterSprites?: CharacterSpritesCatalog;
+  /** v1.56 — misiones cooperativas REALES + canal de voz (opcional): sin catálogo,
+   *  el multijugador funciona como en v1.55 y en solitario nada cambia (nunca bloquea). */
+  multiplayer?: MultiplayerCatalog;
 }
 
 // ───────────────────────── Reglas y ajustes (catálogo rules.json) ─────────────────────────

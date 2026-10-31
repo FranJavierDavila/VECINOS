@@ -51,6 +51,13 @@ export interface GameControllerApi {
   hostSession(): void;
   joinSession(code: string): void;
   leaveSession(): void;
+  /** v1.56 — misión cooperativa: reclamar rol, saltar (anfitrión) y abrir el minijuego del rol. */
+  coopClaim(missionId: string, roleId: string): void;
+  coopSkip(): void;
+  openCoopMinigame(id: string): void;
+  /** v1.56 — canal de voz del vecindario: entrar/salir y silenciar el micro. */
+  voiceToggle(): void;
+  voiceMuteToggle(): void;
   save(): Promise<void>;
   load(): Promise<void>;
 }
