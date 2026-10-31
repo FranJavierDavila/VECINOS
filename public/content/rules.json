@@ -11,6 +11,23 @@
       "sessionFull": "La comunidad está completa. Ni los okupas caben ya.",
       "noVacant": "No queda vivienda libre para el recién llegado.",
       "remoteSaveDisabled": "En comunidad se decide a la vez: guardar no cabe en el acta multijugador."
+    },
+    "score": {
+      "title": "Vecino del mes",
+      "missionCompletedPoints": 100,
+      "missionBonus": {},
+      "minigames": {
+        "mg_fusibles": {
+          "label": "rearme de fusibles",
+          "pointsPerRecord": 50,
+          "maxSecs": 600
+        }
+      },
+      "recordToast": "⏱️ {name} rearmó el cuadro en {secs} s — ¡mejor marca de la comunidad! (+{points} pts)",
+      "firstToast": "⏱️ {name} rearmó el cuadro en {secs} s (+{points} pts)",
+      "boardTemplate": "🏅 VECINO DEL MES\n{lines}\nResuelve misiones y gana duelos de minijuegos para sumar puntos.",
+      "boardLine": "{pos}. {name} · {points} pts{extra}",
+      "boardExtraBest": " · fusibles {secs} s"
     }
   },
   "sim": {

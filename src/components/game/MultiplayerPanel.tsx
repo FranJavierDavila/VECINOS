@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Copy, Crown, LogOut, Mail, RefreshCw, Users, UserPlus } from 'lucide-react';
+import { Copy, Crown, LogOut, Mail, RefreshCw, Trophy, Users, UserPlus } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -14,6 +14,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
 import { blockLabel } from '@/game/core/types';
 import { getController } from '@/game/client/bridge';
 import { useGameStore } from '@/game/client/store';
@@ -35,6 +36,8 @@ export function MultiplayerPanel() {
   const ready = useGameStore((s) => s.ready);
   // v1.54 — invitación que llegó por ENLACE (?join=CODE): la sirve el controller al cargar.
   const inviteCode = useGameStore((s) => s.mpInviteCode);
+  // v1.55 — marcador «Vecino del mes» (session:score del servidor).
+  const scoreRows = useGameStore((s) => s.mpScore);
   const [codeInput, setCodeInput] = useState('');
 
   const ctrl = () => getController();
@@ -193,6 +196,40 @@ export function MultiplayerPanel() {
                 </ul>
               </ScrollArea>
             </div>
+
+            {/* v1.55 — MARCADOR «VECINO DEL MES»: llega por session:score; corona al que
+                más puntos suma y muestra la mejor marca de fusibles de cada vecino. */}
+            {scoreRows && scoreRows.length > 0 && (
+              <div>
+                <p className="mb-1 flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                  <Trophy className="size-3.5 text-amber-500" aria-hidden />
+                  Vecino del mes
+                </p>
+                <ScrollArea className="max-h-40">
+                  <ul className="flex flex-col gap-1 pr-3">
+                    {scoreRows.map((r) => (
+                      <li
+                        key={r.residentId}
+                        className={cn(
+                          'flex items-center justify-between rounded-md border px-2 py-1.5 text-sm',
+                          r.residentId === myResidentId && 'border-primary/40 bg-primary/5',
+                        )}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          {r.top && <Crown className="size-3.5 text-amber-500" aria-hidden />}
+                          <span className="font-medium">{r.name}</span>
+                          {r.residentId === myResidentId && <span className="text-xs text-muted-foreground">(tú)</span>}
+                        </span>
+                        <span className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
+                          {r.best['mg_fusibles'] !== undefined && <span title="Mejor rearme de fusibles">🔌 {r.best['mg_fusibles'].toFixed(1).replace('.', ',')} s</span>}
+                          <span className="font-semibold text-foreground">{r.points} pts</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </ScrollArea>
+              </div>
+            )}
 
             <div className="flex flex-col gap-1.5">
               <p className="text-xs font-medium text-muted-foreground">Enlace de invitación</p>

@@ -36,6 +36,17 @@ export interface SessionStatePayload {
   events: GameEvent[];
 }
 
+/** v1.55 — fila del marcador «Vecino del mes» (forma exacta de session:score.rows). */
+export interface MpScoreRow {
+  residentId: string;
+  name: string;
+  points: number;
+  /** Mejor marca por minijuego (segundos, 1 decimal). */
+  best: Record<string, number>;
+  /** true = «Vecino del mes» (máxima puntuación de la sala). */
+  top: boolean;
+}
+
 /** Transporte puro: 'connecting' (conectando/reconectando) → 'connected' → 'disconnected'. */
 export type MpNetStatus = 'connecting' | 'connected' | 'disconnected';
 
@@ -43,6 +54,7 @@ export interface NetCallbacks {
   onState?: (s: SessionStatePayload) => void;
   onParticipants?: (participants: MpParticipant[]) => void;
   onJoined?: (payload: SessionJoinedPayload) => void;
+  onScore?: (rows: MpScoreRow[]) => void;
   onError?: (message: string) => void;
   onStatus?: (status: MpNetStatus) => void;
 }
@@ -97,6 +109,8 @@ export class NetSession {
     this.socket.on('session:joined', (p: SessionJoinedPayload) => cbs.onJoined?.(p));
     this.socket.on('session:participants', (p: { participants: MpParticipant[] }) => cbs.onParticipants?.(p.participants));
     this.socket.on('session:state', (s: SessionStatePayload) => cbs.onState?.(s));
+    // v1.55 — marcador «Vecino del mes» (el servidor lo difunde tras cada premio).
+    this.socket.on('session:score', (p: { rows: MpScoreRow[] }) => cbs.onScore?.(Array.isArray(p?.rows) ? p.rows : []));
     this.socket.on('session:error', (p: { message: string }) => cbs.onError?.(p.message));
   }
 
@@ -113,6 +127,11 @@ export class NetSession {
   /** C→S session:command (sin ack; el servidor impone cmd.actor). */
   command(cmd: Command): void {
     this.socket.emit('session:command', { cmd });
+  }
+
+  /** v1.55 — DUELO DE MINIJUEGOS: marca de tiempo (s) de un rearme con éxito reciente. */
+  minigameTime(id: string, secs: number): void {
+    this.socket.emit('session:minigame_time', { id, secs });
   }
 
   /** C→S session:set_speed (solo surte efecto si el emisor es el anfitrión). */

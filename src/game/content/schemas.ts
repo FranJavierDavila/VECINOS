@@ -515,6 +515,21 @@ export const rulesSchema = z.object({
     joinToast: z.string(),
     leaveToast: z.string(),
     texts: z.object({ sessionFull: z.string(), noVacant: z.string(), remoteSaveDisabled: z.string() }),
+    // v1.55 — MARCADOR «VECINO DEL MES»: criterio 100% del catálogo. Todo opcional:
+    // sin bloque score la comunidad funciona igual, solo no puntúa.
+    score: z
+      .object({
+        title: z.string(),
+        missionCompletedPoints: z.number(),
+        missionBonus: z.record(z.string(), z.number()),
+        minigames: z.record(z.string(), z.object({ label: z.string().optional(), pointsPerRecord: z.number(), maxSecs: z.number().optional() })),
+        recordToast: z.string(),
+        firstToast: z.string(),
+        boardTemplate: z.string(),
+        boardLine: z.string(),
+        boardExtraBest: z.string().optional(),
+      })
+      .optional(),
   }),
   sim: z.object({
     night: scheduleWindowSchema,

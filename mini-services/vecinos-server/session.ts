@@ -41,11 +41,49 @@ export interface Session {
   timer: ReturnType<typeof setInterval>;
   /** Borrado diferido cuando la sesión se queda sin participantes. */
   cleanup: ReturnType<typeof setTimeout> | null;
+  // ── v1.55 — MARCADOR «VECINO DEL MES» (todo el criterio vive en rules.multiplayer.score) ──
+  /** Puntos y mejores marcas por residente (sobrevive a reconexiones; el nombre se congela). */
+  scores: Map<string, { points: number; best: Record<string, number>; name?: string }>;
+  /** Último resultado de minijuego recibido (guardia anti-spam de marcas de tiempo). */
+  lastMinigame: { id: string; actor: string; at: number } | null;
+  /** Última marca aceptada por participante (rate limit del duelo de fusibles). */
+  lastRecordAt: Map<string, number>;
 }
 
 /** Lista plana de participantes con el formato exacto del protocolo ({ id, name, home }). */
 export function participantsList(session: Session): { id: string; name: string; home: string }[] {
   return [...session.participants.values()].map((p) => ({ id: p.residentId, name: p.name, home: p.home }));
+}
+
+/** Fila del marcador con el formato exacto del protocolo session:score. */
+export interface ScoreRow {
+  residentId: string;
+  name: string;
+  points: number;
+  /** Mejor marca por minijuego del catálogo (segundos, 1 decimal). */
+  best: Record<string, number>;
+  /** true si es el «Vecino del mes» (mayor puntuación; empate → orden alfabético). */
+  top: boolean;
+}
+
+/**
+ * Construye el marcador de la sesión: participantes conectados + filas de quien puntuó y
+ * se fue (su nombre se congela con el que tenía al salir). «Top» = más puntos; sin
+ * puntos nadie luce corona (el vecindario empieza limpio de cuentas).
+ */
+export function scoreRows(session: Session): ScoreRow[] {
+  const nameOf = (id: string): string =>
+    session.scores.get(id)?.name ?? [...session.participants.values()].find((x) => x.residentId === id)?.name ?? id;
+  const ids = new Set<string>([...session.scores.keys(), ...[...session.participants.values()].map((p) => p.residentId)]);
+  const rows: ScoreRow[] = [...ids]
+    .map((residentId) => {
+      const s = session.scores.get(residentId);
+      return { residentId, name: nameOf(residentId), points: s?.points ?? 0, best: s?.best ?? {}, top: false };
+    })
+    .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
+  const top = rows.find((r) => r.points > 0);
+  if (top) top.top = true;
+  return rows;
 }
 
 /** 4 caracteres de A-Z2-9 sin 0/O/1/I, únicos entre las sesiones activas (Set o Map de sesiones). */

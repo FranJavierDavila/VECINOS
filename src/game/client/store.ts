@@ -5,6 +5,7 @@ import type { Access, MinigameDef, Weather } from '@/game/core/types';
 import { isMuted } from './audio';
 import { loadOptions } from './options';
 import type { ColorblindMode, Lang, PerfTarget, TextScale } from './options';
+import type { MpScoreRow } from './net';
 
 // ───────────────────────── Tipos de la interfaz ─────────────────────────
 
@@ -314,6 +315,8 @@ interface GameState {
   /** v1.54 — código de invitación recibido por ENLACE (?join=CODE): el panel lo muestra
    *  como tarjeta «Te han invitado» y se limpia al entrar (o al salir de sesión). */
   mpInviteCode: string | null;
+  /** v1.55 — marcador «Vecino del mes» (session:score): null = sin sesión o sin puntos aún. */
+  mpScore: MpScoreRow[] | null;
 
   // ── Campaña de presidencia (v1.18): chip del HUD; la lógica vive en support/campaign ──
   setCampaign: (c: CampaignHud | null) => void;
@@ -369,6 +372,7 @@ interface GameState {
   setMpPanelOpen: (v: boolean) => void;
   setMpError: (v: string | null) => void;
   setMpInviteCode: (v: string | null) => void;
+  setMpScore: (rows: MpScoreRow[] | null) => void;
   setAchievements: (list: AchievementUi[]) => void;
   setAchievementPopup: (p: AchievementUi | null) => void;
   /** Marca un logro como ya-anunciado (quita `newly`): el popup lo llama al mostrarlo. */
@@ -444,6 +448,7 @@ export const useGameStore = create<GameState>((set) => ({
   mpPanelOpen: false,
   mpError: null,
   mpInviteCode: null,
+  mpScore: null,
   achievements: [],
   achievementPopup: null,
 
@@ -512,6 +517,7 @@ export const useGameStore = create<GameState>((set) => ({
   setMpPanelOpen: (mpPanelOpen) => set({ mpPanelOpen }),
   setMpError: (mpError) => set({ mpError }),
   setMpInviteCode: (mpInviteCode) => set({ mpInviteCode }),
+  setMpScore: (mpScore) => set({ mpScore }),
   setCampaign: (campaign) => set({ campaign }),
   setAchievements: (achievements) => set({ achievements }),
   setAchievementPopup: (achievementPopup) => set({ achievementPopup }),

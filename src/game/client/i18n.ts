@@ -27,7 +27,7 @@ const DICT: Record<string, { es: string; en: string }> = {
     es: 'Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.',
     en: 'Move-ins, noise, smells, wifi, pests, smoke and levies: the neighborhood simulator.',
   },
-  'header.version': { es: 'v1.54 · invitaciones por enlace', en: 'v1.54 · link invitations' },
+  'header.version': { es: 'v1.55 · vecino del mes', en: 'v1.55 · neighbor of the month' },
   // ── Apagón de assets (v1.47: servidor de arte caído → mundo vacío/cápsulas) ──
   'assets.outage': {
     es: '⚠ No se pudo cargar el arte del juego (¿servidor caído?). El vecindario se recargará en {n} s…',
@@ -49,6 +49,9 @@ const DICT: Record<string, { es: string; en: string }> = {
   // ── Mi casa: mobiliario 3D retirado por dioramas (v1.23) ──
   'casa.retired': { es: 'El mobiliario 3D está de reforma: los interiores se pintan ahora con dioramas de billboards (paredes, suelos y muebles ilustrados con paralaje). La colocación de muebles volverá cuando la nueva técnica esté afinada.', en: "3D furniture is under rework: interiors are now painted with billboard dioramas (illustrated walls, floors and furniture with parallax). Furniture placement will return once the new technique is polished." },
   'hud.campaign': { es: '{label} · Día {d}/{n}', en: '{label} · Day {d}/{n}' },
+  // v1.55 — chip del marcador de comunidad (HudBar)
+  'hud.mpScore': { es: '🏅 {name} lidera ({top} pts) · tú {mine}', en: '🏅 {name} leads ({top} pts) · you {mine}' },
+  'hud.mpScoreAria': { es: 'Marcador de la comunidad: vecino del mes', en: 'Community scoreboard: neighbor of the month' },
   'hud.campaignAria': { es: 'Días de mandato restantes', en: 'Days of your term remaining' },
   'hud.campaignOver': { es: '{label} · Día {d}/{n} · ¡juzgado pronto!', en: '{label} · Day {d}/{n} · judged soon!' },
   'footer.text': {

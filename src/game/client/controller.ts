@@ -159,6 +159,8 @@ class GameController {
   private myResidentId: string | null = null;
   private isHost = false;
   private appliedSeq = 0;
+  /** v1.55 — instante en que se abrió el minijuego en curso (cronómetro del duelo). */
+  private minigameStartedAt = 0;
 
   async init(canvas: HTMLCanvasElement): Promise<void> {
     if (this.engine || this.initializing) return;
@@ -680,6 +682,24 @@ class GameController {
       // Presidencia (v1.18): con el mandato activo, el tablón también convoca.
       const cfg = this.content.rules.sim.campaign;
       if (cfg && useGameStore.getState().campaign?.active) text += `\n🗳️ [J] Convocar junta de vecinos (${cfg.presidentLabel.toLowerCase()})`;
+      // v1.55 — MARCADOR EN EL TABLÓN: con sesión de comunidad, la clasificación se lee
+      // en la puerta (plantillas de rules.multiplayer.score.board*).
+      const rows = useGameStore.getState().mpScore;
+      const scoreCfg = this.content.rules.multiplayer?.score;
+      if (rows && scoreCfg && rows.length > 0) {
+        const lines = rows
+          .map((r, i) => {
+            const bestFusibles = r.best['mg_fusibles'];
+            const extra = bestFusibles !== undefined && scoreCfg.boardExtraBest ? scoreCfg.boardExtraBest.replace('{secs}', bestFusibles.toFixed(1).replace('.', ',')) : '';
+            return (scoreCfg.boardLine ?? '{pos}. {name} · {points} pts')
+              .replace('{pos}', String(i + 1))
+              .replace('{name}', r.name)
+              .replace('{points}', String(r.points))
+              .replace('{extra}', extra);
+          })
+          .join('\n');
+        text += `\n\n${(scoreCfg.boardTemplate ?? '🏅 VECINO DEL MES\n{lines}').replace('{lines}', lines)}`;
+      }
       useGameStore.getState().pushToast(text, 'info');
     }
   }
@@ -839,6 +859,7 @@ class GameController {
     store.setMpStatus('off');
     store.setMpSession(null);
     store.setMpParticipants([]);
+    store.setMpScore(null); // v1.55: sin sesión, sin marcador
     store.setMpPanelOpen(false);
     store.setMpInviteCode(null); // v1.54: la invitación de la URL ya no aplica
     void this.restart();
@@ -849,6 +870,7 @@ class GameController {
     this.net = new NetSession({
       onState: (s) => this.applyRemoteState(s),
       onParticipants: (p) => useGameStore.getState().setMpParticipants(p),
+      onScore: (rows) => useGameStore.getState().setMpScore(rows), // v1.55 — marcador de comunidad
       onJoined: (j) => {
         this.myResidentId = j.yourResidentId;
         this.isHost = j.isHost;
@@ -998,7 +1020,15 @@ class GameController {
 
   completeMinigame(id: string, success: boolean): void {
     if (!this.world) return;
+    // v1.55 — DUELO DE COMUNIDAD: el resultado viaja PRIMERO (el servidor registra el éxito
+    // y así autoriza la marca); después el cronometraje (solo puntúa mejorar el récord
+    // personal; criterio del catálogo). El orden importa: mismo socket, entrega en cola.
     this.sendCommand({ type: 'complete_minigame', id, success });
+    if (success && this.net && this.minigameStartedAt > 0) {
+      const cfg = this.content.rules.multiplayer?.score?.minigames?.[id];
+      if (cfg) this.net.minigameTime(id, (performance.now() - this.minigameStartedAt) / 1000);
+    }
+    this.minigameStartedAt = 0;
     // v1.48 — REARME DEL CUADRO DE FUSIBLES: el minijuego restaura el param de luz del
     // pasillo (sim, effects del catálogo) y aquí se cancela el apagón del cerebro — los
     // pasillos, escaleras y locales recuperan su luz al instante. Sin arreglo, sin luz.
@@ -1877,6 +1907,7 @@ class GameController {
           const def = this.content.minigames[String(d.minigame)];
           if (!def) break;
           this.tutorial.tip('minigame'); // v1.39 — consejo contextual one-shot
+          this.minigameStartedAt = performance.now(); // v1.55 — cronómetro del duelo de comunidad
           // Overrides numéricos del escenario activo (QA/E2E): solo config, nunca efectos ni textos.
           const ov = this.scenarioOverrides[def.id];
           const effective = ov ? ({ ...def, config: { ...def.config, ...ov } } as MinigameDef) : def;

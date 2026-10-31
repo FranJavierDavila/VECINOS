@@ -10,6 +10,7 @@ import {
   Drama,
   Home,
   Star,
+  Trophy,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -48,6 +49,11 @@ export function HudBar() {
   const homeLabel = useGameStore((s) => s.homeLabel);
   const travelText = useGameStore((s) => s.travelText);
   const campaign = useGameStore((s) => s.campaign);
+  // v1.55 — chip «Vecino del mes»: solo con sesión de comunidad y marcador recibido.
+  const mpScore = useGameStore((s) => s.mpScore);
+  const myResidentId = useGameStore((s) => s.mpMyResidentId);
+  const topRow = mpScore?.find((r) => r.top) ?? null;
+  const myRow = myResidentId ? mpScore?.find((r) => r.residentId === myResidentId) : undefined;
 
   return (
     <Card className="gap-2 py-3">
@@ -57,6 +63,12 @@ export function HudBar() {
             {campaign.over
               ? t('hud.campaignOver', { label: campaign.label, d: Math.min(campaign.dayOfTerm, campaign.termDays), n: campaign.termDays })
               : t('hud.campaign', { label: campaign.label, d: campaign.dayOfTerm, n: campaign.termDays })}
+          </Chip>
+        )}
+
+        {topRow && (
+          <Chip icon={Trophy} iconClassName="text-amber-500" label={t('hud.mpScoreAria')}>
+            {t('hud.mpScore', { name: topRow.name, top: topRow.points, mine: myRow?.points ?? 0 })}
           </Chip>
         )}
 
