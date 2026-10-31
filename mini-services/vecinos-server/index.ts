@@ -467,6 +467,9 @@ io.on('connection', (socket) => {
     if (!cmd || typeof cmd !== 'object' || typeof cmd.type !== 'string') return;
     // El actor SIEMPRE lo impone el servidor: el cliente nunca manda actor.
     (cmd as Command & { actor?: string }).actor = found.participant.residentId;
+    // v1.57 — blindaje: 'move' también lleva el residente en el payload; nadie mueve al
+    // vecino de otro (el cliente manda el suyo vía PlayerLogic.exec; aquí se re-impone).
+    if (cmd.type === 'move') (cmd as Command & { resident: string }).resident = found.participant.residentId;
     // Dedup de minijuegos: solo se acepta el resultado del minijuego pendiente de la sesión.
     // v1.55 — el ÉXITO se anota SIEMPRE (aunque el sim lo rechace por dedup) para autorizar
     // la marca de tiempo del duelo: en comunidad todos juegan el mismo minijuego, aunque el
@@ -480,6 +483,26 @@ io.on('connection', (socket) => {
     }
     dispatch(found.session.world, content, cmd);
     broadcastState(found.session); // respuesta ágil al comando
+  });
+
+  // ── v1.57 — POSES DE AVATARES (relay puro): el movimiento fino NUNCA toca el sim (la
+  // autoridad del sim sigue siendo la ubicación por bloque de los 'move'); esto solo pinta
+  // al vecino remoto andando de verdad. Validación estricta: números finitos y acotados. ──
+  socket.on('mp:pose', (payload: { x?: number; z?: number; floor?: number } | undefined) => {
+    const found = lookup(socket.id);
+    if (!found) return;
+    const x = payload?.x;
+    const z = payload?.z;
+    const floor = payload?.floor;
+    if (typeof x !== 'number' || typeof z !== 'number' || typeof floor !== 'number') return;
+    if (!Number.isFinite(x) || !Number.isFinite(z) || !Number.isFinite(floor)) return;
+    const cl = (n: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, n));
+    io.to(found.session.code).emit('mp:pose', {
+      from: found.participant.residentId,
+      x: cl(x, -600, 600),
+      z: cl(z, -600, 600),
+      floor: cl(floor, 0, 30),
+    });
   });
 
   // ── v1.55 — DUELO DE MINIJUEGOS: marca de tiempo del rearme (session:minigame_time) ──

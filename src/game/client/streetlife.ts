@@ -37,6 +37,9 @@ interface March {
   dir: 1 | -1;
   speed: number;
   chantT: number;
+  /** v1.57 — tick que la parió (semilla de sus gritos) y contador de gritos. */
+  key: number;
+  chants: number;
   pending: { at: number; who: string; text: string }[];
   t: number;
 }
@@ -70,8 +73,20 @@ export function createStreetlife(
   let visible = true;
   const factory = createPedFactory(scene);
   const marches = new Set<March>();
-  let nextMarch = man.firstMin + hash01('marcha_primera', world.tick) * Math.max(0.1, man.firstMax - man.firstMin);
-  let roll = 0;
+  // ── v1.57 — CALLE COMÚN: las manifestaciones las cita el TICK del sim (autoridad del
+  // servidor): cita absoluta por slot con la cadencia del catálogo (first* abre, every*
+  // sigue) y TODOS sus atributos (tema, lemas, gente, colores, comentarios) salen del hash
+  // de ese tick. La misma marcha pasa en todas las casas a la misma hora del barrio.
+  const tickSecs = Math.max(0.5, content.rules.multiplayer?.tickSecondsPerTick ?? 1);
+  const firstTicks = Math.max(1, Math.round((man.firstMin + man.firstMax) / 2 / tickSecs));
+  const everyTicks = Math.max(1, Math.round((man.everyMin + man.everyMax) / 2 / tickSecs));
+  let seenTick = world.tick;
+  const due = (t: number): boolean => {
+    if (t < firstTicks) return false; // gracia inicial del catálogo, por tick absoluto
+    const s = Math.floor((t - firstTicks) / everyTicks);
+    const off = Math.floor(hash01('marcha_slot', s) * everyTicks);
+    return t - firstTicks - s * everyTicks === off;
+  };
   const resCooldown = new Map<string, number>();
 
   // ── Materiales compartidos de la marcha. ──
@@ -121,18 +136,19 @@ export function createStreetlife(
     return tex;
   };
 
-  const spawnMarch = (): void => {
-    const people = man.minPeople + Math.floor(hash01('marcha_gente', roll) * (man.maxPeople - man.minPeople + 1));
-    const laneIndex = Math.floor(hash01('marcha_carril', roll) * man.lanes.length) % man.lanes.length;
+  /** Nace una marcha con el guion del tick t (todos sus atributos salen de ese tick). */
+  const spawnMarch = (t: number): void => {
+    const people = man.minPeople + Math.floor(hash01('marcha_gente', t) * (man.maxPeople - man.minPeople + 1));
+    const laneIndex = Math.floor(hash01('marcha_carril', t) * man.lanes.length) % man.lanes.length;
     const lane = man.lanes[laneIndex]!;
-    const topicIndex = Math.floor(hash01('marcha_tema', roll) * cfg.topics.length) % cfg.topics.length;
+    const topicIndex = Math.floor(hash01('marcha_tema', t) * cfg.topics.length) % cfg.topics.length;
     const topic = cfg.topics[topicIndex]!;
     const dir: 1 | -1 = lane.x1 > lane.x0 ? 1 : -1;
     const headX = dir > 0 ? lane.x0 - people * man.spacing : lane.x0 + people * man.spacing;
     const marchers: Marcher[] = [];
     for (let i = 0; i < people; i++) {
-      const hex = man.colors[Math.floor(hash01('marcha_color', roll + i) * man.colors.length) % man.colors.length]!;
-      const rig = factory.make(hex, i === 0 ? man.megaphoneColor : hash01('marcha_gorro', roll + i) < 0.3 ? '#3b3129' : null);
+      const hex = man.colors[Math.floor(hash01('marcha_color', t + i) * man.colors.length) % man.colors.length]!;
+      const rig = factory.make(hex, i === 0 ? man.megaphoneColor : hash01('marcha_gorro', t + i) < 0.3 ? '#3b3129' : null);
       rig.root.parent = root;
       // v1.28: la figurita MIRA hacia donde marcha con el MISMO offset que todo el juego
       // (MODEL_YAW_OFFSET = 0): yaw 0 = +X → rotación 0; yaw π = −X → rotación π.
@@ -182,9 +198,9 @@ export function createStreetlife(
       }
       // v1.24: MULTITUD IRREGULAR — desfase longitudinal con jitter y banda lateral propia;
       // la columna deja de ser una fila exacta (dos manos de gente que avanza a la par).
-      const slot = i * man.spacing + (hash01('marcha_jit', roll + i) - 0.5) * man.slotJitter;
-      const zOff = (hash01('marcha_z', roll + i) - 0.5) * man.spreadZ;
-      marchers.push({ rig, placard, slot, zOff, phase: hash01('marcha_fase', roll + i) * 6 });
+      const slot = i * man.spacing + (hash01('marcha_jit', t + i) - 0.5) * man.slotJitter;
+      const zOff = (hash01('marcha_z', t + i) - 0.5) * man.spreadZ;
+      marchers.push({ rig, placard, slot, zOff, phase: hash01('marcha_fase', t + i) * 6 });
     }
     // Comentarios de vecinos: agendados con retardo (ven la marcha y la comentan según ánimo).
     const pending: { at: number; who: string; text: string }[] = [];
@@ -192,22 +208,25 @@ export function createStreetlife(
       const now = 0;
       const candidates = Object.values(world.residents).filter((r) => {
         if (!r.present || !r.location || r.id === world.playerId) return false;
+        // v1.57 — los AVATARES DE JUGADORES (controller human) no comentan ni hacen gestos
+        // por teatro local: su cuerpo lo pasea su dueño por la red (poses remotas).
+        if (r.controller.type === 'human') return false;
         if (actors.isRiding(r.id) || actors.isDirected(r.id) || actors.gestureOf(r.id)) return false;
         return actors.nodeOf(r.id) !== null;
       });
       const maxComments = Math.min(man.maxComments, candidates.length);
       for (let k = 0; k < maxComments; k++) {
-        const who = candidates.splice(Math.floor(hash01('marcha_comenta', roll + k) * candidates.length), 1)[0];
+        const who = candidates.splice(Math.floor(hash01('marcha_comenta', t + k) * candidates.length), 1)[0];
         if (!who) break;
         if ((resCooldown.get(who.id) ?? 0) > 0) continue;
         resCooldown.set(who.id, 300);
         const bucket = bucketOf(who.id);
         const lines = cfg.reactions[bucket];
-        const text = lines[Math.floor(hash01('marcha_linea', roll + k) * lines.length) % lines.length]!;
-        pending.push({ at: now + man.commentDelayMin + hash01('marcha_retraso', roll + k) * (man.commentDelayMax - man.commentDelayMin), who: who.id, text });
+        const text = lines[Math.floor(hash01('marcha_linea', t + k) * lines.length) % lines.length]!;
+        pending.push({ at: now + man.commentDelayMin + hash01('marcha_retraso', t + k) * (man.commentDelayMax - man.commentDelayMin), who: who.id, text });
       }
     }
-    marches.add({ laneIndex, topicIndex, marchers, headX, dir, speed: man.speed, chantT: 1.2, pending, t: man.minDuration + hash01('marcha_dura', roll) * (man.maxDuration - man.minDuration) });
+    marches.add({ laneIndex, topicIndex, marchers, headX, dir, speed: man.speed, chantT: 1.2, key: t, chants: 0, pending, t: man.minDuration + hash01('marcha_dura', t) * (man.maxDuration - man.minDuration) });
     playSoundAt('voz_megafono', 0.55);
   };
 
@@ -236,10 +255,13 @@ export function createStreetlife(
         if (v <= 0) resCooldown.delete(cd);
         else resCooldown.set(cd, v);
       }
-      nextMarch -= dt;
-      if (nextMarch <= 0 && visible) {
-        nextMarch = man.everyMin + hash01('marcha_t', world.tick + roll) * (man.everyMax - man.everyMin);
-        if (marches.size < 1) spawnMarch();
+      // v1.57 — manifestaciones por TICK del sim (calle común): citas absolutas.
+      if (world.tick < seenTick) seenTick = world.tick; // reinicio local: el tick vuelve a empezar
+      let guard = 0;
+      while (seenTick < world.tick && guard < 40) {
+        seenTick += 1;
+        guard += 1;
+        if (due(seenTick) && visible && marches.size < 1) spawnMarch(seenTick);
       }
       for (const m of [...marches]) {
         const lane = man.lanes[m.laneIndex]!;
@@ -261,7 +283,8 @@ export function createStreetlife(
         if (marching) {
           m.chantT -= dt;
           if (m.chantT <= 0) {
-            m.chantT = man.chantEveryMin + hash01('marcha_grito', roll++) * (man.chantEveryMax - man.chantEveryMin);
+            m.chants += 1;
+            m.chantT = man.chantEveryMin + hash01('marcha_grito', m.key + m.chants) * (man.chantEveryMax - man.chantEveryMin);
             playSoundAt('voz_megafono', 0.5);
           }
         }
@@ -296,7 +319,7 @@ export function createStreetlife(
     pendingComments: () => [...marches].reduce((s, m) => s + m.pending.length, 0),
     spawnNow: () => {
       if (marches.size >= 1) return false;
-      spawnMarch();
+      spawnMarch(world.tick); // v1.57 — QA/E2E: la marcha forzada nace con el guion del tick vivo
       return true;
     },
     dispose() {

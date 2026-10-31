@@ -647,8 +647,19 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
 
   const rigs = cfg.vehicles.map((_, i) => buildRig(i));
   const active = new Set<Active>();
-  let nextSpawn = 1.5;
-  let roll = 0;
+  // ── v1.57 — CALLE COMÚN (misma escena en todas las máquinas) ──
+  // La cadencia y el guion del tráfico los escribe el TICK del sim (autoridad del servidor),
+  // no el reloj local: cada «cita» cae en un tick absoluto y TODOS los atributos del coche
+  // (tipo, carril, color, velocidad, fase) salen del hash de ese tick. Dos vecinos en casas
+  // distintas ven pasar EL MISMO coche con el MISMO color por el MISMO carril.
+  const tickSecs = Math.max(0.5, content.rules.multiplayer?.tickSecondsPerTick ?? 1);
+  const slotTicks = Math.max(1, Math.round((cfg.spawnEveryMin + cfg.spawnEveryMax) / 2 / tickSecs));
+  let seenTick = world.tick;
+  /** ¿Toca nacimiento en el tick absoluto t? (cita = un tick elegido por hash dentro del slot). */
+  const due = (t: number): boolean => {
+    const s = Math.floor(t / slotTicks);
+    return t - s * slotTicks === Math.floor(hash01('trafico_slot', s) * slotTicks);
+  };
   let nightOn = false;
   // v1.41 — peatones en calzada (la lista la manda el controlador cada frame con los
   // puntos de los directores de la calle: paseo vecinal, teatro del taxi…).
@@ -657,11 +668,11 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
   // calzada (solo hay paso legal en el paso de cebra, así que los coches frenan por él
   // igual que por cualquier vecino). Se fusiona con la lista de los directores.
   let extraCrossers: { x: number; z: number }[] = [];
-  const pick = (): number => {
+  const pick = (t: number): number => {
     // Ruleta ponderada determinista por hash (mismo lenguaje que el resto de la calle).
     let acc = 0;
     const total = cfg.vehicles.reduce((s, v) => s + v.chance, 0);
-    const r = hash01('trafico_ruleta', roll++) * total;
+    const r = hash01('trafico_ruleta', t) * total;
     for (let i = 0; i < cfg.vehicles.length; i++) {
       acc += cfg.vehicles[i]!.chance;
       if (r <= acc) return i;
@@ -669,23 +680,24 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
     return 0;
   };
 
-  const spawn = (): void => {
-    const defIndex = pick();
+  /** Nace un coche con el guion del tick t (todos sus atributos salen de ese tick). */
+  const spawn = (t: number): void => {
+    const defIndex = pick(t);
     const def = cfg.vehicles[defIndex]!;
     // Un rig por tipo: si ya está en la calle, este tipo no sale esta vez (pool honesto).
     if ([...active].some((a) => a.defIndex === defIndex)) return;
     const rig = rigs[defIndex]!;
-    const laneIndex = Math.floor(hash01('trafico_carril', roll) * cfg.lanes.length) % cfg.lanes.length;
+    const laneIndex = Math.floor(hash01('trafico_carril', t) * cfg.lanes.length) % cfg.lanes.length;
     const lane = cfg.lanes[laneIndex]!;
     const dir = lane.dir >= 0 ? 1 : -1;
-    const speed = lane.speedMin + hash01('trafico_velo', roll) * Math.max(0.1, lane.speedMax - lane.speedMin);
+    const speed = lane.speedMin + hash01('trafico_velo', t) * Math.max(0.1, lane.speedMax - lane.speedMin);
     const x = dir > 0 ? cfg.xMin - def.length : cfg.xMax + def.length;
-    const hex = def.colors[Math.floor(hash01('trafico_color', roll) * def.colors.length) % def.colors.length]!;
+    const hex = def.colors[Math.floor(hash01('trafico_color', t) * def.colors.length) % def.colors.length]!;
     rig.bodyMat.diffuseColor = Color3.FromHexString(hex);
     rig.root.rotation.y = dir > 0 ? 0 : Math.PI;
     rig.root.setEnabled(visible);
     rig.root.position = new Vector3(x, 0, lane.z);
-    active.add({ rig, defIndex, laneIndex, x, speed, cruise: speed, passed: false, phase: hash01('trafico_fase', roll) * 6, hazardT: 0, tailFlash: false, doomed: false, nearDone: false, stage: null });
+    active.add({ rig, defIndex, laneIndex, x, speed, cruise: speed, passed: false, phase: hash01('trafico_fase', t) * 6, hazardT: 0, tailFlash: false, doomed: false, nearDone: false, stage: null });
   };
 
   /** AMBULANCIA del teatro de emergencias: furgón blanco con librea (franja + cruz +
@@ -848,10 +860,15 @@ export function createTraffic(scene: Scene, world: World, content: Content, dayl
       }
       // v1.42 — lista fusionada de peatones en calzada (directores + jugador) para este frame.
       const frameCrossers = extraCrossers.length > 0 ? crossers.concat(extraCrossers) : crossers;
-      nextSpawn -= dt;
-      if (nextSpawn <= 0) {
-        nextSpawn = cfg.spawnEveryMin + hash01('trafico_t', world.tick + roll) * (cfg.spawnEveryMax - cfg.spawnEveryMin);
-        if (active.size < cfg.maxAlive) spawn();
+      // v1.57 — nacimientos por TICK del sim (calle común): se consumen los ticks nuevos y
+      // cada cita absoluta decide si nace coche. El guard evita rachas tras una pestaña en
+      // segundo plano (se saltan citas perdidas, nunca se re-infla la calle de golpe).
+      if (world.tick < seenTick) seenTick = world.tick; // reinicio local: el tick vuelve a empezar
+      let guard = 0;
+      while (seenTick < world.tick && guard < 40) {
+        seenTick += 1;
+        guard += 1;
+        if (due(seenTick) && active.size < cfg.maxAlive) spawn(seenTick);
       }
       for (const a of [...active]) {
         const def = cfg.vehicles[a.defIndex]!;

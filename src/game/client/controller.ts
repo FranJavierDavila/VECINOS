@@ -157,6 +157,9 @@ class GameController {
 
   // ── Multijugador (protocolo v1): el servidor autoritativo posee el mundo; este cliente lo refleja ──
   private net: NetSession | null = null;
+  // ── v1.57 — poses remotas (residentId → última pose de red) y cadencia de envío propio ──
+  private remotePoses = new Map<string, { x: number; z: number; floor: number; at: number }>();
+  private lastPoseSentAt = 0;
   private myResidentId: string | null = null;
   private isHost = false;
   private appliedSeq = 0;
@@ -858,6 +861,7 @@ class GameController {
     this.myResidentId = null;
     this.isHost = false;
     this.appliedSeq = 0;
+    this.remotePoses.clear(); // v1.57 — sin sesión no hay poses que interpretar
     this.stopVoice(); // v1.56 — fuera del vecindario no hay canal de voz
     const store = useGameStore.getState();
     store.setMpStatus('off');
@@ -889,6 +893,12 @@ class GameController {
       onVoiceState: (from, muted, speaking) => {
         const st = useGameStore.getState();
         st.setMpVoice({ members: st.mpVoice.members.map((m) => (m.id === from ? { ...m, muted, speaking } : m)) });
+      },
+      onPose: (from, p) => {
+        // v1.57 — pose de un avatar remoto: se guarda con sello temporal (el director de
+        // actores la interpreta y la caduca); la PROPIA se descarta (el servidor reenvía a todos).
+        if (from === this.myResidentId) return;
+        this.remotePoses.set(from, { ...p, at: performance.now() });
       },
       onJoined: (j) => {
         this.myResidentId = j.yourResidentId;
@@ -1086,21 +1096,44 @@ class GameController {
     this.syncHud();
   }
 
-  /** Corrige desvíos de posición del avatar local respecto al mundo del servidor (autoridad). */
+  /**
+   * v1.57 — getter de pose fresca (< 4 s) para el director de actores. Caduca y limpia:
+   * si el vecino remoto deja de enviar (pestaña en segundo plano, salida), su avatar vuelve
+   * al ruteo del sim de siempre en vez de quedarse congelado en mitad de la calle.
+   */
+  private remotePoseOf(id: string): { x: number; z: number; floor: number } | null {
+    const p = this.remotePoses.get(id);
+    if (!p) return null;
+    if (performance.now() - p.at > 4000) {
+      this.remotePoses.delete(id);
+      return null;
+    }
+    return p;
+  }
+
+  /**
+   * Corrige desvíos del avatar local respecto al mundo del servidor (autoridad).
+   * v1.57 — SOLO contradicciones DURAS: estar DENTRO de un bloque que el servidor no
+   * reconoce (puerta rechazada, rejoin tras caída). Nada de correcciones por planta
+   * fraccionaria (escaleras/ascensor en curso: `climbing`) ni por pasear por la calle
+   * (mode 'outside': el sim solo conoce el portal) — corregir eso era el bug del vecino:
+   * subir por las escaleras devolvía al portal de entrada.
+   */
   private reconcile(): void {
     if (!this.logic || !this.world || !this.net) return;
     const me = this.world.residents[this.actorId()];
     if (!me) return;
     const pos = this.logic.position();
+    if (pos.climbing) return; // escalera/ascensor en curso: planta fraccionaria; el aterrizaje manda
+    if (pos.mode === 'outside') return; // la calle es libre: la ubicación del sim se queda en el portal
     const locBlock = me.location ? this.world.blocks[me.location] : null;
-    if (locBlock) {
-      const insideOk = pos.mode === 'inside' && pos.insideBlock === locBlock.id;
-      const corridorOk = pos.mode === 'corridor' && !pos.insideBlock;
-      if (!(locBlock.kind === 'dwelling' ? insideOk : corridorOk) || Math.abs(pos.floor - locBlock.cell.floor) > 0.01) {
-        this.logic.forceLocation(locBlock.id);
-      }
-    } else if (pos.mode === 'inside') {
-      this.logic.forceLocation(null);
+    if (!locBlock) {
+      if (pos.mode === 'inside') this.logic.forceLocation(null);
+      return;
+    }
+    // Contradicción dura: digo estar DENTRO de un bloque distinto del que dice el servidor.
+    if (pos.mode === 'inside' && pos.insideBlock && pos.insideBlock !== locBlock.id) {
+      this.logic.forceLocation(locBlock.id);
     }
   }
 
@@ -1697,7 +1730,18 @@ class GameController {
     if (!this.net) this.residents?.update(dt);
 
     const pos = this.logic.position();
-    this.actors.update(dt, pos, this.actorId());
+    // v1.57 — MI pose a la sala (10 Hz): los demás me ven andar de verdad. La z efectiva es
+    // la del recorrido en el cubo de escalera (pathZ) cuando toca, igual que el actor local.
+    const nowMs = performance.now();
+    if (this.net && nowMs - this.lastPoseSentAt > 100) {
+      this.lastPoseSentAt = nowMs;
+      this.net.pose({
+        x: Math.round(pos.x * 100) / 100,
+        z: Math.round((pos.pathZ ?? pos.z) * 100) / 100,
+        floor: Math.round(pos.floor * 100) / 100,
+      });
+    }
+    this.actors.update(dt, pos, this.actorId(), this.net ? (id) => this.remotePoseOf(id) : undefined);
     // v1.42 — fundido del cuerpo al cruzar el portal (teatro; solo cuando cambia).
     if (pos.fade !== this.lastPlayerFade) {
       this.lastPlayerFade = pos.fade;

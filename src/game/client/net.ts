@@ -74,6 +74,16 @@ export interface MpCoopState {
   done: string[];
 }
 
+// ── v1.57 — pose de avatar (relay puro a 10 Hz; la autoridad del sim sigue siendo por bloque) ──
+
+/** Pose continua de un avatar (forma exacta de mp:pose). Coordenadas de presentación. */
+export interface MpPose {
+  x: number;
+  z: number;
+  /** Planta fraccionaria admitida (subiendo escaleras/ascensor: 0.5). */
+  floor: number;
+}
+
 // ── v1.56 — canal de voz (WebRTC P2P; el servidor solo reenvía señalización) ──
 
 /** Miembro del canal de voz (forma exacta de voice:roster.members). */
@@ -109,6 +119,8 @@ export interface NetCallbacks {
   onVoiceSignal?: (from: string, data: unknown) => void;
   /** v1.56 — estado de micro de un vecino (from ≠ yo). */
   onVoiceState?: (from: string, muted: boolean, speaking: boolean) => void;
+  /** v1.57 — pose continua de un avatar remoto (from ≠ yo; el cliente filtra la propia). */
+  onPose?: (from: string, p: MpPose) => void;
   onError?: (message: string) => void;
   onStatus?: (status: MpNetStatus) => void;
 }
@@ -178,6 +190,12 @@ export class NetSession {
     this.socket.on('voice:state', (p: { from: string; muted: boolean; speaking: boolean }) => {
       if (typeof p?.from === 'string') cbs.onVoiceState?.(p.from, p.muted === true, p.speaking === true);
     });
+    // v1.57 — poses de avatares: el servidor SOLO reenvía; aquí se valida la forma.
+    this.socket.on('mp:pose', (p: { from: string; x: number; z: number; floor: number }) => {
+      if (typeof p?.from !== 'string') return;
+      if (![p.x, p.z, p.floor].every((n) => typeof n === 'number' && Number.isFinite(n))) return;
+      cbs.onPose?.(p.from, { x: p.x, z: p.z, floor: p.floor });
+    });
     this.socket.on('session:error', (p: { message: string }) => cbs.onError?.(p.message));
   }
 
@@ -241,6 +259,11 @@ export class NetSession {
   /** C→S voice:signal — señalización WebRTC dirigida a otro vecino del canal. */
   voiceSignal(to: string, data: unknown): void {
     this.socket.emit('voice:signal', { to, data });
+  }
+
+  /** C→S mp:pose — mi pose continua (el servidor la reenvía a la sala sin tocar el sim). */
+  pose(p: MpPose): void {
+    this.socket.emit('mp:pose', p);
   }
 
   /** C→S session:set_speed (solo surte efecto si el emisor es el anfitrión). */

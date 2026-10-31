@@ -196,8 +196,16 @@ export function createPedestrians(scene: Scene, world: World, content: Content, 
   const root = new TransformNode('viandantes', scene);
   let visible = true;
   const walkers = new Set<Walker>();
-  let nextSpawn = 2;
-  let roll = 0;
+  // ── v1.57 — CALLE COMÚN: la cadencia y el guion de los viandantes los escribe el TICK
+  // del sim (autoridad del servidor), no el reloj local: cita absoluta por slot + atributos
+  // (ruta, velocidad, portal, fase) desde el hash del tick. Misma acera en todas las máquinas.
+  const tickSecs = Math.max(0.5, content.rules.multiplayer?.tickSecondsPerTick ?? 1);
+  const slotTicks = Math.max(1, Math.round((cfg.spawnEveryMin + cfg.spawnEveryMax) / 2 / tickSecs));
+  let seenTick = world.tick;
+  const due = (t: number): boolean => {
+    const s = Math.floor(t / slotTicks);
+    return t - s * slotTicks === Math.floor(hash01('viandante_slot', s) * slotTicks);
+  };
   let walkerSeq = 0;
 
   // ── POOL de rigs glTF (misma estética que los vecinos): instancias del catálogo de
@@ -254,14 +262,15 @@ export function createPedestrians(scene: Scene, world: World, content: Content, 
     return Math.min(sync.maxRate, Math.max(sync.minRate, ref));
   };
 
-  const spawn = (): void => {
+  /** Nace un viandante con el guion del tick t (todos sus atributos salen de ese tick). */
+  const spawn = (t: number): void => {
     const slot = free.pop();
     if (!slot) return;
-    let pathIndex = Math.floor(hash01('viandante_ruta', roll) * cfg.paths.length) % cfg.paths.length;
+    let pathIndex = Math.floor(hash01('viandante_ruta', t) * cfg.paths.length) % cfg.paths.length;
     const path = cfg.paths[pathIndex]!;
     const dir = path.dir >= 0 ? 1 : -1;
-    const speed = cfg.speedMin + hash01('viandante_velo', roll) * Math.max(0.1, cfg.speedMax - cfg.speedMin);
-    const enterRoll = hash01('viandante_portal', roll);
+    const speed = cfg.speedMin + hash01('viandante_velo', t) * Math.max(0.1, cfg.speedMax - cfg.speedMin);
+    const enterRoll = hash01('viandante_portal', t);
     // v1.41 — RUTA LATERAL (catálogo sideRoute): la única entrada/salida real del edificio
     // recorre la acera lateral (perímetro oeste) y cruza el portal por su pared izquierda.
     const side = cfg.sideRoute;
@@ -295,7 +304,7 @@ export function createPedestrians(scene: Scene, world: World, content: Content, 
     const z = mode === 'legs'
       ? (legNext === 'leave' ? (side ? side.sideZ : cfg.enterZ ?? -1.7) : cfg.paths[0]!.z)
       : cfg.paths[pathIndex]!.z;
-    const w: Walker = { id: walkerSeq++, gltf: slot.gltf, prim: slot.prim, pathIndex, x, z, speed, phase: hash01('viandante_fase', roll) * 6, mode, legs, legNext, scale: mode === 'legs' && legNext === 'leave' ? 0.05 : 1, yaw: dir > 0 ? 0 : Math.PI, social: null };
+    const w: Walker = { id: walkerSeq++, gltf: slot.gltf, prim: slot.prim, pathIndex, x, z, speed, phase: hash01('viandante_fase', t) * 6, mode, legs, legNext, scale: mode === 'legs' && legNext === 'leave' ? 0.05 : 1, yaw: dir > 0 ? 0 : Math.PI, social: null };
     const node = w.gltf ? w.gltf.root : w.prim!.root;
     node.setEnabled(visible);
     node.scaling.setAll(w.scale);
@@ -534,10 +543,13 @@ export function createPedestrians(scene: Scene, world: World, content: Content, 
   let socialAcc = 0;
   return {
     update(dt: number) {
-      nextSpawn -= dt;
-      if (nextSpawn <= 0 && poolReady) {
-        nextSpawn = cfg.spawnEveryMin + hash01('viandante_t', world.tick + roll) * (cfg.spawnEveryMax - cfg.spawnEveryMin);
-        if (walkers.size < cfg.maxAlive) spawn();
+      // v1.57 — nacimientos por TICK del sim (calle común): citas absolutas, guard anti-racha.
+      if (world.tick < seenTick) seenTick = world.tick; // reinicio local: el tick vuelve a empezar
+      let guard = 0;
+      while (seenTick < world.tick && guard < 40) {
+        seenTick += 1;
+        guard += 1;
+        if (due(seenTick) && poolReady && walkers.size < cfg.maxAlive) spawn(seenTick);
       }
       // v1.32 — detección de cruces sociales a cadencia (solo viandantes glTF con clips).
       if (soc?.enabled) {
@@ -628,7 +640,7 @@ export function createPedestrians(scene: Scene, world: World, content: Content, 
           } else {
             w.mode = 'walk';
             w.pathIndex = 0;
-            const outDir = hash01('viandante_salida', roll) < 0.5 ? -0.6 : 0.6;
+            const outDir = hash01('viandante_salida', w.id * 7 + 3) < 0.5 ? -0.6 : 0.6;
             w.x += outDir;
             w.yaw = outDir < 0 ? Math.PI : 0;
           }

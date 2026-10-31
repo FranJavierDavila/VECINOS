@@ -471,8 +471,14 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
   };
 
   return {
-    /** playerResidentId identifica al residente del jugador local (multijugador: puede ser un invitado). */
-    update(dt: number, player: PlayerPosition, playerResidentId: string) {
+    /**
+     * playerResidentId identifica al residente del jugador local (multijugador: puede ser un invitado).
+     * v1.57 — remotePose: poses de red de los OTROS participantes (10 Hz). Cuando un avatar
+     * tiene pose fresca se interpreta la pose (persecución suave + yaw por desplazamiento)
+     * en vez de rutearlo hacia su bloque del sim: se le VE andar de verdad. Sin pose fresca
+     * (retraso, salida) cae al ruteo del sim de siempre.
+     */
+    update(dt: number, player: PlayerPosition, playerResidentId: string, remotePose?: (id: string) => { x: number; z: number; floor: number } | null) {
       // v1.37 — fase del rebote de ejercicio (sentadillas del paseo, ritmo del catálogo).
       exercisePhase += dt * (v.paseo?.bobRate ?? 4);
       // Altas y bajas: residentes sin nodo → crear; nodos huérfanos → dispose + remove.
@@ -546,6 +552,27 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
           if (node.lengthSquared() === 0) node.copyFrom(goal);
           node.addInPlace(goal.subtract(node).scale(Math.min(1, k * 2)));
           }
+        } else if (remotePose?.(id)) {
+          // ── v1.57 — AVATAR REMOTO (pose de red): persecución suave hacia la última pose.
+          // Nada de rutas ni ascensores: la locomoción la manda quien lo pasea. El yaw sale
+          // del desplazamiento real del nodo (mismo cálculo que las rutas) y la animación de
+          // andar la dispara el speedH de abajo (desplazamiento horizontal), como todos.
+          const rp = remotePose!(id)!;
+          goal.set(rp.x, rp.floor * v.cellH + 0.14 + a.pivotY, rp.z);
+          if (node.lengthSquared() === 0 || !a.enabledPrev) {
+            node.copyFrom(goal); // primera pose: aparece DONDE ESTÁ su dueño, sin viaje fantasma
+            a.path = [];
+          } else {
+            node.addInPlace(goal.subtract(node).scale(Math.min(1, k * 1.6)));
+          }
+          a.path = [];
+          a.elevatorReq = null;
+          a.ridePhase = null;
+          a.seatPending = null;
+          a.seated = false;
+          const dxr = node.x - prevX;
+          const dzr = node.z - prevZ;
+          if (dxr * dxr + dzr * dzr > 4e-6) a.targetYaw = Math.atan2(-dzr, dxr);
         } else if (!chatting) {
           const b = world.blocks[r.location!]!;
           const home = world.blocks[r.home]!;

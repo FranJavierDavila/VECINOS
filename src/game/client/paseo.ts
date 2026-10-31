@@ -134,8 +134,16 @@ export function createPaseo(
   const taxiDoorZ = taxiCfg ? taxiCfg.stopLaneZ + (taxiDef ? taxiDef.width / 2 : 0.85) + 0.35 : cfg.curbNearZ - 2.2;
 
   const walkers = new Set<Walker>();
-  let nextIn = cfg.everyMin + hash01('paseo_primero', world.tick) * Math.max(0.1, cfg.everyMax - cfg.everyMin);
-  let roll = 0;
+  // ── v1.57 — CALLE COMÚN: quién sale de paseo y cuándo lo decide el TICK del sim
+  // (autoridad del servidor): cita absoluta por slot con la cadencia del catálogo y las
+  // tiradas (quién, ganas, plan, línea) salen del hash de ese tick — no del reloj local.
+  const tickSecs = Math.max(0.5, content.rules.multiplayer?.tickSecondsPerTick ?? 1);
+  const slotTicks = Math.max(1, Math.round((cfg.everyMin + cfg.everyMax) / 2 / tickSecs));
+  let seenTick = world.tick;
+  const due = (t: number): boolean => {
+    const s = Math.floor(t / slotTicks);
+    return t - s * slotTicks === Math.floor(hash01('paseo_slot', s) * slotTicks);
+  };
 
   const crossX = cfg.crossX;
   const ySide = (w: Walker): number => w.yWalk - 0.02; // acera (0.12 de canto)
@@ -168,36 +176,39 @@ export function createPaseo(
       .filter((r) => {
         if (!r.present || r.location === null) return false;
         if (r.id === world.playerId) return false;
+        // v1.57 — los AVATARES DE JUGADORES (controller human, p. ej. invitados) jamás los
+        // secuestra el teatro local: su cuerpo lo pasea su dueño por la red (poses remotas).
+        if (r.controller.type === 'human') return false;
         if (!actors || actors.isRiding(r.id) || actors.isDirected(r.id) || actors.gestureOf(r.id)) return false;
         return actors.nodeOf(r.id) !== null;
       })
       .map((r) => r.id);
 
-  /** El plan lo decide el catálogo: banco / paseo / taxi / parque (resto). */
-  const planFor = (): Plan => {
+  /** El plan lo decide el catálogo: banco / paseo / taxi / parque (resto) — con la tirada del tick. */
+  const planFor = (t: number): Plan => {
     if (traffic && taxiCfg?.enabled) {
-      const r = hash01('paseo_plan', roll * 7 + 13);
+      const r = hash01('paseo_plan', t * 7 + 13);
       if (r < cfg.benchChance) return 'banco';
       if (r < cfg.benchChance + cfg.strollChance) return 'paseo';
       if (r < cfg.benchChance + cfg.strollChance + cfg.taxiChance) return 'taxi';
     } else {
-      const r = hash01('paseo_plan2', roll * 7 + 13);
+      const r = hash01('paseo_plan2', t * 7 + 13);
       if (r < cfg.benchChance) return 'banco';
       if (r < cfg.benchChance + cfg.strollChance) return 'paseo';
     }
     return 'parque';
   };
 
-  const spawn = (): boolean => {
+  /** Sale un vecino con el guion del tick t (quién, ganas, plan y línea salen de ese tick). */
+  const spawn = (t: number): boolean => {
     if (!actors) return false;
     const pool = candidates();
     if (pool.length === 0) return false;
-    const who = pool[Math.floor(hash01('paseo_quien', roll) * pool.length) % pool.length]!;
-    roll++;
+    const who = pool[Math.floor(hash01('paseo_quien', t) * pool.length) % pool.length]!;
     // «algunos si quieren»: la tirada del catálogo decide si este vecino sale hoy.
-    if (hash01('paseo_ganas', roll) > cfg.chance) return false;
+    if (hash01('paseo_ganas', t) > cfg.chance) return false;
     if (!actors.take(who)) return false;
-    const plan = planFor();
+    const plan = planFor(t);
     walkers.add({
       id: who,
       plan,
@@ -205,7 +216,7 @@ export function createPaseo(
       t: 45,
       exerciseLeft: 0,
       yWalk: 0.16, // provisional: la altura REAL se captura al llegar a planta 0
-      lineIdx: Math.floor(hash01('paseo_linea', roll) * 7) % 7,
+      lineIdx: Math.floor(hash01('paseo_linea', t) * 7) % 7,
       targetX: 0,
       bench: null,
       fadeK: 1,
@@ -245,10 +256,13 @@ export function createPaseo(
       // La calle solo vive en las vistas con calle (igual que tráfico/viandantes): fuera de
       // ellas el paseo queda en PAUSA (los walkers dirigidos se quedan donde están).
       if (!isStreetView()) return;
-      nextIn -= dt;
-      if (nextIn <= 0) {
-        nextIn = cfg.everyMin + hash01('paseo_t', world.tick + roll) * (cfg.everyMax - cfg.everyMin);
-        if (walkers.size < cfg.maxOut) spawn();
+      // v1.57 — paseos por TICK del sim (calle común): citas absolutas, guard anti-racha.
+      if (world.tick < seenTick) seenTick = world.tick; // reinicio local: el tick vuelve a empezar
+      let guard = 0;
+      while (seenTick < world.tick && guard < 40) {
+        seenTick += 1;
+        guard += 1;
+        if (due(seenTick) && walkers.size < cfg.maxOut) spawn(seenTick);
       }
       // v1.41 — CLIMA: llueve y están fuera → PARAGUAS ABIERTO (una línea cómica la primera vez).
       const rain = world.weather.state === 'rain' || world.weather.state === 'storm';
@@ -381,7 +395,7 @@ export function createPaseo(
               } else if (w.plan === 'taxi') {
                 sayOutdoor(w, outLines?.taxiHail);
                 w.fase = 'hailT';
-                w.t = taxiCfg ? taxiCfg.waitMin + hash01('paseo_taxi1', roll) * Math.max(0.1, taxiCfg.waitMax - taxiCfg.waitMin) : 8;
+                w.t = taxiCfg ? taxiCfg.waitMin + hash01('paseo_taxi1', world.tick + w.lineIdx) * Math.max(0.1, taxiCfg.waitMax - taxiCfg.waitMin) : 8;
               } else {
                 // paseo: media vuelta por la acera y de vuelta
                 sayOutdoor(w, outLines?.strollLines);
@@ -545,7 +559,7 @@ export function createPaseo(
               traffic?.releaseTaxi(); // el taxi arranca con el vecino dentro
               w.taxiStage = 'none';
               w.fase = 'rideT';
-              w.t = taxiCfg ? taxiCfg.rideMin + hash01('paseo_taxi2', roll) * Math.max(0.1, taxiCfg.rideMax - taxiCfg.rideMin) : 30;
+              w.t = taxiCfg ? taxiCfg.rideMin + hash01('paseo_taxi2', world.tick + w.lineIdx) * Math.max(0.1, taxiCfg.rideMax - taxiCfg.rideMin) : 30;
             }
             break;
           }
@@ -641,7 +655,7 @@ export function createPaseo(
       traffic?.setCrossers(crossers);
     },
     activeCount: () => walkers.size,
-    spawnNow: () => (walkers.size < cfg.maxOut ? spawn() : false),
+    spawnNow: () => (walkers.size < cfg.maxOut ? spawn(world.tick) : false),
     faseOf: (id: string) => [...walkers].find((w) => w.id === id)?.fase ?? null,
     planOf: (id: string) => [...walkers].find((w) => w.id === id)?.plan ?? null,
     /** v1.41 — LOS COCHES AVISAN: frenazo heroico o accidente cómico con el peatón como
