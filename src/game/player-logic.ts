@@ -413,6 +413,15 @@ export class PlayerLogic {
     this.corridorSolids = list;
   }
 
+  /** v1.59 — SÓLIDOS de la CALLE (mundo): el mobiliario urbano NO se atraviesa (petición
+   *  del vecino: «el mobiliario urbano… no se pueden atravesar, tienen colisión») — farolas,
+   *  bancos, papeleras y aparatos del parque; los registra exterior.ts y los pasa el
+   *  controlador. El atril del tablón ya tiene el suyo (corridorSolids, v1.47). */
+  private outdoorSolids: { x0: number; z0: number; x1: number; z1: number }[] = [];
+  setOutdoorObstacles(list: { x0: number; z0: number; x1: number; z1: number }[]): void {
+    this.outdoorSolids = list;
+  }
+
   /** v1.48 — posición (mundo) del CUADRO DE FUSIBLES (la pasa el controlador desde
    *  building.fuseBoxSpot()): el interact 'fusebox' se consulta ahí. */
   private fuseSpot: { blockId: string; x: number; z: number; floor: number } | null = null;
@@ -863,10 +872,19 @@ export class PlayerLogic {
     const step = this.view.walkSpeed * (input.run ? this.view.runMultiplier : 1) * dt;
     const inside = (x: number, z: number): boolean =>
       cfg.walk.some((rc) => x >= rc.x0 - 1e-4 && x <= rc.x1 + 1e-4 && z >= rc.z0 - 1e-4 && z <= rc.z1 + 1e-4);
+    // v1.59 — MOBILIARIO SÓLIDO: colisión axis-separada contra los rects de la calle
+    // (farolas, bancos, papeleras, parque). Con la gracia del corredor (v1.47): si YA estás
+    // dentro de un sólido (p. ej. recién levantado del banco, el asiento es sólido), no
+    // bloquea hasta que sales — nadie queda preso de su sitio.
+    const rad = this.view.actorRadius;
+    const hitsStreet = (x: number, z: number): boolean =>
+      this.outdoorSolids.some((o) => x > o.x0 - rad && x < o.x1 + rad && z > o.z0 - rad && z < o.z1 + rad);
+    const inStreetSolid = hitsStreet(this.x, this.z);
+    const free = (x: number, z: number): boolean => inStreetSolid || !hitsStreet(x, z);
     const nx = Math.min(cfg.xMax, Math.max(cfg.xMin, this.x + dirX * step));
-    if (nx !== this.x && inside(nx, this.z)) this.x = nx;
+    if (nx !== this.x && inside(nx, this.z) && free(nx, this.z)) this.x = nx;
     const nz = this.z + dirZ * step;
-    if (nz !== this.z && inside(this.x, nz)) this.z = nz;
+    if (nz !== this.z && inside(this.x, nz) && free(this.x, nz)) this.z = nz;
     // ── PORTAL SIN E: la dirección correcta ya entra (o sale). ──
     // v1.48 — ENTRADA FRONTAL CERRADA (petición del vecino: «desde la calle en la parte
     // frontal a la altura del portón se puede entrar frontalmente, no debe ser posible»):

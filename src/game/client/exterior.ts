@@ -31,6 +31,11 @@ export interface ExteriorDirector {
   setPropsVisible(visible: boolean): void;
   /** v1.41 — bancos exteriores construidos (acera frontal): asientos del paseo vecinal. */
   benches(): { x: number; z: number }[];
+  /** v1.59 — SÓLIDOS DE LA CALLE (mundo): rects del mobiliario urbano (farolas, bancos,
+   *  papeleras y aparatos del parque de calistenia). El jugador NO los atraviesa — el
+   *  controlador se los pasa a la lógica del paseo (colisión axis-separada con la gracia
+   *  de «ya estás dentro» para no dejar preso a quien se levanta de un banco). */
+  obstacles(): { x0: number; z0: number; x1: number; z1: number }[];
   dispose(): void;
 }
 
@@ -38,7 +43,7 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
   const { Color3, Mesh, MeshBuilder, StandardMaterial, TransformNode } = B();
   const cfg = content.rules.view.exterior;
   if (!cfg.enabled || cfg.rows.length === 0) {
-    return { update() {}, setPropsVisible() {}, benches: () => [], dispose() {} };
+    return { update() {}, setPropsVisible() {}, benches: () => [], obstacles: () => [], dispose() {} };
   }
   const mats = new Map<string, StandardMaterial>();
   const root: Mesh[] = [];
@@ -159,6 +164,10 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
   const lampMats: { mat: StandardMaterial; hex: string }[] = [];
   // v1.41 — bancos exteriores (asientos del paseo vecinal).
   const benchSpots: { x: number; z: number }[] = [];
+  // v1.59 — SÓLIDOS DE LA CALLE: rects del mobiliario con volumen a la altura del cuerpo
+  // (farolas, bancos, papeleras, aparatos del parque). Solo piezas que pueden caer en zona
+  // transitable: la vegetación queda fuera (keepOut del catálogo la aparta de las aceras).
+  const obstacles: { x0: number; z0: number; x1: number; z1: number }[] = [];
 
   cfg.rows.forEach((row, ri) => {
     const def = content.blocks[row.defId];
@@ -219,6 +228,8 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
         const v = vCenter + (hash01(`lampZ${ri}`, i) - 0.5) * vLen * 0.4;
         const p = at(u, v);
         cyl(`calle_${ri}_farola`, props, 0.05, 0.07, ex.lampH, p.x, ex.height + ex.lampH / 2, p.z, matOf(ex.lampColor, 'lamp_post')).parent = propsNode;
+        // v1.59 — la farola NO se atraviesa: poste con margen de medio cuerpo.
+        obstacles.push({ x0: p.x - 0.2, z0: p.z - 0.2, x1: p.x + 0.2, z1: p.z + 0.2 });
         // Cabeza: brazo corto + farol emisivo (se enciende con la noche).
         const arm = at(u + (horizontal ? 0.2 : 0), v + (horizontal ? 0 : 0.2));
         box(`calle_${ri}_farola_brazo`, props, horizontal ? 0.5 : 0.05, 0.05, horizontal ? 0.05 : 0.5, arm.x, ex.height + ex.lampH, arm.z, matOf(ex.lampColor, 'lamp_post')).parent = propsNode;
@@ -237,6 +248,10 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
         // v1.41 — asiento registrado para el paseo vecinal (solo bancos de la acera FRONTAL:
         // filas horizontales con v por debajo de la línea del edificio).
         if (horizontal && p.z < -3.4) benchSpots.push({ x: p.x, z: p.z });
+        // v1.59 — el banco NO se atraviesa: asiento+respaldo orientados a la fila.
+        obstacles.push(horizontal
+          ? { x0: p.x - 0.95, z0: p.z - 0.4, x1: p.x + 0.95, z1: p.z + 0.4 }
+          : { x0: p.x - 0.4, z0: p.z - 0.95, x1: p.x + 0.4, z1: p.z + 0.95 });
         const y = ex.height;
         box(`calle_${ri}_banco_asiento`, props, horizontal ? 1.6 : 0.5, 0.07, horizontal ? 0.5 : 1.6, p.x, y + 0.42, p.z, matOf(ex.benchColor, 'bench')).parent = propsNode;
         const back = at(u, v + (horizontal ? -0.22 : 0.22));
@@ -248,6 +263,8 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
         if (ex.binEvery > 0 && hash01(`bin${ri}`, i) < 0.7) {
           const bp = at(u + 1.2, v + 0.1);
           cyl(`calle_${ri}_papelera`, props, 0.24, 0.2, 0.55, bp.x, y + 0.28, bp.z, matOf(ex.binColor, 'bin')).parent = propsNode;
+          // v1.59 — la papelera tampoco se atraviesa.
+          obstacles.push({ x0: bp.x - 0.3, z0: bp.z - 0.3, x1: bp.x + 0.3, z1: bp.z + 0.3 });
         }
       }
     }
@@ -382,6 +399,13 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
     }
     const pM = matOf(cal.postColor, 'cal_poste');
     const bM = matOf(cal.barColor, 'cal_barra');
+    // v1.59 — los aparatos del parque TAMPOCO se atraviesan: un rect por poste/pata (los
+    // huecos entre postes quedan libres — bajo la barra se está de pie) y una caja por
+    // tablero/banco. Delimitados al propio aparato: el punto de ejercicio del catálogo
+    // (centro del parque) queda siempre alcanzable.
+    const solid = (x: number, z: number, hw: number, hd: number): void => {
+      obstacles.push({ x0: x - hw, z0: z - hd, x1: x + hw, z1: z + hd });
+    };
     // v1.37 — los aparatos se AGRUPAN en el borde VISIBLE (el canto de la cámara de la calle
     // corta hacia z≈-14.3): cartel y barra lo más cerca del edificio, paralelas y banco detrás.
     const nearZ = zC + cal.d / 2; // borde del parque hacia el edificio (el que se ve en cuadro)
@@ -391,6 +415,7 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
     for (const sz of [-1, 1] as const) {
       box('cal_poste', props, 0.09, cal.barH, 0.09, px, baseY + 0.03 + cal.barH / 2, pz + sz * 0.62, pM).parent = propsNode;
       box('cal_pata', props, 0.09, 0.5, 0.09, px + 0.18, baseY + 0.03 + 0.25, pz + sz * 0.62 + (sz > 0 ? -0.16 : 0.16), pM).parent = propsNode;
+      solid(px, pz + sz * 0.62, 0.14, 0.14); // v1.59
     }
     box('cal_barra', props, 0.06, 0.06, 1.34, px, baseY + 0.03 + cal.barH, pz, bM).parent = propsNode;
     // PARALELAS: dos barras bajas en paralelo (fondos de pecho y fondos).
@@ -400,6 +425,8 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
       box('cal_dip_pata_a', props, 0.08, cal.dipH, 0.08, dx - 0.55, baseY + 0.03 + cal.dipH / 2, dz + sz * 0.3, pM).parent = propsNode;
       box('cal_dip_pata_b', props, 0.08, cal.dipH, 0.08, dx + 0.55, baseY + 0.03 + cal.dipH / 2, dz + sz * 0.3, pM).parent = propsNode;
       box('cal_dip_barra', props, 1.22, 0.055, 0.055, dx, baseY + 0.03 + cal.dipH, dz + sz * 0.3, bM).parent = propsNode;
+      solid(dx - 0.55, dz + sz * 0.3, 0.12, 0.12); // v1.59
+      solid(dx + 0.55, dz + sz * 0.3, 0.12, 0.12); // v1.59
     }
     // BANCO DE ABDOMINALES: tabla inclinada sobre dos caballetes. v1.47 — inclinación
     // suave (la 0.22 con la tabla clara se leía como «camino blanco sin salida» a la
@@ -412,10 +439,12 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
     for (const sx of [-1, 1] as const) {
       box('cal_banco_pata', props, 0.08, 0.36, 0.36, bx + sx * 0.42, baseY + 0.03 + 0.18, bz, pM).parent = propsNode;
     }
+    solid(bx, bz, 0.65, 0.28); // v1.59 — la tabla inclinada entera
     // CARTEL del parque: poste + placa con el nombre (canvas, igual oficio que los rótulos).
     const sxn = xC - cal.w * 0.42;
     const szn = nearZ - 0.15;
     box('cal_cartel_palo', props, 0.07, 1.5, 0.07, sxn, baseY + 0.03 + 0.75, szn, pM).parent = propsNode;
+    solid(sxn, szn, 0.14, 0.14); // v1.59 — el poste del cartel
     const signW = 1.06;
     const signH = 0.42;
     const signTexCal = new (B().DynamicTexture)('cal_cartel_tex', { width: 512, height: Math.round((512 * signH) / signW) }, scene, true);
@@ -491,6 +520,7 @@ export function createExterior(scene: Scene, world: World, content: Content, bac
       propsNode.setEnabled(visible);
     },
     benches: () => benchSpots,
+    obstacles: () => obstacles,
     dispose() {
       dispose();
     },

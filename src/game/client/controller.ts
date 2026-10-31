@@ -1438,6 +1438,10 @@ class GameController {
     // de día del fondo para encenderse al anochecer.
     this.exterior?.dispose();
     this.exterior = createExterior(this.scene, this.world, this.content, this.backdrop);
+    // v1.59 — el MOBILIARIO URBANO no se atraviesa: exterior registra sus rects (farolas,
+    // bancos, papeleras, parque) y la lógica del paseo los usa de sólidos. El atril del
+    // tablón ya llevaba el suyo (v1.47, corridorSolids).
+    this.logic.setOutdoorObstacles(this.exterior.obstacles());
     // La calle vive (v1.22): tráfico y viandantes — solo presentación, solo vista "edificio".
     // (Las manifestaciones se crean más abajo, tras los bocadillos, para poder comentarlas.)
     // v1.31: los vehículos leen la luz de día del cielo para encender y apagar los faros.

@@ -1024,9 +1024,15 @@
       "mortar": "#cdbfae",
       "mortarW": 5,
       "brick": "#b06a4f",
-      "brickTones": ["#a25a43", "#b8755a", "#98503c", "#c08068", "#aa6449"],
+      "brickTones": [
+        "#a25a43",
+        "#b8755a",
+        "#98503c",
+        "#c08068",
+        "#aa6449"
+      ],
       "sheen": 0.12,
-      "note": "v1.58 FACHADA DE LADRILLO: los paños grises del exterior (fachadas de vivienda, escalera y locales) visten ladrillo con junta clara — el mismo dialecto que las fachadas del horizonte. tileMeters = lado del mosaico en mundo; cols/rows = ladrillos por mosaico (fila sorda alternada, mosaico seamless); brickTones = variación determinista por ladrillo; sheen = relieve (luz arriba/sombra abajo)."
+      "note": "v1.59 FACHADA DE LADRILLO SOLO DESDE FUERA: los paños (frontales de vivienda, fachadas de locales y muros de cubo de escalera) se ven GRIS CLARO desde dentro (pasillo/vistas de interior) y visten ladrillo cuando el edificio se contempla cerrado desde la calle (jugador en la acera) o en la vista FACHADA (tecla 0). tileMeters = lado del mosaico en mundo; cols/rows = ladrillos por mosaico (fila sorda alternada, mosaico seamless); brickTones = variación determinista por ladrillo; sheen = relieve (luz arriba/sombra abajo)."
     },
     "noticeboard": {
       "enabled": true,
