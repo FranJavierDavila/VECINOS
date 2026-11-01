@@ -29,6 +29,14 @@
 - Verificación navegador: `/` renderiza, sin overlay de error, NullEngine + `__vecinosQa` vivos,
   sim corriendo (27 bloques / 15 residentes / tick avanza), diálogo de intro interactivo.
 - Deuda documentada pre-existente (no era de Fase H): qa-v128 2✗, qa-v129 2✗, qa-v142 15✗ (paseos E2E).
+- **Addendum (depuración E2E profunda de esta sesión, commit 11c89c1)**: 2 bugs de producto
+  REALES cazados gracias a la higiene — (1) reconexión transparente v1.56 NUNCA funcionó
+  (`store.mpSession` no existía en el store → `mpCode`); (2) el visitante que entraba por
+  timbre a una vivienda ajena era EXPULSADO a los ~4 s (sync() en interior apuntaba a
+  zone() — que excluye viviendas — así que la cadena legal del router terminaba en el cubo
+  de escalera/trasteros y reconcile force-extraía con cada session:state; además la rama
+  interior era la única sin sync() y tryEnterDoor no renovaba moveRetryAt). Fix + sonda de
+  telemetría con stacks: scripts/probe-t4.ts. qa-v164-multi TODO VERDE (T2c Δ=3.42 m; T4c/T4d).
 
 ### FASE S — Sonido profesional ✅ COMPLETADA (2026-11-02)
 - 22 SFX clave renderizados como WAV reales (public/art/audio/sfx/*.wav, 2.3 MB): puertas,
