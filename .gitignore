@@ -54,3 +54,4 @@ server.log
 /skills/tool-results/
 tool-results/
 upload/
+--timeout
