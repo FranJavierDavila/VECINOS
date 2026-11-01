@@ -1356,7 +1356,11 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           const fmat = mat(`${b.id}_${lr.key}_suelo_mat`);
           fmat.diffuseColor = Color3.FromHexString(content.rooms[lr.defId]?.view?.color ?? '#cccccc');
           fmat.alpha = 0.32;
-          const fm = attach(b.id, box(`${b.id}_${lr.key}_suelo`, r.w, 0.02, r.d, x0 + r.x + r.w / 2, bottom + v.slab + v.wall + 0.02, frontZ + r.z + r.d / 2, fmat));
+          // v1.67 — la plancha iba con su cara SUPERIOR exactamente en bottom+slab+wall+0.03 =
+          // gapH/2+so.h: EXACTAMENTE la cota de la cara superior de la solera (audit: 23 m² de
+          // peleas por vivienda). Sube 2 cm: descansa SOBRE la solera (contacto de caras
+          // opuestas, sin pelea) y su cara vista queda 2 cm por encima de cualquier cota ajena.
+          const fm = attach(b.id, box(`${b.id}_${lr.key}_suelo`, r.w, 0.02, r.d, x0 + r.x + r.w / 2, bottom + v.slab + v.wall + 0.04, frontZ + r.z + r.d / 2, fmat));
           interior.floors.push({ roomKey: lr.key, defId: lr.defId, mesh: fm, mat: fmat });
           // Lamparita de techo (v1.21): apagada de día; de noche ilumina la estancia si hay
           // alguien dentro despierto (sin propietario despierto, la estancia vive a oscuras).
@@ -1759,13 +1763,20 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
             return jm;
           });
           const shelfZ = frontZ + d - v.wall - v.trasteros.shelfD / 2;
+          // v1.67 — auditor de coplanaridad: con bayW del catálogo (2×0.64·bayW = 1.41 m por
+          // unidad) las DOS estanterías se INTERPENETRABAN 0.4 m en el centro (baldas gemelas
+          // coplanares en y y z: 0.18 m² de pelea visible desde dentro). La unidad se ajusta
+          // al ancho real del bloque (mitad menos holgura); baldas recessadas 1 cm por cara
+          // respecto a los postes (cantos sin planos compartidos) y postes 2 cm más altos que
+          // la balda cimera (antes flush: franja coplanar postes↔balda superior).
+          const unitW = Math.min(v.trasteros.bayW * 0.64, 0.44 * w - 0.04); // caben las dos: 2 unidades en ±0.22w ⇒ cada una < 0.44w
           for (const side of [-1, 1] as const) {
             const bx = cx + side * (w * 0.22);
             for (const sx of [-1, 1] as const) {
-              view.greybox.push(box(`${b.id}_est_poste_${side}_${sx}`, v.trasteros.postW, tc.shelfTiers * tr.tierH, tr.shelfD, bx + sx * (v.trasteros.bayW * 0.32), baseY + (tc.shelfTiers * tr.tierH) / 2, shelfZ, woodDarkM));
+              view.greybox.push(box(`${b.id}_est_poste_${side}_${sx}`, v.trasteros.postW, tc.shelfTiers * tr.tierH + 0.02, tr.shelfD, bx + sx * (unitW / 2), baseY + (tc.shelfTiers * tr.tierH + 0.02) / 2, shelfZ, woodDarkM));
             }
             for (let t = 1; t <= tc.shelfTiers; t++) {
-              view.greybox.push(box(`${b.id}_est_balda_${side}_${t}`, v.trasteros.bayW * 0.64, v.trasteros.plankT, tr.shelfD, bx, baseY + t * tr.tierH - v.trasteros.plankT / 2, shelfZ, woodM));
+              view.greybox.push(box(`${b.id}_est_balda_${side}_${t}`, unitW, v.trasteros.plankT, tr.shelfD - 0.02, bx, baseY + t * tr.tierH - v.trasteros.plankT / 2, shelfZ, woodM));
               if (hash01(b.id, 3200 + side * 10 + t) < v.trasteros.junkChance) {
                 const jw = 0.3 + hash01(b.id, 3300 + side * 10 + t) * 0.45;
                 const jh2 = 0.18 + hash01(b.id, 3400 + side * 10 + t) * 0.2;
