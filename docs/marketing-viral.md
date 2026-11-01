@@ -2,10 +2,11 @@
 
 > **Kit de venta y promoción** para viralizar VECINOS en redes. Tono: el del juego — humor
 > español de barra de barrio, cero corporativo, cero clickbait vacío. Cada promesa de este
-> documento es REAL en el prototipo (v1.56 «co-op real + voz»): misiones con decisiones,
-> multijugador por enlace, co-op de 2 roles, duelos de minijuegos, marcador «Vecino del mes»
-> y canal de voz integrado. Es un juego indie en desarrollo: lo decimos siempre, y funciona
-> a nuestro favor.
+> documento es REAL en el prototipo (v1.64 «timbre que abre + llamada sin congelar»): misiones
+> con decisiones, multijugador por enlace, co-op de 2 roles, duelos de minijuegos, marcador
+> «Vecino del mes», canal de voz integrado, sombra de contacto bajo cada personaje y timbre
+> que abre la puerta de cualquier vecino presente. Es un juego indie en desarrollo: lo decimos
+> siempre, y funciona a nuestro favor.
 >
 > Estado verificado del producto (fuente: `public/content/*.json`, `mini-services/vecinos-server/`,
 > git log): 49 misiones en solitario con decisiones · 3 misiones co-op de 2 roles reales ·
