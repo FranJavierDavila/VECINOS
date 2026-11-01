@@ -4,6 +4,7 @@
  * inanicia el hilo principal y la maquinaria de accionabilidad de Playwright se
  * agota; un evaluate único entre frames pasa sin problema).
  */
+import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright-core';
 
 const CHROME = '/home/z/.agent-browser/browsers/chrome-156.0.8078.73/chrome';
@@ -62,7 +63,19 @@ const skips = await ev<number[]>(`(() => {
   return c.rules.view.backdrop.layers.map(l => l.skipChance);
 })()`);
 console.log('A. skipChance por capa:', JSON.stringify(skips));
-const aOk = JSON.stringify(skips) === JSON.stringify([0.18, 0.26, 0.36]);
+// v1.62-final — SIN valores hard-coded: se compara contra el catálogo real (rules.json);
+// se exige 0<v<0.75 y creciente con la distancia (los altos del fondo, los que más cielo).
+const catSkips = (
+  JSON.parse(readFileSync('public/content/rules.json', 'utf8')) as {
+    view: { backdrop: { layers: { skipChance: number }[] } };
+  }
+).view.backdrop.layers.map((l) => l.skipChance);
+const aOk =
+  JSON.stringify(skips) === JSON.stringify(catSkips) &&
+  catSkips.every((v) => v > 0 && v < 0.75) &&
+  catSkips[0]! < catSkips[1]! &&
+  catSkips[1]! < catSkips[2]!;
+console.log('   catálogo rules.json:', JSON.stringify(catSkips));
 
 // ── B. Huecos de cielo por píxel ──
 // Los sellos PNG (~2 MB) cargan en diferido y el primer pintado llega con el
