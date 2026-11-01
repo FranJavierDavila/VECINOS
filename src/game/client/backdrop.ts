@@ -29,6 +29,8 @@ import { playSoundAt } from './audio';
  * · HUECOS DE CIELO (v1.62): skipChance por capa — fracción de sellos que quedan SIN
  *   pintar («solares»): el cielo asoma entre los bloques del fondo (petición del vecino:
  *   «eliminar alguno de los edificios altos para ver algo más de cielo»). Determinista.
+ * · MÁSCARA DE TINTE ALINEADA (v1.62): el destination-in del tinte heredaba el translate
+ *   de banda y borraba cuerpos de edificios (la capa cercana conservaba ~12%) — corregido.
  */
 
 interface LayerView {
@@ -294,10 +296,13 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
    *  catálogo → «solares» entre bloques por donde asoma el cielo (el vecino pidió ver
    *  más cielo eliminando alguno de los edificios altos del fondo). Determinista por
    *  hash: el mismo solar queda vacío en el pintado, la copia de tinte y las ventanas
-   *  nocturnas — una sola verdad. ?? 0: contenido legacy sin zod entre medias. */
+   *  nocturnas — una sola verdad. ?? 0: contenido legacy sin zod entre medias.
+   *  Semilla POR SELLO (no por índice): el hash agrupaba rachas consecutivas que
+   *  abrían un solo boquete gigante en mitad de la tira; con `_${k}` los solares se
+   *  reparten sin pares largos. */
   const stampSkipped = (li: number, k: number): boolean => {
     const skip = cfg.layers[li]!.skipChance ?? 0;
-    return skip > 0 && hash01(`selloSkip${li}`, k) < skip;
+    return skip > 0 && hash01(`selloSkip${li}_${k}`, 3) < skip;
   };
 
   /** Pinta una capa al canvas: sellos repetidos (image) o edificios procedurales. */
