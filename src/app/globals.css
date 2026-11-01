@@ -306,6 +306,103 @@
   }
 }
 
+/* ── v1.65 — PASE DE HOJA entre postits del panel de información ──
+   Cada subapartado vive en su hoja; al cambiar, la nueva entra girando desde el
+   lado hacia el que avanzas (perspectiva 3D + deriva horizontal), como se pasa
+   una hoja de un bloc de post-its. */
+@keyframes pageflip-next {
+  from {
+    opacity: 0;
+    transform: perspective(900px) rotateY(-16deg) translateX(28px);
+  }
+  to {
+    opacity: 1;
+    transform: perspective(900px) rotateY(0deg) translateX(0);
+  }
+}
+@keyframes pageflip-prev {
+  from {
+    opacity: 0;
+    transform: perspective(900px) rotateY(16deg) translateX(-28px);
+  }
+  to {
+    opacity: 1;
+    transform: perspective(900px) rotateY(0deg) translateX(0);
+  }
+}
+.pageflip-next {
+  transform-origin: left center;
+  animation: pageflip-next 0.26s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+.pageflip-prev {
+  transform-origin: right center;
+  animation: pageflip-prev 0.26s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+/* ── v1.65 — ALERTA POSTIT sobre las pestañas del cuaderno ──
+   Nota adhesiva grande y visible sobre el botón (novedades sin consultar):
+   papel amarillo, tinta roja y meneo constante para que no pase desapercibida. */
+.postit-alert {
+  position: absolute;
+  top: -11px;
+  right: -11px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 27px;
+  height: 27px;
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  background: var(--paper);
+  box-shadow: 2px 3px 6px rgb(0 0 0 / 0.28);
+  transform: rotate(9deg);
+  pointer-events: none;
+  animation: postit-alert-wiggle 1.15s ease-in-out infinite;
+}
+@keyframes postit-alert-wiggle {
+  0%, 100% { transform: rotate(9deg) scale(1); }
+  50% { transform: rotate(-7deg) scale(1.14); }
+}
+
+/* ── v1.65 — ACORDEÓN del MENÚ: plegado/desplegado suave sin medir alturas ── */
+.acc-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.22s ease;
+}
+.acc-body[data-open='true'] {
+  grid-template-rows: 1fr;
+}
+.acc-body > div {
+  overflow: hidden;
+}
+
+/* ── v1.65 — SCROLL FINO del panel de información sobre el escenario ── */
+.info-scroll {
+  scrollbar-width: thin;
+}
+.info-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.info-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.info-scroll::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background: rgb(39 75 143 / 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .postit-alert,
+  .pageflip-next,
+  .pageflip-prev {
+    animation: none;
+  }
+}
+
 /* ── Economía: monedas volando hacia el monedero (v1.23) ── */
 .coin-fly {
   position: absolute;

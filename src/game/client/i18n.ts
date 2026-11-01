@@ -27,7 +27,7 @@ const DICT: Record<string, { es: string; en: string }> = {
     es: 'Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.',
     en: 'Move-ins, noise, smells, wifi, pests, smoke and levies: the neighborhood simulator.',
   },
-  'header.version': { es: 'v1.64 · timbre que abre, llamada sin congelar y comunidad sincronizada', en: 'v1.64 · doorbell that opens, unfrozen phone call and a synced community' },
+  'header.version': { es: 'v1.65 · HUD de juego limpio: MENÚ acordeón, postits con alertas y cámaras 1-5 con Espía', en: 'v1.65 · clean game HUD: accordion MENU, alert post-its and cameras 1-5 with Spy' },
   // ── Apagón de assets (v1.47: servidor de arte caído → mundo vacío/cápsulas) ──
   'assets.outage': {
     es: '⚠ No se pudo cargar el arte del juego (¿servidor caído?). El vecindario se recargará en {n} s…',
@@ -41,6 +41,15 @@ const DICT: Record<string, { es: string; en: string }> = {
   'postit.players': { es: 'Jugadores', en: 'Players' },
   'postit.cameras': { es: 'Cámara', en: 'Camera' },
   'postit.openPanel': { es: 'Abrir panel', en: 'Open panel' },
+  // ── v1.65: MENÚ acordeón + postit de cámara con teclas + selector de espiado ──
+  'postit.menu': { es: 'MENÚ', en: 'MENU' },
+  'postit.menuAria': { es: 'Menú del juego: tiempo, opciones, partida, ayuda y multijugador', en: 'Game menu: time, options, game, help and multiplayer' },
+  'ctrl.cam.espia': { es: 'Espía', en: 'Spy' },
+  'ctrl.camTooltip': { es: 'Teclas: 1 Estancia · 2 Planta · 3 Edificio · 4 Fachada · 5 Espía (otra vez 5: siguiente vecino)', en: 'Keys: 1 Room · 2 Floor · 3 Building · 4 Facade · 5 Spy (press 5 again: next neighbor)' },
+  'ctrl.camSpyPick': { es: 'Espiar a…', en: 'Spy on…' },
+  'ctrl.camSpyHere': { es: 'Sigue a {name}', en: 'Follows {name}' },
+  'ev.spyFollow': { es: '🎥 Cámara espía: siguiendo a {name}', en: '🎥 Spy cam: following {name}' },
+  'ev.spyNone': { es: '🎥 Cámara espía: no hay vecinos presentes ahora mismo', en: '🎥 Spy cam: no neighbors around right now' },
   // ── Economía siempre visible (v1.23) ──
   'money.funds': { es: 'Arcas {n} €', en: 'Funds {n} €' },
   'money.wallet': { es: 'Hucha {n} €', en: 'Piggy {n} €' },
@@ -208,6 +217,23 @@ const DICT: Record<string, { es: string; en: string }> = {
   'dock.tab.building': { es: 'Edificio', en: 'Building' },
   'dock.tab.neighbors': { es: 'Vecinos', en: 'Neighbors' },
   'dock.tab.achievements': { es: 'Logros', en: 'Achievements' },
+  // ── v1.65: panel sobre el escenario (postits con pase de hoja + alertas) ──
+  'dock.close': { es: 'Cerrar el panel', en: 'Close the panel' },
+  'dock.alertAria': { es: '{n} novedades en {tab}', en: '{n} updates in {tab}' },
+  'dock.alert': { es: '¡Novedades!', en: 'New stuff!' },
+  'missions.page.active': { es: 'En curso', en: 'In progress' },
+  'missions.page.archive': { es: 'Archivo', en: 'Archive' },
+  'missions.archiveEmpty': { es: 'Aún no hay misiones terminadas.', en: 'No finished missions yet.' },
+  'ach.page.unlocked': { es: 'Conseguidos', en: 'Unlocked' },
+  'ach.page.locked': { es: 'Por lograr', en: 'To unlock' },
+  'ach.unlockedEmpty': { es: 'Todavía ningún logro conseguido. ¡A por ellos!', en: 'No achievements yet. Go get them!' },
+  'ach.lockedEmpty': { es: '¡Todos los logros conseguidos!', en: 'All achievements unlocked!' },
+  'edificio.page.params': { es: 'Parámetros', en: 'Parameters' },
+  'edificio.page.log': { es: 'Registro', en: 'Log' },
+  'edificio.page.project': { es: 'Proyecto', en: 'Project' },
+  'pager.prev': { es: 'Página anterior', en: 'Previous page' },
+  'pager.next': { es: 'Página siguiente', en: 'Next page' },
+  'pager.pageAria': { es: 'Página {n} de {total}', en: 'Page {n} of {total}' },
 
   // ── v1.39 — Vecinos como personajes ──
   'neighbors.empty': { es: 'El vecindario se está mudando… pronto habrá fichas.', en: 'The neighborhood is moving in… profiles coming soon.' },
@@ -300,7 +326,7 @@ const DICT: Record<string, { es: string; en: string }> = {
   'help.move': { es: 'Moverte por la planta', en: 'Move around the floor' },
   'help.vertical': { es: 'Subir y bajar: en la escalera o en el ascensor', en: 'Go up and down: stairs or elevator' },
   'help.interact': { es: 'Entrar, salir y usar cosas cercanas', en: 'Enter, exit and use nearby things' },
-  'help.cams': { es: 'Cámara: edificio / planta / estancia', en: 'Camera: building / floor / room' },
+  'help.cams': { es: 'Cámara: estancia / planta / edificio / fachada / espía', en: 'Camera: room / floor / building / facade / spy' },
   'help.dialog': { es: 'Avanzar los diálogos del teléfono', en: 'Advance phone dialogues' },
   'help.note1': {
     es: 'El tiempo corre solo: 1 segundo real = 1 minuto de juego (x1). Las fiestas de Kevin empiezan a las 21:30. Tú fuiste advertido.',

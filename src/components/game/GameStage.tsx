@@ -121,6 +121,12 @@ export default function GameStage() {
       return map[k] ?? k;
     };
     const onKeyDown = (ev: KeyboardEvent) => {
+      // v1.65 — una tecla ya CONSUMIDA por un portal de Radix no llega al juego: los
+      // diálogos escuchan Escape en CAPTURA (document) y hacen preventDefault al cerrarse,
+      // así que aquí —listener de window en burbuja, SIEMPRE posterior— el estado del store
+      // ya cambió. Sin este guard, cerrar el diálogo multijugador (o cualquier Radix) con
+      // Escape abría además el menú de pausa detrás (capturado en E2E v1.65, caso A9).
+      if (ev.defaultPrevented) return;
       const code = normalize(ev);
       if (gameKeys.has(code) && !selectModalOpen(useGameStore.getState())) ev.preventDefault();
       getController()?.onKeyDown(code);

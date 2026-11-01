@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { useGameStore } from '@/game/client/store';
 import { useT } from '@/game/client/i18n';
 
-export function ResidentsPanel() {
+export function ResidentsPanel({ fill = false }: { fill?: boolean } = {}) {
   const t = useT();
   const residents = useGameStore((s) => s.residentsUi);
 
@@ -27,7 +27,7 @@ export function ResidentsPanel() {
   };
 
   return (
-    <div className="max-h-96 space-y-2.5 overflow-y-auto pr-1 [scrollbar-width:thin]">
+    <div className={fill ? 'space-y-2.5' : 'max-h-96 space-y-2.5 overflow-y-auto pr-1 [scrollbar-width:thin]'}>
       {residents.map((r) => {
         const aff = affinityView(r.affinity);
         return (

@@ -6,7 +6,8 @@
  * la página y los componentes solo conocen esta interfaz, sin importar Babylon.
  */
 
-export type CamModeBridge = 'edificio' | 'fachada' | 'planta' | 'estancia';
+/** v1.65 — 'espia' se añade (seguimiento de vecino, tecla 5). */
+export type CamModeBridge = 'edificio' | 'fachada' | 'planta' | 'estancia' | 'espia';
 export type SpeedBridge = 1 | 3 | 10;
 
 export interface GameControllerApi {
@@ -14,7 +15,8 @@ export interface GameControllerApi {
   onKeyUp(code: string): void;
   togglePause(): void;
   setSpeed(speed: SpeedBridge): void;
-  setCamMode(mode: CamModeBridge): void;
+  /** v1.65 — 'espia' admite spyId (vecino a seguir); sin id, elige el más cercano. */
+  setCamMode(mode: CamModeBridge, spyId?: string): void;
   partyDemo(): void;
   skipTime(): void;
   phoneNext(): void;

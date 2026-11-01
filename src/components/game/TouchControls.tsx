@@ -34,8 +34,8 @@ interface TouchDirs {
 
 const DIRS_RELEASED: TouchDirs = { left: false, right: false, up: false, down: false };
 
-/** Ciclo de cámara del botón 🎥 (contrato compartido por el store y el bridge). */
-const CAM_ORDER: readonly CamMode[] = ['edificio', 'fachada', 'planta', 'estancia'];
+/** v1.65 — ciclo de cámara del botón 🎥: de CERCA a LEJOS + espía (teclas 1-5 del teclado). */
+const CAM_ORDER: readonly CamMode[] = ['estancia', 'planta', 'edificio', 'fachada', 'espia'];
 
 /** Clave de la preferencia persistida (la escribe store.setTouchControls). */
 const TOUCH_KEY = 'vecinos.touch';

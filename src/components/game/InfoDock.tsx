@@ -1,40 +1,36 @@
 'use client';
 
 /**
- * V1.62 — CUADERNO DEL VECINO (rediseño del dock de información).
+ * V1.65 — CUADERNO SOBRE EL ESCENARIO (tercer rediseño del dock de información).
  *
- * Problema (petición del vecino): demasiados apartados con mucha información —
- * Misiones, Edificio, Vecinos, Mi casa y Logros — y la Ayuda inferior DUPLICADA
- * (ya existe el post-it de ayuda en la barra superior).
+ * Petición del vecino: «prácticamente solo veamos la pantalla de juego» — la barra
+ * superior queda en UNA línea (MENÚ · Cámara · Misiones · Edificio · Vecinos · Logros)
+ * y el detalle vive en un PANEL que se despliega POR ENCIMA del escenario:
+ *   · como mucho la MITAD de la altura de la ventana de juego (rules.view.infoDock),
+ *     con barra de scroll vertical propia y scroll fino (nada de scroll de página);
+ *   · los subapartados son POSTITS HORIZONTALES con EFECTO DE PASE DE HOJA
+ *     (PostitPager: pestañas + flechas + giro 3D hacia el lado que avanzas);
+ *   · pincharse FUERA del panel (o Escape) lo oculta y devuelve la pantalla de juego;
+ *   · si cambia el estado del juego (misión nueva/conseguida, logro, vecino nuevo,
+ *     estado del edificio) una NOTA POSTIT GRANDE con meneo se superpone al botón
+ *     (.postit-alert): se pulsa el botón, se consulta el cambio y la alerta se limpia.
  *
- * Referencia (juegos superventas que manejan mucha información):
- *   · Stardew Valley / Cities: Skylines — UNA barra de pestañas con iconos y
- *     contadores; el detalle vive a un clic, el HUD no se satura.
- *   · Los Sims / Animal Crossing — el resumen "ahora mismo" siempre visible
- *     (aquí: MissionTracker y ProjectCard encima) y los paneles grandes bajo
- *     demanda con badges que avisan CUÁNDO conviene mirar.
- *
- * Solución (manteniendo la estructura de post-it para dar uniformidad a todo):
- *   · 4 PESTAÑAS-POSTIT (icono a bolígrafo + etiqueta + badge en vivo):
- *     Misiones · Edificio · Vecinos · Logros.
- *   · FUERA la pestaña Ayuda (duplicada del post-it superior) y FUERA "Mi casa"
- *     (su nota de reforma conserva un hueco dentro de EDIFICIO — cero pérdida).
- *   · FUERA la tarjeta de objetivo (su texto es el MISMO que la franja
- *     MissionTracker SIEMPRE visible justo encima; la pista de teclado se
- *     conserva como línea compacta en Misiones).
- *   · El cuaderno se PLEGA al volver a pulsar la pestaña activa: HUD limpio sin
- *     perder información (los badges siguen contando en las pestañas).
+ * Componentes: InfoTabButtons (los 4 botones-postit de la barra superior) e
+ * InfoOverlay (el panel flotante sobre el GameStage). Estado compartido en el store
+ * de zustand (infoTab / infoAlerts) — también accesible para E2E.
  */
 
-import { useCallback, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-import { useGameStore } from '@/game/client/store';
+import { useGameStore, getInfoDockTuning } from '@/game/client/store';
+import type { InfoTab } from '@/game/client/store';
 import { useT } from '@/game/client/i18n';
 import { cn } from '@/lib/utils';
 import { AchievementsPanel } from './AchievementsPanel';
 import { EventLog } from './EventLog';
 import { MissionsPanel } from './MissionsPanel';
 import { ParamsPanel } from './ParamsPanel';
+import { ProjectCard } from './ProjectCard';
 import { ResidentsPanel } from './ResidentsPanel';
 
 // ── Tinta a bolígrafo: iconos garabateados (mismo trazo que PostItControls) ──
@@ -102,29 +98,26 @@ function InkTrophy() {
 
 // ── Pestañas del cuaderno ──
 
-type TabId = 'misiones' | 'edificio' | 'vecinos' | 'logros';
-
-const TABS: ReadonlyArray<{ id: TabId; labelKey: string; paper: string; tilt: number; icon: React.ReactNode }> = [
+const TABS: ReadonlyArray<{ id: InfoTab; labelKey: string; paper: string; tilt: number; icon: React.ReactNode }> = [
   { id: 'misiones', labelKey: 'dock.tab.missions', paper: 'var(--paper)', tilt: -1.6, icon: <InkTarget /> },
   { id: 'edificio', labelKey: 'dock.tab.building', paper: 'var(--paper-pink)', tilt: 1.2, icon: <InkBuilding /> },
   { id: 'vecinos', labelKey: 'dock.tab.neighbors', paper: 'var(--paper-green)', tilt: -1, icon: <InkPeople /> },
   { id: 'logros', labelKey: 'dock.tab.achievements', paper: 'var(--paper-blue)', tilt: 1.8, icon: <InkTrophy /> },
 ];
 
-export function InfoDock() {
+// ── Botones-postit de la barra superior (el panel vive en InfoOverlay) ──
+
+export function InfoTabButtons() {
   const t = useT();
-  // v1.62: pestaña activa (null = cuaderno plegado). Por defecto Misiones abierta,
-  // como antes — primera vez, la partida a la vista.
-  const [tab, setTab] = useState<TabId | null>('misiones');
+  const infoTab = useGameStore((s) => s.infoTab);
+  const alerts = useGameStore((s) => s.infoAlerts);
   const missions = useGameStore((s) => s.missions);
   const achievements = useGameStore((s) => s.achievements);
-  const prompt = useGameStore((s) => s.prompt);
+  const alertsOn = getInfoDockTuning().alerts;
 
   const activeMissions = missions.filter((m) => m.state === 'active' || m.state === 'awaiting_choice').length;
   const decisions = missions.filter((m) => m.state === 'awaiting_choice').length;
   const unlockedAch = achievements.filter((a) => a.unlocked).length;
-
-  const toggle = useCallback((id: TabId) => setTab((cur) => (cur === id ? null : id)), []);
 
   const countBadge = (label: string, pulse?: boolean) => (
     <span
@@ -137,85 +130,229 @@ export function InfoDock() {
     </span>
   );
 
-  const badgeOf = (id: TabId): React.ReactNode => {
+  const badgeOf = (id: InfoTab): React.ReactNode => {
     if (id === 'misiones' && activeMissions > 0) return countBadge(String(activeMissions), decisions > 0);
     if (id === 'logros' && achievements.length > 0) return countBadge(`${unlockedAch}/${achievements.length}`);
     return null;
   };
 
-  const activeTab = TABS.find((x) => x.id === tab);
+  return (
+    <div role="tablist" aria-label={t('dock.title')} className="mt-2.5 flex items-start gap-2.5">
+      {TABS.map((x) => {
+        const selected = infoTab === x.id;
+        const alertCount = alerts[x.id];
+        return (
+          <button
+            key={x.id}
+            role="tab"
+            type="button"
+            aria-selected={selected}
+            aria-controls={`info-panel-${x.id}`}
+            data-info-tab-btn={x.id}
+            aria-label={t(x.labelKey)}
+            title={t('dock.toggleHint')}
+            className="postit sketchy !h-[58px] !w-[58px]"
+            style={{ background: x.paper, transform: selected ? 'scale(1.08) rotate(0deg)' : `rotate(${x.tilt}deg)` }}
+            onClick={() => {
+              const store = useGameStore.getState();
+              store.setInfoTab(selected ? null : x.id);
+              store.clearInfoAlert(x.id); // consultar el apartado limpia su alerta
+            }}
+          >
+            {x.icon}
+            <span className="text-[10px] leading-none font-bold">{t(x.labelKey)}</span>
+            {badgeOf(x.id)}
+            {alertsOn && alertCount > 0 && (
+              <span className="postit-alert sketchy-thin" aria-label={t('dock.alertAria', { n: alertCount, tab: t(x.labelKey) })}>
+                {alertCount > 1 ? alertCount : '!'}
+              </span>
+            )}
+          </button>
+        );
+      })}
+      <p className="ink mt-1.5 ml-1 hidden max-w-44 text-[11px] leading-tight opacity-60 lg:block">{t('dock.hint')}</p>
+    </div>
+  );
+}
+
+// ── Pase de hoja: subapartados como postits horizontales ──
+
+interface PagerPage {
+  id: string;
+  labelKey: string;
+  content: React.ReactNode;
+}
+
+function PostitPager({ pages }: { pages: PagerPage[] }) {
+  const t = useT();
+  const reduceMotion = useGameStore((s) => s.reduceMotion);
+  const [idx, setIdx] = useState(0);
+  const [dir, setDir] = useState<1 | -1>(1);
+  const safeIdx = Math.min(idx, pages.length - 1);
+  const go = (n: number) => {
+    const next = Math.max(0, Math.min(pages.length - 1, n));
+    if (next === safeIdx) return;
+    setDir(next > safeIdx ? 1 : -1);
+    setIdx(next);
+  };
+  const page = pages[safeIdx]!;
+  return (
+    <div className="flex min-h-0 flex-col">
+      <div className="mb-2 flex flex-wrap items-center gap-1.5" role="tablist" aria-label={t('dock.title')}>
+        {pages.map((p, i) => (
+          <button
+            key={p.id}
+            role="tab"
+            type="button"
+            aria-selected={i === safeIdx}
+            className="postit-btn sketchy-thin"
+            data-active={i === safeIdx || undefined}
+            aria-label={t('pager.pageAria', { n: i + 1, total: pages.length })}
+            onClick={() => go(i)}
+          >
+            {t(p.labelKey)}
+          </button>
+        ))}
+        <span className="ink ml-auto text-[10px] font-bold tabular-nums opacity-60" aria-hidden>
+          {safeIdx + 1}/{pages.length}
+        </span>
+        <button type="button" className="postit-btn sketchy-thin !px-2" aria-label={t('pager.prev')} disabled={safeIdx === 0} onClick={() => go(safeIdx - 1)}>
+          ‹
+        </button>
+        <button type="button" className="postit-btn sketchy-thin !px-2" aria-label={t('pager.next')} disabled={safeIdx === pages.length - 1} onClick={() => go(safeIdx + 1)}>
+          ›
+        </button>
+      </div>
+      <div style={{ perspective: '900px' }}>
+        <div key={page.id} className={reduceMotion ? undefined : dir === 1 ? 'pageflip-next' : 'pageflip-prev'} data-pager-page={page.id}>
+          {page.content}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Panel flotante sobre el escenario (la mitad de la ventana de juego, como mucho) ──
+
+export function InfoOverlay() {
+  const t = useT();
+  const tab = useGameStore((s) => s.infoTab);
+  const reduceMotion = useGameStore((s) => s.reduceMotion);
+  const objective = useGameStore((s) => s.objective);
+  const prompt = useGameStore((s) => s.prompt);
+  const overlayRef = useRef<HTMLDivElement>(null);
+
+  // Pinchar fuera del panel (o Escape) lo oculta: solo pantalla de juego.
+  // Los botones-postit de la barra y los portales de Radix NO cuentan como «fuera».
+  useEffect(() => {
+    if (!tab) return;
+    const onDown = (ev: PointerEvent) => {
+      const target = ev.target as Node | null;
+      if (overlayRef.current?.contains(target)) return;
+      if (target instanceof Element && target.closest('[data-info-tab-btn], [data-radix-popper-content-wrapper], [role="dialog"], [role="listbox"], [role="menu"]')) return;
+      useGameStore.getState().setInfoTab(null);
+    };
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') useGameStore.getState().setInfoTab(null);
+    };
+    window.addEventListener('pointerdown', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('pointerdown', onDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [tab]);
+
+  const tuning = getInfoDockTuning();
+  const activeTab = TABS.find((x) => x.id === tab) ?? null;
 
   return (
-    <section className="postit-bar sketchy rounded-xl p-3" aria-label={t('dock.title')}>
-      <h2 className="ink sr-only">{t('dock.title')}</h2>
-
-      {/* ── Pestañas post-it (uniformes con la barra de mandos superior) ── */}
-      <div role="tablist" aria-label={t('dock.title')} className="flex flex-wrap items-start gap-2.5">
-        {TABS.map((x) => {
-          const selected = tab === x.id;
-          return (
-            <button
-              key={x.id}
-              role="tab"
-              type="button"
-              aria-selected={selected}
-              aria-controls={`dock-panel-${x.id}`}
-              aria-label={t(x.labelKey)}
-              title={t('dock.toggleHint')}
-              className="postit sketchy !h-[58px] !w-[58px]"
-              style={{ background: x.paper, transform: selected ? 'scale(1.08) rotate(0deg)' : `rotate(${x.tilt}deg)` }}
-              onClick={() => toggle(x.id)}
-            >
-              {x.icon}
-              <span className="text-[10px] leading-none font-bold">{t(x.labelKey)}</span>
-              {badgeOf(x.id)}
-            </button>
-          );
-        })}
-        <p className="ink mt-1.5 ml-1 hidden max-w-52 text-[11px] leading-tight opacity-60 sm:block">
-          {t('dock.hint')}
-        </p>
-      </div>
-
-      {/* ── Panel del cuaderno (el post-it activo "crece" hacia abajo) ── */}
+    <div className="pointer-events-none absolute inset-x-0 top-2 bottom-1 z-30 flex items-start justify-center px-2">
       {activeTab && (
         <div
-          id={`dock-panel-${activeTab.id}`}
+          ref={overlayRef}
+          id={`info-panel-${activeTab.id}`}
           role="tabpanel"
           aria-label={t(activeTab.labelKey)}
-          className="sketchy mt-3 p-3"
-          style={{ background: activeTab.paper, animation: 'postit-pop 0.16s ease-out' }}
+          data-info-overlay={activeTab.id}
+          className="pointer-events-auto flex w-full max-w-3xl flex-col sketchy p-3 shadow-xl"
+          style={{
+            background: activeTab.paper,
+            maxHeight: `${tuning.overlayMaxHFactor * 100}%`,
+            animation: reduceMotion ? undefined : 'postit-pop 0.16s ease-out',
+          }}
         >
-          {activeTab.id === 'misiones' && (
-            <div className="flex flex-col gap-3">
-              {/* v1.62 — la pista de teclado de la tarjeta de objetivo sobrevive aquí:
-                  el objetivo en sí ya vive SIEMPRE visible en la franja MissionTracker. */}
-              {prompt && (
-                <p className="ink flex items-center gap-1.5 text-xs font-semibold opacity-80">
-                  <span aria-hidden>⌨</span> {prompt}
-                </p>
-              )}
-              <MissionsPanel />
-            </div>
-          )}
-          {activeTab.id === 'edificio' && (
-            <div className="flex flex-col gap-3">
-              <div className="grid gap-3 lg:grid-cols-2">
-                <ParamsPanel />
-                <EventLog />
+          <header className="flex items-center gap-2">
+            {activeTab.icon}
+            <h2 className="ink text-sm font-extrabold">{t(activeTab.labelKey)}</h2>
+            <button
+              type="button"
+              className="postit-btn sketchy-thin ml-auto !px-2"
+              aria-label={t('dock.close')}
+              onClick={() => useGameStore.getState().setInfoTab(null)}
+            >
+              ✕
+            </button>
+          </header>
+          <div className="info-scroll mt-2 min-h-0 flex-1 overflow-y-auto pr-1">
+            {activeTab.id === 'misiones' && (
+              <div className="flex flex-col gap-2.5">
+                {/* El objetivo «ahora mismo» sobrevive aquí (la franja inferior se retira en v1.65) */}
+                {objective && (
+                  <p className="ink flex items-center gap-1.5 text-xs font-semibold" aria-live="polite">
+                    <span aria-hidden>🎯</span> {objective.title}
+                    <span className="font-normal opacity-70">{objective.text}</span>
+                  </p>
+                )}
+                {prompt && (
+                  <p className="ink flex items-center gap-1.5 text-xs font-semibold opacity-80">
+                    <span aria-hidden>⌨</span> {prompt}
+                  </p>
+                )}
+                <PostitPager
+                  pages={[
+                    { id: 'curso', labelKey: 'missions.page.active', content: <MissionsPanel filter="active" fill /> },
+                    { id: 'archivo', labelKey: 'missions.page.archive', content: <MissionsPanel filter="archive" fill /> },
+                  ]}
+                />
               </div>
-              {/* v1.62 — la antigua pestaña "Mi casa" (en reforma) conserva su nota aquí:
-                  misma información, un apartado menos en el cuaderno. */}
-              <p className="ink flex items-start gap-2 rounded-md border border-dashed border-[color:var(--ink-soft)] bg-white/45 p-2.5 text-xs leading-relaxed opacity-85">
-                <span aria-hidden="true">🏠</span>
-                {t('casa.retired')}
-              </p>
-            </div>
-          )}
-          {activeTab.id === 'vecinos' && <ResidentsPanel />}
-          {activeTab.id === 'logros' && <AchievementsPanel />}
+            )}
+            {activeTab.id === 'edificio' && (
+              <div className="flex flex-col gap-2.5">
+                <PostitPager
+                  pages={[
+                    {
+                      id: 'params',
+                      labelKey: 'edificio.page.params',
+                      content: (
+                        <div className="flex flex-col gap-2.5">
+                          <ParamsPanel />
+                          {/* v1.62 — la antigua pestaña "Mi casa" (en reforma) conserva su nota aquí */}
+                          <p className="ink flex items-start gap-2 rounded-md border border-dashed border-[color:var(--ink-soft)] bg-white/45 p-2.5 text-xs leading-relaxed opacity-85">
+                            <span aria-hidden="true">🏠</span>
+                            {t('casa.retired')}
+                          </p>
+                        </div>
+                      ),
+                    },
+                    { id: 'log', labelKey: 'edificio.page.log', content: <EventLog fill /> },
+                    { id: 'proyecto', labelKey: 'edificio.page.project', content: <ProjectCard /> },
+                  ]}
+                />
+              </div>
+            )}
+            {activeTab.id === 'vecinos' && <ResidentsPanel fill />}
+            {activeTab.id === 'logros' && (
+              <PostitPager
+                pages={[
+                  { id: 'ganados', labelKey: 'ach.page.unlocked', content: <AchievementsPanel filter="unlocked" fill /> },
+                  { id: 'pendientes', labelKey: 'ach.page.locked', content: <AchievementsPanel filter="locked" fill /> },
+                ]}
+              />
+            )}
+          </div>
         </div>
       )}
-    </section>
+    </div>
   );
 }

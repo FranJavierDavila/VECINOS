@@ -44,9 +44,11 @@ import { loadUnlocked, saveUnlocked } from './achievements-store';
 import { NetSession, type SessionStatePayload } from './net';
 import { VoiceChannel } from './voice';
 import { setController } from './bridge';
-import { selectModalOpen, selectWorldFrozen, setPhoneFreeMovement, useGameStore, type AchievementUi, type Speed, type Tone } from './store';
+import { selectModalOpen, selectWorldFrozen, setInfoDockTuning, setPhoneFreeMovement, useGameStore, type AchievementUi, type Speed, type Tone } from './store';
 
-const CAM_BY_KEY: Record<string, CamMode> = { Digit0: 'fachada', Digit1: 'edificio', Digit2: 'planta', Digit3: 'estancia' };
+// v1.65 — CÁMARAS 1..5 reordenadas de CERCA a LEJOS + ESPÍA (petición del vecino):
+// 1 Estancia · 2 Planta · 3 Edificio · 4 Fachada · 5 Espía (otra vez 5: siguiente vecino).
+const CAM_BY_KEY: Record<string, CamMode> = { Digit1: 'estancia', Digit2: 'planta', Digit3: 'edificio', Digit4: 'fachada', Digit5: 'espia' };
 
 /** v1.64 — teclas de MOVIMIENTO: únicas que valen con la llamada de teléfono en pantalla
  *  (rules.sim.phone.freeMovement): el vecino sigue andando —y puede entrar— mientras «suena
@@ -77,6 +79,9 @@ class GameController {
    *  cámara de planta activa ya no te cambia a otra. Si el usuario cambia de cámara DENTRO,
    *  manda su elección (no se restaura nada). */
   private camReturn: CamMode | null = null;
+  /** v1.65 — CÁMARA ESPÍA: vecino seguido en el modo 'espia' (null = fuera del modo).
+   *  Su posición viva viaja a rig.spyTarget cada fotograma (nodeOf) para el seguimiento. */
+  private spyResidentId: string | null = null;
   /** Fondo urbano + calle (v1.20): cielo dinámico, parallax y decorado exterior. */
   private backdrop: BackdropDirector | null = null;
   private exterior: ExteriorDirector | null = null;
@@ -188,6 +193,9 @@ class GameController {
       // el timbre suena, el diálogo flota y el vecino sigue andando/entrando. El selector
       // selectWorldFrozen honra esta bandera (una sola verdad, también para el mando).
       setPhoneFreeMovement(content.rules.sim.phone.freeMovement);
+      // v1.65 — panel de información sobre el escenario: altura máxima (fracción del
+      // escenario) y alertas post-it on/off — todo del catálogo (rules.view.infoDock).
+      setInfoDockTuning(content.rules.view.infoDock ?? {});
       // v1.54 — INVITACIÓN POR ENLACE (?join=CODE): quien abre un enlace de invitación
       // aterriza con el panel de multijugador YA ABIERTO y la tarjeta «Te han invitado»
       // lista para entrar con un clic (el código viaja en la URL, nunca se teclea).
@@ -320,9 +328,25 @@ class GameController {
     }
     // v1.39 — ESCAPE = menú de pausa de verdad (si no lo está gestionando un modal o un
     // post-it desplegado: cada cosa cierra lo suyo).
+    // v1.65 — el diálogo MULTIJUGADOR y el panel del CUADERNO gestionan su propio Escape
+    // (sus oyentes los cierran): si alguno está abierto, aquí no se toca nada — antes,
+    // cerrar el diálogo de sesión con Escape abría además el menú de pausa detrás.
     if (code === 'Escape') {
-      if (selectModalOpen(useGameStore.getState())) return;
-      if (typeof document !== 'undefined' && document.querySelector('[data-postit-panel]')) return;
+      const st = useGameStore.getState();
+      // v1.65 — prioridad de cierre con Escape: PAUSA (toggle propio), luego modales de
+      // verdad, luego el diálogo MP y el panel del cuaderno (cada cosa cierra lo suyo).
+      if (st.pauseMenuOpen) {
+        this.togglePauseMenu(); // el menú de pausa NO tiene oyente propio: aquí se cierra
+        return;
+      }
+      if (selectModalOpen(st) || st.mpPanelOpen || st.infoTab !== null) return;
+      // Carrera con Radix: puede haber volteado el estado ANTES de este listener (y aun así
+      // el diálogo seguir en el DOM hasta el re-render). Guardia por DOM como cinturón:
+      // cerrar la sesión con Escape no debe abrir el menú de pausa detrás (E2E v1.65, A9).
+      if (typeof document !== 'undefined') {
+        if (document.querySelector('[role="dialog"]')) return;
+        if (document.querySelector('[data-postit-panel]')) return;
+      }
       this.togglePauseMenu();
       return;
     }
@@ -344,6 +368,11 @@ class GameController {
       return;
     }
     const cam = CAM_BY_KEY[code];
+    // v1.65 — tecla 5 repetida: pasar al SIGUIENTE vecino espiado (rueda de vecinos).
+    if (cam === 'espia' && useGameStore.getState().camMode === 'espia') {
+      this.cycleSpyTarget();
+      return;
+    }
     if (cam) this.setCamMode(cam);
   }
 
@@ -400,9 +429,63 @@ class GameController {
     useGameStore.getState().setSpeed(speed);
   }
 
-  setCamMode(mode: CamMode): void {
+  /**
+   * v1.65 — modo de cámara (con ESPÍA): 'espia' sigue a un vecino; con spyId se le señala
+   * desde la UI, sin id se elige el más cercano al jugador. Si no hay nadie a quien espiar,
+   * se cae a PLANTA con un aviso (la cámara nunca se queda sin sujeto).
+   */
+  setCamMode(mode: CamMode, spyId?: string): void {
+    const store = useGameStore.getState();
+    if (mode === 'espia') {
+      const prev = this.spyResidentId;
+      const id = spyId ?? this.pickSpyTarget();
+      if (!id) {
+        store.pushToast(translate(store.lang, 'ev.spyNone'), 'info');
+        mode = 'planta';
+      } else {
+        this.spyResidentId = id;
+        store.setSpyTargetId(id);
+        if (id !== prev) store.pushToast(translate(store.lang, 'ev.spyFollow', { name: this.nameOf(id) }), 'info');
+      }
+    }
+    if (mode !== 'espia') {
+      this.spyResidentId = null;
+      if (store.spyTargetId !== null) store.setSpyTargetId(null);
+    }
     if (this.rig) this.rig.mode = mode;
     useGameStore.getState().setCamMode(mode);
+  }
+
+  /** v1.65 — vecino PRESENTE más cercano al jugador (candidato por defecto del espía). */
+  private pickSpyTarget(): string | null {
+    if (!this.world || !this.actors || !this.logic) return null;
+    const p = this.logic.position();
+    const cellH = this.content?.rules.view.cellH ?? 2.6;
+    let best: string | null = null;
+    let bestD = Infinity;
+    for (const [id, r] of Object.entries(this.world.residents)) {
+      if (id === this.actorId() || !r.present || r.location === null) continue;
+      const node = this.actors.director?.nodeOf(id);
+      if (!node) continue;
+      const d = Math.abs(node.x - p.x) + Math.abs(node.z - p.z) + Math.abs(node.y - p.floor * cellH) * 2;
+      if (d < bestD) {
+        bestD = d;
+        best = id;
+      }
+    }
+    return best;
+  }
+
+  /** v1.65 — siguiente vecino presente en la rueda del espía (tecla 5 repetida). */
+  cycleSpyTarget(): void {
+    if (!this.world) return;
+    const ids = Object.entries(this.world.residents)
+      .filter(([id, r]) => id !== this.actorId() && r.present && r.location !== null)
+      .map(([id]) => id)
+      .sort();
+    if (ids.length === 0) return;
+    const idx = this.spyResidentId ? ids.indexOf(this.spyResidentId) : -1;
+    this.setCamMode('espia', ids[(idx + 1) % ids.length]!);
   }
 
   /** v1.47 — entra en un interior con cámara de ESTANCIA recordando la previa (una vez). */
@@ -421,9 +504,10 @@ class GameController {
     if (back && cur === 'estancia') this.setCamMode(back);
   }
 
-  /** Siguiente cámara de la rueda Edificio → Fachada → Planta → Estancia (teclado 1/2/3/0 y mando Y). */
+  /** Siguiente cámara de la rueda Estancia → Planta → Edificio → Fachada → Espía
+   *  (v1.65: orden de CERCA a LEJOS + espía; teclado 1-5 y mando Y). */
   cycleCam(): void {
-    const order: CamMode[] = ['edificio', 'fachada', 'planta', 'estancia'];
+    const order: CamMode[] = ['estancia', 'planta', 'edificio', 'fachada', 'espia'];
     const cur = order.indexOf(useGameStore.getState().camMode);
     this.setCamMode(order[(cur + 1) % order.length]!);
   }
@@ -1628,6 +1712,7 @@ class GameController {
         estWidthW: camTuning.estanciaWidthW,
         estMargin: camTuning.estanciaEdgeMargin,
         fachadaFactor: camTuning.fachadaViewHFactor ?? 1.32,
+        spyFactor: camTuning.spyViewHFactor ?? 1,
       };
     }
     // v1.20: plano frontal y calado del bloque principal — la cámara encuadra los bloques
@@ -1638,9 +1723,11 @@ class GameController {
     // preferencia salvo que fuera 'estancia' (ahí estás en el pasillo, no en una estancia).
     const pos = this.logic.position();
     const store = useGameStore.getState();
-    const wanted: CamMode = pos.mode === 'inside' ? 'estancia' : store.camMode === 'estancia' ? 'planta' : store.camMode;
+    const wanted: CamMode = pos.mode === 'inside' ? 'estancia' : store.camMode === 'estancia' || store.camMode === 'espia' ? 'planta' : store.camMode;
     this.rig.mode = wanted;
     store.setCamMode(wanted);
+    this.spyResidentId = null; // v1.65 — el (re)cargo de mundo limpia al espiado
+    if (store.spyTargetId !== null) store.setSpyTargetId(null);
     this.camReturn = null; // v1.47 — el (re)cargo de mundo limpia la cámara previa recordada
 
     this.clockAcc = 0;
@@ -1873,7 +1960,7 @@ class GameController {
     // v1.49 — DATA-DRIVEN (rules.view.streetLife.cameras): el vecino pidió ver la calle
     // (bancos, parque de calistenia, coches, viandantes) DESDE LA CÁMARA DE ESTANCIA —
     // el catálogo manda; sin regla, el comportamiento de siempre.
-    const streetCameras = this.content.rules.view.streetLife?.cameras ?? ['edificio', 'fachada', 'planta'];
+    const streetCameras = this.content.rules.view.streetLife?.cameras ?? ['edificio', 'fachada', 'planta', 'espia'];
     const streetView = streetCameras.includes(store.camMode);
     // v1.41 — la vista FACHADA cierra el edificio entero (cortina acristalada en building).
     this.building?.setFachadaView(store.camMode === 'fachada');
@@ -1962,11 +2049,16 @@ class GameController {
     // v1.30 — los VIANDANTES también cuentan: el portal abre sus correderas cuando un
     // visitante se acerca a entrar (y el cubo de escalera los ve pasar, como siempre).
     for (const p of this.pedestrians?.positions() ?? []) movers.push({ x: p.x, y: 0, z: p.z });
+    // v1.65 — CÁMARA ESPÍA: el foco de edificio/LOD y la cámara siguen al vecino espiado
+    // (posición viva de su nodo; null en cualquier otro modo → foco del jugador de siempre).
+    const spyNode = store.camMode === 'espia' && this.spyResidentId ? this.actors.director?.nodeOf(this.spyResidentId) ?? null : null;
+    this.rig.spyTarget = spyNode;
+    const camFocus = spyNode
+      ? { x: spyNode.x, floor: Math.round(spyNode.y / (this.content.rules.view.cellH ?? 2.6)) }
+      : { x: pos.x, floor: pos.floor };
     this.building.update(
       dt,
-      useGameStore.getState().camMode === 'edificio' || useGameStore.getState().camMode === 'fachada'
-        ? undefined
-        : { x: pos.x, floor: pos.floor },
+      store.camMode === 'edificio' || store.camMode === 'fachada' ? undefined : camFocus,
       pos.insideBlock,
       { x: pos.x, z: pos.z, insideBlock: pos.insideBlock },
       // v1.21: luz de día del fondo → luces nocturnas de interiores (encendidas solo con
@@ -2076,6 +2168,7 @@ class GameController {
           const choices = (d.choices as { id: string; label: string; hint?: string | null }[] | undefined) ?? [];
           store.setChoices({ mission: String(d.mission), title: String(d.title), choices: choices.map((c) => ({ id: c.id, label: c.label, hint: c.hint ?? null })) });
           store.pushLog(translate(store.lang, 'ev.juntaPending', { t: String(d.title) }), 'info');
+          store.bumpInfoAlert('misiones'); // v1.65 — alerta post-it: decisión pendiente
           this.actors?.director.setGesture(this.actorId(), 'talk'); // el jugador razona en voz alta
           break;
         }
@@ -2093,15 +2186,18 @@ class GameController {
         case 'neighbor_arrived':
           store.pushToast(translate(store.lang, 'ev.neighborArrived', { block: blockLabel(String(d.block)), name: this.nameOf(d.resident) }), 'good');
           store.pushLog(translate(store.lang, 'ev.neighborArrivedLog', { name: this.nameOf(d.resident), block: blockLabel(String(d.block)) }), 'info');
+          store.bumpInfoAlert('vecinos'); // v1.65 — alerta post-it: nuevo vecino
           break;
         case 'mission_activated':
           store.pushLog(translate(store.lang, 'ev.missionNew', { m: String(d.title) }), 'info');
+          store.bumpInfoAlert('misiones'); // v1.65 — alerta post-it: nueva misión
           break;
         case 'mission_completed':
           // v1.30 — post-it de CELEBRACIÓN: se pliega como origami y suelta estrellitas que
           // caen al suelo (ToastStack) — sobre la fanfarria, como pidió el vecino.
           store.pushToast(translate(store.lang, 'ev.missionDone', { m: this.titleOf(d.mission) }), 'good', { celebrate: true });
           store.pushLog(translate(store.lang, 'ev.missionDoneLog', { m: this.titleOf(d.mission) }), 'good');
+          store.bumpInfoAlert('misiones'); // v1.65 — alerta post-it: misión conseguida
           this.syncAchievements(); // una misión caída puede cerrar varios logros a la vez
           syncCampaign(this.world!, this.content); // la misión del cargo activa el chip de presidencia
           this.tutorial.notify('mission_completed'); // v1.39 — paso «completa una tarea»
@@ -2110,15 +2206,19 @@ class GameController {
         case 'mission_failed':
           store.pushToast(translate(store.lang, 'ev.missionFailed', { m: this.titleOf(d.mission) }), 'bad');
           store.pushLog(translate(store.lang, 'ev.missionFailedLog', { m: this.titleOf(d.mission) }), 'bad');
+          store.bumpInfoAlert('misiones'); // v1.65 — alerta post-it: misión fallida
           break;
         case 'block_unlocked':
           store.pushToast(translate(store.lang, 'ev.blockUnlocked', { block: blockLabel(String(d.block)) }), 'good');
+          store.bumpInfoAlert('edificio'); // v1.65 — alerta post-it: estado del edificio
           break;
         case 'block_bought':
           store.pushLog(translate(store.lang, 'ev.blockBought', { block: blockLabel(String(d.block)), price: String(d.price) }), 'good');
+          store.bumpInfoAlert('edificio'); // v1.65 — alerta post-it: estado del edificio
           break;
         case 'block_for_sale':
           store.pushLog(translate(store.lang, 'ev.forSaleSign', { block: blockLabel(String(d.block)), price: String(d.price) }), 'info');
+          store.bumpInfoAlert('edificio'); // v1.65 — alerta post-it: estado del edificio
           break;
         case 'knock_result': {
           // v1.40 — el timbre lo atiende la PERSONALIDAD: saludo del catálogo de personajes
@@ -2249,7 +2349,9 @@ class GameController {
           if (d.uiLog === true && typeof d.message === 'string') {
             store.pushLog(String(d.message).replace('{block}', blockLabel(String(d.block))), (d.tone as Tone | undefined) ?? 'info');
           }
-          break; // resident_moved, param_changed, activity_ended... demasiado ruido para el registro
+          // v1.65 — param_changed del ASCENSOR = estado del edificio visible: alerta post-it.
+          if (d.param === 'elevator_status') store.bumpInfoAlert('edificio');
+          break; // resident_moved, activity_ended... demasiado ruido para el registro
         }
       }
       // Cutscenes (Fase D): después del reparto, ¿alguna quiere este evento como disparador?
@@ -2567,6 +2669,7 @@ class GameController {
     if (fresh.length > 0) {
       for (const id of fresh) this.unlockedAchievements.add(id);
       saveUnlocked([...this.unlockedAchievements]);
+      store.bumpInfoAlert('logros', fresh.length); // v1.65 — alerta post-it: logro(s) nuevo(s)
     }
     store.setAchievements(
       catalog.achievements.map((def) => this.achievementUi(def, this.unlockedAchievements.has(def.id), fresh.includes(def.id))),
@@ -2624,6 +2727,7 @@ class GameController {
       if (lv) {
         store.pushToast(`🏗️ ${lv.title[lang] ?? lv.title.es}: ${lv.reward[lang] ?? lv.reward.es}`, 'good', { celebrate: true });
         store.pushLog(`🏗️ Proyecto del edificio: ${lv.title[lang] ?? lv.title.es}`, 'good');
+        store.bumpInfoAlert('edificio'); // v1.65 — alerta post-it: el edificio mejora de nivel
       }
     }
     this.projectLevelSeen = Math.max(this.projectLevelSeen, state.level);
@@ -2663,6 +2767,11 @@ export function createGameController(canvas: HTMLCanvasElement): GameController 
         : null,
       clock: dbg?.world ? { ...dbg.world.clock } : null,
       camMode: useGameStore.getState().camMode,
+      /** v1.65 — estado de la cámara espía (vecino seguido + objetivo vivo para E2E). */
+      spy: {
+        id: useGameStore.getState().spyTargetId,
+        target: (instance as unknown as { rig?: { spyTarget: { x: number; y: number; z: number } | null } }).rig?.spyTarget ?? null,
+      },
       paused: useGameStore.getState().paused,
       simLocation: dbg?.world?.residents[dbg.world.playerId]?.location ?? null,
       missions: dbg?.world?.missions.map((m) => `${m.id}:${m.state}${m.state === 'active' ? `#${m.step}` : ''}`) ?? [],

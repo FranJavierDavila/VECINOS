@@ -3,15 +3,19 @@
 import GameStage from '@/components/game/GameStage';
 import { PostItControls } from '@/components/game/PostItControls';
 import { HudBar } from '@/components/game/HudBar';
-import { MissionTracker } from '@/components/game/MissionTracker';
-import { ProjectCard } from '@/components/game/ProjectCard';
-import { InfoDock } from '@/components/game/InfoDock';
+import { InfoOverlay } from '@/components/game/InfoDock';
 import { AchievementPopup } from '@/components/game/AchievementPopup';
 import { PwaRegister } from '@/components/game/PwaRegister';
-import { getController } from '@/game/client/bridge';
 import { useT } from '@/game/client/i18n';
 
-/** VECINOS v1.23: mandos como post-its dibujados a bolígrafo + economía siempre visible. */
+/**
+ * V1.65 — PANTALLA DE JUEGO LIMPIA (petición del vecino).
+ * La barra superior queda en UNA línea (MENÚ · Cámara · Misiones · Edificio ·
+ * Vecinos · Logros) y TODO el detalle se consulta en paneles que se despliegan
+ * POR ENCIMA del escenario (InfoOverlay, anclado al wrapper relative del
+ * GameStage) — nada de bloques bajo el HUD ni scroll de página: el objetivo y
+ * el proyecto del edificio viven dentro del panel de Misiones/Edificio.
+ */
 export default function Home() {
   const t = useT();
   return (
@@ -30,16 +34,14 @@ export default function Home() {
           <PostItControls />
         </div>
 
-        <GameStage />
+        {/* El panel de información se despliega POR ENCIMA del escenario (≤ media ventana
+            de juego, con scroll propio; pinchando fuera se vuelve a ver solo el juego). */}
+        <div className="relative">
+          <GameStage />
+          <InfoOverlay />
+        </div>
 
         <HudBar />
-
-        <div className="mt-4 flex flex-col gap-2">
-          {/* v1.39 — meta de largo plazo: el proyecto del edificio, siempre visible */}
-          <ProjectCard />
-          <MissionTracker />
-          <InfoDock />
-        </div>
       </main>
 
       <AchievementPopup />

@@ -8,7 +8,7 @@ const CONTROL_KEYS: { keys: string[]; key: string }[] = [
   { keys: ['A', 'D', '←', '→'], key: 'help.move' },
   { keys: ['W', 'S', '↑', '↓'], key: 'help.vertical' },
   { keys: ['E'], key: 'help.interact' },
-  { keys: ['1', '2', '3'], key: 'help.cams' },
+  { keys: ['1', '2', '3', '4', '5'], key: 'help.cams' },
   { keys: ['Espacio'], key: 'help.dialog' },
 ];
 

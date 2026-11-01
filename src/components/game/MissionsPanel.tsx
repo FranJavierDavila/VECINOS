@@ -34,9 +34,17 @@ const STATE_BADGE: Record<UiMission['state'], { variant: 'secondary' | 'destruct
   failed: { variant: 'destructive' },
 };
 
-export function MissionsPanel() {
+export function MissionsPanel({ filter, fill = false }: { filter?: 'active' | 'archive'; fill?: boolean } = {}) {
   const t = useT();
   const missions = useGameStore((s) => s.missions);
+  // v1.65 — hojas del pase de hoja: En curso (pendiente/activa/decisión) | Archivo (hecha/fallida).
+  const list =
+    filter === 'active'
+      ? missions.filter((m) => m.state === 'pending' || m.state === 'active' || m.state === 'awaiting_choice')
+      : filter === 'archive'
+        ? missions.filter((m) => m.state === 'done' || m.state === 'failed')
+        : missions;
+  const emptyKey = filter === 'archive' ? 'missions.archiveEmpty' : 'missions.empty';
 
   return (
     <Card className="gap-3 py-4">
@@ -47,11 +55,11 @@ export function MissionsPanel() {
         </CardTitle>
       </CardHeader>
       <CardContent className="px-4">
-        {missions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t('missions.empty')}</p>
+        {list.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t(emptyKey)}</p>
         ) : (
-          <ul className="flex max-h-56 flex-col gap-2 overflow-y-auto pr-1">
-            {missions.map((m) => {
+          <ul className={fill ? 'flex flex-col gap-2' : 'flex max-h-56 flex-col gap-2 overflow-y-auto pr-1'}>
+            {list.map((m) => {
               const badge = STATE_BADGE[m.state];
               return (
                 <li key={m.id} className="flex items-start justify-between gap-2">

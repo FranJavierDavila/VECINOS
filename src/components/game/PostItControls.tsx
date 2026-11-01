@@ -1,21 +1,20 @@
 'use client';
 
 /**
- * V1.23 — MANDOS COMO POST-ITS DIBUJADOS A BOLÍGRAFO.
- * La barra de mandos se reorganiza en post-its adhesivos con un icono "a bolígrafo"
- * (tinta azul) de aquello que contienen: al pulsar, el post-it crece en un panel de
- * papel más grande con las opciones como garabatos pulsables.
- *   · TIEMPO: pausa, 1x/3x/10x y +10 min (absorbe el botón suelto de +10).
- *   · Opciones (engranaje): absorbe Sonido, Táctil, calidad de render, contador FPS
- *     e idioma — el modal de opciones desaparece en favor de este post-it.
- *     v1.38 — PASE DE OPTIMIZACIÓN: añade el AUTO-AJUSTE DE RENDIMIENTO (interruptor)
- *     y su OBJETIVO DE FPS (Máximo/60/45/30), con línea de estado en vivo (FPS medidos
- *     y peldaño del optimizador) — «asegurar al menos 30 FPS o más, cuanto más mejor».
- *   · Partida: guardar / cargar.
- *   · Ayuda (¿?), Jugadores (multijugador).
- * Las CÁMARAS quedan desplegadas en línea (se usan continuamente) con la misma
- * estética de tinta. "Fiesta demo" se retira: las fiestas las organizan los vecinos.
- * Los iconitos de día/hora y meteorología viven al final de la barra.
+ * V1.65 — UNA LÍNEA SUPERIOR, PANTALLA DE JUEGO LIMPIA (rediseño del HUD).
+ *
+ * Petición del vecino: «que prácticamente solo veamos la pantalla de juego» —
+ * los cinco post-its de mandos (Tiempo, Opciones, Partida, Ayuda, Jugadores)
+ * se pliegan en UN SOLO post-it MENÚ que los despliega EN ACORDEÓN, y las
+ * cámaras en línea dejan su sitio a un POST-IT CÁMARA (icono + cámara vigente,
+ * tooltip con las teclas, y selector del vecino al que espiar). Junto a ellos,
+ * los cuatro botones-postit del cuaderno (Misiones · Edificio · Vecinos ·
+ * Logros) abren su panel POR ENCIMA del escenario (ver InfoDock).
+ *
+ *   [MENÚ] [Cámara] [Misiones] [Edificio] [Vecinos] [Logros]   …día/hora · tiempo
+ *
+ * El clic fuera y Escape siguen cerrando el post-it abierto (v1.38), y el
+ * controlador respeta los post-its abiertos para no disparar su menú de pausa.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -30,6 +29,7 @@ import type { LucideIcon } from 'lucide-react';
 import { MultiplayerPanel } from '@/components/game/MultiplayerPanel';
 import { HelpCard } from '@/components/game/HelpCard';
 import { OptionsPanel } from '@/components/game/OptionsPanel';
+import { InfoTabButtons } from '@/components/game/InfoDock';
 import { useGameStore } from '@/game/client/store';
 import type { CamMode, Speed } from '@/game/client/store';
 import { getController } from '@/game/client/bridge';
@@ -111,6 +111,28 @@ function InkPeople({ className }: InkProps) {
   );
 }
 
+/** v1.65 — HAMBURGUESA garabateada (el post-it MENÚ que pliega los mandos). */
+function InkMenu({ className }: InkProps) {
+  return (
+    <svg {...svgProps(className)}>
+      <path d="M4.4 6.7c5-.4 10.2-.4 15.2-.1" />
+      <path d="M4.2 12c5-.3 10.3-.3 15.5 0" />
+      <path d="M4.5 17.3c5-.3 10.1-.3 15 0" />
+    </svg>
+  );
+}
+
+/** v1.65 — CÁMARA garabateada (post-it de cámaras con el modo vigente). */
+function InkCamera({ className }: InkProps) {
+  return (
+    <svg {...svgProps(className)}>
+      <path d="M4.2 8.2c3.6-.4 7.4-.4 11 0 .5 0 .9.4.9.9v7.4c0 .5-.4.9-.9.9-3.6.4-7.4.4-11 0-.5 0-.9-.4-.9-.9V9.1c0-.5.4-.9.9-.9z" />
+      <path d="M16.3 11.2l3.7-2.1v6.6l-3.7-2.1" />
+      <circle cx="9" cy="13" r="2.2" />
+    </svg>
+  );
+}
+
 /** Altavoz con ondas (sonido dentro de opciones) — vive en OptionsPanel desde v1.39. */
 
 // ── Pausa (dos barras temblorosas) ──
@@ -141,20 +163,6 @@ function InkSkip({ className }: InkProps) {
   );
 }
 
-/** Moneda con símbolo de euro (economía). */
-function InkCoin({ className }: InkProps) {
-  return (
-    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
-      <path d="M12.1 3.3c4.7-.2 8.4 3.6 8.3 8.4-.1 4.8-3.7 8.9-8.5 8.9-4.6 0-8.4-3.8-8.3-8.6.1-4.6 3.9-8.5 8.5-8.7z" />
-      <path d="M14.8 8.6c-1.6-1.1-3.7-.7-4.6.9-.9 1.5-.9 3.5 0 5 1 1.6 3 2 4.6.9M7.8 10.7l4.4-.1m-4.4 2.8l4.4-.1" />
-    </svg>
-  );
-}
-
-/** Velocímetro garabateado — vive en OptionsPanel desde v1.39. */
-
-/* Rajita de hucha rota — vive en MoneyOverlay desde v1.23. */
-
 // ── Post-it base ──
 
 type PaperColor = 'yellow' | 'pink' | 'green' | 'blue' | 'orange';
@@ -177,6 +185,8 @@ function PostIt({
   tilt = 0,
   panelSide = 'left',
   panelWidth,
+  ariaLabel,
+  tooltip,
   children,
 }: {
   id: string;
@@ -188,6 +198,9 @@ function PostIt({
   tilt?: number;
   panelSide?: 'left' | 'right';
   panelWidth?: number;
+  /** v1.65 — aria-label y tooltip del botón (por defecto, la etiqueta). */
+  ariaLabel?: string;
+  tooltip?: string;
   children: React.ReactNode;
 }) {
   const open = openId === id;
@@ -198,8 +211,8 @@ function PostIt({
         className="postit sketchy"
         style={{ background: PAPER[paper], transform: open ? `scale(1.06) rotate(0deg)` : `rotate(${tilt}deg)` }}
         aria-expanded={open}
-        aria-label={label}
-        title={label}
+        aria-label={ariaLabel ?? label}
+        title={tooltip ?? label}
         onClick={() => onToggle(id)}
       >
         {icon}
@@ -208,7 +221,7 @@ function PostIt({
       {open && (
         <div
           role="group"
-          aria-label={label}
+          aria-label={ariaLabel ?? label}
           data-postit-panel="1"
           className={cn('postit-panel sketchy', panelSide === 'right' && 'postit-panel-right')}
           style={{ background: PAPER[paper], width: panelWidth }}
@@ -254,18 +267,15 @@ function DoodleButton({
   );
 }
 
-/**
- * v1.38 — Línea de estado del rendimiento y el resto de controles viven en OptionsPanel
- * desde v1.39 (compartido con el menú de pausa).
- */
+// ── v1.65 — Cámaras: orden de CERCA a LEJOS + ESPÍA (teclas 1..5, sincronizadas con
+// CAM_BY_KEY del controlador; el número se muestra en el post-it y en la ayuda). ──
 
-// ── Cámara desplegada en línea (acceso rápido, estética a bolígrafo) ──
-
-const CAMS: ReadonlyArray<{ value: CamMode }> = [
-  { value: 'edificio' },
-  { value: 'fachada' },
-  { value: 'planta' },
-  { value: 'estancia' },
+const CAMS: ReadonlyArray<{ value: CamMode; keyLabel: string }> = [
+  { value: 'estancia', keyLabel: '1' },
+  { value: 'planta', keyLabel: '2' },
+  { value: 'edificio', keyLabel: '3' },
+  { value: 'fachada', keyLabel: '4' },
+  { value: 'espia', keyLabel: '5' },
 ];
 
 const WEATHER_UI: Record<string, { icon: LucideIcon; className: string }> = {
@@ -311,181 +321,263 @@ export function PostItControls() {
   const paused = useGameStore((s) => s.paused);
   const speed = useGameStore((s) => s.speed);
   const camMode = useGameStore((s) => s.camMode);
+  const spyTargetId = useGameStore((s) => s.spyTargetId);
+  const residentsUi = useGameStore((s) => s.residentsUi);
   const clock = useGameStore((s) => s.clock);
   const weather = useGameStore((s) => s.weather);
   const saveState = useGameStore((s) => s.saveState);
   const savedAt = useGameStore((s) => s.savedAt);
+
+  // ── Acordeón del MENÚ (una sección abierta; null = todo plegado) ──
+  const [acc, setAcc] = useState<string | null>(null);
+  const toggleAcc = useCallback((id: string) => setAcc((cur) => (cur === id ? null : id)), []);
 
   const hh = String(Math.floor(clock.minute / 60)).padStart(2, '0');
   const mm = String(clock.minute % 60).padStart(2, '0');
   const w = WEATHER_UI[weather] ?? WEATHER_UI.sunny!;
   const WeatherIcon = w.icon;
 
+  const spyNeighbors = residentsUi.filter((r) => r.present);
+
   return (
     <div ref={barRef} className="postit-bar relative rounded-xl px-3 py-2">
-      <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
-        {/* ── POST-IT: TIEMPO DE JUEGO (pausa + velocidades + +10 min) ── */}
+      <div className="flex flex-wrap items-start gap-x-2.5 gap-y-2">
+        {/* ── POST-IT: MENÚ (acordeón Tiempo · Opciones · Partida · Ayuda · Multijugador) ── */}
         <PostIt
-          id="tiempo"
+          id="menu"
           openId={openId}
           onToggle={toggle}
-          icon={<InkClock />}
-          label={t('postit.time')}
+          icon={<InkMenu />}
+          label={t('postit.menu')}
+          ariaLabel={t('postit.menuAria')}
           paper="yellow"
           tilt={-2}
-          panelWidth={276}
+          panelWidth={460}
         >
-          <p className="mb-2 flex items-center gap-1.5 text-xs font-bold">
-            <InkClock className="size-4" />
-            {t('postit.time')}
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            <DoodleButton
-              onClick={() => getController()?.togglePauseMenu()}
-              disabled={!ready}
-              ariaLabel={paused ? t('ctrl.pauseAria') : t('ctrl.pauseAriaOn')}
-              active={paused}
-            >
-              {paused ? <InkPlay /> : <InkPause />}
-              {paused ? t('ctrl.resume') : t('ctrl.pause')}
-            </DoodleButton>
-            {([1, 3, 10] as Speed[]).map((s) => (
-              <DoodleButton
-                key={s}
-                onClick={() => getController()?.setSpeed(s)}
-                disabled={!ready}
-                active={speed === s}
-                ariaLabel={t('ctrl.speedAria', { s: `${s}x` })}
-                ariaPressed={speed === s}
+          <div className="flex flex-col gap-1.5">
+            {/* TIEMPO: pausa + velocidades + +10 min */}
+            <section className="sketchy-thin overflow-hidden bg-white/40" data-acc="tiempo">
+              <button
+                type="button"
+                className="ink flex w-full items-center gap-2 px-2.5 py-1.5 text-xs font-bold"
+                aria-expanded={acc === 'tiempo'}
+                onClick={() => toggleAcc('tiempo')}
               >
-                {s}x
-              </DoodleButton>
-            ))}
-            <DoodleButton onClick={() => getController()?.skipTime()} disabled={!ready} ariaLabel={t('ctrl.skipAria')}>
-              <InkSkip />
-              {t('ctrl.skip')}
-            </DoodleButton>
+                <InkClock className="size-4" />
+                {t('postit.time')}
+                <span className="ml-auto text-[10px]" aria-hidden>{acc === 'tiempo' ? '▾' : '▸'}</span>
+              </button>
+              <div className="acc-body" data-open={acc === 'tiempo'}>
+                <div className="min-h-0">
+                <div className="px-2.5 pb-2">
+                  <div className="flex flex-wrap gap-1.5">
+                    <DoodleButton
+                      onClick={() => getController()?.togglePauseMenu()}
+                      disabled={!ready}
+                      ariaLabel={paused ? t('ctrl.pauseAria') : t('ctrl.pauseAriaOn')}
+                      active={paused}
+                    >
+                      {paused ? <InkPlay /> : <InkPause />}
+                      {paused ? t('ctrl.resume') : t('ctrl.pause')}
+                    </DoodleButton>
+                    {([1, 3, 10] as Speed[]).map((s) => (
+                      <DoodleButton
+                        key={s}
+                        onClick={() => getController()?.setSpeed(s)}
+                        disabled={!ready}
+                        active={speed === s}
+                        ariaLabel={t('ctrl.speedAria', { s: `${s}x` })}
+                        ariaPressed={speed === s}
+                      >
+                        {s}x
+                      </DoodleButton>
+                    ))}
+                    <DoodleButton onClick={() => getController()?.skipTime()} disabled={!ready} ariaLabel={t('ctrl.skipAria')}>
+                      <InkSkip />
+                      {t('ctrl.skip')}
+                    </DoodleButton>
+                  </div>
+                </div>
+                </div>
+              </div>
+            </section>
+
+            {/* OPCIONES: el panel completo vive en OptionsPanel (compartido con la pausa) */}
+            <section className="sketchy-thin overflow-hidden bg-white/40" data-acc="opciones">
+              <button
+                type="button"
+                className="ink flex w-full items-center gap-2 px-2.5 py-1.5 text-xs font-bold"
+                aria-expanded={acc === 'opciones'}
+                onClick={() => toggleAcc('opciones')}
+              >
+                <InkGear className="size-4" />
+                {t('postit.options')}
+                <span className="ml-auto text-[10px]" aria-hidden>{acc === 'opciones' ? '▾' : '▸'}</span>
+              </button>
+              <div className="acc-body" data-open={acc === 'opciones'}>
+                <div className="min-h-0">
+                <div className="px-2.5 pb-2">
+                  <OptionsPanel />
+                </div>
+                </div>
+              </div>
+            </section>
+
+            {/* PARTIDA: guardar / cargar */}
+            <section className="sketchy-thin overflow-hidden bg-white/40" data-acc="partida">
+              <button
+                type="button"
+                className="ink flex w-full items-center gap-2 px-2.5 py-1.5 text-xs font-bold"
+                aria-expanded={acc === 'partida'}
+                onClick={() => toggleAcc('partida')}
+              >
+                <InkSave className="size-4" />
+                {t('postit.game')}
+                <span className="ml-auto text-[10px]" aria-hidden>{acc === 'partida' ? '▾' : '▸'}</span>
+              </button>
+              <div className="acc-body" data-open={acc === 'partida'}>
+                <div className="min-h-0">
+                <div className="flex flex-col items-start gap-1.5 px-2.5 pb-2">
+                  <DoodleButton
+                    onClick={() => void getController()?.save()}
+                    disabled={!ready || saveState === 'saving'}
+                    ariaLabel={t('ctrl.saveAria')}
+                    title={
+                      saveState === 'saved' && savedAt
+                        ? t('ctrl.saveTitleSaved', { t: savedAt })
+                        : saveState === 'saving'
+                          ? t('ctrl.saveTitleSaving')
+                          : t('ctrl.saveTitle')
+                    }
+                  >
+                    {saveState === 'saved' ? '✓' : '→'} {t('ctrl.save')}
+                  </DoodleButton>
+                  <DoodleButton onClick={() => void getController()?.load()} disabled={!ready} ariaLabel={t('ctrl.loadAria')}>
+                    ← {t('ctrl.load')}
+                  </DoodleButton>
+                </div>
+                </div>
+              </div>
+            </section>
+
+            {/* AYUDA: chuleta de controles */}
+            <section className="sketchy-thin overflow-hidden bg-white/40" data-acc="ayuda">
+              <button
+                type="button"
+                className="ink flex w-full items-center gap-2 px-2.5 py-1.5 text-xs font-bold"
+                aria-expanded={acc === 'ayuda'}
+                onClick={() => toggleAcc('ayuda')}
+              >
+                <InkQuestion className="size-4" />
+                {t('postit.help')}
+                <span className="ml-auto text-[10px]" aria-hidden>{acc === 'ayuda' ? '▾' : '▸'}</span>
+              </button>
+              <div className="acc-body" data-open={acc === 'ayuda'}>
+                <div className="min-h-0">
+                <div className="px-2.5 pb-2">
+                  <HelpCard flat />
+                </div>
+                </div>
+              </div>
+            </section>
+
+            {/* MULTIJUGADOR: abre el panel de sesión (diálogo) */}
+            <section className="sketchy-thin overflow-hidden bg-white/40" data-acc="jugadores">
+              <button
+                type="button"
+                className="ink flex w-full items-center gap-2 px-2.5 py-1.5 text-xs font-bold"
+                aria-expanded={acc === 'jugadores'}
+                onClick={() => toggleAcc('jugadores')}
+              >
+                <InkPeople className="size-4" />
+                {t('postit.players')}
+                <span className="ml-auto text-[10px]" aria-hidden>{acc === 'jugadores' ? '▾' : '▸'}</span>
+              </button>
+              <div className="acc-body" data-open={acc === 'jugadores'}>
+                <div className="min-h-0">
+                <div className="px-2.5 pb-2">
+                  <DoodleButton
+                    onClick={() => {
+                      useGameStore.getState().setMpPanelOpen(true);
+                      setOpenId(null);
+                    }}
+                    ariaLabel={t('ctrl.multiAria')}
+                  >
+                    {t('postit.openPanel')}
+                  </DoodleButton>
+                </div>
+                </div>
+              </div>
+            </section>
           </div>
         </PostIt>
 
-        {/* ── CÁMARAS DESPLEGADAS (uso continuo, fuera del post-it) ── */}
-        <div
-          role="group"
-          aria-label={t('ctrl.camGroup')}
-          className="mt-2.5 inline-flex items-center gap-1"
-        >
-          <span className="ink mr-0.5 hidden text-[11px] font-bold opacity-70 sm:inline">{t('postit.cameras')}</span>
-          {CAMS.map((c, i) => (
-            <button
-              key={c.value}
-              type="button"
-              className={cn('cam-btn', i % 2 === 0 ? 'sketchy' : 'sketchy-alt')}
-              onClick={() => getController()?.setCamMode(c.value)}
-              disabled={!ready}
-              aria-pressed={camMode === c.value}
-              aria-label={t('ctrl.camAria', { c: t(`ctrl.cam.${c.value}`) })}
-            >
-              {t(`ctrl.cam.${c.value}`)}
-            </button>
-          ))}
-        </div>
-
-        {/* ── POST-IT: OPCIONES (engranaje) — el panel completo vive en OptionsPanel (v1.39:
-            compartido con el menú de pausa, que añade música y accesibilidad) ── */}
+        {/* ── POST-IT: CÁMARA (icono + modo vigente; tooltip con las teclas 1-5;
+            dentro, selector del vecino al que espiar) ── */}
         <PostIt
-          id="opciones"
+          id="camara"
           openId={openId}
           onToggle={toggle}
-          icon={<InkGear />}
-          label={t('postit.options')}
-          paper="pink"
-          tilt={1.6}
-          panelWidth={430}
-        >
-          <p className="mb-2 flex items-center gap-1.5 text-xs font-bold">
-            <InkGear className="size-4" />
-            {t('postit.options')}
-          </p>
-          <OptionsPanel />
-        </PostIt>
-
-        {/* ── POST-IT: PARTIDA (guardar / cargar) ── */}
-        <PostIt
-          id="partida"
-          openId={openId}
-          onToggle={toggle}
-          icon={<InkSave />}
-          label={t('postit.game')}
-          paper="green"
-          tilt={-1.4}
-          panelWidth={230}
-        >
-          <p className="mb-2 flex items-center gap-1.5 text-xs font-bold">
-            <InkSave className="size-4" />
-            {t('postit.game')}
-          </p>
-          <div className="flex flex-col items-start gap-1.5">
-            <DoodleButton
-              onClick={() => void getController()?.save()}
-              disabled={!ready || saveState === 'saving'}
-              ariaLabel={t('ctrl.saveAria')}
-              title={
-                saveState === 'saved' && savedAt
-                  ? t('ctrl.saveTitleSaved', { t: savedAt })
-                  : saveState === 'saving'
-                    ? t('ctrl.saveTitleSaving')
-                    : t('ctrl.saveTitle')
-              }
-            >
-              {saveState === 'saved' ? '✓' : '→'} {t('ctrl.save')}
-            </DoodleButton>
-            <DoodleButton onClick={() => void getController()?.load()} disabled={!ready} ariaLabel={t('ctrl.loadAria')}>
-              ← {t('ctrl.load')}
-            </DoodleButton>
-          </div>
-        </PostIt>
-
-        {/* ── POST-IT: AYUDA (¿?) ── */}
-        <PostIt
-          id="ayuda"
-          openId={openId}
-          onToggle={toggle}
-          icon={<InkQuestion />}
-          label={t('postit.help')}
+          icon={<InkCamera />}
+          label={t(`ctrl.cam.${camMode}`)}
+          ariaLabel={`${t('ctrl.camGroup')}: ${t(`ctrl.cam.${camMode}`)}`}
+          tooltip={t('ctrl.camTooltip')}
           paper="blue"
-          tilt={2}
-          panelWidth={380}
-          panelSide="right"
+          tilt={1.5}
+          panelWidth={280}
         >
-          <HelpCard flat />
+          <p className="ink mb-2 flex items-center gap-1.5 text-xs font-bold">
+            <InkCamera className="size-4" />
+            {t('ctrl.camGroup')}
+          </p>
+          <div className="flex flex-col items-stretch gap-1" role="group" aria-label={t('ctrl.camGroup')}>
+            {CAMS.map((c) => (
+              <button
+                key={c.value}
+                type="button"
+                className="cam-btn sketchy-thin w-full !justify-start"
+                onClick={() => getController()?.setCamMode(c.value)}
+                disabled={!ready}
+                aria-pressed={camMode === c.value}
+                aria-label={t('ctrl.camAria', { c: t(`ctrl.cam.${c.value}`) })}
+              >
+                <kbd className="rounded border border-current/30 px-1 font-mono text-[10px] leading-4 opacity-80" aria-hidden>
+                  {c.keyLabel}
+                </kbd>
+                {t(`ctrl.cam.${c.value}`)}
+              </button>
+            ))}
+          </div>
+          {/* v1.65 — ESPÍA: elegir a qué vecino seguir (cámara tipo Planta sobre él). */}
+          <p className="ink mt-2 mb-1 flex items-center gap-1.5 text-xs font-bold">
+            <span aria-hidden>🕵️</span>
+            {t('ctrl.camSpyPick')}
+          </p>
+          {spyNeighbors.length === 0 ? (
+            <p className="text-[11px] text-muted-foreground">{t('ev.spyNone')}</p>
+          ) : (
+            <div className="flex max-h-28 flex-wrap gap-1 overflow-y-auto pr-1" role="listbox" aria-label={t('ctrl.camSpyPick')}>
+              {spyNeighbors.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  role="option"
+                  aria-selected={spyTargetId === r.id}
+                  className="postit-btn sketchy-thin !py-0.5 !text-[11px]"
+                  data-active={spyTargetId === r.id || undefined}
+                  data-spy-id={r.id}
+                  title={t('ctrl.camSpyHere', { name: r.name })}
+                  onClick={() => getController()?.setCamMode('espia', r.id)}
+                >
+                  {r.name}
+                </button>
+              ))}
+            </div>
+          )}
         </PostIt>
 
-        {/* ── POST-IT: JUGADORES (multijugador) ── */}
-        <PostIt
-          id="jugadores"
-          openId={openId}
-          onToggle={toggle}
-          icon={<InkPeople />}
-          label={t('postit.players')}
-          paper="orange"
-          tilt={-1.8}
-          panelWidth={220}
-          panelSide="right"
-        >
-          <p className="mb-2 flex items-center gap-1.5 text-xs font-bold">
-            <InkPeople className="size-4" />
-            {t('postit.players')}
-          </p>
-          <DoodleButton
-            onClick={() => {
-              useGameStore.getState().setMpPanelOpen(true);
-              setOpenId(null);
-            }}
-            ariaLabel={t('ctrl.multiAria')}
-          >
-            {t('postit.openPanel')}
-          </DoodleButton>
-        </PostIt>
+        {/* ── CUADERNO: Misiones · Edificio · Vecinos · Logros (panel sobre el escenario) ── */}
+        <InfoTabButtons />
 
         {/* ── Iconitos de arriba: día/hora + meteorología ── */}
         <div className="ml-auto mt-2 flex items-center gap-2">
@@ -506,7 +598,7 @@ export function PostItControls() {
         </div>
       </div>
 
-      {/* Panel de multijugador (diálogo; vive aquí para que lo abran los post-its) */}
+      {/* Panel de multijugador (diálogo; vive aquí para que lo abra el MENÚ) */}
       <MultiplayerPanel />
     </div>
   );

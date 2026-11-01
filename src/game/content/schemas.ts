@@ -2168,8 +2168,11 @@ export const rulesSchema = z.object({
         /** v1.41 — CÁMARA FACHADA (tecla 0): factor de alejamiento sobre la vista edificio
          *  (viewH = edificio × factor): se ve el bloque entero CON fachada cerrada. */
         fachadaViewHFactor: z.number().positive().default(1.32),
+        /** v1.65 — CÁMARA ESPÍA (tecla 5): factor de escala sobre el encuadre de planta
+         *  aplicado al vecino seguido (1 = mismo encuadre que planta). */
+        spyViewHFactor: z.number().positive().default(1),
       })
-      .default({ estanciaFloorH: 2.5, estanciaWidthW: 2.9, estanciaEdgeMargin: 2.4, fachadaViewHFactor: 1.32 }),
+      .default({ estanciaFloorH: 2.5, estanciaWidthW: 2.9, estanciaEdgeMargin: 2.4, fachadaViewHFactor: 1.32, spyViewHFactor: 1 }),
     /** v1.41 — ACCESORIOS DE LA CALLE: paraguas abierto cuando llueve y bolsas de la
      *  compra al volver. Solo presentación; colores y tiempos del catálogo. */
     outdoor: z
@@ -2272,10 +2275,18 @@ export const rulesSchema = z.object({
     streetLife: z
       .object({
         cameras: z
-          .array(z.enum(['edificio', 'fachada', 'planta', 'estancia']))
+          .array(z.enum(['edificio', 'fachada', 'planta', 'estancia', 'espia']))
           .default(['edificio', 'fachada', 'planta']),
       })
       .optional(),
+    /** v1.65 — CUADERNO SOBRE EL ESCENARIO (panel de información): altura máxima del panel
+     *  como fracción del escenario (0.5 = media ventana de juego) y alertas post-it on/off. */
+    infoDock: z
+      .object({
+        overlayMaxHeightFactor: z.number().min(0.2).max(1).default(0.5),
+        alerts: z.boolean().default(true),
+      })
+      .default({ overlayMaxHeightFactor: 0.5, alerts: true }),
     /** v1.42 — ZONAS CIEGAS de la cortina de la vista FACHADA: bandas opacas arriba y
      *  abajo de cada nivel + paneles ciegos deterministas, con el acabado de las fachadas
      *  de fondo (tint/windowColor del backdrop). NADA coplanar: detrás del vidrio. */

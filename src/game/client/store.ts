@@ -10,8 +10,25 @@ import type { MpScoreRow, MpCoopState, MpVoiceMember, MpVoiceState } from './net
 // ───────────────────────── Tipos de la interfaz ─────────────────────────
 
 export type Tone = 'info' | 'good' | 'bad';
-export type CamMode = 'edificio' | 'fachada' | 'planta' | 'estancia';
+/** v1.65 — 'espia' se añade: cámara de seguimiento de un vecino (tecla 5). */
+export type CamMode = 'edificio' | 'fachada' | 'planta' | 'estancia' | 'espia';
 export type Speed = 1 | 3 | 10;
+
+/** v1.65 — pestañas del cuaderno del vecino (panel sobre el escenario). */
+export type InfoTab = 'misiones' | 'edificio' | 'vecinos' | 'logros';
+
+// ── v1.65 — TUNING DE LA UI DEL CUADERNO (rules.view.infoDock del catálogo) ──
+/** El controlador fija estos valores al cargar el contenido (defaults en rescate). */
+let infoDockTuning = { overlayMaxHFactor: 0.5, alerts: true };
+export function setInfoDockTuning(t: { overlayMaxHeightFactor?: number; alerts?: boolean }): void {
+  if (typeof t.overlayMaxHeightFactor === 'number' && t.overlayMaxHeightFactor >= 0.2 && t.overlayMaxHeightFactor <= 1) {
+    infoDockTuning.overlayMaxHFactor = t.overlayMaxHeightFactor;
+  }
+  if (typeof t.alerts === 'boolean') infoDockTuning.alerts = t.alerts;
+}
+export function getInfoDockTuning(): { overlayMaxHFactor: number; alerts: boolean } {
+  return infoDockTuning;
+}
 
 /** Estado de la sesión multijugador en la interfaz ('off' = sin sesión). */
 export type MpStatus = 'off' | 'connecting' | 'connected' | 'error';
@@ -330,6 +347,18 @@ interface GameState {
   /** Popup en pantalla (UNO a la vez): la cola de `newly` la gestiona AchievementPopup. */
   achievementPopup: AchievementUi | null;
 
+  // ── v1.65 — Cuaderno sobre el escenario: pestaña activa + alertas post-it sin consultar ──
+  /** Pestaña abierta del panel de información (null = pantalla de juego limpia). */
+  infoTab: InfoTab | null;
+  setInfoTab: (t: InfoTab | null) => void;
+  /** Cambios sin consultar por apartado: misiones nuevas, logros, vecinos, estado del edificio. */
+  infoAlerts: Record<InfoTab, number>;
+  bumpInfoAlert: (t: InfoTab, n?: number) => void;
+  clearInfoAlert: (t: InfoTab) => void;
+  /** v1.65 — vecino seguido por la cámara espía (null = ninguna; lo fija el controlador). */
+  spyTargetId: string | null;
+  setSpyTargetId: (id: string | null) => void;
+
   markReady: (backend: string) => void;
   setPaused: (v: boolean) => void;
   setSpeed: (s: Speed) => void;
@@ -480,6 +509,9 @@ export const useGameStore = create<GameState>((set) => ({
   mpVoice: { active: false, synthetic: false, muted: false, members: [] },
   achievements: [],
   achievementPopup: null,
+  infoTab: null,
+  infoAlerts: { misiones: 0, edificio: 0, vecinos: 0, logros: 0 },
+  spyTargetId: null,
 
   markReady: (backend) => set({ ready: true, backend }),
   setPaused: (v) => set({ paused: v }),
@@ -560,6 +592,13 @@ export const useGameStore = create<GameState>((set) => ({
   setCampaign: (campaign) => set({ campaign }),
   setAchievements: (achievements) => set({ achievements }),
   setAchievementPopup: (achievementPopup) => set({ achievementPopup }),
+  setInfoTab: (infoTab) => set({ infoTab }),
+  bumpInfoAlert: (t, n = 1) =>
+    set((s) => ({ infoAlerts: { ...s.infoAlerts, [t]: s.infoAlerts[t] + n } })),
+  // Sin novedad real → sin set (misma regla anti-bucle que clearAchievementNewly).
+  clearInfoAlert: (t) =>
+    set((s) => (s.infoAlerts[t] === 0 ? s : { infoAlerts: { ...s.infoAlerts, [t]: 0 } })),
+  setSpyTargetId: (spyTargetId) => set({ spyTargetId }),
   // Sin cambio de verdad → sin set: si siempre devolviera un array nuevo, el efecto que lo
   // llama re-renderizaría en bucle (Maximum update depth exceeded, cazado en E2E v1.17).
   clearAchievementNewly: (id) =>
@@ -591,5 +630,8 @@ export const useGameStore = create<GameState>((set) => ({
       savedAt: null,
       mpCoop: null,
       mpVoice: { active: false, synthetic: false, muted: false, members: [] },
+      infoTab: null,
+      infoAlerts: { misiones: 0, edificio: 0, vecinos: 0, logros: 0 },
+      spyTargetId: null,
     }),
 }));

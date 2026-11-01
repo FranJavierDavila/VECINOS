@@ -14,7 +14,7 @@ const TONE_BORDER: Record<Tone, string> = {
   info: 'border-l-muted-foreground/40',
 };
 
-export function EventLog() {
+export function EventLog({ fill = false }: { fill?: boolean } = {}) {
   const t = useT();
   const log = useGameStore((s) => s.log);
 
@@ -33,7 +33,7 @@ export function EventLog() {
         {entries.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t('log.empty')}</p>
         ) : (
-          <ul className="flex max-h-48 flex-col gap-1.5 overflow-y-auto pr-1 text-xs font-mono [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30">
+          <ul className={fill ? 'flex flex-col gap-1.5 text-xs font-mono' : 'flex max-h-48 flex-col gap-1.5 overflow-y-auto pr-1 text-xs font-mono [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/30'}>
             {entries.map((e) => (
               <li key={e.id} className={cn('border-l-2 pl-2 leading-snug', TONE_BORDER[e.tone])}>
                 <span className="text-muted-foreground">[{e.tick}]</span> {e.text}

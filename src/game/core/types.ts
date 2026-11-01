@@ -1904,8 +1904,12 @@ export interface Rules {
     actorRadius: number;
     /** Niveles de detalle por distancia (Vista: "prefab por bloque y LOD por distancia"). */
     lod: { enabled: boolean; focus: 'player'; levels: LodLevel[] };
-    /** v1.36 — alejamiento de la cámara Estancia: factores de encuadre y margen de borde. */
-    camera?: { estanciaFloorH: number; estanciaWidthW: number; estanciaEdgeMargin: number; fachadaViewHFactor?: number };
+    /** v1.36 — alejamiento de la cámara Estancia: factores de encuadre y margen de borde.
+     *  v1.65 — spyViewHFactor: escala del encuadre de planta para la cámara ESPÍA. */
+    camera?: { estanciaFloorH: number; estanciaWidthW: number; estanciaEdgeMargin: number; fachadaViewHFactor?: number; spyViewHFactor?: number };
+    /** v1.65 — cuaderno sobre el escenario: altura máxima del panel (fracción del
+     *  escenario) y alertas post-it on/off (defaults en el zod del contenido). */
+    infoDock?: { overlayMaxHeightFactor?: number; alerts?: boolean };
     /** ── Escena exterior (v1.20) ── tiras de calle frente al edificio (aceras,
      *  carretera, jardines) con sus props; defId refiere bloques con `exterior`.
      *  v1.22: orient 'z' (aceras laterales y calle transversal), gridScatter 2D con

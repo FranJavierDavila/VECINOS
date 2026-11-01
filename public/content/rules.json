@@ -1025,7 +1025,8 @@
       "estanciaFloorH": 2.5,
       "estanciaWidthW": 2.9,
       "estanciaEdgeMargin": 2.4,
-      "fachadaViewHFactor": 1.32
+      "fachadaViewHFactor": 1.32,
+      "spyViewHFactor": 1
     },
     "fachadaCortina": {
       "bottomBlind": 0.55,
@@ -1937,8 +1938,13 @@
         "edificio",
         "fachada",
         "planta",
-        "estancia"
+        "estancia",
+        "espia"
       ]
+    },
+    "infoDock": {
+      "overlayMaxHeightFactor": 0.5,
+      "alerts": true
     },
     "alerts": {
       "thresholds": {

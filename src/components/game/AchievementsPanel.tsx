@@ -13,9 +13,17 @@ import { cn } from '@/lib/utils';
  * icono, nombre y descripción con su badge "logrado"; los bloqueados van atenuados con
  * candado, y los ocultos no destripan nada ("???" / "Logro oculto") hasta caer.
  */
-export function AchievementsPanel() {
+export function AchievementsPanel({ filter, fill = false }: { filter?: 'unlocked' | 'locked'; fill?: boolean } = {}) {
   const t = useT();
   const achievements = useGameStore((s) => s.achievements);
+  // v1.65 — hojas del pase de hoja: Conseguidos | Por lograr.
+  const list =
+    filter === 'unlocked'
+      ? achievements.filter((a) => a.unlocked)
+      : filter === 'locked'
+        ? achievements.filter((a) => !a.unlocked)
+        : achievements;
+  const emptyKey = filter === 'unlocked' ? 'ach.unlockedEmpty' : filter === 'locked' ? 'ach.lockedEmpty' : 'ach.empty';
 
   const unlocked = achievements.filter((a) => a.unlocked).length;
   const locked = achievements.length - unlocked;
@@ -42,11 +50,11 @@ export function AchievementsPanel() {
         )}
       </CardHeader>
       <CardContent className="px-4">
-        {achievements.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t('ach.empty')}</p>
+        {list.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t(emptyKey)}</p>
         ) : (
-          <ul className="grid max-h-96 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
-            {achievements.map((a) => {
+          <ul className={fill ? 'grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3' : 'grid max-h-96 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3'}>
+            {list.map((a) => {
               const revealed = a.unlocked || !a.hidden;
               return (
                 <li

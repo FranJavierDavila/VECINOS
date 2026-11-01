@@ -2,7 +2,8 @@ import type { AbstractEngine, UniversalCamera, Vector3 } from '@babylonjs/core';
 import type { PlayerPosition } from '@/game/core/types';
 import { B } from './babylon';
 
-export type CamMode = 'edificio' | 'fachada' | 'planta' | 'estancia';
+/** v1.65 — 'espia': cámara de seguimiento tipo PLANTA centrada en un vecino (tecla 5). */
+export type CamMode = 'edificio' | 'fachada' | 'planta' | 'estancia' | 'espia';
 const FOV = 0.55;
 
 /** Encuadre cinematográfico (cutscenes, Fase D): a dónde vuela la cámara y con qué alto de vista. */
@@ -27,8 +28,12 @@ export class CameraRig {
   /** v1.36 — alejamiento de la Estancia (rules.view.camera): factores de encuadre y
    *  margen de borde para que el personaje del EXTREMO del pasillo (planta 0) salga en cuadro.
    *  v1.41 — fachadaFactor: la vista FACHADA (tecla 0) se aleja edificio × factor y se ve
-   *  el bloque entero CON su fachada cerrada (ventanas acristaladas a la altura del pasillo). */
-  tuning: { estFloorH: number; estWidthW: number; estMargin: number; fachadaFactor: number } = { estFloorH: 2.0, estWidthW: 2.2, estMargin: 0, fachadaFactor: 1.32 };
+   *  el bloque entero CON su fachada cerrada (ventanas acristaladas a la altura del pasillo).
+   *  v1.65 — spyFactor: la vista ESPÍA escala el encuadre de planta sobre el vecino seguido. */
+  tuning: { estFloorH: number; estWidthW: number; estMargin: number; fachadaFactor: number; spyFactor: number } = { estFloorH: 2.0, estWidthW: 2.2, estMargin: 0, fachadaFactor: 1.32, spyFactor: 1 };
+  /** v1.65 — posición viva del vecino espiado ({x,y,z} del nodo; null = ninguna / modo normal).
+   *  La fija el controlador cada fotograma desde actors.director.nodeOf(spyResidentId). */
+  spyTarget: { x: number; y: number; z: number } | null = null;
   private readonly pos: Vector3;
   private readonly look: Vector3;
 
@@ -76,6 +81,18 @@ export class CameraRig {
       // v1.41 — VISTA FACHADA (tecla 0): un paso MÁS ATRÁS que el edificio — el bloque entero
       // cabe en cuadro CON fachada cerrada (building la fuerza) y la calle completa de fondo.
       viewH = Math.max(this.floors * this.cellH * 1.25, (width * 1.25) / aspect) * this.tuning.fachadaFactor;
+    } else if (this.mode === 'espia' && this.spyTarget) {
+      // v1.65 — CÁMARA ESPÍA: mismo encuadre que PLANTA pero centrada en el vecino seguido.
+      // La altura de mira sale de la Y viva del nodo (cambia de planta sin saltos, como el
+      // travelling de actores de las cutscenes); si el espiado cruza a un bloque trasero,
+      // la cámara se adelanta al plano del bloque activo (misma regla que la estancia).
+      viewH = Math.max(this.cellH * 2.4, (width * 1.1) / aspect) * Math.max(0.5, this.tuning.spyFactor);
+      const half = (viewH * aspect) / 2;
+      cx = half * 2 >= width ? width / 2 : Math.min(width - half, Math.max(half, this.spyTarget.x));
+      cy = Math.round(this.spyTarget.y / this.cellH) * this.cellH + this.cellH * 0.5;
+      if (this.spyTarget.z > this.metric.depth + 0.05) {
+        cz = this.metric.frontZ + Math.min(this.spyTarget.z, this.metric.depth + 2.8);
+      }
     } else {
       // v1.36 — Estancia MÁS LEJOS (catálogo): antes 2.0/2.2; con el alejamiento del catálogo
       // la planta 0 completa entra en cuadro aunque el personaje llegue al extremo izquierdo.
