@@ -39,7 +39,8 @@ await new Promise<void>((res, rej) => {
   host.on('connect', () => { clearTimeout(t); res(); });
   host.on('connect_error', (e) => { clearTimeout(t); rej(e); });
 });
-let hostState: StateMsg | null = null;
+// `as StateMsg | null` evita que TS estreche la variable a `null` (se asigna desde el callback):
+let hostState = null as StateMsg | null;
 host.on('session:state', (s: StateMsg) => { hostState = s; });
 const hostId: string = await new Promise<string>((res, rej) => {
   const t = setTimeout(() => rej(new Error('timeout en session:create')), 8000);
@@ -214,7 +215,7 @@ await ev<void>(`window.__vecinosQa.getController().joinSession(${JSON.stringify(
 let guestId = '';
 for (let i = 0; i < 20; i++) {
   await page.waitForTimeout(500);
-  guestId = await page.evaluate(`(window.__vecinosQa.getController() ?? {}).myResidentId ?? ''`).catch(() => '');
+  guestId = (await page.evaluate(`(window.__vecinosQa.getController() ?? {}).myResidentId ?? ''`).catch(() => '')) as string;
   if (guestId) break;
 }
 check('B2 invitado aceptado (myResidentId = res_guest_N)', /^res_guest_\d+$/.test(guestId), guestId);

@@ -117,7 +117,7 @@ export default function GameStage() {
     const normalize = (ev: KeyboardEvent): string => {
       if (ev.code) return ev.code;
       const k = ev.key;
-      const map: Record<string, string> = { a: 'KeyA', d: 'KeyD', w: 'KeyW', s: 'KeyS', e: 'KeyE', j: 'KeyJ', A: 'KeyA', D: 'KeyD', W: 'KeyW', S: 'KeyS', E: 'KeyE', J: 'KeyJ', '0': 'Digit0', '1': 'Digit1', '2': 'Digit2', '3': 'Digit3', ' ': 'Space' };
+      const map: Record<string, string> = { a: 'KeyA', d: 'KeyD', w: 'KeyW', s: 'KeyS', e: 'KeyE', j: 'KeyJ', A: 'KeyA', D: 'KeyD', W: 'KeyW', S: 'KeyS', E: 'KeyE', J: 'KeyJ', '0': 'Digit0', '1': 'Digit1', '2': 'Digit2', '3': 'Digit3', '4': 'Digit4', '5': 'Digit5', ' ': 'Space' }; // v1.65: cámaras 1-5 (4=fachada, 5=espía) también en eventos sintéticos sin ev.code
       return map[k] ?? k;
     };
     const onKeyDown = (ev: KeyboardEvent) => {

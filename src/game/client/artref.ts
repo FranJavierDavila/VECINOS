@@ -37,6 +37,9 @@ interface ArtRefStrings {
   viewBack: string;
   frameLabel: string;
   hint: string;
+  saveProject: string;
+  saved: string;
+  saving: string;
 }
 
 const STR: ArtRefStrings = {

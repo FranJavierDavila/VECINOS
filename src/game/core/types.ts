@@ -2,7 +2,7 @@ import type { MultiplayerCatalog, StreetCatalog, SoundsCatalog, InteriorsCatalog
 
 // Re-exportados: los consumidores del contrato importan TODO desde aquí (types.ts es la
 // única fuente de verdad; los esquemas Zod son su espejo de validación).
-export type { StreetCatalog, SoundsCatalog, InteriorsCatalog };
+export type { StreetCatalog, SoundsCatalog, InteriorsCatalog, MultiplayerCatalog };
 
 /**
  * VECINOS — Contrato central de tipos.
@@ -1139,6 +1139,19 @@ export interface Rules {
     /** Aviso cuando un invitado se desconecta ({name}). */
     leaveToast: string;
     texts: { sessionFull: string; noVacant: string; remoteSaveDisabled: string };
+    /** v1.55 — MARCADOR «VECINO DEL MES»: criterio 100% del catálogo. Todo opcional:
+     *  sin bloque score la comunidad funciona igual, solo no puntúa. */
+    score?: {
+      title: string;
+      missionCompletedPoints: number;
+      missionBonus: Record<string, number>;
+      minigames: Record<string, { label?: string; pointsPerRecord: number; maxSecs?: number }>;
+      recordToast: string;
+      firstToast: string;
+      boardTemplate: string;
+      boardLine: string;
+      boardExtraBest?: string;
+    };
   };
   sim: {
     /** Ventana nocturna: si existe actividad "sleep", se impone durante esta ventana. */
@@ -1187,6 +1200,9 @@ export interface Rules {
   };
   /** Configuración de la presentación placeholder (greybox). El arte final la sustituirá. */
   view: {
+    /** v1.49 — VIDA DE CALLE: cámaras desde las que el decorado exterior (bancos, parque
+     *  de calistenia, coches, viandantes) se activa. Sin regla: el comportamiento de siempre. */
+    streetLife?: { cameras: string[] };
     cellW: number;
     cellH: number;
     walkSpeed: number;
@@ -1465,6 +1481,11 @@ export interface Rules {
         sheen: string;
         handle: string;
         alpha: number;
+        /** v1.4x — apertura por vecino que pasa: false restaura la franja clásica (intent). */
+        intentOpen?: boolean;
+        /** Radio X / anticipación Z del NPC que dispara la corredera (franjas NPC). */
+        npcXRadius?: number;
+        npcOpenAhead?: number;
       };
       garaje: {
         panel: string;
@@ -1543,6 +1564,13 @@ export interface Rules {
         garageOpenAhead?: number;
         garageOpenSeconds?: number;
         revealAt?: number;
+        /** v1.4x — apertura por vecino que pasa (false = solo intent/jugador). */
+        intentOpen?: boolean;
+        /** Franjas NPC: radios X y anticipación Z (las de garaje, más generosas). */
+        npcXRadius?: number;
+        npcOpenAhead?: number;
+        garageNpcXRadius?: number;
+        garageNpcOpenAhead?: number;
       };
       lavanderia: {
         machines: number;
@@ -2096,6 +2124,11 @@ export interface Rules {
         nightGlow: number;
         /** Sello PNG RGBA (v1.21): fachada real repetida por la capa (blur horneado). */
         image?: string;
+        /** v1.49 — PROFUNDIDAD REAL: con depthWrite la capa vira a ALPHATEST (recorte
+         *  binario) y ESCRIBE depth: un edificio cercano tapa a los lejanos por buffer. */
+        depthWrite?: boolean;
+        /** v1.49 — corte alfa del modo ALPHATEST (solo con depthWrite). */
+        alphaCutOff?: number;
         /** v1.62 — fracción de sellos que quedan SIN pintar (solares: asoma el cielo). */
         skipChance: number;
         /** NIEBLA (v1.22): desaturación + fundido hacia fogColor (perspectiva aérea). */

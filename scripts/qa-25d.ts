@@ -36,6 +36,7 @@ const cutscenes = JSON.parse(readFileSync(resolve(ROOT, 'content/cutscenes.json'
 }[];
 const scenarios = JSON.parse(readFileSync(resolve(ROOT, 'content/scenarios.json'), 'utf8')) as {
   residents: { archetype: string; id: string }[];
+  player?: { residentId: string };
 }[];
 const rolesResolvable = new Set<string>(); // $role se resuelve en runtime: solo comprobamos sintaxis
 

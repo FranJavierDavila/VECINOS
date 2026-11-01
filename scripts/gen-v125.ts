@@ -89,7 +89,8 @@ async function generate(zai: Awaited<ReturnType<typeof ZAI.create>>, job: Job): 
   }
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const res = await zai.images.generations.create({ prompt: job.prompt, size: job.size });
+      // el SDK tipa `size` como unión de literales; aquí se usan también 512x512, cast mínimo
+      const res = await zai.images.generations.create({ prompt: job.prompt, size: job.size as '1024x1024' });
       const b64 = res.data[0]?.base64;
       if (!b64) throw new Error('sin base64');
       fs.writeFileSync(outPath, Buffer.from(b64, 'base64'));

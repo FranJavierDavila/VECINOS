@@ -1179,6 +1179,7 @@ export const rulesSchema = z.object({
         lockW: 0.24,
         lockH: 0.3,
         lockOnDoor: { dx: 0.22, yFrac: 0.52, out: 0.05 },
+        occupiedAlpha: 0.75,
         night: { dayCutoff: 0.4, dioGlow: 0.85, floorGlow: 0.7, lampGlow: 1.6, wallSelf: 0.3 },
         lamp: { side: 1, dx: 0.68, dy: 2.1, color: '#3b3129', glowColor: '#ffd166' },
       }),
@@ -1431,6 +1432,7 @@ export const rulesSchema = z.object({
       .default({
         corridorWall: '#dbd8d2',
         hideNodes: {},
+        seeThrough: ['portal'],
         portalDoors: { slide: 0.96, openAhead: 1.7, openSeconds: 0.8, frame: '#8fa3ad', glass: '#cfe3ea', sheen: '#ffffff', handle: '#5d6b7a', alpha: 0.72 },
         garaje: { panel: '#c9ced6', panelShade: '#9aa2ad', rail: '#6d747d', window: '#dfe9ee', sign: 'GARAJES', signBg: '#3b3129', signText: '#ffd166', rampDepth: 1.1, rampColor: '#8f8d86' },
         trasteroComunal: { doorArt: '/art/interiors/raw/door_comunal.png', doorW: 0.85, doorH: 1.72, doorDx: 0.55, shelfTiers: 3, sign: 'TRASTERO COMÚN', signBg: '#3b3129', signText: '#ffd166' },
@@ -1755,7 +1757,7 @@ export const rulesSchema = z.object({
             dy: z.number().default(-0.35),
             out: z.number().positive().default(0.012),
           })
-          .default({}),
+          .default({ venta: { text: 'EN VENTA', bg: '#8a3b2f', fg: '#ffe9d2' }, alquiler: { text: 'EN ALQUILER', bg: '#3f6b5f', fg: '#eafff5' }, w: 0.72, h: 0.2, dy: -0.35, out: 0.012 }),
         okupa: z
           .object({
             /** Arquetipos que cuentan como okupas (scenarios.json → residents[].archetype). */
@@ -1770,7 +1772,7 @@ export const rulesSchema = z.object({
             dy: z.number().default(1.45),
             out: z.number().default(0.006),
           })
-          .default({}),
+          .default({ archetypes: ['okupa'], text: 'OKUPA', color: '#c23b2e', w: 0.85, h: 0.42, dx: 0.5, dy: 1.45, out: 0.006 }),
       })
       .optional(),
     /** v1.37 — PASEO VECINAL: los vecinos salen a la calle, cruzan por el paso de peatones

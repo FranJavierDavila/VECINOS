@@ -58,8 +58,8 @@ const streetlifeTs = srcOf('src/game/client/streetlife.ts');
 const elevatorTs = srcOf('src/game/client/elevator.ts');
 
 console.log('── 1-2. Juntas anti-coplanaridad + solera ──');
-check('gapFill.protrude/stagger en catálogo', typeof v.privacy.gapFill.protrude === 'number' && typeof v.privacy.gapFill.stagger === 'number', `protrude ${v.privacy.gapFill.protrude}, stagger ${v.privacy.gapFill.stagger}`);
-check('solera declarada (color/h/protrude/stagger)', !!v.privacy.solera && v.privacy.solera.h > 0 && v.privacy.solera.protrude > 0);
+check('gapFill.protrude/stagger en catálogo', typeof v.privacy.gapFill!.protrude === 'number' && typeof v.privacy.gapFill!.stagger === 'number', `protrude ${v.privacy.gapFill!.protrude}, stagger ${v.privacy.gapFill!.stagger}`);
+check('solera declarada (color/h/protrude/stagger)', !!v.privacy.solera && v.privacy.solera.h > 0 && v.privacy.solera.protrude! > 0);
 check('junta: cara frontal delante de la fachada (frontZ − wall/2 − out)', buildingTs.includes('const zFront = frontZ - v.wall / 2 - out;'));
 check('junta: escalonado por hash01', buildingTs.includes("hash01(`junta_p${floor}_${i}`, 41)"));
 check('solera: banda construida con escalonado por hash01', buildingTs.includes('hash01(b.id, 43)'));
@@ -72,7 +72,7 @@ check('ventanal declarado (enabled/sill/head)', !!wv && wv.enabled && wv.head > 
 check('cubo: muro frontal a CÉLULA COMPLETA (hFull = cellH)', buildingTs.includes('const hFull = v.cellH;'));
 check('vidrio partido alrededor de la puerta (3 paneles: izq/der/sobre hoja)', buildingTs.includes('glassPane(left, dL, ySill, yHead)') && buildingTs.includes('glassPane(dR, right, ySill, yHead)') && buildingTs.includes('glassPane(dL, dR, dTop, yHead)'));
 check('montantes DELANTE del plano del vidrio (profundidad 0.06 en zF)', buildingTs.includes('yHead - ySill, 0.06'));
-check('muro trasero del cubo (window.rear)', buildingTs.includes('fondo_cubo') && wv.rear === true);
+check('muro trasero del cubo (window.rear)', buildingTs.includes('fondo_cubo') && wv!.rear === true);
 check('vidrio del ventanal entra en la autoiluminación nocturna', buildingTs.includes('el vidrio brilla con la luz del cubo'));
 
 console.log('── 4. Texturas de puerta: un vuelco + encaje perfecto ──');
@@ -84,7 +84,7 @@ check('puertas full-bleed nuevas en disco', exists('/art/interiors/raw/door_casa
 
 console.log('── 5. Macetas de pasillo ──');
 check('arte IA declarado en catálogo', (v.pots.art ?? []).length >= 2 && (v.pots.art ?? []).every((a) => exists(a)), (v.pots.art ?? []).join(' '));
-check('macetas más grandes (artH ≥ 0.85)', v.pots.artH >= 0.85, `artH ${v.pots.artH}`);
+check('macetas más grandes (artH ≥ 0.85)', v.pots.artH! >= 0.85, `artH ${v.pots.artH}`);
 check('base HUNDIDA 3 cm (la maceta toca la losa)', buildingTs.includes('q.position.set(x, ySlab + h / 2 - 0.03, z);'));
 check('reescalado onTrim del quad (aspect real del arte)', buildingTs.includes('art.onTrim.push((nar) =>'));
 check('recorte alpha en runtime (stripCorners + alphaBounds + dataURL)', buildingTs.includes('entry0.dt.updateURL(out.toDataURL'));

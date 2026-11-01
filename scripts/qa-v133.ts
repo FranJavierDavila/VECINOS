@@ -81,7 +81,8 @@ const worldScan = createWorld(content, 'slice');
 check('contenido real SIN menciones imposibles (alcance completo)', scanFloorReferences(worldScan, content).length === 0);
 {
   // Auditoría sintética: un aviso de ecosistema con «4C» DEBE ser cazado ahora.
-  const fake = { ...content, ecosystem: { ev_prueba: { outcomes: [{ toast: '🐈 la gata de la 4C se escapó' }] } } } as typeof content;
+  // El fake no cumple el schema completo de EcosystemEventDef (solo importa el toast), por eso el doble cast.
+  const fake = { ...content, ecosystem: { ev_prueba: { outcomes: [{ toast: '🐈 la gata de la 4C se escapó' }] } } } as unknown as typeof content;
   const caught = scanFloorReferences(worldScan, fake);
   check('el auditor CAZA la 4C si vuelve a colarse en el ecosistema', caught.some((v) => v.where.startsWith('ecosystem')));
 }

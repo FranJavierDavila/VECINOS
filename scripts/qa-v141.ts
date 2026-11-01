@@ -88,15 +88,15 @@ check('peatón protagonista: susto (argue) o accidente (pose sleep) del catálog
 check('sonidos del catálogo: claxon + frenazo', !!sounds.sounds.claxon && !!sounds.sounds.frenazo);
 check('líneas cómicas del incidente en street.outdoor', (street.outdoor?.nearMiss?.length ?? 0) >= 1 && (street.outdoor?.accident?.length ?? 0) >= 1 && typeof street.outdoor.carHorn === 'string');
 
-console.log('── 2. Cámara FACHADA (tecla 0, fachada cerrada acristalada) ──');
-check('Digit0 → fachada en CAM_BY_KEY + normalizador de GameStage', ctrlTs.includes("Digit0: 'fachada'") && srcOf('src/components/game/GameStage.tsx').includes("'0': 'Digit0'"));
+console.log('── 2. Cámara FACHADA (tecla 4 desde v1.65, fachada cerrada acristalada) ──');
+check('Digit4 → fachada en CAM_BY_KEY (v1.65 reordenó 1-5) + normalizador de GameStage con 4/5', ctrlTs.includes("Digit4: 'fachada'") && srcOf('src/components/game/GameStage.tsx').includes("'4': 'Digit4'") && srcOf('src/components/game/GameStage.tsx').includes("'5': 'Digit5'"));
 check('CamMode incluye fachada (camera/store/bridge)', camTs.includes("'edificio' | 'fachada' | 'planta' | 'estancia'") && storeTs.includes("'edificio' | 'fachada' | 'planta' | 'estancia'") && srcOf('src/game/client/bridge.ts').includes("'edificio' | 'fachada'"));
 check('encuadre propio: edificio × fachadaViewHFactor (catálogo)', camTs.includes('* this.tuning.fachadaFactor') && rules.view.camera?.fachadaViewHFactor === 1.32);
-check('rueda de cámaras y UI: fachada entre edificio y planta', ctrlTs.includes("['edificio', 'fachada', 'planta', 'estancia']") && srcOf('src/components/game/TouchControls.tsx').includes("'edificio', 'fachada'") && srcOf('src/components/game/PostItControls.tsx').includes("{ value: 'fachada' }"));
+check('rueda de cámaras y UI: orden 1-5 de cerca a lejos (fachada 4ª, espía 5ª — v1.65)', ctrlTs.includes("['estancia', 'planta', 'edificio', 'fachada', 'espia']") && srcOf('src/components/game/TouchControls.tsx').includes("'edificio', 'fachada', 'espia'") && srcOf('src/components/game/PostItControls.tsx').includes("{ value: 'fachada', keyLabel: '4' }"));
 check('i18n: ctrl.cam.fachada (Fachada/Facade)', srcOf('src/game/client/i18n.ts').includes("'ctrl.cam.fachada': { es: 'Fachada', en: 'Facade' }"));
-check('vista de calle: fachada cuenta (coches/paseo/taxi viven detrás)', ctrlTs.includes("store.camMode === 'edificio' || store.camMode === 'fachada' || store.camMode === 'planta'"));
-check('LOD sin foco en fachada (todo el edificio nítido como en edificio)', ctrlTs.includes("camMode === 'edificio' || useGameStore.getState().camMode === 'fachada'"));
-check('building: TODAS las fachadas cerradas en vista fachada', buildTs.includes('const wall = (fachadaView || locked || privacyClosed) && !view.lodHiddenPanels;'));
+check('vista de calle: fachada cuenta (cámaras del catálogo streetLife, v1.49; coches/paseo/taxi viven detrás)', ctrlTs.includes('rules.view.streetLife?.cameras') && ctrlTs.includes("['edificio', 'fachada', 'planta', 'espia']"));
+check('LOD sin foco en fachada (todo el edificio nítido como en edificio)', ctrlTs.includes("store.camMode === 'edificio' || store.camMode === 'fachada' ? undefined : camFocus"));
+check('building: TODAS las fachadas cerradas en vista fachada (v1.49 añade streetFacade)', buildTs.includes('const wall = (fachadaView || streetFacade || locked || privacyClosed) && !view.lodHiddenPanels;'));
 check('cortina acristalada: vidrio translúcido + montantes por celda (nada coplanar)', buildTs.includes("new TransformNode('fachada_cortina', scene)") && buildTs.includes('glassM.alpha = 0.16;') && buildTs.includes('fachada_montante_'));
 check('setFachadaView: el controlador manda el cambio de cámara', buildTs.includes('setFachadaView(on: boolean)') && ctrlTs.includes("this.building?.setFachadaView(store.camMode === 'fachada')"));
 check('fundidos en reposo: trasteros y apilamiento enteros en fachada', buildTs.includes('const target = fachadaView ? 1 :') && buildTs.includes('const mainT = fachadaView ? 1 :'));
@@ -124,7 +124,7 @@ check('al soltar al vecino, el paraguas y las bolsas se recogen', paseoTs.includ
 console.log('── 6. Bolsas de la compra al volver ──');
 check('catálogo outdoor.bags (dos colores)', rules.view.outdoor?.bags?.colorA === '#d8c9a3');
 check('actor: bolsas en las dos manos (hijas del nodo)', actorsTs.includes('_bolsas') && actorsTs.includes('bagsWant'));
-check('taxi: vuelve SIEMPRE con bolsas; paseo, a veces (hash del teatro)', paseoTs.includes('w.bags = true;') && paseoTs.includes("hash01('paseo_compra', roll + w.lineIdx) < 0.35"));
+check('taxi: vuelve SIEMPRE con bolsas; paseo, a veces (hash del teatro)', paseoTs.includes('w.bags = true;') && paseoTs.includes("hash01('paseo_compra', world.tick + w.lineIdx) < 0.35"));
 check('línea cómica de la compra (bagsLines)', (street.outdoor?.bagsLines?.length ?? 0) >= 1);
 
 console.log('── 7. Teatro del taxi ──');
@@ -158,7 +158,7 @@ check('grafitis y manchas suben recortados', buildTs.includes("decalTex('decal_g
 check('tipos: kinds de decay con Texture (sin errores TS)', buildTs.includes('tex: Texture | null;'));
 
 console.log('── 11. Entrada directa a los locales (sin E, salvo vecinos) ──');
-check('locales con auto-entrada: kind !== dwelling + no portal + sin candado', logicTs.includes("ahead.kind !== 'dwelling' && ahead.defId !== 'portal' && ahead.access !== 'locked'"));
+check('locales con auto-entrada: kind !== dwelling + sin candado (v1.46: el portal tiene SU rama propia de empujón)', logicTs.includes("ahead.kind !== 'dwelling' && ahead.access !== 'locked'") && logicTs.includes("if (ahead.defId === 'portal') {"));
 check('tu vivienda sigue con auto-entrada propia (v1.40 intacta)', logicTs.includes("ahead.kind === 'dwelling' && ahead.ownerId === this.actorId"));
 check('la E sigue mandando en viviendas ajenas (timbre) — sin autoentrada', !logicTs.includes("ahead.ownerId !== this.actorId"));
 

@@ -62,11 +62,11 @@ const resTs = srcOf('src/game/client/residents.ts');
 check('greetLineOf: saludo de la personalidad por id→arquetipo→defaults', resTs.includes('export function greetLineOf') && resTs.includes('reactions.greet'));
 check('knock_result: saludo personal + el vecino CAMINA a su puerta (walkTo con inside)', ctrlTs.includes('greetLineOf(this.content, other, store.lang)') && ctrlTs.includes('inside: { block: b.id, local:'));
 const persJson = JSON.parse(srcOf('public/content/personalities.json'));
-check('reactions.greet vive en el catálogo (defaults + arquetipos)', (persJson.defaults.reactions.greet?.length ?? 0) > 0 && Object.values(persJson.byArchetype).some((p) => (p.reactions?.greet?.length ?? 0) > 0));
+check('reactions.greet vive en el catálogo (defaults + arquetipos)', (persJson.defaults.reactions.greet?.length ?? 0) > 0 && (Object.values(persJson.byArchetype) as { reactions?: { greet?: { es: string; en: string }[] } }[]).some((p) => (p.reactions?.greet?.length ?? 0) > 0));
 
 console.log('── 2. Entrada directa a tu vivienda (sin E) ──');
 check('auto-entrada en el pasillo: transición delante de TU puerta', logicTs.includes('autoEnterLast !== ahead.id') && logicTs.includes('ahead.kind === \'dwelling\' && ahead.ownerId === this.actorId'));
-check('auto-salida armada al adentrarse (z > 0.9) y salta en el marco (z ≤ 0.5)', logicTs.includes('this.z > 0.9') && logicTs.includes('this.exitArmed && this.z <= 0.5'));
+check('auto-salida armada al adentrarse (z > armZ, default 0.9) y salta empujando S en el marco (z ≤ exitZ, default 0.5) — v1.68 los hizo configurables', logicTs.includes('wi?.armZ ?? 0.9') && logicTs.includes('this.exitArmed && input.down && this.z <= exitZ') && logicTs.includes("wi?.exitZ ?? 0.5"));
 check('sin bucles: tras salir, autoEnterLast = home (no re-dispara)', logicTs.includes('this.autoEnterLast = home; // delante de tu puerta'));
 check('teleportTo/forceLocation resetean la máquina de estados', logicTs.includes('this.autoEnterLast = null; // v1.40'));
 check('el controlador drena las acciones automáticas y ajusta cámara', ctrlTs.includes('this.logic.drainAuto()') && ctrlTs.includes("ar.type === 'entered'"));
@@ -114,7 +114,7 @@ check('los originales se guardan/restauran para volver a ES (v1.41: snapshot ún
 const dict = JSON.parse(srcOf('public/content/translations.en.json'));
 check('diccionario ES→EN ampliado (+370 entradas nuevas)', Object.keys(dict).length >= 800, `${Object.keys(dict).length} cadenas`);
 check('frases de actividad y timbre en EN', dict['🌀 pone la lavadora'] === '🌀 does the laundry' && dict['E · timbre de {name}'] === "E · ring {name}'s doorbell");
-check('avisos de misión/ecosistema en EN (op toast, apagón)', Object.values(dict).some((v) => v.includes('BLACKOUT!')) && Object.values(dict).some((v) => v.includes('Michi back in arms')));
+check('avisos de misión/ecosistema en EN (op toast, apagón)', (Object.values(dict) as string[]).some((v) => v.includes('BLACKOUT!')) && (Object.values(dict) as string[]).some((v) => v.includes('Michi back in arms')));
 check('los avisos duros del controlador ahora van por translate()', ctrlTs.includes("translate(store.lang, 'ev.missionDone'") && ctrlTs.includes("translate(store.lang, 'ev.neighborArrived'") && !ctrlTs.includes('pushToast(`Nuevo vecino en'));
 
 console.log('── Contenido completo (Zod, sin issues) + sim determinista ──');

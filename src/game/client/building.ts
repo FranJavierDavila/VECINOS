@@ -4649,11 +4649,13 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
             ? 'mission'
             : noiseLv >= thr.noise
               ? 'noise'
-              : (blk.params.plague ?? 0) >= thr.plague
-                ? 'plague'
-                : (blk.params.humidity ?? 0) >= thr.humidity
-                  ? 'humidity'
-                  : null;
+                // params es Record<string, ParamValue> (string|number): los umbrales del
+                // catálogo son numéricos → coerción explícita (mismo runtime que >= hacía).
+                : (Number(blk.params.plague ?? 0)) >= thr.plague
+                  ? 'plague'
+                  : (Number(blk.params.humidity ?? 0)) >= thr.humidity
+                    ? 'humidity'
+                    : null;
           const on = kind !== null && !fachadaView && !streetFacade;
           icon.mesh.setEnabled(on);
           if (on) {

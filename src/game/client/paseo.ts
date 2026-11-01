@@ -248,7 +248,7 @@ export function createPaseo(
   const benchFor = (w: Walker): { x: number; z: number } | null => {
     const spots = benches().filter((b) => Math.abs(b.x - portalX) < 26);
     if (spots.length === 0) return null;
-    return spots[Math.floor(hash01('paseo_banco', roll + w.lineIdx) * spots.length) % spots.length]!;
+    return spots[Math.floor(hash01('paseo_banco', world.tick + w.lineIdx) * spots.length) % spots.length]!;
   };
 
   return {
@@ -361,7 +361,7 @@ export function createPaseo(
               } else if (w.plan === 'taxi') {
                 w.targetX = taxiCfg ? taxiCfg.pickupX : portalX + 2;
               } else if (w.plan === 'paseo') {
-                w.targetX = portalX + (hash01('paseo_dir', roll + w.lineIdx) < 0.5 ? -1 : 1) * cfg.strollMeters;
+                w.targetX = portalX + (hash01('paseo_dir', world.tick + w.lineIdx) < 0.5 ? -1 : 1) * cfg.strollMeters;
               } else {
                 w.targetX = crossX;
               }
@@ -387,7 +387,7 @@ export function createPaseo(
                   actors.seatWhenIdle(w.id, { x: b.x, z: b.z, yaw: -Math.PI / 2 });
                   sayOutdoor(w, outLines?.benchLines);
                   w.fase = 'sitT';
-                  w.t = cfg.sitSecondsMin + hash01('paseo_sit', roll + w.lineIdx) * Math.max(0.1, cfg.sitSecondsMax - cfg.sitSecondsMin);
+                  w.t = cfg.sitSecondsMin + hash01('paseo_sit', world.tick + w.lineIdx) * Math.max(0.1, cfg.sitSecondsMax - cfg.sitSecondsMin);
                 } else {
                   w.fase = 'returnFront';
                   w.t = 60;
@@ -447,7 +447,7 @@ export function createPaseo(
           case 'toPark': {
             if (actors.idle(w.id)) {
               sayOutdoor(w, cfg.lines); // «Un rato de barras y vuelvo…» (catálogo)
-              w.exerciseLeft = cfg.exerciseMin + hash01('paseo_suda', roll + w.lineIdx) * Math.max(0.1, cfg.exerciseMax - cfg.exerciseMin);
+              w.exerciseLeft = cfg.exerciseMin + hash01('paseo_suda', world.tick + w.lineIdx) * Math.max(0.1, cfg.exerciseMax - cfg.exerciseMin);
               actors.setGesture(w.id, cfg.gesture, w.exerciseLeft + 0.6);
               w.fase = 'exercise';
               w.t = w.exerciseLeft;
@@ -498,7 +498,7 @@ export function createPaseo(
           case 'backCross': {
             if (actors.idle(w.id)) {
               // v1.41 — la vuelta con bolsas de la compra (a veces, catálogo del teatro).
-              w.bags = hash01('paseo_compra', roll + w.lineIdx) < 0.35;
+              w.bags = hash01('paseo_compra', world.tick + w.lineIdx) < 0.35;
               if (w.bags) {
                 actors.setBags(w.id, true);
                 sayOutdoor(w, outLines?.bagsLines);
@@ -599,7 +599,7 @@ export function createPaseo(
             if (actors.idle(w.id)) {
               traffic?.releaseTaxi(); // el taxi se marcha
               w.taxiStage = 'none';
-              if (!w.bags && hash01('paseo_compra_b', roll + w.lineIdx) < 0.4) {
+              if (!w.bags && hash01('paseo_compra_b', world.tick + w.lineIdx) < 0.4) {
                 w.bags = true;
                 actors.setBags(w.id, true);
                 sayOutdoor(w, outLines?.bagsLines);

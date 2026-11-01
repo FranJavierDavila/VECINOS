@@ -59,7 +59,14 @@ check('estrellas que caen (partículas del post-it)', /estrella|star/i.test(toas
 check('las estrellas viven sobre la fanfarria (misma capa que el toast)', /fanfarria|fanfare/i.test(toastTs) || controllerTs.includes('fanfarria'));
 
 console.log('── 2. Pared de pasillo GRIS ÚNICO en todos los bloques ──');
-const locals = v.locals as unknown as { corridorWall: string };
+const locals = v.locals as unknown as {
+  corridorWall: string;
+  portalDoors: Record<string, unknown>;
+  garaje: Record<string, unknown>;
+  trasteroComunal: Record<string, unknown>;
+  juntaHall: Record<string, unknown>;
+  lavanderia: Record<string, unknown>;
+};
 check('view.locals.corridorWall = gris de viviendas', locals.corridorWall === '#dbd8d2', locals.corridorWall);
 check('building aplica el gris único a TODOS los bloques con pasillo', buildingTs.includes('corridorWall'));
 
@@ -74,11 +81,11 @@ check('viandantes cruzan POR las correderas (enterZ)', typeof peds.enterZ === 'n
 
 console.log('── 4. Garaje definido en el catálogo ──');
 const gar = locals.garaje as unknown as Record<string, unknown>;
-check('garaje: panel + rótulo GARAJES + rampa', !!(gar.panel && gar.sign === 'GARAJES' && gar.rampDepth > 0));
+check('garaje: panel + rótulo GARAJES + rampa', !!(gar.panel && gar.sign === 'GARAJES' && (gar.rampDepth as number) > 0));
 
 console.log('── 5. Trastero comunitario con puertas de vivienda ──');
 const tc = locals.trasteroComunal as unknown as Record<string, unknown>;
-check('trasteroComunal: doorArt + señal + estanterías', !!(tc.doorArt && tc.sign && tc.shelfTiers > 0));
+check('trasteroComunal: doorArt + señal + estanterías', !!(tc.doorArt && tc.sign && (tc.shelfTiers as number) > 0));
 check('E sobre sus puertas entra como en una vivienda (layout transitable)', logicTs.includes('LOCALES CON INTERIOR') && logicTs.includes('landInside(door)'));
 
 console.log('── 6. Sala de juntas con asientos ──');
@@ -89,7 +96,7 @@ check('la sala convocada cuenta como ocupada (la gente acude)', buildingTs.inclu
 
 console.log('── 7. Lavandería abierta con máquinas ──');
 const lav = locals.lavanderia as unknown as Record<string, unknown>;
-check('lavandería: máquinas del catálogo con arte recortado', !!(lav.machines > 0 && typeof lav.art === 'string' && lav.art.includes('.png')));
+check('lavandería: máquinas del catálogo con arte recortado', !!((lav.machines as number) > 0 && typeof lav.art === 'string' && lav.art.includes('.png')));
 
 console.log('── 8. Interior de vivienda transitable de lado a lado ──');
 check('sin tapas ni tabiques interiores (v1.29) y landInside para locales', logicTs.includes('landInside'));
@@ -109,13 +116,13 @@ const world = createWorld(content, 'slice');
 const hashes: string[] = [];
 for (let i = 0; i < 240; i++) {
   tick(world, content);
-  if (i % 60 === 0) hashes.push(JSON.stringify([world.tick, world.funds, Object.keys(world.residents).length]));
+  if (i % 60 === 0) hashes.push(JSON.stringify([world.tick, world.community.funds, Object.keys(world.residents).length]));
 }
 const world2 = createWorld(content, 'slice');
 const hashes2: string[] = [];
 for (let i = 0; i < 240; i++) {
   tick(world2, content);
-  if (i % 60 === 0) hashes2.push(JSON.stringify([world2.tick, world2.funds, Object.keys(world2.residents).length]));
+  if (i % 60 === 0) hashes2.push(JSON.stringify([world2.tick, world2.community.funds, Object.keys(world2.residents).length]));
 }
 check('determinismo (240 ticks idénticos)', hashes.join('|') === hashes2.join('|'));
 

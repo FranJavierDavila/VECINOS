@@ -107,7 +107,7 @@ const man = content.street?.manifestation;
 check('carteles por ENCIMA de las cabezas (liftY ≥ 1.9)', (man?.placard.liftY ?? 0) >= 1.9, `liftY ${man?.placard.liftY}`);
 check('palo que alcanza las manos en alto', (man?.placard.stickH ?? 0) + 0.3 >= (man?.placard.liftY ?? 9) - 1.08, `stickH ${man?.placard.stickH}`);
 check('multitud irregular: jitter longitudinal y banda lateral', (man?.slotJitter ?? 0) > 0.2 && (man?.spreadZ ?? 0) >= 1, `jitter ${man?.slotJitter} · spread ${man?.spreadZ}`);
-check('la multitud sigue en la acera con el spread', man?.lanes.every((l) => Math.abs(l.z) > 4), man?.lanes.map((l) => l.z).join(','));
+check('la multitud sigue en la acera con el spread', !!man?.lanes.every((l) => Math.abs(l.z) > 4), man?.lanes.map((l) => l.z).join(','));
 const pedCode = fs.readFileSync(path.join(import.meta.dir, '..', 'src/game/client/pedestrians.ts'), 'utf8');
 check('rig con pies EN EL SUELO (pierna y=0.5, sin flotar)', pedCode.includes('leg.position.set(sx, 0.5 * s, 0)'), 'piernas 0..0.5 con pivote de cadera');
 check('rig con BRAZOS (dos, pivote de hombro)', pedCode.includes("ped_brazo") && pedCode.split('ped_brazo').length >= 2, 'arms[]');

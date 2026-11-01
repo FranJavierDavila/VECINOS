@@ -37,7 +37,12 @@ for (let i = 0; i < 14; i++) {
 await page.evaluate(() => { (window as unknown as { __vecinosQa?: { qaResume?: () => void } }).__vecinosQa?.qaResume?.(); });
 await page.waitForTimeout(6000);
 
-const report = await page.evaluate(`(() => {
+// Forma del informe que devuelve la sonda in-page: solo los campos que consume el análisis local.
+type InformeVentanas = {
+  blocks: { id: string; rooms: Record<string, { meshes: { kind: string; z0: number; z1: number; x0: number; x1: number; y0: number; y1: number }[] }> }[];
+  note: string;
+};
+const report = await page.evaluate<InformeVentanas>(`(() => {
   var qa = window.__vecinosQa;
   var scene = qa.getScene();
   var world = qa.getWorld();

@@ -96,12 +96,12 @@ check('fogColor de cada capa declarado y claro', bd.layers.every((l) => l.fogCol
 
 // ── 5. Voces de proximidad ──
 const snd = content.sounds;
-check('sounds.json con sección voices', !!snd?.voices, snd ? `${Object.keys(snd.voices.banks).length} bancos` : 'ausente');
+check('sounds.json con sección voices', !!snd?.voices, snd ? `${Object.keys(snd.voices!.banks).length} bancos` : 'ausente');
 if (snd?.voices) {
   const missing = Object.entries(snd.voices.banks).flatMap(([bank, keys]) => keys.filter((k) => !snd.sounds[k]).map((k) => `${bank}/${k}`));
   check('todos los bancos referencian sonidos existentes', missing.length === 0, missing.join(',') || `${Object.keys(snd.voices.banks).length} bancos OK`);
-  check('moodMap cubre good/ok/bad con bancos válidos', ['good', 'ok', 'bad'].every((m) => snd.voices.moodMap.some((x) => x.mood === m && x.banks.every((b) => !!snd.voices.banks[b]))), snd.voices.moodMap.map((x) => x.mood).join('/'));
-  check('voces con sonido: queja, risa, silbido, cuchicheo, suspiro…', ['complaint', 'smile', 'whistle', 'whisper', 'sigh'].every((b) => (snd.voices.banks[b]?.length ?? 0) >= 1), Object.keys(snd.voices.banks).join(','));
+  check('moodMap cubre good/ok/bad con bancos válidos', ['good', 'ok', 'bad'].every((m) => snd.voices!.moodMap.some((x) => x.mood === m && x.banks.every((b) => !!snd.voices!.banks[b]))), snd.voices.moodMap.map((x) => x.mood).join('/'));
+  check('voces con sonido: queja, risa, silbido, cuchicheo, suspiro…', ['complaint', 'smile', 'whistle', 'whisper', 'sigh'].every((b) => (snd.voices!.banks[b]?.length ?? 0) >= 1), Object.keys(snd.voices.banks).join(','));
   check('antiedad de sobrecarga: radio, tope por minuto y cooldown', snd.voices.proximity.radius > 1 && snd.voices.proximity.maxPerMinute >= 1 && snd.voices.proximity.cooldownPerResident > 5, `radio ${snd.voices.proximity.radius} m · ${snd.voices.proximity.maxPerMinute}/min · cd ${snd.voices.proximity.cooldownPerResident}s`);
   check('pies de foto solo para claves existentes', Object.keys(snd.voices.captions).every((k) => !!snd.sounds[k]), `${Object.keys(snd.voices.captions).length} captions`);
   // Sonidos nuevos de la calle: motor al pasar y megáfono.

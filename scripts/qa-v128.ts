@@ -96,8 +96,8 @@ check('pantalla empotrada + cristal DELANTE (nada coplanar)', elevatorTs.include
 check('avería = ✕ en pantalla', elevatorTs.includes("if (broken) label = '✕';"));
 
 console.log('── 7. Anti-coplanaridad: clearance real frente a TODAS las caras ──');
-check('juntas: v1.35 RETRANQUEADAS tras la fachada (protrude −0.030, adiós al casi-coplano con soleras C↔escalera)', v.privacy.gapFill.protrude === -0.03 && v.privacy.gapFill.stagger === 0.008, `out ∈ [${v.privacy.gapFill.protrude}, ${v.privacy.gapFill.protrude + v.privacy.gapFill.stagger})`);
-check('solera: protrude 0.034 + stagger 0.010 (banda propia, jamás el plano del muro del cubo)', v.privacy.solera.protrude === 0.034 && v.privacy.solera.stagger === 0.01);
+check('juntas: v1.35 RETRANQUEADAS tras la fachada (protrude −0.030, adiós al casi-coplano con soleras C↔escalera)', v.privacy.gapFill!.protrude === -0.03 && v.privacy.gapFill!.stagger === 0.008, `out ∈ [${v.privacy.gapFill!.protrude}, ${v.privacy.gapFill!.protrude! + v.privacy.gapFill!.stagger!})`);
+check('solera: protrude 0.034 + stagger 0.010 (banda propia, jamás el plano del muro del cubo)', v.privacy.solera!.protrude === 0.034 && v.privacy.solera!.stagger === 0.01);
 check('sin cara nueva a frontZ − 0.07 (el plano del muro del cubo de v1.27)', !buildingTs.includes('frontZ - v.wall / 2 - 0.02'));
 
 console.log('── 8. Día de lluvia = cielo cerrado ──');
@@ -138,7 +138,8 @@ const world = createWorld(content, 'slice');
     destInside: { x0, w, geo: (() => {
       const layoutId = content.blocks[home.defId]!.container!.layout!;
       const layout = content.layouts[layoutId]!;
-      return { rooms: layout.rooms.filter((r) => r.rect).map((r) => ({ key: r.key, defId: r.defId, rect: r.rect! })), doorways: layout.doorways };
+      // locked: false ≡ el `undefined` previo: interior.ts trata ambas formas como estancia abierta
+      return { rooms: layout.rooms.filter((r) => r.rect).map((r) => ({ key: r.key, defId: r.defId, rect: r.rect!, locked: false })), doorways: layout.doorways! };
     })(), target: { x: 0.4, z: 1.2 }, doorX: x0 + w / 2 },
     hostSpan: null,
   });

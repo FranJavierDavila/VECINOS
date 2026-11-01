@@ -1,4 +1,4 @@
-import type { Color3, DynamicTexture, HemisphericLight, DirectionalLight, Mesh, ParticleSystem, Scene, StandardMaterial } from '@babylonjs/core';
+import type { Color3, DynamicTexture, HemisphericLight, DirectionalLight, Mesh, ParticleSystem, Scene, StandardMaterial, Vector3 as Vector3Type } from '@babylonjs/core';
 import type { Content, World } from '@/game/core/types';
 import { hash01 } from '@/game/interior';
 import { B } from './babylon';
@@ -264,7 +264,7 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
     // El cielo/sol/luna siguen asomando por los huecos (alpha del canvas bajo el corte).
     if (l.depthWrite) {
       mat.transparencyMode = 1; // ALPHATEST (1, no 2=ALPHABLEND): profundidad por píxel
-      mat.alphaCutOff = l.alphaCutOff;
+      mat.alphaCutOff = l.alphaCutOff ?? 0.4; // 0.4 = el valor del catálogo v1.49
       mat.alpha = 1; // sin mezcla: con alpha<1 la capa se colaría en la cola transparente
       mat.disableDepthWrite = false; // escribe depth → oclusión verdadera entre capas
     } else {
@@ -597,7 +597,7 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
       return m;
     };
     for (let bi = 0; bi < 3; bi++) {
-      const pts: Vector3[] = [];
+      const pts: Vector3Type[] = [];
       let px = 0;
       const segs = 7;
       for (let sgi = 0; sgi <= segs; sgi++) {

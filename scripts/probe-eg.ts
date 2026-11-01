@@ -30,7 +30,7 @@ await host.evaluate(`window.__vecinosQa.getController().hostSession()`);
 let code = '';
 for (let i = 0; i < 20; i++) {
   await host.waitForTimeout(800);
-  code = await host.evaluate(`(() => { var b = document.querySelector('[title="Copiar código"]'); return b ? (b.textContent || '').trim() : ''; })()`).catch(() => '');
+  code = await host.evaluate<string>(`(() => { var b = document.querySelector('[title="Copiar código"]'); return b ? (b.textContent || '').trim() : ''; })()`).catch(() => '');
   if (code.length === 4) break;
 }
 console.log('· código:', code);

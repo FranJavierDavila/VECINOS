@@ -147,7 +147,7 @@ content.layouts['layout_vivienda_v1'] = savedLayouts['layout_vivienda_v1']!; // 
 const logic2 = new PlayerLogic(world, content);
 // v1.27: en el edificio de 3 plantas la planta del jugador (3) puede no tener cerradas;
 // cualquier vivienda bloqueada del mundo sirve para la misma prueba del candado.
-const lockedBlock = Object.values(world.blocks).find((b) => b.kind === 'dwelling' && b.access === 'locked');
+const lockedBlock = Object.values(world.blocks).find((b) => b.kind === 'dwelling' && b.access === 'locked')!;
 logic2.teleportTo(lockedBlock.id);
 check('delante de puerta cerrada', logic2.interactTarget()?.kind === 'door' && world.blocks[lockedBlock.id]!.access === 'locked', lockedBlock.id);
 const rejected = logic2.interact();

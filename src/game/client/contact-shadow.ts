@@ -127,7 +127,8 @@ export function createContactShadows(scene: Scene, cfgIn: Partial<ContactShadowC
   mat.emissiveColor = new Color3(0, 0, 0);
   mat.alpha = cfg.opacity;
   mat.backFaceCulling = false; // en rampa el disco se puede ver casi de canto
-  mat.receiveShadows = false;
+  // (receiveShadows es propiedad de AbstractMesh, no de Material; los discos nacen sin
+  //  recibir sombras — el comportamiento deseado — así que no hay nada que apagar aquí).
 
   const discs = new Map<string, DiscState>();
   const up = new Vector3(0, 1, 0);

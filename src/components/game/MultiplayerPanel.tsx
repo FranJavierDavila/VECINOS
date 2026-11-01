@@ -242,7 +242,14 @@ export function MultiplayerPanel() {
                             </Button>
                           )}
                           {!r.done && mine && def.objective.type === 'minigame' && (
-                            <Button size="sm" className="mt-1.5 w-full" onClick={() => ctrl()?.openCoopMinigame(def.objective.id)}>
+                            <Button
+                              size="sm"
+                              className="mt-1.5 w-full"
+                              onClick={() => {
+                                const o = def.objective; // narrowing local: en callbacks TS invalida el narrowing de propiedades
+                                if (o.type === 'minigame') ctrl()?.openCoopMinigame(o.id);
+                              }}
+                            >
                               Realizar minijuego
                             </Button>
                           )}

@@ -19,7 +19,7 @@ const STYLE =
 interface Job {
   file: string;
   prompt: string;
-  size: string;
+  size: '1024x1024' | '768x1344' | '864x1152' | '1344x768' | '1152x864' | '1440x720' | '720x1440';
 }
 
 const WALL = (es: string, en: string): string => `front view of an interior back wall, ${en}, flat painted wall filling the entire frame edge to edge, no floor, no ceiling, no furniture, ${STYLE}`;

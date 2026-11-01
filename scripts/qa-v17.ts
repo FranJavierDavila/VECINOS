@@ -62,7 +62,7 @@ if (catalog) {
   // Las condiciones mission_done apuntan a misiones REALES del catálogo.
   const missionIds = Object.keys(content.missions);
   const missionConds = catalog.achievements.filter((a) => a.condition.kind === 'mission_done');
-  check('condiciones mission_done con misiones existentes', missionConds.every((a) => missionIds.includes(a.condition.mission)), missionConds.map((a) => a.condition.mission).join(','));
+  check('condiciones mission_done con misiones existentes', missionConds.every((a) => missionIds.includes((a.condition as { mission: string }).mission)), missionConds.map((a) => (a.condition as { mission: string }).mission).join(','));
   check('condiciones cubren los 8 kinds del schema', new Set(catalog.achievements.map((a) => a.condition.kind)).size >= 6, [...new Set(catalog.achievements.map((a) => a.condition.kind))].join(','));
 }
 

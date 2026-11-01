@@ -64,7 +64,9 @@ const layersOf = (defId: string): Set<string> => {
 // capas pintadas) — se exime del mínimo de capas que rige para las viviendas.
 // v1.34: garaje y lavandería también son LOCALES comunales (mobiliario 3D propio).
 const localesComunales = new Set(['estancia_local_juntas', 'estancia_garaje', 'estancia_lavanderia', 'estancia_portal']); // v1.36: el vestíbulo es UNA IMAGEN del hall (una capa + alfombra)
-check('capas de paralaje declaradas (2-3 por estancia, sets v1.29; locales comunales exentos)', !!ic && Object.entries(ic.rooms).every(([id, d]) => { if (localesComunales.has(id)) return true; const s2 = new Set<string>(); for (const sp of d.sprites) s2.add(sp.layer); for (const set of d.sets) for (const sp of set) s2.add(sp.layer); return s2.size >= 2; }), `salón:${[...layersOf('estancia_salon_cocina')].join('+')} · dormitorio:${[...layersOf('estancia_dormitorio')].join('+')} · trastero:${[...layersOf('trastero')].join('+')}`);
+// v1.69 — dormitorio y baño van hoy de PAREDES LIMPIAS (walls+floors, cero decorado): la
+// norma v1.29 «2-3 capas por estancia» solo puede exigirse a estancias que DECLARAN decorado.
+check('capas de paralaje declaradas (≥2 planos en toda estancia CON decorado; locales comunales y estancias de paredes limpias exentos)', !!ic && Object.entries(ic.rooms).every(([id, d]) => { if (localesComunales.has(id)) return true; const s2 = new Set<string>(); for (const sp of d.sprites) s2.add(sp.layer); for (const set of d.sets) for (const sp of set) s2.add(sp.layer); const conDecor = d.sprites.length > 0 || d.sets.length > 0; return !conDecor || s2.size >= 2; }), `salón:${[...layersOf('estancia_salon_cocina')].join('+')} · estudio:${[...layersOf('estancia_estudio_diafano')].join('+')} · trastero:${[...layersOf('trastero')].join('+')} · dormitorio/baño: paredes limpias`);
 check('sprites dentro del rect (u/v 0..1) y con tamaño positivo', !!ic && Object.values(ic.rooms).every((d) => d.sprites.every((s) => s.u >= 0 && s.u <= 1 && s.v >= 0 && s.v <= 1 && s.w > 0 && s.h > 0)));
 
 // ── 2. Sonidos de hucha ──
@@ -101,12 +103,16 @@ check('el encadenado acaba en la línea del pasillo', Math.abs(chained[chained.l
 const down = stairPathPoints(v, sx, y0 + v.cellH, y0);
 check('la bajada es el reverso exacto de la subida', down.length === up1.length && Math.abs(down[0]!.y - up1[up1.length - 1]!.y) < 0.001 && Math.abs(down[down.length - 1]!.y - up1[0]!.y) < 0.001);
 
-// ── 4. Vida de calle en Planta (código del controlador) ──
+// ── 4. Vida de calle (código del controlador) ──
 import { readFileSync } from 'fs';
 const ctlSrc = readFileSync(join(import.meta.dir, '..', 'src', 'game', 'client', 'controller.ts'), 'utf8');
-const m = ctlSrc.match(/const streetView = ([^;]+);/);
-check('el gating de calle incluye la cámara planta', !!m && /planta/.test(m![1]!), m?.[1]?.trim() ?? 'no encontrado');
-check('la estancia sigue SIN calle (vista de interior limpia)', !!m && !/estancia/.test(m![1]!));
+// v1.69 — desde v1.49 el gating es DATA-DRIVEN: streetLife.cameras del catálogo con
+// default ['edificio','fachada','planta','espia']. El catálogo actual AÑADE estancia a
+// propósito (el vecino pidió ver la calle desde la estancia), así que la vieja regla
+// «la estancia sigue SIN calle» ya no describe el diseño: lo que se verifica aquí es
+// el MECANISMO (default con planta, sin estancia en el DEFAULT del código).
+const m = ctlSrc.match(/const streetCameras = ([^;]+);/);
+check('el gating de calle es data-driven (streetLife.cameras) y el default incluye la cámara planta', !!m && m![1]!.includes('streetLife?.cameras') && /planta/.test(m![1]!), m?.[1]?.trim() ?? 'no encontrado');
 
 // ── 5. Regresión del sim ──
 const world0 = createWorld(content, content.rules.startScenario);

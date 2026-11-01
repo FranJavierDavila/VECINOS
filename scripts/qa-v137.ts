@@ -19,6 +19,7 @@ import { loadContent, formatIssues } from '@/game/content';
 import { createWorld } from '@/game/sim';
 import { tick } from '@/game/sim/tick';
 import { PlayerLogic } from '@/game/player-logic';
+import { hash01 } from '@/game/interior';
 import { createPaseo } from '@/game/client/paseo';
 import type { ActorsDirector } from '@/game/client/actors';
 import type { TrafficDirector } from '@/game/client/traffic';
@@ -128,6 +129,15 @@ const fakeActors = {
   setHold: () => void calls.hold++,
   setCarrying: () => {},
   faceToward: () => void calls.face++,
+  // v1.41+ — métodos que el interfaz ActorsDirector ganó después de v1.37: el stub
+  // antiguo crasheaba («setUmbrella is not a function») en cuanto llovía en el paseo.
+  visibleOf: () => true,
+  setUmbrella: () => {},
+  setBags: () => {},
+  setFade: () => {},
+  standUp: () => {},
+  lodOf: () => 0,
+  detailViewOf: () => '',
   stageAt: () => {},
 } as unknown as ActorsDirector;
 let clear = false;
@@ -136,10 +146,29 @@ const fakeTraffic = {
   setVisible() {},
   aliveCount: () => 0,
   crossingClear: () => clear,
+  // v1.41/1.42 — API que el interfaz TrafficDirector ganó después de v1.37.
+  setCrossers: () => {},
+  setExtraCrossers: () => {},
+  hailTaxi: () => false,
+  releaseTaxi: () => {},
   buildAmbulance: () => null,
   dispose() {},
 } as unknown as TrafficDirector;
 const paseoDir = createPaseo(worldQa, content, fakeActors, null, fakeTraffic, () => true);
+// v1.69 — el catálogo v1.41 añadió el plan TAXI (taxiChance): la tirada del tick actual
+// ya no cae siempre en «parque» y la prueba del cruce+deporte fallaba por plan equivocado.
+// Buscamos el PRIMER tick cuyo guion determinista dé ganas ✓ y plan PARQUE (mismas fórmulas
+// que paseo.ts: quien=paseo_quien, ganas=paseo_ganas≤chance, plan=paseo_plan(t*7+13)).
+const pCfg = content.rules.view.paseo!;
+const taxiOn = !!(content.rules.view as { taxi?: { enabled?: boolean } }).taxi?.enabled;
+const limTaxi = pCfg.benchChance + pCfg.strollChance + (taxiOn ? pCfg.taxiChance : 0);
+let tickParque = worldQa.tick;
+for (let t = worldQa.tick; t < worldQa.tick + 500; t++) {
+  if (hash01('paseo_ganas', t) > pCfg.chance) continue; // no quiere salir
+  const r = hash01('paseo_plan', t * 7 + 13);
+  if (r >= limTaxi) { tickParque = t; break; } // resto = parque
+}
+worldQa.tick = tickParque;
 let spawned = false;
 for (let i = 0; i < 60 && !spawned; i++) spawned = paseoDir.spawnNow(); // «algunos si quieren»: la tirada puede rechazar
 check('el paseo coge a un vecino (spawnNow con tirada de chance)', spawned);
@@ -194,7 +223,7 @@ check('fuera de vista de calle el paseo se PAUSA (isStreetView gate)', (() => {
 })());
 
 console.log('── 7. Comportamiento: consulta del tablón en el atril + colisión lavadoras ──');
-const logic = new PlayerLogic(worldQa, content, { actorId: worldQa.playerId, send: () => null });
+const logic = new PlayerLogic(worldQa, content, { actorId: worldQa.playerId, send: () => undefined });
 const v = content.rules.view;
 const nbX = 0 + 0 + nb.inset; // pasillo de planta 0: col 0 → extremo izquierdo + inset
 logic.setNoticeboardSpot({ x: nbX, floor: 0 });
@@ -232,8 +261,11 @@ if (laundryId) {
   });
   logic.setBlockObstacles([{ blockId: laundryId, rects }]);
   logic.teleportTo(laundryId);
-  // entra por la puerta (E): el sim mueve al residente al local y el modo pasa a inside
-  logic.interact();
+  // v1.69 — entrar ANDANDO: desde v1.46+ los locales con interior se cruzan por el vano
+  // (walk-in); la E de v1.37 ya no entra en los locales comunes. Empujar W cruza el umbral.
+  for (let i = 0; i < 60 && logic.position().mode !== 'inside'; i++) {
+    logic.update(1 / 30, { left: false, right: false, up: true, down: false, run: false });
+  }
   const pos0 = logic.position();
   if (pos0.mode === 'inside' && pos0.insideBlock === laundryId) {
     for (let i = 0; i < 240; i++) {
@@ -249,8 +281,8 @@ if (laundryId) {
 check('las lavadoras son SÓLIDAS: el jugador no llega a atravesarlas', blocked);
 
 console.log('── 8. Insignia y determinismo ──');
-check('insignia v1.37 en i18n', srcOf('src/game/client/i18n.ts').includes('v1.38 · pase de optimización'));
-check('sw.js bump a vecinos-v1.38', srcOf('public/sw.js').includes('vecinos-v1.38'));
+check('insignia v1.38 (pase de optimización) en i18n', srcOf('src/game/client/i18n.ts').includes("'opt.perfAuto':"));
+check('sw.js cache bump al ser el runtime actual', srcOf('public/sw.js').includes('vecinos-v1.69')); // v1.46→v1.69: estaba CONGELADO 20 versiones (stale cache PWA)
 const w1 = createWorld(content, 'slice');
 for (let i = 0; i < 240; i++) tick(w1, content);
 check('sim determinista (240 ticks)', w1.tick === 240);

@@ -60,6 +60,8 @@ const sessionOfSocket = new Map<string, string>(); // socket.id → código de s
 
 // ── ACKs del protocolo (formas exactas del contrato) ──
 export type CreateAck = { ok: true; code: string; isHost: true; yourResidentId: string; scenarioId: string } | { ok: false; error: string };
+/** v1.56 — rejoin: puede volver el anfitrión o un invitado → isHost es boolean real. */
+export type RejoinAck = { ok: true; code: string; isHost: boolean; yourResidentId: string; scenarioId: string } | { ok: false; error: string };
 export type JoinAck =
   | { ok: true; code: string; isHost: false; yourResidentId: string; scenarioId: string; residentName: string; homeBlock: string }
   | { ok: false; error: string };
@@ -117,6 +119,8 @@ type ScoreCfg = {
   missionCompletedPoints: number;
   missionBonus: Record<string, number>;
   minigames: Record<string, { label?: string; pointsPerRecord: number; maxSecs?: number }>;
+  recordToast: string;
+  firstToast: string;
 } | undefined;
 const scoreCfg = (): ScoreCfg => content.rules.multiplayer?.score as ScoreCfg;
 
@@ -679,7 +683,7 @@ io.on('connection', (socket) => {
 
   socket.on(
     'session:rejoin',
-    (payload: { code?: string; residentId?: string } | undefined, ack?: (res: CreateAck | { ok: false; error: string }) => void) => {
+    (payload: { code?: string; residentId?: string } | undefined, ack?: (res: RejoinAck) => void) => {
       const code = (payload?.code ?? '').trim().toUpperCase();
       const residentId = payload?.residentId ?? '';
       const session = sessions.get(code);

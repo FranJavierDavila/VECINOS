@@ -1096,9 +1096,10 @@ class GameController {
           // v1.56 — RECONEXIÓN TRANSPARENTE: el transporte volvió (pestaña en segundo plano,
           // red móvil inestable). Si teníamos sesión, re-vinculamos el MISMO residente: el
           // servidor re-difunde mundo, marcador, co-op y voz, y seguimos donde estábamos.
-          const sess = store.mpSession;
-          if (sess && this.myResidentId) {
-            void this.net.rejoin(sess.code, this.myResidentId).then((res) => {
+          // El store descompone la sesión en mpCode + mpMyResidentId (setMpSession).
+          const sessCode = store.mpCode;
+          if (sessCode && this.myResidentId) {
+            void this.net.rejoin(sessCode, this.myResidentId).then((res) => {
               if (res.ok) {
                 useGameStore.getState().setMpStatus('connected'); // de vuelta: el panel deja el error
                 // El asiento de voz sobrevive en el servidor (gracia): re-afirmo con el socket nuevo.

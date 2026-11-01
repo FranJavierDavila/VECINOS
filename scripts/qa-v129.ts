@@ -122,8 +122,8 @@ check('reparto sin solapes (spreadU determinista)', dioramaTs.includes('const sp
 }
 
 console.log('── 8. Glow sutil en interiores + rebote ──');
-check('night reducido (dio/floor/lamp por debajo de 1.0)', v.privacy.night.dioGlow <= 0.4 && v.privacy.night.floorGlow <= 0.35 && v.privacy.night.lampGlow <= 1.0, `dio ${v.privacy.night.dioGlow}, floor ${v.privacy.night.floorGlow}, lamp ${v.privacy.night.lampGlow}`);
-check('wallSelf data-driven', typeof v.privacy.night.wallSelf === 'number' && v.privacy.night.wallSelf > 0);
+check('night reducido (dio/floor/lamp por debajo de 1.0)', v.privacy.night!.dioGlow <= 0.4 && v.privacy.night!.floorGlow <= 0.35 && v.privacy.night!.lampGlow <= 1.0, `dio ${v.privacy.night!.dioGlow}, floor ${v.privacy.night!.floorGlow}, lamp ${v.privacy.night!.lampGlow}`);
+check('wallSelf data-driven', typeof v.privacy.night!.wallSelf === 'number' && v.privacy.night!.wallSelf! > 0);
 check('glowExcluded() en building (dio + suelos)', buildingTs.includes('glowExcluded()') && buildingTs.includes('dio.shell'));
 check('controller registra las exclusiones en la GlowLayer', controllerTs.includes('gl.addExcludedMesh'));
 check('luz de rebote (ambient.ground)', !!v.ambient.ground && controllerTs.includes('hemi.groundColor'), String(v.ambient.ground));

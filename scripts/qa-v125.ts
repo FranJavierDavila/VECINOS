@@ -24,7 +24,8 @@ import fs from 'fs';
 import path from 'path';
 import { loadContent, formatIssues } from '@/game/content';
 import { roomRoute, walkable, type LayoutGeometry } from '@/game/interior';
-import { createWorld, type World } from '@/game/sim';
+import { createWorld } from '@/game/sim';
+import type { World } from '@/game/core/types';
 import { tick } from '@/game/sim/tick';
 
 let pass = 0;

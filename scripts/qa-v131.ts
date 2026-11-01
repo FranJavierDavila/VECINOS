@@ -129,13 +129,13 @@ const world = createWorld(content, 'slice');
 const hashes: string[] = [];
 for (let i = 0; i < 240; i++) {
   tick(world, content);
-  if (i % 60 === 0) hashes.push(JSON.stringify([world.tick, world.funds, Object.keys(world.residents).length]));
+  if (i % 60 === 0) hashes.push(JSON.stringify([world.tick, world.community.funds, Object.keys(world.residents).length]));
 }
 const world2 = createWorld(content, 'slice');
 const hashes2: string[] = [];
 for (let i = 0; i < 240; i++) {
   tick(world2, content);
-  if (i % 60 === 0) hashes2.push(JSON.stringify([world2.tick, world2.funds, Object.keys(world2.residents).length]));
+  if (i % 60 === 0) hashes2.push(JSON.stringify([world2.tick, world2.community.funds, Object.keys(world2.residents).length]));
 }
 check('determinismo (240 ticks idénticos)', hashes.join('|') === hashes2.join('|'));
 

@@ -27,7 +27,10 @@ export type InteractResult =
   | { type: 'exerciseEnd' }
   /** v1.48 — empujón en la entrada FRONTAL del portal (cerrada): el controlador saca la
    *  flecha animada que manda a girar la esquina (la entrada real es la lateral). */
-  | { type: 'frontBlocked' };
+  | { type: 'frontBlocked' }
+  /** v1.48 — CUADRO DE FUSIBLES (garaje): el controlador decide (apagón → minijuego;
+   *  en calma → aviso del catálogo). Faltaba en la unión: el runtime lo usaba desde v1.48. */
+  | { type: 'fusebox' };
 
 /**
  * Firma de la vía de salida de comandos. En partida clásica el controlador devuelve el

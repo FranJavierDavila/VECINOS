@@ -71,6 +71,7 @@ const audit = (): Promise<{ pairs: { a: string; b: string; axis: string; at: num
         geometry?: { getTotalVertices?: () => number } | null;
         getTotalVertices: () => number;
         rotation: { x: number; y: number; z: number };
+        material?: { disableDepthWrite?: boolean } | null;
         isEnabled: () => boolean;
         computeWorldMatrix: (f?: boolean) => { m: number[] };
         getBoundingInfo: () => { boundingBox: { minimum: { x: number; y: number; z: number }; maximum: { x: number; y: number; z: number } } };
@@ -87,7 +88,7 @@ const audit = (): Promise<{ pairs: { a: string; b: string; axis: string; at: num
       if (skip.test(m.name)) continue;
       // v1.67 — capas ordenadas por alphaIndex SIN depth-write (nubes, cielo): apilarse en el
       // mismo plano es SU diseño (se mezclan, no pelean) → fuera del audit.
-      const mm = m.material as { disableDepthWrite?: boolean } | null;
+      const mm = m.material;
       if (mm && mm.disableDepthWrite === true) continue;
       // Alineación a ejes por la BASE DEL MUNDO (subsume rotación propia Y heredada de
       // padres — el atril gira con yaw y sus hijos “rectos” no lo son en mundo): cada fila

@@ -46,7 +46,7 @@ const v = content.rules.view;
 const frontZ = v.roomZ - v.commonDepth / 2;
 
 console.log('── 1. Catálogo: la calle y el portal sin E ──');
-const out = v.outside;
+const out = v.outside!;
 check('view.outside declarado (rects + portal + ejercicio + líneas)', !!out, out ? `${out.walk.length} rects` : 'ausente');
 if (out) {
   check('límites del plano de cámara cubren portal, paso y parque',
@@ -70,7 +70,7 @@ console.log('── 2. Geometría: ruta oficial, paso de cebra y vestíbulo ─�
 if (out) {
   const insideWalk = (x: number, z: number): boolean =>
     out.walk.some((r) => x >= r.x0 - 1e-4 && x <= r.x1 + 1e-4 && z >= r.z0 - 1e-4 && z <= r.z1 + 1e-4);
-  const p = v.paseo;
+  const p = v.paseo!;
   check('aterrizaje de la ruta lateral (pared izquierda) es transitable', insideWalk(out.portal.sideExitX, out.portal.sideZ), `(${out.portal.sideExitX}, ${out.portal.sideZ})`);
   check('esquina y acera frontal de la ruta oficial transitables', insideWalk(p.sideX, p.cornerZ) && insideWalk(p.sideX, -5.7) && insideWalk(2.4, p.frontZ), `(${p.sideX}, ${p.cornerZ}) → (${2.4}, ${p.frontZ})`);
   const zebra = out.walk.find((r) => r.z0 <= -11.6 + 1e-4 && r.z1 >= -7 - 1e-4);
