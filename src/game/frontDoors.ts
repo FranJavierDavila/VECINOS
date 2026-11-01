@@ -18,15 +18,22 @@ export interface DoorSpan {
   x1: number;
 }
 
-/** Vanos de la fachada frontal de un bloque (x de mundo). [] = sin disciplina (viviendas). */
+/** Vanos de la fachada frontal de un bloque (x de mundo): la hoja de privacidad de cada
+ *  vivienda (v1.68), los vanos de los locales y la apertura real del portal. */
 export function frontDoorSpans(view: Rules['view'], b: BlockInstance): DoorSpan[] {
-  if (b.kind === 'dwelling') return [];
   const a = b.cell.col * view.cellW;
   const z = (b.cell.col + b.size.w) * view.cellW;
   const cx = (a + z) / 2;
   const loc = view.locals;
   const pad = loc.walkIn?.doorPad ?? 0.05;
   const span = (w: number, x: number): DoorSpan[] => [{ x0: x - w / 2 - pad, x1: x + w / 2 + pad }];
+  // v1.68 — LA VIVIENDA TAMBIÉN TIENE VANO: su hoja de privacidad (privacy.doorW) centrada
+  // en cx — la MISMA caja que dibuja building.ts (pv.doorW, línea de la hoja). Antes
+  // «[] = sin disciplina»: la vivienda estaba «delante» en TODO su ancho y la auto-entrada
+  // de v1.40 saltaba al ROZAR el tabique (el borde de la célula) — el vecino iba pegado a
+  // la pared del pasillo y se colaba dentro sin pasar por la puerta. «Delante de tu
+  // puerta» es EN el hueco de la hoja, la misma disciplina que v1.46 dio a los locales.
+  if (b.kind === 'dwelling') return span(view.privacy.doorW, cx);
   switch (b.defId) {
     case 'trasteros': {
       const tc = loc.trasteroComunal;
@@ -49,8 +56,9 @@ export function frontDoorSpans(view: Rules['view'], b: BlockInstance): DoorSpan[
 
 /**
  * x (mundo) del vano por el que cruzar la fachada de un bloque: el centro del vano más
- * cercano a `preferX` (las celdas de trasteros eligen SU puerta). Viviendas: el centro del
- * bloque (la hoja de privacidad vive en cx). Locales sin puerta (lavandería): undefined.
+ * cercano a `preferX` (las celdas de trasteros eligen SU puerta). Viviendas: el centro de
+ * SU hoja (cx — la hoja de privacidad vive en el centro del bloque). Locales sin puerta
+ * (lavandería): undefined.
  */
 export function frontDoorX(view: Rules['view'], b: BlockInstance, preferX?: number): number | undefined {
   const a = b.cell.col * view.cellW;

@@ -281,19 +281,28 @@ export class PlayerLogic {
    *  v1.46 — LOS LOCALES SOLO «ESTÁN DELANTE» EN SU PUERTA: el aviso, la E y el empujón
    *  viven en el HUECO del vano (mismas medidas que dibuja building.ts, del catálogo);
    *  al lado de la ventana la fachada es pared — nada que activar. Así se entra y se
-   *  sale por la puerta (el vecino: «no atravesando las paredes como ahora»). */
+   *  sale por la puerta (el vecino: «no atravesando las paredes como ahora»). *
+   *  v1.68 — LA DISCIPLINA ES PARA TODOS (locales Y viviendas): `within` daba toda la
+   *  fachada del bloque, así que andando pegado a la pared del pasillo, CRUZAR EL BORDE
+   *  del bloque (el tabique con el vecino) disparaba la auto-entrada v1.40 y te metía en
+   *  casa sin pasar por la puerta (bug del vecino: «pegado a la pared de la planta 3, a
+   *  la altura del tabique, me meto dentro sin entrar por la puerta»). Ahora la vivienda
+   *  solo «está delante» EN SU VANO — la hoja de privacidad (privacy.doorW + doorPad) que
+   *  frontDoorSpans declara como el resto de fachadas, UNA sola verdad: aviso, E, timbre
+   *  y auto-entrada viven todos en la puerta. */
   doorInFront(): BlockInstance | null {
     if (this.mode !== 'corridor') return null;
     if (this.onOuterLane()) return null;
     const b = this.onFloor(this.floor).find((t) => this.isDoorTarget(t) && this.within(this.x, t)) ?? null;
-    if (b && b.kind !== 'dwelling' && !this.atDoorGap(b)) return null;
+    if (b && !this.atDoorGap(b)) return null;
     return b;
   }
 
   /** v1.46 — HUECOS DE PUERTA de un bloque (x de mundo): los MISMOS vanos que dibuja
    *  building.ts, medidos con el catálogo — UNA sola verdad compartida con los vecinos
    *  (src/game/frontDoors.ts). v1.47: el portal mide su apertura REAL (2 × slide).
-   *  [] = sin disciplina de hueco (viviendas: siempre por su hoja central). */
+   *  v1.68: las viviendas declaran SU vano (la hoja de privacidad centrada en cx) —
+   *  ya no hay fachada «sin disciplina»: toda puerta se cruza por su hueco. */
   private doorSpansOf(b: BlockInstance): { x0: number; x1: number }[] {
     return frontDoorSpans(this.view, b);
   }
@@ -798,7 +807,11 @@ export class PlayerLogic {
       // siguiente (el aterrizaje z=0.45 ya está ≤ exitZ): entrar y salir era un bucle.
       if (ownHome || locale || visitorExit) {
         if (this.z > armZ) this.exitArmed = true;
-        else if (this.exitArmed && input.down && this.z <= exitZ && (ownHome || this.atDoorGap(home))) {
+        // v1.68 — la salida ANDANDO también EXIGE SU VANO: antes ownHome la eximía (y con
+        // la vivienda sin vano, atDoorGap daba true siempre) y se podía salir empujando S
+        // rozando el tabique — el simétrico del informe de entrada. La E dentro sigue
+        // valiendo desde cualquier punto de la vivienda (salida clásica, interactInside).
+        else if (this.exitArmed && input.down && this.z <= exitZ && this.atDoorGap(home)) {
           const r = this.tryExitHome();
           if (r.type === 'exited') this.autoEvents.push(r);
         }
