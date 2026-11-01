@@ -1486,6 +1486,21 @@ export const rulesSchema = z.object({
         casters: z.array(z.string()).default([]),
         receivers: z.array(z.string()).default([]),
         excluded: z.array(z.string()).default([]),
+        /** v1.63 — SOMBRA DE CONTACTO (petición del vecino: «una sombra de contacto simulada
+         *  entre el personaje y el suelo») — blob bajo los pies, pegado al suelo real. */
+        contact: z
+          .object({
+            enabled: z.boolean().default(true),
+            radius: z.number().positive().default(0.46),
+            opacity: z.number().min(0).max(1).default(0.4),
+            color: z.string().default('#0c0d10'),
+            offset: z.number().positive().default(0.022),
+            maxRise: z.number().positive().default(2.6),
+            stretch: z.number().min(0).default(0.35),
+            rayEvery: z.number().positive().default(0.09),
+            rayUp: z.number().positive().default(0.55),
+          })
+          .optional(),
       })
       .default({ enabled: false, mapSize: 2048, darkness: 0.32, bias: 0.0008, normalBias: 0.012, casters: [], receivers: [], excluded: [] }),
     /** v1.32 — TEXTOS data-driven: palabras ordinales de planta por idioma (los textos

@@ -9,6 +9,7 @@ import { stairGeomOf, stairPathPoints } from '@/game/stairs';
 import { horizontalLegs } from '@/game/routing';
 import { isStorageColumnBlock, storageDoorPoint } from '@/game/storage';
 import { frontDoorX } from '@/game/frontDoors';
+import { createContactShadows, type ContactShadowSystem } from './contact-shadow';
 import type { ElevatorsDirector } from './elevator';
 
 /** Plano frontal de las viviendas: z local 0 de los interiores (la cara de la puerta). */
@@ -187,6 +188,9 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
   const v = content.rules.view;
   // v1.43 — configuración del LOD de personaje (catálogo character-details.json).
   const detailCfg = content.characterDetails?.lod ?? null;
+  // v1.63 — SOMBRA DE CONTACTO: disco bajo los pies de cada personaje (catálogo
+  // rules.view.shadows.contact); el pase por frame vive al final del bucle de update.
+  const contact = createContactShadows(scene, content.rules.view.shadows?.contact);
   const actors = new Map<string, Actor>();
 
   /** Crea la cápsula de un residente (greybox/fallback) y lanza la carga del modelo si el manifiesto lo declara. */
@@ -492,6 +496,7 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
       for (const id of gone) {
         const a = actors.get(id)!;
         actors.delete(id);
+        contact?.remove(id); // v1.63 — fuera también su sombra de contacto
         a.detail?.dispose();
         if (a.rig) a.rig.dispose();
         else if (a.node instanceof B().Mesh) a.node.dispose(false, true);
@@ -1036,6 +1041,9 @@ export function createActors(scene: Scene, world: World, content: Content, eleva
           a.detail.setEnabled(false);
         }
       }
+      // v1.63 — SOMBRA DE CONTACTO: pase propio tras la locomoción (el disco lee la
+      // posición FINAL del frame; oculta solos los cuerpos fuera de escena o fundidos).
+      contact?.update(actors);
     },
     /** Dirección de cutscenes (Fase D): toma/coloca/ruta/suelta actores como teatro. */
     director: {

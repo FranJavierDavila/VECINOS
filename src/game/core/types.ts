@@ -1826,6 +1826,29 @@ export interface Rules {
       casters: string[];
       receivers: string[];
       excluded: string[];
+      /** v1.63 — SOMBRA DE CONTACTO (blob): disco oscuro bajo los pies de cada personaje
+       *  (jugador, vecinos y avatares remotos). Sigue al cuerpo y se PEGA al suelo real
+       *  (raycast hacia abajo con reposo: los parados no re-rayan), de modo que el personaje
+       *  parece APOYADO en el suelo aunque la sombra direccional del sol caiga lejos. */
+      contact?: {
+        enabled: boolean;
+        /** Radio del disco en m (los pies del personaje quedan dentro). */
+        radius: number;
+        /** Opacidad máxima en el centro (0..1). */
+        opacity: number;
+        /** Tinte del disco (hex; negro = sombra clásica). */
+        color: string;
+        /** Separación sobre el suelo en m (anti-coplanar: nunca 0). */
+        offset: number;
+        /** Altura sobre el suelo a la que la sombra ya no se ve (m). */
+        maxRise: number;
+        /** Ensanchamiento del disco por metro de altura (difusión con la distancia). */
+        stretch: number;
+        /** Segundos entre raycasts por personaje en movimiento (los parados no re-rayan). */
+        rayEvery: number;
+        /** Altura del origen del rayo sobre los pies (m). */
+        rayUp: number;
+      };
     };
     /** v1.32 — palabras ordinales de planta por idioma para los textos data-driven. */
     texts?: {

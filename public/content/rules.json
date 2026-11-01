@@ -1699,8 +1699,20 @@
         "_tex",
         "decal_",
         "_bombo",
-        "losas"
-      ]
+        "losas",
+        "contact_shadow"
+      ],
+      "contact": {
+        "enabled": true,
+        "radius": 0.46,
+        "opacity": 0.4,
+        "color": "#0c0d10",
+        "offset": 0.022,
+        "maxRise": 2.6,
+        "stretch": 0.35,
+        "rayEvery": 0.09,
+        "rayUp": 0.55
+      }
     },
     "graffiti": {
       "cabinMin": 1,
