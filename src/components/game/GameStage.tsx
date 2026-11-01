@@ -216,6 +216,8 @@ export default function GameStage() {
       <MinigameModal />
       <FinaleModal onClose={() => getController()?.finaleClose()} />
       <ToastStack onDismiss={(id) => useGameStore.getState().dropToast(id)} />
+      {/* v1.66 — el banner de MÁXIMA PRIORIDAD vive en page.tsx (sobre el wrapper del
+          escenario, SIN overflow-hidden: la cinta del postit no se recorta). */}
       <TouchControls />
       {/* v1.39 — tutorial del primer día + menú de pausa de verdad */}
       <TutorialCard />

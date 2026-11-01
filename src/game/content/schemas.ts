@@ -2280,13 +2280,16 @@ export const rulesSchema = z.object({
       })
       .optional(),
     /** v1.65 — CUADERNO SOBRE EL ESCENARIO (panel de información): altura máxima del panel
-     *  como fracción del escenario (0.5 = media ventana de juego) y alertas post-it on/off. */
+     *  como fracción del escenario (0.5 = media ventana de juego) y alertas post-it on/off.
+     *  v1.66 — banner de MÁXIMA PRIORIDAD: duración en pantalla (ms) y tamaño máximo de cola. */
     infoDock: z
       .object({
         overlayMaxHeightFactor: z.number().min(0.2).max(1).default(0.5),
         alerts: z.boolean().default(true),
+        bannerShowMs: z.number().min(1500).max(20000).default(6000),
+        bannerQueueMax: z.number().min(1).max(12).default(6),
       })
-      .default({ overlayMaxHeightFactor: 0.5, alerts: true }),
+      .default({ overlayMaxHeightFactor: 0.5, alerts: true, bannerShowMs: 6000, bannerQueueMax: 6 }),
     /** v1.42 — ZONAS CIEGAS de la cortina de la vista FACHADA: bandas opacas arriba y
      *  abajo de cada nivel + paneles ciegos deterministas, con el acabado de las fachadas
      *  de fondo (tint/windowColor del backdrop). NADA coplanar: detrás del vidrio. */

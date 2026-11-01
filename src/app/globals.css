@@ -339,32 +339,80 @@
   animation: pageflip-prev 0.26s cubic-bezier(0.2, 0.8, 0.3, 1);
 }
 
-/* ── v1.65 — ALERTA POSTIT sobre las pestañas del cuaderno ──
-   Nota adhesiva grande y visible sobre el botón (novedades sin consultar):
-   papel amarillo, tinta roja y meneo constante para que no pase desapercibida. */
+/* ── v1.65/1.66 — ALERTA POSTIT sobre las pestañas del cuaderno ──
+   Nota adhesiva GRANDE e imposible de ignorar (novedades sin consultar):
+   papel amarillo, tinta roja, borde rojo, meneo constante y RESPLANDOR pulsante —
+   las misiones y logros marcan la evolución del juego: MÁXIMA PRIORIDAD (v1.66). */
 .postit-alert {
   position: absolute;
-  top: -11px;
-  right: -11px;
+  top: -15px;
+  right: -15px;
   z-index: 6;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 27px;
-  height: 27px;
+  width: 37px;
+  height: 37px;
   color: #b91c1c;
-  font-size: 13px;
-  font-weight: 800;
+  font-size: 18px;
+  font-weight: 900;
   line-height: 1;
   background: var(--paper);
-  box-shadow: 2px 3px 6px rgb(0 0 0 / 0.28);
+  border: 1.5px solid rgb(185 28 28 / 0.45);
+  border-radius: 3px 5px 4px 6px;
+  box-shadow:
+    2px 4px 7px rgb(0 0 0 / 0.3),
+    0 0 0 2px rgb(217 45 32 / 0.12);
   transform: rotate(9deg);
   pointer-events: none;
-  animation: postit-alert-wiggle 1.15s ease-in-out infinite;
+  animation: postit-alert-wiggle 1.05s ease-in-out infinite;
 }
 @keyframes postit-alert-wiggle {
-  0%, 100% { transform: rotate(9deg) scale(1); }
-  50% { transform: rotate(-7deg) scale(1.14); }
+  0%, 100% {
+    transform: rotate(9deg) scale(1);
+    filter: drop-shadow(0 0 1px rgb(217 45 32 / 0.35));
+  }
+  50% {
+    transform: rotate(-8deg) scale(1.18);
+    filter: drop-shadow(0 0 7px rgb(217 45 32 / 0.75));
+  }
+}
+
+/* v1.66 — ANILLO DE ALERTA en el botón que tiene novedades sin consultar:
+   onda roja expansiva alrededor del post-it (se ve incluso de reojo). */
+.postit-alert-ring {
+  animation: postit-alert-ring 1.5s ease-out infinite;
+}
+@keyframes postit-alert-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgb(217 45 32 / 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 9px rgb(217 45 32 / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(217 45 32 / 0);
+  }
+}
+
+/* ── v1.66 — BANNER DE MÁXIMA PRIORIDAD (misión/logro/decisión sobre el escenario):
+   papel Post-it GRANDE centrado arriba, cinta adhesiva, entrada con pop y meneo suave
+   mientras está en pantalla; role=alert para lectores de pantalla. */
+.priority-banner {
+  position: relative;
+  animation: postit-pop 0.2s ease-out;
+}
+.priority-banner-paper {
+  position: relative;
+  animation: priority-banner-sway 1.6s ease-in-out infinite;
+}
+@keyframes priority-banner-sway {
+  0%, 100% {
+    transform: rotate(-0.7deg) scale(1);
+  }
+  50% {
+    transform: rotate(0.8deg) scale(1.015);
+  }
 }
 
 /* ── v1.65 — ACORDEÓN del MENÚ: plegado/desplegado suave sin medir alturas ── */
@@ -397,6 +445,9 @@
 
 @media (prefers-reduced-motion: reduce) {
   .postit-alert,
+  .postit-alert-ring,
+  .priority-banner,
+  .priority-banner-paper,
   .pageflip-next,
   .pageflip-prev {
     animation: none;

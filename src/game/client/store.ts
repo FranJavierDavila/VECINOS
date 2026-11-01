@@ -19,15 +19,43 @@ export type InfoTab = 'misiones' | 'edificio' | 'vecinos' | 'logros';
 
 // ── v1.65 — TUNING DE LA UI DEL CUADERNO (rules.view.infoDock del catálogo) ──
 /** El controlador fija estos valores al cargar el contenido (defaults en rescate). */
-let infoDockTuning = { overlayMaxHFactor: 0.5, alerts: true };
-export function setInfoDockTuning(t: { overlayMaxHeightFactor?: number; alerts?: boolean }): void {
+let infoDockTuning = { overlayMaxHFactor: 0.5, alerts: true, bannerShowMs: 6000, bannerQueueMax: 6 };
+export function setInfoDockTuning(t: {
+  overlayMaxHeightFactor?: number;
+  alerts?: boolean;
+  bannerShowMs?: number;
+  bannerQueueMax?: number;
+}): void {
   if (typeof t.overlayMaxHeightFactor === 'number' && t.overlayMaxHeightFactor >= 0.2 && t.overlayMaxHeightFactor <= 1) {
     infoDockTuning.overlayMaxHFactor = t.overlayMaxHeightFactor;
   }
   if (typeof t.alerts === 'boolean') infoDockTuning.alerts = t.alerts;
+  // v1.66 — banner de MÁXIMA PRIORIDAD (misión/logro/decisión): duración y tamaño de cola.
+  if (typeof t.bannerShowMs === 'number' && t.bannerShowMs >= 1500 && t.bannerShowMs <= 20000) {
+    infoDockTuning.bannerShowMs = t.bannerShowMs;
+  }
+  if (typeof t.bannerQueueMax === 'number' && t.bannerQueueMax >= 1 && t.bannerQueueMax <= 12) {
+    infoDockTuning.bannerQueueMax = t.bannerQueueMax;
+  }
 }
-export function getInfoDockTuning(): { overlayMaxHFactor: number; alerts: boolean } {
+export function getInfoDockTuning(): { overlayMaxHFactor: number; alerts: boolean; bannerShowMs: number; bannerQueueMax: number } {
   return infoDockTuning;
+}
+
+// ── v1.66 — BANNER DE MÁXIMA PRIORIDAD (misiones y logros imposibles de ignorar) ──
+/** Clase de aviso: decide papel, emoji y destino del botón «Abrir». */
+export type PriorityKind = 'mission_new' | 'mission_done' | 'mission_failed' | 'decision' | 'achievement';
+/** Un aviso grande en el centro-superior del escenario; se muestra UNO cada bannerShowMs. */
+export interface PriorityBannerItem {
+  /** Id monotónico: la clave React del banner nace fresca en cada aviso (animaciones limpias). */
+  id: number;
+  kind: PriorityKind;
+  /** Titular gordo (p. ej. «¡MISIÓN CONSEGUIDA!») — vive en i18n. */
+  title: string;
+  /** Detalle (título de la misión, nombre del logro…). */
+  text: string;
+  /** Pestaña del cuaderno que abre el botón «Abrir» (y la que limpia su alerta). */
+  tab: InfoTab;
 }
 
 /** Estado de la sesión multijugador en la interfaz ('off' = sin sesión). */
@@ -355,6 +383,11 @@ interface GameState {
   infoAlerts: Record<InfoTab, number>;
   bumpInfoAlert: (t: InfoTab, n?: number) => void;
   clearInfoAlert: (t: InfoTab) => void;
+  // ── v1.66 — Banner de MÁXIMA PRIORIDAD sobre el escenario (misión/logro/decisión) ──
+  /** Cola FIFO de avisos gordos (cap bannerQueueMax; el componente muestra uno cada vez). */
+  priorityQueue: PriorityBannerItem[];
+  pushPriorityBanner: (item: Omit<PriorityBannerItem, 'id'>) => void;
+  shiftPriorityBanner: () => void;
   /** v1.65 — vecino seguido por la cámara espía (null = ninguna; lo fija el controlador). */
   spyTargetId: string | null;
   setSpyTargetId: (id: string | null) => void;
@@ -511,6 +544,7 @@ export const useGameStore = create<GameState>((set) => ({
   achievementPopup: null,
   infoTab: null,
   infoAlerts: { misiones: 0, edificio: 0, vecinos: 0, logros: 0 },
+  priorityQueue: [],
   spyTargetId: null,
 
   markReady: (backend) => set({ ready: true, backend }),
@@ -598,6 +632,10 @@ export const useGameStore = create<GameState>((set) => ({
   // Sin novedad real → sin set (misma regla anti-bucle que clearAchievementNewly).
   clearInfoAlert: (t) =>
     set((s) => (s.infoAlerts[t] === 0 ? s : { infoAlerts: { ...s.infoAlerts, [t]: 0 } })),
+  // v1.66 — encola el aviso gordo (recorta por la cola: los viejos caducan, los nuevos mandan).
+  pushPriorityBanner: (item) =>
+    set((s) => ({ priorityQueue: [...s.priorityQueue, { ...item, id: nextId++ }].slice(-getInfoDockTuning().bannerQueueMax) })),
+  shiftPriorityBanner: () => set((s) => (s.priorityQueue.length === 0 ? s : { priorityQueue: s.priorityQueue.slice(1) })),
   setSpyTargetId: (spyTargetId) => set({ spyTargetId }),
   // Sin cambio de verdad → sin set: si siempre devolviera un array nuevo, el efecto que lo
   // llama re-renderizaría en bucle (Maximum update depth exceeded, cazado en E2E v1.17).
@@ -632,6 +670,7 @@ export const useGameStore = create<GameState>((set) => ({
       mpVoice: { active: false, synthetic: false, muted: false, members: [] },
       infoTab: null,
       infoAlerts: { misiones: 0, edificio: 0, vecinos: 0, logros: 0 },
+      priorityQueue: [],
       spyTargetId: null,
     }),
 }));

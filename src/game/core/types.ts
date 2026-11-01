@@ -1908,8 +1908,9 @@ export interface Rules {
      *  v1.65 — spyViewHFactor: escala del encuadre de planta para la cámara ESPÍA. */
     camera?: { estanciaFloorH: number; estanciaWidthW: number; estanciaEdgeMargin: number; fachadaViewHFactor?: number; spyViewHFactor?: number };
     /** v1.65 — cuaderno sobre el escenario: altura máxima del panel (fracción del
-     *  escenario) y alertas post-it on/off (defaults en el zod del contenido). */
-    infoDock?: { overlayMaxHeightFactor?: number; alerts?: boolean };
+     *  escenario) y alertas post-it on/off (defaults en el zod del contenido).
+     *  v1.66 — banner de MÁXIMA PRIORIDAD: bannerShowMs en pantalla y cola máxima. */
+    infoDock?: { overlayMaxHeightFactor?: number; alerts?: boolean; bannerShowMs?: number; bannerQueueMax?: number };
     /** ── Escena exterior (v1.20) ── tiras de calle frente al edificio (aceras,
      *  carretera, jardines) con sus props; defId refiere bloques con `exterior`.
      *  v1.22: orient 'z' (aceras laterales y calle transversal), gridScatter 2D con

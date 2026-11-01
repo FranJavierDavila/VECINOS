@@ -1525,6 +1525,8 @@ class GameController {
         // v1.56 — QA del canal de voz: estados de conexión de la malla de peers.
         getVoicePeers: () => this.voice?.peerStates() ?? {},
         getVoiceState: () => ({ active: this.voice !== null, synthetic: this.voice?.isSynthetic() ?? false, muted: this.voice?.isMuted() ?? false }),
+        // v1.66 — QA del banner de máxima prioridad: disparar avisos y leer la cola desde la consola.
+        getStore: () => useGameStore,
         setTouch: (v: { up?: boolean; down?: boolean; left?: boolean; right?: boolean }) => this.setTouchInput(v),
         // v1.46 — QA de locomoción determinista: despeja modales y CONGELA el bucle
         // (paused) para conducir logic.update(dt, input) a mano desde la consola sin
@@ -2169,6 +2171,8 @@ class GameController {
           store.setChoices({ mission: String(d.mission), title: String(d.title), choices: choices.map((c) => ({ id: c.id, label: c.label, hint: c.hint ?? null })) });
           store.pushLog(translate(store.lang, 'ev.juntaPending', { t: String(d.title) }), 'info');
           store.bumpInfoAlert('misiones'); // v1.65 — alerta post-it: decisión pendiente
+          // v1.66 — BANNER de máxima prioridad: la decisión no puede pasar desapercibida.
+          store.pushPriorityBanner({ kind: 'decision', title: translate(store.lang, 'banner.decision'), text: String(d.title), tab: 'misiones' });
           this.actors?.director.setGesture(this.actorId(), 'talk'); // el jugador razona en voz alta
           break;
         }
@@ -2191,6 +2195,8 @@ class GameController {
         case 'mission_activated':
           store.pushLog(translate(store.lang, 'ev.missionNew', { m: String(d.title) }), 'info');
           store.bumpInfoAlert('misiones'); // v1.65 — alerta post-it: nueva misión
+          // v1.66 — MÁXIMA PRIORIDAD: el objetivo nuevo cruza la pantalla en un post-it gordo.
+          store.pushPriorityBanner({ kind: 'mission_new', title: translate(store.lang, 'banner.missionNew'), text: String(d.title), tab: 'misiones' });
           break;
         case 'mission_completed':
           // v1.30 — post-it de CELEBRACIÓN: se pliega como origami y suelta estrellitas que
@@ -2198,6 +2204,8 @@ class GameController {
           store.pushToast(translate(store.lang, 'ev.missionDone', { m: this.titleOf(d.mission) }), 'good', { celebrate: true });
           store.pushLog(translate(store.lang, 'ev.missionDoneLog', { m: this.titleOf(d.mission) }), 'good');
           store.bumpInfoAlert('misiones'); // v1.65 — alerta post-it: misión conseguida
+          // v1.66 — MÁXIMA PRIORIDAD: banner gigante de celebración sobre el escenario.
+          store.pushPriorityBanner({ kind: 'mission_done', title: translate(store.lang, 'banner.missionDone'), text: this.titleOf(d.mission), tab: 'misiones' });
           this.syncAchievements(); // una misión caída puede cerrar varios logros a la vez
           syncCampaign(this.world!, this.content); // la misión del cargo activa el chip de presidencia
           this.tutorial.notify('mission_completed'); // v1.39 — paso «completa una tarea»
@@ -2207,6 +2215,8 @@ class GameController {
           store.pushToast(translate(store.lang, 'ev.missionFailed', { m: this.titleOf(d.mission) }), 'bad');
           store.pushLog(translate(store.lang, 'ev.missionFailedLog', { m: this.titleOf(d.mission) }), 'bad');
           store.bumpInfoAlert('misiones'); // v1.65 — alerta post-it: misión fallida
+          // v1.66 — MÁXIMA PRIORIDAD: banner gigante también para el revés.
+          store.pushPriorityBanner({ kind: 'mission_failed', title: translate(store.lang, 'banner.missionFailed'), text: this.titleOf(d.mission), tab: 'misiones' });
           break;
         case 'block_unlocked':
           store.pushToast(translate(store.lang, 'ev.blockUnlocked', { block: blockLabel(String(d.block)) }), 'good');
@@ -2670,6 +2680,19 @@ class GameController {
       for (const id of fresh) this.unlockedAchievements.add(id);
       saveUnlocked([...this.unlockedAchievements]);
       store.bumpInfoAlert('logros', fresh.length); // v1.65 — alerta post-it: logro(s) nuevo(s)
+      // v1.66 — MÁXIMA PRIORIDAD: cada logro nuevo pasa por el banner gigante (cola FIFO).
+      const langB = store.lang;
+      for (const id of fresh) {
+        const defB = catalog.achievements.find((a) => a.id === id);
+        if (defB) {
+          store.pushPriorityBanner({
+            kind: 'achievement',
+            title: translate(langB, 'banner.achievement'),
+            text: defB.name[langB] ?? defB.name.es,
+            tab: 'logros',
+          });
+        }
+      }
     }
     store.setAchievements(
       catalog.achievements.map((def) => this.achievementUi(def, this.unlockedAchievements.has(def.id), fresh.includes(def.id))),

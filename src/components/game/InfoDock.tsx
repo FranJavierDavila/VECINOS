@@ -122,8 +122,11 @@ export function InfoTabButtons() {
   const countBadge = (label: string, pulse?: boolean) => (
     <span
       className={cn(
-        'rounded-full border border-amber-600/25 bg-white/70 px-1.5 text-[9px] leading-4 font-bold text-amber-700',
-        pulse && 'animate-pulse border-orange-600/30 text-orange-700',
+        // v1.66 — contador más gordo y legible (antes 9px, pasaba desapercibido):
+        'rounded-full border px-2 py-px text-[11px] leading-4 font-black tabular-nums',
+        pulse
+          ? 'animate-pulse border-orange-600/50 bg-orange-100/90 text-orange-700'
+          : 'border-amber-600/40 bg-white/85 text-amber-700',
       )}
     >
       {label}
@@ -151,7 +154,7 @@ export function InfoTabButtons() {
             data-info-tab-btn={x.id}
             aria-label={t(x.labelKey)}
             title={t('dock.toggleHint')}
-            className="postit sketchy !h-[58px] !w-[58px]"
+            className={cn('postit sketchy !h-[58px] !w-[58px]', alertsOn && alertCount > 0 && 'postit-alert-ring')}
             style={{ background: x.paper, transform: selected ? 'scale(1.08) rotate(0deg)' : `rotate(${x.tilt}deg)` }}
             onClick={() => {
               const store = useGameStore.getState();

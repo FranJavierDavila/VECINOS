@@ -4,6 +4,7 @@ import GameStage from '@/components/game/GameStage';
 import { PostItControls } from '@/components/game/PostItControls';
 import { HudBar } from '@/components/game/HudBar';
 import { InfoOverlay } from '@/components/game/InfoDock';
+import { PriorityBanner } from '@/components/game/PriorityBanner';
 import { AchievementPopup } from '@/components/game/AchievementPopup';
 import { PwaRegister } from '@/components/game/PwaRegister';
 import { useT } from '@/game/client/i18n';
@@ -35,10 +36,13 @@ export default function Home() {
         </div>
 
         {/* El panel de información se despliega POR ENCIMA del escenario (≤ media ventana
-            de juego, con scroll propio; pinchando fuera se vuelve a ver solo el juego). */}
+            de juego, con scroll propio; pinchando fuera se vuelve a ver solo el juego).
+            v1.66 — el banner de MÁXIMA PRIORIDAD (misión/logro/decisión) cuelga sobre
+            el escenario para que el jugador JAMÁS se despiste de sus objetivos. */}
         <div className="relative">
           <GameStage />
           <InfoOverlay />
+          <PriorityBanner />
         </div>
 
         <HudBar />

@@ -27,7 +27,7 @@ const DICT: Record<string, { es: string; en: string }> = {
     es: 'Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.',
     en: 'Move-ins, noise, smells, wifi, pests, smoke and levies: the neighborhood simulator.',
   },
-  'header.version': { es: 'v1.65 · HUD de juego limpio: MENÚ acordeón, postits con alertas y cámaras 1-5 con Espía', en: 'v1.65 · clean game HUD: accordion MENU, alert post-its and cameras 1-5 with Spy' },
+  'header.version': { es: 'v1.66 · misiones y logros de MÁXIMA PRIORIDAD: banner gigante, badge post-it grande y anillo de alerta', en: 'v1.66 · missions & achievements at MAXIMUM priority: giant banner, big post-it badge and alert ring' },
   // ── Apagón de assets (v1.47: servidor de arte caído → mundo vacío/cápsulas) ──
   'assets.outage': {
     es: '⚠ No se pudo cargar el arte del juego (¿servidor caído?). El vecindario se recargará en {n} s…',
@@ -221,6 +221,16 @@ const DICT: Record<string, { es: string; en: string }> = {
   'dock.close': { es: 'Cerrar el panel', en: 'Close the panel' },
   'dock.alertAria': { es: '{n} novedades en {tab}', en: '{n} updates in {tab}' },
   'dock.alert': { es: '¡Novedades!', en: 'New stuff!' },
+  // ── v1.66: banner de MÁXIMA PRIORIDAD (misión/logro/decisión imposible de ignorar) ──
+  'banner.missionNew': { es: 'NUEVA MISIÓN', en: 'NEW MISSION' },
+  'banner.missionDone': { es: '¡MISIÓN CONSEGUIDA!', en: 'MISSION COMPLETED!' },
+  'banner.missionFailed': { es: 'MISIÓN FALLIDA', en: 'MISSION FAILED' },
+  'banner.decision': { es: '¡DECISIÓN PENDIENTE!', en: 'DECISION REQUIRED!' },
+  'banner.achievement': { es: '¡LOGRO DESBLOQUEADO!', en: 'ACHIEVEMENT UNLOCKED!' },
+  'banner.open': { es: 'Abrir', en: 'Open' },
+  'banner.openAria': { es: 'Abrir {tab} para ver el detalle', en: 'Open {tab} to see details' },
+  'banner.dismiss': { es: 'Cerrar aviso', en: 'Dismiss notice' },
+  'banner.aria': { es: 'Aviso importante: {t}', en: 'Important notice: {t}' },
   'missions.page.active': { es: 'En curso', en: 'In progress' },
   'missions.page.archive': { es: 'Archivo', en: 'Archive' },
   'missions.archiveEmpty': { es: 'Aún no hay misiones terminadas.', en: 'No finished missions yet.' },

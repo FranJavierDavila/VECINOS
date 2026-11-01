@@ -1944,7 +1944,9 @@
     },
     "infoDock": {
       "overlayMaxHeightFactor": 0.5,
-      "alerts": true
+      "alerts": true,
+      "bannerShowMs": 6000,
+      "bannerQueueMax": 6
     },
     "alerts": {
       "thresholds": {
