@@ -27,7 +27,7 @@ const DICT: Record<string, { es: string; en: string }> = {
     es: 'Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.',
     en: 'Move-ins, noise, smells, wifi, pests, smoke and levies: the neighborhood simulator.',
   },
-  'header.version': { es: 'v1.64 · timbre que abre y llamada sin congelar el mundo', en: 'v1.64 · doorbell that opens and phone call that no longer freezes the world' },
+  'header.version': { es: 'v1.64 · timbre que abre, llamada sin congelar y comunidad sincronizada', en: 'v1.64 · doorbell that opens, unfrozen phone call and a synced community' },
   // ── Apagón de assets (v1.47: servidor de arte caído → mundo vacío/cápsulas) ──
   'assets.outage': {
     es: '⚠ No se pudo cargar el arte del juego (¿servidor caído?). El vecindario se recargará en {n} s…',
