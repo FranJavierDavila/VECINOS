@@ -4,7 +4,7 @@
  *      sprites, puerta), capas declaradas por tipo de estancia (2-3 capas) y cobertura de
  *      los 4 tipos de estancia del juego + trastero.
  *   2. Sonidos de hucha (sounds.json): hucha_in (caja registradora) y hucha_out (hucha rota)
- *      existen y son secuencias con pasos.
+ *      existen y son reproducibles (secuencia v1.22 o sample v1.70).
  *   3. Escalera v1.23: el encadenado por plantas produce peldaños de UNA planta (nada de
  *      peldaños de media planta en subidas de 2+); la bajada es el reverso exacto.
  *   4. Vida de calle en Planta: el gating del controlador incluye la cámara 'planta'.
@@ -73,8 +73,15 @@ check('sprites dentro del rect (u/v 0..1) y con tamaño positivo', !!ic && Objec
 const snd = content.sounds;
 const huchaIn = snd?.sounds['hucha_in'];
 const huchaOut = snd?.sounds['hucha_out'];
-check('hucha_in (caja registradora) existe y es secuencia', huchaIn?.kind === 'seq' && huchaIn.steps.length >= 3, `${huchaIn?.kind} · ${huchaIn?.kind === 'seq' ? huchaIn.steps.length : 0} pasos`);
-check('hucha_out (hucha rota) existe y es secuencia', huchaOut?.kind === 'seq' && huchaOut.steps.length >= 3, `${huchaOut?.kind} · ${huchaOut?.kind === 'seq' ? huchaOut.steps.length : 0} pasos`);
+const isPlayable = (s: { kind: string; file?: string; steps?: unknown[] } | undefined): boolean =>
+  !!s && (s.kind === 'file' ? !!s.file : s.kind === 'seq' && (s.steps?.length ?? 0) >= 3);
+const asSpec = (s: unknown): { kind: string; file?: string; steps?: unknown[] } | undefined => s as { kind: string; file?: string; steps?: unknown[] } | undefined;
+const detail = (s: unknown): string => {
+  const x = asSpec(s);
+  return x ? `${x.kind} · ${x.file ?? (x.kind === 'seq' ? x.steps?.length ?? 0 : 0)}` : 'ausente';
+};
+check('hucha_in (caja registradora) existe y es reproducible', isPlayable(huchaIn), detail(huchaIn));
+check('hucha_out (hucha rota) existe y es reproducible', isPlayable(huchaOut), detail(huchaOut));
 check('suena DISTINTO al ganar que al perder', JSON.stringify(huchaIn) !== JSON.stringify(huchaOut));
 
 // ── 3. Escalera v1.23 (encadenado por plantas) ──

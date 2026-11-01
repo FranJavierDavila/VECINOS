@@ -900,6 +900,10 @@ export interface MusicContext {
   leadGain: number;
   leadDensity: number;
   waves: { pad: MusicWave; lead: MusicWave; bass: MusicWave };
+  /** v1.70 — loop grabado del contexto (WAV estéreo en bucle por el bus). Presente → el
+   *  director lo prefiere a la síntesis; si el fichero falla, la síntesis de v1.39 manda. */
+  file?: string;
+  fileGain?: number;
 }
 
 export interface MusicCatalog {

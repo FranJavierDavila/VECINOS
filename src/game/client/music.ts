@@ -49,6 +49,77 @@ export function createMusicDirector(catalog: MusicCatalog): MusicDirector {
   let rainGain: GainNode | null = null;
   let rainSource: AudioBufferSourceNode | null = null;
 
+  // ── v1.70 — LOOPS GRABADOS por contexto (si el catálogo declara `file`) ──
+  // Carga perezosa + caché; si el fichero falla se cachea null y ese contexto suena
+  // con la síntesis de v1.39 (la partida NUNCA se rompe por audio). El cambio de
+  // contexto hace cross-fade en el borde de compás (como la síntesis).
+  const loopBuffers = new Map<CtxName, AudioBuffer | null>();
+  const loopTried = new Set<CtxName>();
+  let loopSrc: AudioBufferSourceNode | null = null;
+  let loopGain: GainNode | null = null;
+  let loopCtx: CtxName | null = null;
+
+  const loadLoop = async (name: CtxName): Promise<AudioBuffer | null> => {
+    if (loopTried.has(name)) return loopBuffers.get(name) ?? null;
+    loopTried.add(name);
+    const file = catalog.contexts[name]?.file;
+    if (!file || !ctx) return null;
+    try {
+      const res = await fetch(file);
+      if (!res.ok) throw new Error(String(res.status));
+      const buf = await ctx.decodeAudioData(await res.arrayBuffer());
+      loopBuffers.set(name, buf);
+      return buf;
+    } catch {
+      loopBuffers.set(name, null);
+      return null;
+    }
+  };
+
+  /** Arranca (o cambia) el loop del contexto en el instante dado, con micro-fade. */
+  const startLoopAt = (name: CtxName, at: number): void => {
+    if (!ctx || !bus) return;
+    const buf = loopBuffers.get(name);
+    if (!buf) return;
+    if (loopGain) {
+      loopGain.gain.setTargetAtTime(0, ctx.currentTime, 0.25); // salida suave del anterior
+      const old = loopSrc;
+      setTimeout(() => {
+        try {
+          old?.stop();
+        } catch {
+          /* ya parado */
+        }
+      }, 900);
+    }
+    const g = ctx.createGain();
+    const fg = catalog.contexts[name]?.fileGain ?? 1;
+    g.gain.value = 0.0001;
+    g.gain.setTargetAtTime(fg, at, 0.3);
+    g.connect(bus);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    src.connect(g);
+    src.start(at);
+    loopSrc = src;
+    loopGain = g;
+    loopCtx = name;
+  };
+
+  const stopLoop = (): void => {
+    if (loopSrc && ctx) {
+      try {
+        loopSrc.stop();
+      } catch {
+        /* ya parado */
+      }
+    }
+    loopSrc = null;
+    loopGain = null;
+    loopCtx = null;
+  };
+
   const targetBusGain = (): number => {
     if (!enabled) return 0;
     return catalog.masterGain;
@@ -164,7 +235,25 @@ export function createMusicDirector(catalog: MusicCatalog): MusicDirector {
         pendingCtx = null;
         chordIdx = 0;
       }
-      scheduleBar(nextBarTime, name);
+      // v1.70 — si el contexto declara loop grabado, manda el fichero (síntesis = fallback).
+      const wantsFile = !!catalog.contexts[name]?.file;
+      if (wantsFile && loopCtx === name && loopSrc) {
+        // loop ya sonando para este contexto: nada que agendar
+      } else if (wantsFile) {
+        void loadLoop(name).then((buf) => {
+          if (buf && currentCtx === name && !disposed && ctx) {
+            startLoopAt(name, Math.max(ctx.currentTime + 0.02, nextBarTime - barLen)); // entra ya, sin esperar otro borde
+            return;
+          }
+          // sin fichero (fallo o contexto cambió): la síntesis cubre ese compás
+          if (currentCtx === name && !disposed) scheduleBar(nextBarTime, name);
+        });
+        // mientras carga, síntesis (evita silencio en el primer compás)
+        if (!loopBuffers.has(name)) scheduleBar(nextBarTime, name);
+      } else {
+        if (loopCtx !== null) stopLoop();
+        scheduleBar(nextBarTime, name);
+      }
       nextBarTime += barLen;
     }
   };
@@ -205,6 +294,7 @@ export function createMusicDirector(catalog: MusicCatalog): MusicDirector {
       disposed = true;
       if (timer !== null) clearInterval(timer);
       timer = null;
+      stopLoop();
       try {
         rainSource?.stop();
       } catch {

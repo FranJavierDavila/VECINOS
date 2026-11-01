@@ -3042,6 +3042,11 @@ export const musicCatalogSchema = z.object({
         lead: z.enum(['sine', 'triangle', 'sawtooth', 'square']).default('triangle'),
         bass: z.enum(['sine', 'triangle', 'sawtooth', 'square']).default('sine'),
       }),
+      /** v1.70 — LOOP GRABADO del contexto (opcional): WAV estéreo en bucle por el bus.
+       *  Presente → el director lo prefiere a la síntesis (sonido producido). Si el fichero
+       *  falla o no existe, la síntesis generativa de v1.39 sigue mandando sin romper nada. */
+      file: z.string().optional(),
+      fileGain: z.number().min(0).max(1).default(1),
     }),
   ).refine((c) => ['morning', 'afternoon', 'evening', 'night'].every((k) => k in c), {
     message: 'necesita contextos morning/afternoon/evening/night',

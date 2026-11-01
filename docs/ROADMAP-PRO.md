@@ -30,12 +30,25 @@
   sim corriendo (27 bloques / 15 residentes / tick avanza), diálogo de intro interactivo.
 - Deuda documentada pre-existente (no era de Fase H): qa-v128 2✗, qa-v129 2✗, qa-v142 15✗ (paseos E2E).
 
-### FASE S — Sonido profesional (3-4 días)
-- Top 10-15 SFX con samples reales CC0 (timbre, pasos, puertas, dinero, victoria, escalera).
-- Bus de reverb/mixer sobre el motor Web Audio actual (audio.ts cuelga del masterGain).
-- 1-2 loops de música reales (menú + capa competitiva); el procedural queda como fallback.
-- Respetar la disciplina data-driven: catálogo en `public/content/sounds.json`/`music.json`,
-  sin hardcodear rutas de ficheros en código.
+### FASE S — Sonido profesional ✅ COMPLETADA (2026-11-02)
+- 22 SFX clave renderizados como WAV reales (public/art/audio/sfx/*.wav, 2.3 MB): puertas,
+  dinero (coins/hucha), victoria/derrota, minijuegos, mazo, sello, taladro, teléfono, viento,
+  sirena, claxon, frenazo, pelea, trueno, UI. DSP enriquecido: parciales aditivos/FM,
+  transitorios filtrados, reverb Schroeder, limitador + normalización −1 dBFS.
+- 4 loops de música reales por contexto horario (morning/afternoon/evening/night, estéreo
+  32 kHz, 4 compases, loop perfecto por foldback) compuestos con las REGLAS de music.json.
+- Renderizador offline determinista `scripts/gen-audio-v170.ts` (semilla fija → bytes
+  reproducibles; verificado por qa-v170 con triple hash). Cero licencias, cero red.
+- Contrato data-driven intacto: `sounds.json` (kind:'file' + gain) y `music.json`
+  (context.file + fileGain, opcional) siguen siendo la única verdad; sin rutas en código.
+- Degradación elegante intacta: si un fichero falta, la síntesis procedural de v1.39/1.48
+  cubre esa clave (audio.ts ya soportaba kind:'file' desde v1.48 con caché; music.ts v1.70
+  añade la vía de loops con cross-fade en borde de compás y fallback).
+- QA nueva: `scripts/qa-v170-audio.ts` (33 checks: esquemas, WAV sanos, cobertura de
+  eventos, 22 upgrades, 4 loops, determinismo, timbre v1.48 preservado) — 33/0 VERDE.
+- qa-v123 actualizado: hucha_in/out ahora «reproducible» (seq o file) en vez de exigir seq.
+- Verificado en navegador: el AudioContext real decodifica SFX mono y loops estéreo
+  (mismo sampleRate/duración), 0 errores de consola; tsc 0 · eslint limpio.
 
 ### FASE V — Visual de 1ª línea (4-6 días)
 - Matar los ~670 coplanares con la técnica juntas/soleras (v1.19) sistematizada.
