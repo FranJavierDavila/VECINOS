@@ -68,14 +68,17 @@ const info = await ev<Record<string, unknown>>(`(() => {
   const res = (id) => w.residents[id];
   // dueño en casa: presente y location == su vivienda
   const inHome = homes.find(b => { const o = res(b.ownerId); return o && o.present && o.location === b.id; }) || null;
-  // dueño presente pero FUERA (location != vivienda)
+  // dueño presente pero FUERA (location != vivienda): el timbre ABRE (v1.64: el knock lo trae)
   const awayHome = homes.find(b => { const o = res(b.ownerId); return o && o.present && o.location !== b.id; }) || null;
+  // dueño AUSENTE del vecindario (present false): el timbre NO abre (nadie puede abrir)
+  const absentHome = homes.find(b => { const o = res(b.ownerId); return o && !o.present; }) || null;
   return {
     me,
     tick: w.tick,
     scenario: w.scenarioId,
     inHome: inHome ? { id: inHome.id, owner: inHome.ownerId, floor: inHome.cell.floor, col: inHome.cell.col, access: inHome.access, ownerLoc: res(inHome.ownerId).location, ownerActivity: res(inHome.ownerId).activity } : null,
     awayHome: awayHome ? { id: awayHome.id, owner: awayHome.ownerId, floor: awayHome.cell.floor, access: awayHome.access, ownerLoc: res(awayHome.ownerId).location } : null,
+    absentHome: absentHome ? { id: absentHome.id, owner: absentHome.ownerId, floor: absentHome.cell.floor, access: absentHome.access, ownerLoc: res(absentHome.ownerId).location } : null,
     totalHomes: homes.length,
   };
 })()`);
@@ -83,7 +86,7 @@ console.log('· info:', JSON.stringify(info));
 check('A1 hay vivienda ajena ocupada con dueño EN CASA', !!info.inHome, JSON.stringify(info.inHome));
 
 if (info.inHome) {
-  const blk = info.inHome.id as string;
+  const blk = (info.inHome as { id: string }).id;
   // Teleport al pasillo delante de esa puerta y llamar con E (controlador real).
   const before = await ev<Record<string, unknown>>(`(() => {
     const qa = window.__vecinosQa;
@@ -143,9 +146,11 @@ if (info.inHome) {
   check('B1 spam de E durante el timbre no rompe el estado', endInside.mode === 'inside' || endInside.mode === 'corridor', JSON.stringify(spam.end));
 }
 
-// ── C. Dueño presente pero FUERA: timbre suena, nadie abre, NO se entra ──
-if (info.awayHome) {
-  const blk2 = info.awayHome.id as string;
+// ── C. Timbre según QUIÉN puede abrir (diseño v1.64) ──
+//  · dueño AUSENTE del vecindario: nadie abre → NO se entra.
+//  · dueño presente FUERA de casa: el knock lo trae caminando → SÍ se entra.
+if (info.absentHome) {
+  const blk2 = (info.absentHome as { id: string }).id;
   const away = await ev<Record<string, unknown>>(`(() => {
     const qa = window.__vecinosQa;
     const ctrl = qa.getController();
@@ -155,8 +160,24 @@ if (info.awayHome) {
     const p = logic.position();
     return { mode: p.mode, inside: p.insideBlock, floor: p.floor };
   })()`);
-  console.log('· dueño fuera:', JSON.stringify(away));
-  check('C1 dueño fuera: timbre suena y NO se entra (diseño: alguien debe abrir)', away.mode !== 'inside' || away.inside !== blk2, JSON.stringify(away));
+  console.log('· dueño ausente:', JSON.stringify(away));
+  check('C1 dueño AUSENTE: timbre suena y NO se entra (nadie puede abrir)', away.mode !== 'inside' || away.inside !== blk2, JSON.stringify(away));
+} else {
+  console.log('· C1 sin dueño ausente en el vecindario: prueba omitida');
+}
+if (info.awayHome) {
+  const blk3 = (info.awayHome as { id: string }).id;
+  const brought = await ev<Record<string, unknown>>(`(() => {
+    const qa = window.__vecinosQa;
+    const ctrl = qa.getController();
+    const logic = qa.getLogic();
+    logic.teleportTo('${blk3}');
+    ctrl.interact();
+    const p = logic.position();
+    return { mode: p.mode, inside: p.insideBlock, floor: p.floor };
+  })()`);
+  console.log('· dueño fuera pero presente:', JSON.stringify(brought));
+  check('C2 dueño PRESENTE fuera: el timbre lo trae y se entra (diseño v1.64)', brought.mode === 'inside' && brought.inside === blk3, JSON.stringify(brought));
 }
 
 // ── D. Sim: knock registró afinidad y evento ──
