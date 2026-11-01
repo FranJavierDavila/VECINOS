@@ -26,6 +26,9 @@ import { playSoundAt } from './audio';
  *   a los lejanos por buffer de profundidad (no por orden de mezcla, que dependía de la
  *   cámara). El orden entre transparentes (estrellas, capas legadas, nubes) es determinista
  *   vía alphaIndex: lejos→cerca sin importar dónde esté la cámara.
+ * · HUECOS DE CIELO (v1.62): skipChance por capa — fracción de sellos que quedan SIN
+ *   pintar («solares»): el cielo asoma entre los bloques del fondo (petición del vecino:
+ *   «eliminar alguno de los edificios altos para ver algo más de cielo»). Determinista.
  */
 
 interface LayerView {
@@ -37,7 +40,11 @@ interface LayerView {
   ready: boolean;
   lastNight: number;
   lastWeather: string;
-  /** Filas del canvas POT (4096×512) que ocupa la banda (el resto, transparente). */
+  /** Medidas REALES del canvas de la textura: el motor puede recortarlas
+   *  (NullEngine QA limita maxTextureSize a 512 — en producción WebGL2 son 4096×512). */
+  realW: number;
+  realH: number;
+  /** Filas del canvas que ocupa la banda (el resto, transparente). */
   usedH: number;
 }
 
@@ -224,15 +231,22 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
   // Canvas POT 4096×512 (v1.36 — el vecino veía los fondos «como manchones»: a 2048×256
   // cada sello eran ~176 px estirados 6–11× por pantalla; a 4096 con mipmaps la definición
   // DUPLICA y el minificado deja de emborronar). Los sellos se dibujan en las filas
-  // inferiores y el plano recorta por UV (vScale = filas usadas / 512).
+  // inferiores y el plano recorta por UV (vScale = filas usadas / altura real). v1.62:
+  // el pintado usa el tamaño REAL del canvas (motores con tope lo recortan sin romperse).
   const CANVAS_W = 4096;
   const CANVAS_H = 512;
   const layers: LayerView[] = cfg.layers.map((l, li) => {
-    const usedH = Math.min(CANVAS_H, Math.max(64, Math.round((CANVAS_W * l.height) / STRIP_W)));
     const tex = new DynamicTexture(`fachada_${li}_tex`, { width: CANVAS_W, height: CANVAS_H }, scene, true);
+    // v1.62 — tamaño REAL del canvas: el motor puede limitar las texturas (NullEngine QA
+    // fija maxTextureSize=512 y recorta el canvas pedido) — el pintado se adapta a lo que
+    // haya de verdad (misma proporción: el plano muestrea UV 0..1, da igual el ancho px).
+    const texSize = tex.getSize();
+    const realW = texSize.width;
+    const realH = texSize.height;
+    const usedH = Math.min(realH, Math.max(64, Math.round((realW * l.height) / STRIP_W)));
     // hasAlpha: fuera de los edificios el canvas es transparente (el cielo asoma entre ellos).
     tex.hasAlpha = true;
-    tex.vScale = usedH / CANVAS_H;
+    tex.vScale = usedH / realH;
     const mat = new StandardMaterial(`fachada_${li}_mat`, scene);
     mat.diffuseTexture = tex;
     mat.emissiveTexture = tex;
@@ -272,18 +286,29 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
       };
       img.src = l.image;
     }
-    const lv: LayerView = { plane, mat, tex, img, ready: !img, lastNight: -1, lastWeather: '', usedH };
+    const lv: LayerView = { plane, mat, tex, img, ready: !img, lastNight: -1, lastWeather: '', realW, realH, usedH };
     return lv;
   });
+
+  /** v1.62 — HUECOS DE CIELO: ¿queda este sello SIN pintar? Fracción skipChance del
+   *  catálogo → «solares» entre bloques por donde asoma el cielo (el vecino pidió ver
+   *  más cielo eliminando alguno de los edificios altos del fondo). Determinista por
+   *  hash: el mismo solar queda vacío en el pintado, la copia de tinte y las ventanas
+   *  nocturnas — una sola verdad. ?? 0: contenido legacy sin zod entre medias. */
+  const stampSkipped = (li: number, k: number): boolean => {
+    const skip = cfg.layers[li]!.skipChance ?? 0;
+    return skip > 0 && hash01(`selloSkip${li}`, k) < skip;
+  };
 
   /** Pinta una capa al canvas: sellos repetidos (image) o edificios procedurales. */
   const paintLayer = (lv: LayerView, li: number, nightF: number, weather: string): void => {
     const l = cfg.layers[li]!;
-    const W = CANVAS_W;
+    const W = lv.realW;
+    const canvasH = lv.realH;
     const H = lv.usedH;
-    const offY = CANVAS_H - H;
+    const offY = canvasH - H;
     const ctx = lv.tex.getContext() as unknown as CanvasRenderingContext2D;
-    ctx.clearRect(0, 0, W, CANVAS_H);
+    ctx.clearRect(0, 0, W, canvasH);
     ctx.save();
     ctx.translate(0, offY);
     // NIEBLA (v1.22): los bloques del fondo se DEsaturan (perspectiva aérea) y se funden
@@ -300,6 +325,7 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
       const stampPx = (stampW / STRIP_W) * W;
       const n = Math.ceil(W / stampPx) + 1;
       for (let k = 0; k < n; k++) {
+        if (stampSkipped(li, k)) continue; // v1.62: solar vacío — asoma el cielo
         const jitter = (hash01(`sello${li}`, k) - 0.5) * stampPx * 0.14;
         const scale = 0.86 + hash01(`selloS${li}`, k) * 0.16;
         const drawH = H * scale;
@@ -322,8 +348,16 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
         ctx.fillStyle = l.tint;
         ctx.fillRect(0, 0, W, H);
         // destination-in con la copia limpia: recupera la transparencia fuera de los sellos.
+        // v1.62 — CORRECCIÓN de un desastre silencioso de v1.21: el drawImage de la máscara
+        // heredaba el translate(0, offY) → la máscara quedaba DESPLAZADA offY píxeles hacia
+        // abajo y destination-in BORRABA los cuerpos de los edificios (la capa cercana
+        // conservaba ~12% y la media ~60% — ese «cielo de más» que veía el vecino era esto).
+        // La copia ya lleva su propia disposición: se alinea con el CANVAS (transform a 1).
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.globalCompositeOperation = 'destination-in';
         ctx.drawImage(canvasCopyOf(lv, li), 0, 0);
+        ctx.restore();
         ctx.globalCompositeOperation = 'source-over';
       }
       // Noche: oscurecer SOLO los edificios (source-atop respeta la transparencia del cielo).
@@ -350,6 +384,7 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
         const cols = Math.max(2, Math.round(stampWm / 2.6));
         ctx.fillStyle = hexOf(lit);
         for (let k = 0; k < stamps; k++) {
+          if (stampSkipped(li, k)) continue; // v1.62: sin edificio no hay ventanas encendidas
           for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
               const h = hash01(`vw${li}`, (k * rows + r) * cols + c);
@@ -400,11 +435,11 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
     let c = copies.get(li)!;
     if (!c) {
       c = document.createElement('canvas');
-      c.width = CANVAS_W;
-      c.height = CANVAS_H;
+      c.width = lv.realW;
+      c.height = lv.realH;
       const cctx = c.getContext('2d')!;
       const H = lv.usedH;
-      const offY = CANVAS_H - H;
+      const offY = lv.realH - H;
       cctx.save();
       cctx.translate(0, offY);
       const aspect = lv.img!.naturalWidth / Math.max(1, lv.img!.naturalHeight);
@@ -412,6 +447,7 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
       const stampPx = (stampW / STRIP_W) * c.width;
       const n = Math.ceil(c.width / stampPx) + 1;
       for (let k = 0; k < n; k++) {
+        if (stampSkipped(li, k)) continue; // v1.62: MISMA regla que el pintado (tinte coherente)
         const jitter = (hash01(`sello${li}`, k) - 0.5) * stampPx * 0.14;
         const scale = 0.86 + hash01(`selloS${li}`, k) * 0.16;
         const drawH = H * scale;
@@ -447,6 +483,7 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
     const n = l.buildings;
     const slot = W / n;
     for (let bi = 0; bi < n; bi++) {
+      if (stampSkipped(li, bi)) continue; // v1.62: hueco de cielo también en el fallback
       const bw = slot * (0.62 + hash01(`f${li}b${bi}`, 1) * 0.34);
       const bx = bi * slot + (slot - bw) / 2;
       const floors = Math.round(l.floors[0] + hash01(`f${li}b${bi}`, 2) * (l.floors[1] - l.floors[0]));

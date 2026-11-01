@@ -27,7 +27,7 @@ const DICT: Record<string, { es: string; en: string }> = {
     es: 'Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.',
     en: 'Move-ins, noise, smells, wifi, pests, smoke and levies: the neighborhood simulator.',
   },
-  'header.version': { es: 'v1.61 · aceras y césped con textura, fachada sólida y sombra del edificio', en: 'v1.61 · textured sidewalks & lawns, solid facade, building shadow' },
+  'header.version': { es: 'v1.62 · más cielo en el fondo + cuaderno del vecino (dock compacto)', en: 'v1.62 · more sky in the backdrop + compact neighbor notebook' },
   // ── Apagón de assets (v1.47: servidor de arte caído → mundo vacío/cápsulas) ──
   'assets.outage': {
     es: '⚠ No se pudo cargar el arte del juego (¿servidor caído?). El vecindario se recargará en {n} s…',
@@ -193,13 +193,16 @@ const DICT: Record<string, { es: string; en: string }> = {
   'weather.rain': { es: 'Lluvia', en: 'Rain' },
   'weather.storm': { es: 'Tormenta', en: 'Storm' },
 
-  // ── Dock de información (v1.17) ──
+  // ── Cuaderno del vecino (v1.62 — dock de información como pestañas post-it) ──
+  // Fuera "Mi casa" (nota conservada dentro de Edificio) y fuera "Ayuda" (duplicada
+  // del post-it superior). Claves legacy dock.tab.home / dock.tab.help retiradas.
+  'dock.title': { es: 'Cuaderno del vecino', en: "Neighbor's notebook" },
+  'dock.toggleHint': { es: 'Pulsa para abrir o plegar', en: 'Click to open or fold' },
+  'dock.hint': { es: 'Pulsa otra vez la pestaña activa para plegar el cuaderno.', en: 'Click the active tab again to fold the notebook.' },
   'dock.tab.missions': { es: 'Misiones', en: 'Missions' },
   'dock.tab.building': { es: 'Edificio', en: 'Building' },
   'dock.tab.neighbors': { es: 'Vecinos', en: 'Neighbors' },
-  'dock.tab.home': { es: 'Mi casa', en: 'My flat' },
   'dock.tab.achievements': { es: 'Logros', en: 'Achievements' },
-  'dock.tab.help': { es: 'Ayuda', en: 'Help' },
 
   // ── v1.39 — Vecinos como personajes ──
   'neighbors.empty': { es: 'El vecindario se está mudando… pronto habrá fichas.', en: 'The neighborhood is moving in… profiles coming soon.' },

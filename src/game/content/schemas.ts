@@ -1965,6 +1965,11 @@ export const rulesSchema = z.object({
             /** Umbral de recorte ALPHATEST (solo con depthWrite): los sellos PNG son alfa
              *  binario (medido: <1% de píxeles intermedios) → el recorte no muerde los sellos. */
             alphaCutOff: z.number().min(0.05).max(1).default(0.4),
+            /** v1.62 — HUECOS DE CIELO (petición del vecino: «eliminar alguno de los edificios
+             *  altos del fondo para ver algo más de cielo»): fracción 0..1 de sellos que NO se
+             *  dibujan (solares vacíos entre bloques). Determinista por hash → estable entre
+             *  repintados. 0 = skyline continuo (legado). */
+            skipChance: z.number().min(0).max(1).default(0),
           }),
         ),
         /** LLUVIA (v1.21): partículas de trazo que caen cuando el clima es rain/storm.

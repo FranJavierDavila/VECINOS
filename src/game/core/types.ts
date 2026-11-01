@@ -2063,6 +2063,8 @@ export interface Rules {
         nightGlow: number;
         /** Sello PNG RGBA (v1.21): fachada real repetida por la capa (blur horneado). */
         image?: string;
+        /** v1.62 — fracción de sellos que quedan SIN pintar (solares: asoma el cielo). */
+        skipChance: number;
         /** NIEBLA (v1.22): desaturación + fundido hacia fogColor (perspectiva aérea). */
         fog: number;
         fogColor: string;

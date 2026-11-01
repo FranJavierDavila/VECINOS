@@ -816,7 +816,8 @@
           "galleryChance": 0.35,
           "nightGlow": 0.5,
           "depthWrite": true,
-          "alphaCutOff": 0.4
+          "alphaCutOff": 0.4,
+          "skipChance": 0.25
         },
         {
           "z": 44,
@@ -837,7 +838,8 @@
           "galleryChance": 0.3,
           "nightGlow": 0.4,
           "depthWrite": true,
-          "alphaCutOff": 0.4
+          "alphaCutOff": 0.4,
+          "skipChance": 0.35
         },
         {
           "z": 60,
@@ -858,7 +860,8 @@
           "galleryChance": 0.25,
           "nightGlow": 0.3,
           "depthWrite": true,
-          "alphaCutOff": 0.4
+          "alphaCutOff": 0.4,
+          "skipChance": 0.45
         }
       ],
       "rain": {
