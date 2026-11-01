@@ -1893,7 +1893,11 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           // frontal de la lavadora, 3 abajo y 3 arriba que sean secadoras, y que algunas
           // veas girar el bombo»): columnas apiladas de VOLUMEN — cuerpo + frontal mapeado
           // (canvas con tambor transparente) + BOMBO (disco) que GIRA en las «en marcha».
-          // Nada coplanar: el frontal sale 12 mm del cuerpo y el bombo vive 3 cm detrás.
+          // Nada coplanar: el frontal sale 12 mm del cuerpo, el bombo vive 3 cm detrás y
+          // v1.67 — la tapa se apoya SOBRE el cuerpo (iba EMBEBIDA: su cara superior era
+          // exactamente coplanar a la del cuerpo — flickeo en toda bandeja superior) y el
+          // paso de columnas JAMÁS baja de mW+4 cm (con margen 0.36 las 3 máquinas de
+          // 0.64 m se INTERPENETRABAN 12 cm y sus frontales coplanares peleaban).
           const lv = loc.lavanderia;
           const stacks = Math.max(1, lv.stacks ?? 3);
           const mW = lv.machineW ?? 0.64;
@@ -1901,8 +1905,11 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           const dH = lv.dryerH ?? 0.78;
           const mD = lv.machineD ?? 0.6;
           const gapY = lv.stackGap ?? 0.05;
-          const usableW = w - 0.72;
-          const colStep = usableW / stacks;
+          const sideM = 0.1; // v1.67: margen lateral mínimo (0.36 obligaba a solapar máquinas)
+          const usableW = w - sideM * 2;
+          const colStep = Math.max(usableW / stacks, mW + 0.04); // jamás se tocan
+          const rowW = colStep * (stacks - 1) + mW;
+          const rowX0 = x0 + Math.max(sideM, (w - rowW) / 2); // fila centrada sin salir del bloque
           const zBack = frontZ + d - v.wall - mD / 2 - 0.08;
           // v1.37 — COLISIÓN: las máquinas son SÓLIDAS (el vecino: «que no puedan atravesar
           // las lavadoras»). Rects en MUNDO que player-logic (jugador dentro) y actors.ts
@@ -2018,7 +2025,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
             return dt;
           };
           for (let s = 0; s < stacks; s++) {
-            const mx = x0 + 0.36 + colStep * (s + 0.5);
+            const mx = rowX0 + colStep * s + mW / 2;
             blockers.push({ x0: mx - mW / 2 - 0.02, z0: zBack - mD / 2 - 0.02, w: mW + 0.04, d: mD + 0.04 });
             // LAVADORA (abajo) + SECADORA (arriba): cuerpos, tapas y frontales mapeados.
             const bodies: { kind: 'washer' | 'dryer'; h: number; y0: number }[] = [
@@ -2029,7 +2036,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
               const mid = bd.y0 + bd.h / 2;
               view.greybox.push(
                 box(`${b.id}_lav_${bd.kind}_${s}_cuerpo`, mW, bd.h, mD, mx, mid, zBack, bodyM),
-                box(`${b.id}_lav_${bd.kind}_${s}_tapa`, mW * 0.98, 0.03, mD * 0.96, mx, bd.y0 + bd.h - 0.015, zBack, topM),
+                box(`${b.id}_lav_${bd.kind}_${s}_tapa`, mW * 0.98, 0.03, mD * 0.96, mx, bd.y0 + bd.h + 0.015, zBack, topM),
               );
               const fm = mat(`${b.id}_lav_${bd.kind}_${s}_frontal_mat`);
               fm.diffuseTexture = machineFrontTex(bd.kind, s);
@@ -3628,14 +3635,32 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         if (wy0 - baseR > 0.02) box(`${b.id}_rear_${rr.key}_fondo_vago`, wv.w, wy0 - baseR, v.wall, winCx, baseR + (wy0 - baseR) / 2, winZ, matRearWall).parent = node;
         if (wallTop - wy1 > 0.02) box(`${b.id}_rear_${rr.key}_fondo_dintel_v`, wv.w, wallTop - wy1, v.wall, winCx, wy1 + (wallTop - wy1) / 2, winZ, matRearWall).parent = node;
         // Marco (4 listones) + cruceta: lectura de ventana incluso desde lejos.
+        // v1.67 — NADA COPLANAR (auditor scripts/qa-coplanarity.ts): los listones medían
+        // 0.1 = v.wall y montados en winZ sus caras delante/detrás eran EXACTAS a las de los
+        // segmentos de muro que solapan (flickeo), y sus TESTAS caían en los planos del hueco
+        // (wx0/wy0/wy1) peleando con las jambas fondo_i/fondo_vago/fondo_dintel_v. Montaje
+        // nuevo: listones DENTRO del hueco — verticales de lado a lado (wy0..wy1) y
+        // horizontales ENTRE ellos (wx0+ft..wx1−ft) — jamás dos miembros solapan en xy; sus
+        // testas ahora BUTTAN contra las jambas (normales opuestas: sin pelea) y la
+        // profundidad 0.14 los hace sobresalir 2 cm de cada cara del muro.
+        // v1.67b — el travesaño CRUZA al montante: con ambos a 0.14 sus caras delante/detrás
+        // seguían coplanares en el cruce (medido: solape 45×45 mm). El travesaño va a 0.13 —
+        // 5 mm recessado por cara: perfil de ventana real, cero planos coincidentes.
         const ft = 0.06;
-        box(`${b.id}_rear_${rr.key}_vmarco_sup`, wv.w + ft * 2, ft, 0.1, winCx, wy1 + ft / 2, winZ, matFrame).parent = node;
-        box(`${b.id}_rear_${rr.key}_vmarco_inf`, wv.w + ft * 2, ft, 0.1, winCx, wy0 - ft / 2, winZ, matFrame).parent = node;
-        box(`${b.id}_rear_${rr.key}_vmarco_izq`, ft, wv.h, 0.1, wx0 - ft / 2, wy0 + wv.h / 2, winZ, matFrame).parent = node;
-        box(`${b.id}_rear_${rr.key}_vmarco_der`, ft, wv.h, 0.1, wx1 - ft / 2, wy0 + wv.h / 2, winZ, matFrame).parent = node;
-        box(`${b.id}_rear_${rr.key}_vmarco_mullion`, 0.045, wv.h, 0.08, winCx, wy0 + wv.h / 2, winZ, matFrame).parent = node;
-        box(`${b.id}_rear_${rr.key}_vmarco_travesano`, wv.w, 0.045, 0.08, winCx, wy0 + wv.h / 2, winZ, matFrame).parent = node;
+        const fdepth = 0.14;
+        const cdepth = 0.13;
+        box(`${b.id}_rear_${rr.key}_vmarco_sup`, wv.w - ft * 2, ft, fdepth, winCx, wy1 - ft / 2, winZ, matFrame).parent = node;
+        box(`${b.id}_rear_${rr.key}_vmarco_inf`, wv.w - ft * 2, ft, fdepth, winCx, wy0 + ft / 2, winZ, matFrame).parent = node;
+        box(`${b.id}_rear_${rr.key}_vmarco_izq`, ft, wv.h, fdepth, wx0 + ft / 2, wy0 + wv.h / 2, winZ, matFrame).parent = node;
+        box(`${b.id}_rear_${rr.key}_vmarco_der`, ft, wv.h, fdepth, wx1 - ft / 2, wy0 + wv.h / 2, winZ, matFrame).parent = node;
+        box(`${b.id}_rear_${rr.key}_vmarco_mullion`, 0.045, wv.h - ft * 2, fdepth, winCx, wy0 + wv.h / 2, winZ, matFrame).parent = node;
+        box(`${b.id}_rear_${rr.key}_vmarco_travesano`, wv.w - ft * 2, 0.045, cdepth, winCx, wy0 + wv.h / 2, winZ, matFrame).parent = node;
         // Cristal translúcido: el paisaje (fachadas parallax + cielo) se ve a través.
+        // v1.67 — el vidrio estaba en winZ (centro del muro): el quad ilustrado del diorama
+        // (backZ−0.09, DELANTE del vidrio visto desde el interior) lo tapaba. Va a 1 cm por
+        // delante de la cara interior del muro (xy disjunto de los segmentos: nada coplanar)
+        // y 2 cm por delante del quad del diorama, 1 cm por detrás del canto del marco.
+        const glassZ = winZ - v.wall / 2 - 0.01;
         const glassMat = mat(`${b.id}_rear_${rr.key}_vidrio_mat`);
         glassMat.diffuseColor = Color3.FromHexString(wv.glass);
         glassMat.alpha = wv.glassAlpha;
@@ -3643,7 +3668,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         const glass = MeshBuilder.CreatePlane(`${b.id}_rear_${rr.key}_vidrio`, { width: wv.w, height: wv.h, sideOrientation: B().Mesh.DOUBLESIDE }, scene);
         glass.material = glassMat;
         glass.isPickable = false;
-        glass.position.set(winCx, wy0 + wv.h / 2, winZ);
+        glass.position.set(winCx, wy0 + wv.h / 2, glassZ);
         glass.parent = node;
       } else {
         box(`${b.id}_rear_${rr.key}_fondo`, rw, hR, v.wall, rx + rw / 2, yR, winZ, matRearWall).parent = node;
