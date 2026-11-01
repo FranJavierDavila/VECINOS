@@ -505,6 +505,19 @@ io.on('connection', (socket) => {
     });
   });
 
+  // ── v1.64 — TIMBRE EN VIVO (relay puro): un vecino llama al timbre de una puerta y el
+  // DUEÑO lo oye al instante. El sim NUNCA se toca: el knock de la puerta del anfitrión es
+  // presentación local en el cliente que llama (el knock del sim excluye a world.playerId);
+  // esto solo avisa en directo. Validación estricta: bloque conocido, longitud acotada. ──
+  socket.on('mp:ring', (payload: { block?: string } | undefined) => {
+    const found = lookup(socket.id);
+    if (!found) return;
+    const block = payload?.block;
+    if (typeof block !== 'string' || block.length === 0 || block.length > 64) return;
+    if (!found.session.world.blocks[block]) return;
+    io.to(found.session.code).emit('mp:ring', { from: found.participant.residentId, block });
+  });
+
   // ── v1.55 — DUELO DE MINIJUEGOS: marca de tiempo del rearme (session:minigame_time) ──
   // El cliente cronometra y manda segundos; el servidor valida contra rules.multiplayer.score,
   // premia SOLO la mejora del récord personal (no se farmea repitiendo) con rate limit de 3 s,

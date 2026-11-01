@@ -27,7 +27,7 @@ const DICT: Record<string, { es: string; en: string }> = {
     es: 'Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.',
     en: 'Move-ins, noise, smells, wifi, pests, smoke and levies: the neighborhood simulator.',
   },
-  'header.version': { es: 'v1.63 · sombra de contacto bajo los pies de cada personaje', en: 'v1.63 · contact shadow under every character' },
+  'header.version': { es: 'v1.64 · timbre que abre y llamada sin congelar el mundo', en: 'v1.64 · doorbell that opens and phone call that no longer freezes the world' },
   // ── Apagón de assets (v1.47: servidor de arte caído → mundo vacío/cápsulas) ──
   'assets.outage': {
     es: '⚠ No se pudo cargar el arte del juego (¿servidor caído?). El vecindario se recargará en {n} s…',
@@ -124,6 +124,11 @@ const DICT: Record<string, { es: string; en: string }> = {
   'door.noAnswer': {
     es: '🔔 Timbre sonado… y silencio. No hay nadie dentro que pueda abrir.',
     en: '🔔 Doorbell rung… and silence. Nobody inside to answer it.',
+  },
+  // v1.64 — timbre EN VIVO (multijugador): el dueño oye SU timbre cuando un vecino llama.
+  'ev.someoneAtDoor': {
+    es: '🔔 ¡Timbre! Alguien llama a tu puerta.',
+    en: '🔔 Doorbell! Someone is at your door.',
   },
   'chat.fallback': { es: '¡Buenas! ¿Todo en orden por aquí?', en: 'Hey! All quiet around here?' },
   'lost.title': {

@@ -1179,6 +1179,11 @@ export interface Rules {
     /** Malestar vecinal con el ascensor averiado (v1.5): coste social por tramo de escalera
      *  forzada y resoplido público ocasional (evento stairs_grumble con texto del catálogo). */
     elevator: { stairsMoodCost: number; grumbleChance: number; grumbleCooldownMinutes: number; grumbleText: string };
+    /** v1.64 — TIMBRE: gracia antirrebote del sonar (segundos): un segundo E sobre la misma
+     *  puerta dentro de la ventana no vuelve a sonar ni repite el aviso (entrar no se toca). */
+    doorbell: { reRingGraceSecs: number };
+    /** v1.64 — TELÉFONO: la llamada de misión no congela el mundo (andar/entrar siguen). */
+    phone: { freeMovement: boolean };
   };
   /** Configuración de la presentación placeholder (greybox). El arte final la sustituirá. */
   view: {

@@ -98,6 +98,9 @@ export class PlayerLogic {
    * (location !== z.id), no se reenvía el mismo move en cada frame.
    */
   private lastMoveTarget: string | null = null;
+  // ── v1.64 — reloj propio (s para ventanas de reintento) y caducidad de la cadena en vuelo ──
+  private clockSec = 0;
+  private moveRetryAt = 0;
   /** Llamada de ascensor del jugador ya registrada (evita pedir la misma cada frame). */
   externalRequested = false;
   // ── v1.42 — LA CALLE: el jugador es un vecino más. Sale del portal caminando en la
@@ -159,6 +162,12 @@ export class PlayerLogic {
     if (start.kind === 'dwelling') this.landInside(start);
   }
 
+  /** v1.64 — identidad controlada: el controlador la lee para re-vincular la lógica al
+   *  residente de la sesión (el invitado nace ANTES de conocer su id de invitado). */
+  controlledId(): string {
+    return this.actorId;
+  }
+
   /** v1.42 — bancos exteriores + punto de calistenia (el controlador los pasa del decorado). */
   setOutdoorSpots(benches: { x: number; z: number }[], exercise: { x: number; z: number } | null): void {
     this.outdoor = { benches, exercise };
@@ -187,7 +196,9 @@ export class PlayerLogic {
   }
 
   private get location(): string | null {
-    return this.world.residents[this.actorId]!.location;
+    // v1.64 — el residente puede tardar un latido en existir (invitado: session:state en
+    // vuelo tras el re-vinculado de identidad): sin él, null en vez de un TypeError.
+    return this.world.residents[this.actorId]?.location ?? null;
   }
 
   private onFloor(f: number) {
@@ -568,9 +579,40 @@ export class PlayerLogic {
       this.lastMoveTarget = null; // el servidor (o el sim local) ya confirmó este destino
       return;
     }
-    if (z.id === this.lastMoveTarget) return; // en vuelo: no reenviar el mismo move cada frame
-    this.lastMoveTarget = z.id;
-    this.exec({ type: 'move', resident: this.actorId, to: z.id });
+    // v1.64 — RUTA LEGAL (bug P0 «escalera→entrada» en multijugador): el sim solo acepta
+    // moves por su grafo de circulación (misma planta, o pozos contiguos en la misma
+    // columna). El sync DIRECTO (pasillo0→pasillo1 al aterrizar la escalera, o el
+    // teleportTo de QoL) era RECHAZADO por canMove: el espejo del invitado quedaba clavado
+    // en planta 0 y reconcile expulsaba de SU vivienda cada segundo («no podremos entrar»).
+    // En solitario daba igual (dispatch síncrono: el espejo avanzaba dentro del bucle);
+    // en remoto el espejo va retrasado. Solución: CADENA completa del router del propio
+    // sim (pasillo0 → escalera0 → escalera1 → pasillo1) — cada paso es legal sobre el
+    // anterior, el servidor los aplica EN ORDEN (FIFO del socket) y el espejo alcanza la
+    // planta real. Reintento con ventana de tiempo: si un paso se rechaza (ascensor que
+    // se avería a mitad), la cadena vuelve a mandarse a los ~2 s y reconcile sanea.
+    if (z.id === this.lastMoveTarget && this.clockSec < this.moveRetryAt) return; // en vuelo
+    let from = loc ?? z.id;
+    const chain: string[] = [];
+    for (let guard = 0; guard < 12 && from !== z.id; guard++) {
+      const next = nextStepTowards(this.world, this.content, from, z.id);
+      if (!next || next === from) break;
+      chain.push(next);
+      from = next;
+    }
+    if (chain.length === 0) {
+      this.lastMoveTarget = z.id; // sin ruta (raro): no spamear; la ventana deja reintentar
+      this.moveRetryAt = this.clockSec + 2;
+      return;
+    }
+    this.lastMoveTarget = chain[chain.length - 1]!;
+    this.moveRetryAt = this.clockSec + 2;
+    for (const step of chain) this.exec({ type: 'move', resident: this.actorId, to: step });
+  }
+
+  /** v1.64 — true mientras una cadena de moves sigue en vuelo (reconcile se abstiene:
+   *  el espejo va por la ruta y cualquier contradicción se resuelve sola al aterrizar). */
+  routePending(): boolean {
+    return this.lastMoveTarget !== null && this.clockSec < this.moveRetryAt;
   }
 
   /**
@@ -610,6 +652,7 @@ export class PlayerLogic {
   }
 
   update(dt: number, input: Input) {
+    this.clockSec += dt; // v1.64 — reloj propio para ventanas de reintento (sync/routePending)
     // v1.45 — la intención de cruce caduca en cuanto nace: se recalcula frame a frame.
     this.intentPortal = false;
     this.intentBlock = null;
@@ -1063,7 +1106,8 @@ export class PlayerLogic {
   residentNearby(): string | null {
     // v1.42 — en la calle el sim no manda (teatro): sin charlas de zona.
     if (this.mode === 'outside') return null;
-    const r = this.world.residents[this.actorId]!;
+    const r = this.world.residents[this.actorId];
+    if (!r) return null; // v1.64 — invitado aún sin sincronizar: nadie al lado aún
     for (const other of Object.values(this.world.residents)) {
       if (other.id === r.id || !other.present || other.location === null) continue;
       const loc = this.world.blocks[other.location];
@@ -1184,7 +1228,8 @@ export class PlayerLogic {
   /** Puerta (mundo) de la celda del JUGADOR en un bloque de trasteros por columna; null si
    *  el bloque no es el de su letra. La celda es la de la vivienda del jugador. */
   private ownCellDoor(storageBlock: BlockInstance): { x: number; z: number; side: 'left' | 'right'; floor: number } | null {
-    const me = this.world.residents[this.actorId]!;
+    const me = this.world.residents[this.actorId];
+    if (!me) return null; // v1.64 — invitado aún sin sincronizar: sin celda propia
     const home = this.world.blocks[me.home];
     if (!home) return null;
     const tag = home.id.slice(home.id.lastIndexOf('_') + 1);
@@ -1381,15 +1426,32 @@ export class PlayerLogic {
     this.exitArmed = false; // v1.40
     this.floor = target.cell.floor;
     this.x = this.centerOf(target);
+    // v1.64 — MULTIJUGADOR: los move salen por la red y el resultado (y la location del
+    // residente) llegan DESPUÉS. Recalcular la ruta contra this.location reenviaba SIEMPRE
+    // el primer salto: el invitado «teletransportado» se quedaba a un paso del portal para
+    // el servidor y TODO lo que venía después (entrar en su casa…) era rechazado. La ruta
+    // avanza con un cursor local: los hops llegan en orden y el servidor los aplica en
+    // cadena (cada uno legal desde el anterior). En clásico es equivalente (dispatch
+    // sincrónico ya actualiza location).
+    let from = this.location ?? this.zoneIdForTeleport(target);
     for (let guard = 0; guard < 24; guard++) {
-      const zone = this.zone();
-      if (zone.id === this.location) break;
-      const next = nextStepTowards(this.world, this.content, this.location ?? zone.id, zone.id);
+      if (from === target.id) break;
+      const next = nextStepTowards(this.world, this.content, from, target.id);
       if (!next) break;
       this.exec({ type: 'move', resident: this.actorId, to: next });
+      from = next;
     }
     this.lastMoveTarget = null; // los move en vuelo los confirmará el estado; sin dedup pendiente
     return true;
+  }
+
+  /** Zona (bloque) bajo la que caería el teletransporte: el punto de partida de la ruta sim. */
+  private zoneIdForTeleport(target: BlockInstance): string {
+    const savedFloor = this.floor;
+    this.floor = target.cell.floor;
+    const z = this.zone().id;
+    this.floor = savedFloor;
+    return z;
   }
 
   /**

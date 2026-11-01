@@ -394,6 +394,26 @@ export function selectModalOpen(s: Pick<GameState, 'phone' | 'choices' | 'junta'
   return s.phone !== null || s.choices !== null || s.junta !== null || s.minigame !== null || s.finale !== null || s.cutscene !== null || s.elevatorPanel !== null;
 }
 
+// ── v1.64 — TELÉFONO SIN CONGELAR (rules.sim.phone.freeMovement del catálogo) ──
+/** El controlador fija esta bandera al cargar el contenido (true por defecto en rescate). */
+let phoneFreeMovement = true;
+export function setPhoneFreeMovement(v: boolean): void {
+  phoneFreeMovement = v;
+}
+
+/**
+ * v1.64 — CONGELADO DEL MUNDO de verdad: igual que selectModalOpen salvo que la LLAMADA
+ * de teléfono no congela cuando el catálogo lo permite (freeMovement): el timbre del móvil
+ * suena, el diálogo flota y el vecino SIGUE andando — puede entrar en el edificio mientras
+ * «sigue sonando el timbre». Junta/minijuego/finale/cutscene/ascensor siguen congelando.
+ */
+export function selectWorldFrozen(s: Pick<GameState, 'phone' | 'choices' | 'junta' | 'minigame' | 'finale' | 'cutscene' | 'elevatorPanel'>): boolean {
+  if (s.phone !== null && phoneFreeMovement) {
+    return s.choices !== null || s.junta !== null || s.minigame !== null || s.finale !== null || s.cutscene !== null || s.elevatorPanel !== null;
+  }
+  return selectModalOpen(s);
+}
+
 export const useGameStore = create<GameState>((set) => ({
   ready: false,
   backend: '',

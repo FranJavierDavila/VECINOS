@@ -616,6 +616,23 @@ export const rulesSchema = z.object({
         grumbleText: z.string().default('🛗 {name} sube por la escalera: el ascensor sigue averiado.'),
       })
       .default({ stairsMoodCost: 0.05, grumbleChance: 0.05, grumbleCooldownMinutes: 180, grumbleText: '🛗 {name} sube por la escalera: el ascensor sigue averiado.' }),
+    /** v1.64 — TIMBRE (presentación): gracia antirrebote. Un segundo E sobre la MISMA puerta
+     *  dentro de esta ventana NO vuelve a sonar ni repite el aviso (el timbre «no pasa» de
+     *  sonar); la entrada no se ve afectada jamás: si hay alguien en casa, entra igual. */
+    doorbell: z
+      .object({
+        reRingGraceSecs: z.number().min(0).default(3.5),
+      })
+      .default({ reRingGraceSecs: 3.5 }),
+    /** v1.64 — TELÉFONO: la llamada de misión NO congela el mundo. El timbre del móvil suena
+     *  y el diálogo flota mientras el vecino sigue andando (y puede entrar en el edificio):
+     *  «hasta que no para de sonar el timbre no podremos entrar» — ya no. false restaura el
+     *  congelado clásico. */
+    phone: z
+      .object({
+        freeMovement: z.boolean().default(true),
+      })
+      .default({ freeMovement: true }),
   }),
   view: z.object({
     cellW: z.number(),

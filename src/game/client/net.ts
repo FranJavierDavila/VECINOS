@@ -121,6 +121,9 @@ export interface NetCallbacks {
   onVoiceState?: (from: string, muted: boolean, speaking: boolean) => void;
   /** v1.57 — pose continua de un avatar remoto (from ≠ yo; el cliente filtra la propia). */
   onPose?: (from: string, p: MpPose) => void;
+  /** v1.64 — timbre EN VIVO: alguien llamó a la puerta del bloque `block` (from ≠ yo).
+   *  Relay puro del servidor: solo presentación (el dueño oye SU timbre y ve el aviso). */
+  onRing?: (from: string, block: string) => void;
   onError?: (message: string) => void;
   onStatus?: (status: MpNetStatus) => void;
 }
@@ -196,6 +199,11 @@ export class NetSession {
       if (![p.x, p.z, p.floor].every((n) => typeof n === 'number' && Number.isFinite(n))) return;
       cbs.onPose?.(p.from, { x: p.x, z: p.z, floor: p.floor });
     });
+    // v1.64 — timbre en vivo (relay puro): el dueño de la puerta lo oye al instante.
+    this.socket.on('mp:ring', (p: { from: string; block: string }) => {
+      if (typeof p?.from !== 'string' || typeof p?.block !== 'string' || p.block.length === 0) return;
+      cbs.onRing?.(p.from, p.block);
+    });
     this.socket.on('session:error', (p: { message: string }) => cbs.onError?.(p.message));
   }
 
@@ -264,6 +272,11 @@ export class NetSession {
   /** C→S mp:pose — mi pose continua (el servidor la reenvía a la sala sin tocar el sim). */
   pose(p: MpPose): void {
     this.socket.emit('mp:pose', p);
+  }
+
+  /** C→S mp:ring — llamé al timbre de `block`: el dueño lo oye en vivo (relay puro). */
+  ring(block: string): void {
+    this.socket.emit('mp:ring', { block });
   }
 
   /** C→S session:set_speed (solo surte efecto si el emisor es el anfitrión). */

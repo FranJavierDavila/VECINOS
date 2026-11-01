@@ -44,9 +44,14 @@ import { loadUnlocked, saveUnlocked } from './achievements-store';
 import { NetSession, type SessionStatePayload } from './net';
 import { VoiceChannel } from './voice';
 import { setController } from './bridge';
-import { selectModalOpen, useGameStore, type AchievementUi, type Speed, type Tone } from './store';
+import { selectModalOpen, selectWorldFrozen, setPhoneFreeMovement, useGameStore, type AchievementUi, type Speed, type Tone } from './store';
 
 const CAM_BY_KEY: Record<string, CamMode> = { Digit0: 'fachada', Digit1: 'edificio', Digit2: 'planta', Digit3: 'estancia' };
+
+/** v1.64 — teclas de MOVIMIENTO: únicas que valen con la llamada de teléfono en pantalla
+ *  (rules.sim.phone.freeMovement): el vecino sigue andando —y puede entrar— mientras «suena
+ *  el timbre» del móvil. E/J y cámaras siguen bloqueadas: el diálogo consume el foco. */
+const MOVEMENT_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight']);
 
 /**
  * Único dueño del mundo en el navegador: engine Babylon, PlayerLogic, bucle de render,
@@ -157,6 +162,8 @@ class GameController {
 
   // ── Multijugador (protocolo v1): el servidor autoritativo posee el mundo; este cliente lo refleja ──
   private net: NetSession | null = null;
+  // ── v1.64 — gracia antirrebote del timbre (última puerta llamada y cuándo) ──
+  private lastRing = { block: '', at: -99 };
   // ── v1.57 — poses remotas (residentId → última pose de red) y cadencia de envío propio ──
   private remotePoses = new Map<string, { x: number; z: number; floor: number; at: number }>();
   private lastPoseSentAt = 0;
@@ -177,6 +184,10 @@ class GameController {
       // 1) Contenido externo + validación (los errores de referencias se avisan, no abortan).
       const { content, issues } = await loadContent();
       this._content = content;
+      // v1.64 — la llamada de teléfono NO congela el mundo (rules.sim.phone.freeMovement):
+      // el timbre suena, el diálogo flota y el vecino sigue andando/entrando. El selector
+      // selectWorldFrozen honra esta bandera (una sola verdad, también para el mando).
+      setPhoneFreeMovement(content.rules.sim.phone.freeMovement);
       // v1.54 — INVITACIÓN POR ENLACE (?join=CODE): quien abre un enlace de invitación
       // aterriza con el panel de multijugador YA ABIERTO y la tarjeta «Te han invitado»
       // lista para entrar con un clic (el código viaja en la URL, nunca se teclea).
@@ -318,7 +329,11 @@ class GameController {
     if (this.keys.has(code)) return;
     this.keys.add(code);
     const store = useGameStore.getState();
-    if (selectModalOpen(store)) return; // los modales gestionan sus propias teclas
+    // v1.64 — modales de VERDAD (junta/minijuego/finale/cutscene/ascensor) o pausa: tragan
+    // todo. Con SOLO la llamada en pantalla (rules.sim.phone.freeMovement) el mundo sigue:
+    // las teclas de movimiento se registran y el resto (E/J/cámaras) lo gestiona el diálogo.
+    if (selectWorldFrozen(store) || store.paused) return;
+    if (selectModalOpen(store) && !MOVEMENT_KEYS.has(code)) return;
     if (code === 'KeyE') {
       this.interact();
       return;
@@ -526,8 +541,8 @@ class GameController {
       const s = useGameStore.getState();
       s.pushToast(translate(s.lang, r.reason === 'vacant' ? 'door.vacant' : 'door.lockedGeneric'), 'info');
     }
-    // v1.40 — TIMBRE en vivienda ajena: suena el timbre del catálogo; si el vecino está
-    // dentro se acerca a abrir y os entra; si no hay nadie, nadie puede abrir.
+    // v1.64 — TIMBRE en vivienda ajena: suena (con gracia antirrebote) y CUALQUIER dueño
+    // presente abre (esté donde esté); solo vacía/dueño ausente avisan sin abrir.
     if (r.type === 'doorbell') {
       const opened = this.ringDoorbell(r.block);
       if (opened && this.logic && this.world) {
@@ -625,9 +640,61 @@ class GameController {
   }
 
   /**
-   * v1.40 — TIMBRE de una vivienda ajena: sonido del catálogo (sounds.json: doorbell) y
-   * vecino dentro abre (el sim registra el toque; knock_result acerca al vecino y saluda).
-   * Devuelve true cuando hay alguien en casa y el paso está servido.
+   * v1.64 — FÁBRICA de la lógica del jugador (una sola fuente de opts): el actor controlado
+   * es el residente de la sesión (invitado) o el clásico world.playerId. La usaba restart()
+   * en línea; ahora también rebindLogic() — el invitado nace ANTES de conocer su id.
+   */
+  private makeLogic(actorId?: string): PlayerLogic {
+    return new PlayerLogic(this.world!, this._content!, {
+      actorId,
+      send: (cmd) => this.sendCommand(cmd),
+      // v1.50 — el prompt de charla se mide contra el ACTOR real (nodeOf): si el cuerpo no
+      // está pintado ahí (otro sitio/oculto), no hay aviso «E · charlar con…» fantasma.
+      actorPos: (residentId) => {
+        const n = this.actors?.director.nodeOf(residentId);
+        if (!n) return null;
+        return { x: n.x, z: n.z, floor: Math.round(n.y / this.content.rules.view.cellH) };
+      },
+    });
+  }
+
+  /**
+   * v1.64 — RE-VINCULACIÓN DE IDENTIDAD (bug P0 «seed compartida»): el invitado arranca su
+   * mundo local ANTES de unirse, así que su PlayerLogic nació con world.playerId — el
+   * residente del ANFITRIÓN. Con session:joined el servidor le da su id (res_guest_N): si
+   * la lógica controla otro residente se recrea AQUÍ, con el mundo ya sincronizado o el que
+   * haya (el constructor cae al jugador clásico si el invitado aún no existe y la próxima
+   * session:state + reconcile lo planta donde el servidor dice). Sin esto, el invitado
+   * caminaba con el cuerpo del anfitrión: su propia puerta le salía «ajena» (timbre) y no
+   * podía entrar en su casa.
+   */
+  private rebindLogic(): void {
+    if (!this.world || !this._content || !this.logic) return;
+    const want = this.actorId();
+    if (!want || this.logic.controlledId() === want) return;
+    this.logic = this.makeLogic(want);
+    this.reconcile();
+    console.info(`[mp] lógica re-vinculada a ${want}`);
+  }
+
+  /**
+   * v1.64 — TIMBRE QUE ABRE DE VERDAD: llamar a una puerta solo servía si el dueño estaba
+   * EXACTAMENTE dentro del bloque (owner.location === blockId) — si Marta estaba en el bar
+   * o bajando por el pasillo, el timbre sonaba eternamente y NADIE abría. Ahora el timbre
+   * «llama» a cualquier dueño PRESENTE (esté donde esté: el knock_result lo trae caminando
+   * hasta su puerta) y deja entrar; solo las viviendas SIN dueño (vacías) o con el dueño
+   * ausente del vecindario siguen cerradas (norma del barrio: nadie vive ahí, nadie abre).
+   *
+   * v1.64 (refinamiento) — GRACIA ANTIRREBOTE (rules.sim.doorbell.reRingGraceSecs): un
+   * segundo E sobre la MISMA puerta dentro de la ventana NO vuelve a sonar ni repite el
+   * aviso — el timbre no pasa de sonar aunque se martille la E. La ENTRADA no se toca:
+   * si hay alguien que pueda abrir, se entra igual (incluso con el sonido aún en el aire).
+   *
+   * v1.64 (refinamiento) — PUERTA DEL ANFITRIÓN (multijugador): el knock del sim EXCLUYE a
+   * world.playerId (regla de solitario: nadie llama a su propia puerta), así que un invitado
+   * llamando al timbre del anfitrión recibiría un «Nadie responde» FALSO en todas las
+   * pantallas y nadie abriría. Para esa puerta la presentación es LOCAL (saludo del catálogo
+   * de personajes) y el dueño recibe SU timbre en vivo por mp:ring (relay del servidor).
    */
   private ringDoorbell(blockId: string): boolean {
     if (!this.world) return false;
@@ -635,12 +702,30 @@ class GameController {
     const block = this.world.blocks[blockId];
     const ownerId = block?.ownerId ?? null;
     const owner = ownerId ? this.world.residents[ownerId] : undefined;
-    playSound('doorbell');
-    const home = !!owner && owner.present && owner.location === blockId;
-    if (!owner || !home) {
-      // Nadie dentro: nadie puede abrir. (Las vacías ya avisan aparte como candado.)
-      store.pushToast(translate(store.lang, 'door.noAnswer'), 'info');
+    const now = performance.now() / 1000;
+    const fresh = !(this.lastRing.block === blockId && now - this.lastRing.at < this.content.rules.sim.doorbell.reRingGraceSecs);
+    if (fresh) {
+      this.lastRing = { block: blockId, at: now };
+      playSound('doorbell');
+    }
+    if (!owner || !owner.present) {
+      if (fresh) {
+        // Nadie en el vecindario puede abrir: vacía (norma) o dueño ausente.
+        const vacant = block?.occupancy !== 'occupied';
+        store.pushToast(translate(store.lang, vacant ? 'door.vacant' : 'door.noAnswer'), 'info');
+      }
       return false;
+    }
+    if (owner.controller?.type === 'human' && owner.id === this.world.playerId && this.net) {
+      if (fresh) {
+        const line = greetLineOf(this.content, owner, store.lang) ?? translate(store.lang, 'chat.fallback');
+        store.pushToast(translate(store.lang, 'ev.greetSay', { name: this.nameOf(owner.id), line }), 'good');
+        this.bubbles?.sayText(owner.id, line, 2.8);
+        this.actors?.director.setGesture(owner.id, 'talk', 3.5);
+        this.tutorial.notify('used:resident');
+        this.net.ring(blockId); // el dueño oye SU timbre en vivo (el servidor lo reenvía)
+      }
+      return true;
     }
     this.logic?.knockAt(blockId);
     return true;
@@ -900,12 +985,21 @@ class GameController {
         if (from === this.myResidentId) return;
         this.remotePoses.set(from, { ...p, at: performance.now() });
       },
+      onRing: (from, _block) => {
+        // v1.64 — TIMBRE EN VIVO: alguien llamó a MI puerta (el servidor reenvía a todos;
+        // el que llamó ya lo oyó). Suena mi timbre y aviso — el vecino ve que hay visita.
+        if (from === this.myResidentId) return;
+        playSound('doorbell');
+        const s = useGameStore.getState();
+        s.pushToast(translate(s.lang, 'ev.someoneAtDoor'), 'info');
+      },
       onJoined: (j) => {
         this.myResidentId = j.yourResidentId;
         this.isHost = j.isHost;
         useGameStore.getState().setMpSession({ code: j.code, isHost: j.isHost, myResidentId: j.yourResidentId });
         useGameStore.getState().setMpParticipants(j.participants);
         useGameStore.getState().setMpInviteCode(null); // v1.54: invitación consumida
+        this.rebindLogic(); // v1.64 — el invitado controla SU residente, no el del anfitrión
       },
       onError: (m) => {
         useGameStore.getState().pushToast(m, 'bad');
@@ -1089,6 +1183,7 @@ class GameController {
     // Aplica en sitio conservando la identidad del objeto (PlayerLogic/building/actors referencian el mismo World).
     Object.assign(this.world, s.world);
     this.world.events = s.events.slice();
+    this.rebindLogic(); // v1.64 — el invitado ya existe en el mundo del servidor: se re-vincula aquí si faltaba
     this.handleEvents();
     this.paintBuilding();
     this.reconcile();
@@ -1121,6 +1216,10 @@ class GameController {
    */
   private reconcile(): void {
     if (!this.logic || !this.world || !this.net) return;
+    // v1.64 — cadena de moves en vuelo (sync con ruta legal): el espejo va por los saltos
+    // del grafo y cualquier contradicción intermedia se resuelve sola al aterrizar; una
+    // corrección ahora devolvería al invitado a mitad de la ruta (bug «escalera→entrada»).
+    if (this.logic.routePending()) return;
     const me = this.world.residents[this.actorId()];
     if (!me) return;
     const pos = this.logic.position();
@@ -1320,17 +1419,7 @@ class GameController {
     }
     // Migración de estancias de guardados v0.1: params y ranuras de muebles según catálogo.
     for (const b of Object.values(this.world.blocks)) migrateRooms(this.content, b.rooms);
-    this.logic = new PlayerLogic(this.world, this.content, {
-      actorId: this.myResidentId ?? undefined,
-      send: (cmd) => this.sendCommand(cmd),
-      // v1.50 — el prompt de charla se mide contra el ACTOR real (nodeOf): si el cuerpo no
-      // está pintado ahí (otro sitio/oculto), no hay aviso «E · charlar con…» fantasma.
-      actorPos: (residentId) => {
-        const n = this.actors?.director.nodeOf(residentId);
-        if (!n) return null;
-        return { x: n.x, z: n.z, floor: Math.round(n.y / this.content.rules.view.cellH) };
-      },
-    });
+    this.logic = this.makeLogic(this.myResidentId ?? undefined);
 
     this.scene?.dispose();
     this.scene = new Scene(this.engine);
@@ -1609,7 +1698,7 @@ class GameController {
     // histéresis): barato — un sumo y un if por fotograma.
     this.perf?.sample();
     const store = useGameStore.getState();
-    const frozen = selectModalOpen(store) || store.paused;
+    const frozen = selectWorldFrozen(store) || store.paused;
 
     let ticked = false;
     if (!frozen) {
@@ -1719,7 +1808,7 @@ class GameController {
 
     // v1.39 — MÚSICA PROCEDURAL: el contexto lo manda la hora del sim, la capa de lluvia
     // el clima y el ducking la pausa/los modales. Los modales no paran el ambiente (como el cielo).
-    const frozenMusic = selectModalOpen(store) || store.paused;
+    const frozenMusic = selectWorldFrozen(store) || store.paused;
     this.music?.update(this.world.clock.minute, this.world.weather.state, frozenMusic);
     // v1.39 — tutorial «muévete»: distancia real caminada por el jugador.
     if (!frozen && !this.logic.position().climbing) {

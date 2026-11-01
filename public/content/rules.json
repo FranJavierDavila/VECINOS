@@ -42,6 +42,12 @@
       "grumbleCooldownMinutes": 180,
       "grumbleText": "🛗 {name} sube por la escalera porque el ascensor sigue averiado. Por el portal ya se oye lo que opina."
     },
+    "doorbell": {
+      "reRingGraceSecs": 3.5
+    },
+    "phone": {
+      "freeMovement": true
+    },
     "missionLoopMax": 4,
     "defaultNeeds": {
       "sleep": 80,
