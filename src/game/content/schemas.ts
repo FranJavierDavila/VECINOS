@@ -654,6 +654,22 @@ export const rulesSchema = z.object({
         color: z.string().default('#ffdca8'),
       })
       .optional(),
+    /** v1.71 — PASE GLOBAL DE IMAGEN (Fase V del roadmap): tone mapping fílmico +
+     *  exposición/contraste de la escena COMPLETA, aplicados por la UNA verdad de Babylon
+     *  (scene.imageProcessingConfiguration — StandardMaterial ejecuta el pase al final de
+     *  su fragment, emisivos incluidos; el GlowLayer compone encima sin conflicto).
+     *  undefined = sin pase (comportamiento clásico: QA headless y capturas intactas). */
+    imageProcessing: z
+      .object({
+        /** 'aces' = filmico de la casa (roll-off suave de altas luces); 'khn' =
+         *  KHR PBR neutral (roll-off más neutro para PBR); 'none' = sin tone mapping. */
+        toneMapping: z.enum(['aces', 'khn', 'none']).default('aces'),
+        /** Exposición global (1 = intacta). Compensa el cierre de blancos del ACES. */
+        exposure: z.number().positive().default(1),
+        /** Contraste global (1 = intacto). */
+        contrast: z.number().positive().default(1),
+      })
+      .optional(),
     /** @deprecated sustituido por interactables del catálogo de estancias (Fase C). */
     laptopOffset: z.number().optional(),
     /** @deprecated sustituido por interactables del catálogo de estancias (Fase C). */

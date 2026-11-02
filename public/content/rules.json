@@ -251,6 +251,11 @@
       ],
       "intensity": 0.55
     },
+    "imageProcessing": {
+      "toneMapping": "aces",
+      "exposure": 1.12,
+      "contrast": 1.04
+    },
     "lockedColor": "#7d8493",
     "vacantTint": 0.45,
     "brokenColor": "#c1666b",
@@ -891,14 +896,14 @@
             "hour": 0,
             "top": "#101623",
             "horizon": "#232c40",
-            "ambient": 0.4,
+            "ambient": 0.48,
             "sun": 0
           },
           {
             "hour": 5,
             "top": "#17203a",
             "horizon": "#3a3f5c",
-            "ambient": 0.42,
+            "ambient": 0.5,
             "sun": 0
           },
           {
@@ -933,21 +938,21 @@
             "hour": 20,
             "top": "#5b5a86",
             "horizon": "#e2855f",
-            "ambient": 0.58,
+            "ambient": 0.65,
             "sun": 0.2
           },
           {
             "hour": 21.5,
             "top": "#232c40",
             "horizon": "#4a3f58",
-            "ambient": 0.45,
+            "ambient": 0.52,
             "sun": 0
           },
           {
             "hour": 24,
             "top": "#101623",
             "horizon": "#232c40",
-            "ambient": 0.4,
+            "ambient": 0.48,
             "sun": 0
           }
         ],

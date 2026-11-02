@@ -1485,7 +1485,7 @@ class GameController {
     // Ninguna cutscene sobrevive a un cambio de mundo: cola fuera y teatro desmontado.
     this.cutsceneQueue = [];
     this.cutscenePlayer?.abort();
-    const { Color3, Color4, DirectionalLight, HemisphericLight, PointLight, Scene, UniversalCamera, Vector3 } = B();
+    const { Color3, Color4, DirectionalLight, HemisphericLight, ImageProcessingConfiguration, PointLight, Scene, UniversalCamera, Vector3 } = B();
     const view = this.content.rules.view;
     useGameStore.getState().resetUi();
 
@@ -1546,6 +1546,23 @@ class GameController {
     // interacción va por zonas/teclado) y los materiales congelables del decorado lo
     // hacen en exterior.ts. Cero impacto visual, menos trabajo por frame.
     this.scene.skipPointerMovePicking = true;
+    // v1.71 — PASE GLOBAL DE IMAGEN (Fase V): tone mapping fílmico + exposición/contraste
+    // del catálogo (rules.view.imageProcessing). scene.imageProcessingConfiguration es la
+    // UNA verdad: todos los StandardMaterial la ejecutan al final de su fragment (emisivos
+    // incluidos) y el GlowLayer compone encima. En NullEngine la config es inerte: cero
+    // impacto en el QA geométrico. undefined en el catálogo = pase apagado (clásico).
+    const ip = view.imageProcessing;
+    if (ip) {
+      const cfg = this.scene.imageProcessingConfiguration;
+      if (ip.toneMapping === 'none') {
+        cfg.toneMappingEnabled = false;
+      } else {
+        cfg.toneMappingEnabled = true;
+        cfg.toneMappingType = ip.toneMapping === 'aces' ? ImageProcessingConfiguration.TONEMAPPING_ACES : ImageProcessingConfiguration.TONEMAPPING_KHR_PBR_NEUTRAL;
+      }
+      cfg.exposure = ip.exposure;
+      cfg.contrast = ip.contrast;
+    }
     const hemi = new HemisphericLight('ambient', new Vector3(...view.ambient.dir), this.scene);
     hemi.intensity = view.ambient.intensity;
     // v1.29 — LUZ DE REBOTEO (catálogo): el groundColor de la hemisférica levanta las caras
