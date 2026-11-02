@@ -1020,6 +1020,7 @@ class GameController {
         useGameStore.getState().pushToast(translate(useGameStore.getState().lang, 'ev.autoRejoined'), 'good');
         return;
       }
+      console.warn(`[vecinos] auto-rejoin falló (${saved.code}): ${res.error}`); // diagnóstico FASE N
       clearMpPersist(); // la partida ya no existe: que no vuelva a intentarlo
       this.net?.disconnect();
       this.net = null;
