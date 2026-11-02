@@ -585,7 +585,14 @@ export class PlayerLogic {
   }
 
   private sync() {
-    const z = this.zone();
+    // v1.69 — en modo INTERIOR la zona es LA VIVIENDA/LOCAL en el que estás: zone() filtra
+    // kind !== 'dwelling' (es una función de pasillo, para saber sobre qué cubo/pozo estás
+    // de pie) y devolvía el cubo de escalera o el bloque de trasteros de la columna — la
+    // cadena del router apuntaba al bloque EQUIVOCADO, el servidor nunca llegaba a la
+    // vivienda y reconcile expulsaba al invitado con cada session:state (T4c/T4d de
+    // qa-v164-multi). Apuntando al insideBlock la cadena completa su último salto
+    // (pasilloN→vivienda, legal: corredor→principal en la misma planta).
+    const z = this.mode === 'inside' && this.insideBlock ? (this.world.blocks[this.insideBlock] ?? this.zone()) : this.zone();
     const loc = this.location;
     if (loc === z.id) {
       this.lastMoveTarget = null; // el servidor (o el sim local) ya confirmó este destino
@@ -825,6 +832,14 @@ export class PlayerLogic {
       // v1.46 — VESTÍBULO → PASILLO sin E: empujar hacia el fondo del hall (W) te deja en
       // el pasillo de planta 0: el portal se CRUZA andando en ambos sentidos.
       this.portalInnerExit(input);
+      // v1.69 (higiene) — SYNC EN INTERIOR: era la única rama de movimiento SIN sync().
+      // El invitado que entraba por timbre a una vivienda a N plantas del último bloque
+      // confirmado por el servidor no mandaba NUNCA la cadena legal de moves (el servidor
+      // seguía en su planta de origen) y reconcile lo EXPULSAVA con cada session:state
+      // (T4c/T4d de qa-v164-multi: «4 s después ya está en el pasillo»). Con sync aquí,
+      // la cadena del router (pasillo0→escalera→…→pasilloN→vivienda) vuela también
+      // desde dentro y el espejo converge antes de que reconcile mire.
+      this.sync();
       return;
     }
     // Pasillo (v1.19): DOS carriles. A/D avanza en X; W/S, si no arrancan escalada (no hay
@@ -1393,6 +1408,9 @@ export class PlayerLogic {
       return { type: 'locked', block: door.id, reason: door.lockReason, price: door.availability?.price ?? null };
     }
     this.lastMoveTarget = door.id; // ya está en vuelo este move
+    // v1.69 — la ventana de reconcile (routePending) cubre el vuelo del move + su cadena:
+    // sin esto expiraba al cabo del sync anterior y el primer session:state expulsaba.
+    this.moveRetryAt = this.clockSec + 2;
     // v1.47 — ARMADA AL ENTRAR (walkIn.armOnEnter): cruzar el umbral ya arma la salida
     // natural (entrar y darte la vuelta te deja fuera). walkIn.armOnEnter=false restaura
     // el armado clásico al adentrarse (z > armZ).

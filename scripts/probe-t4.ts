@@ -1,7 +1,6 @@
-/** PROBE T4 (higiene v1.69) — ¿QUIÉN expulsa al visitante 4 s tras entrar por timbre?
- *  Muestreo en vivo: lógica (mode/inside) vs ESPEJO del servidor (me.location) vs
- *  ruta legal en vuelo (routePending). Si el espejo se mueve, manda el servidor; si no,
- *  algo local empuja. Solo diagnóstico: no toca src/.
+/** PROBE T4-v4 — monkey-patch de applyRemoteState en el invitado: cuento llamadas,
+ *  seqs vistas y seqs descartadas por el gate. Distingue «no llegan» de «llegan y se
+ *  filtran» de «llegan y falla el apply».
  */
 import { chromium, type Page } from 'playwright-core';
 
@@ -13,7 +12,10 @@ const browser = await chromium.launch({ executablePath: CHROME, headless: true, 
 async function boot(url: string): Promise<Page> {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: 'es-ES' });
   const page = await ctx.newPage();
-  page.on('pageerror', (e) => console.log(`[${url.includes('join') ? 'inv' : 'host'}] PAGEERROR:`, String(e).slice(0, 200)));
+  const errs: string[] = [];
+  page.on('pageerror', (e) => errs.push('PAGEERROR ' + String(e).slice(0, 160)));
+  page.on('console', (m) => { if (m.type() === 'error') errs.push('CONSOLE ' + m.text().slice(0, 160)); });
+  (page as Page & { __errs?: string[] }).__errs = errs;
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90_000 });
   let ok = false;
   for (let i = 0; i < 60; i++) {
@@ -55,9 +57,23 @@ for (let i = 0; i < 30; i++) {
   const st = await ev<{ hasGuest: boolean }>(guest, `(() => ({ hasGuest: !!window.__vecinosQa.getWorld().residents['res_guest_1'] }))`).catch(() => null);
   if (st?.hasGuest) break;
 }
-console.log('· sesión lista');
 
-// El invitado entra en casa del anfitrión por timbre (mismo guion que T4a).
+// PATCH: vigilar QUIÉN expulsa — hook a los métodos del PlayerLogic que mueven al jugador.
+await ev<void>(guest, `(() => {
+  const logic = window.__vecinosQa.getLogic();
+  const proto = Object.getPrototypeOf(logic);
+  logic.__log = [];
+  const hook = (name) => {
+    const orig = proto[name];
+    proto[name] = function (...args) {
+      const stack = (new Error().stack || '').split('\\n').slice(2, 5).map(s => s.trim().replace(/^at /, '').replace(/ \\(.*\\)/, '')).join(' <- ');
+      this.__log.push({ t: Math.round(performance.now() / 100) / 10, fn: name, args: JSON.stringify(args).slice(0, 80), stack: stack.slice(0, 220) });
+      return orig.apply(this, args);
+    };
+  };
+  ['forceLocation', 'tryExitHome', 'landInside', 'teleportTo', 'tryEnterDoor'].forEach(hook);
+})()`);
+
 const t4a = await ev<{ hostHome: string | null; mode: string; inside: string | null }>(guest, `(() => {
   const qa = window.__vecinosQa;
   const w = qa.getWorld();
@@ -71,19 +87,17 @@ const t4a = await ev<{ hostHome: string | null; mode: string; inside: string | n
 })()`);
 console.log('· tras timbre:', JSON.stringify(t4a));
 
-// Muestreo fino 6 s: ¿quién mueve — el espejo o la lógica local?
-const pid = await ev<string>(guest, `window.__vecinosQa.getWorld().playerId`);
-const pidHost = await ev<string>(host, `window.__vecinosQa.getWorld().playerId`);
-for (let i = 0; i < 13; i++) {
-  await guest.waitForTimeout(500);
-  const g = await ev<{ mode: string; inside: string | null; mirrorLoc: string | null; pending: boolean; serverLoc: string | null }>(guest, `(() => {
-    const qa = window.__vecinosQa;
-    const w = qa.getWorld();
-    const p = qa.getLogic().position();
-    return { mode: p.mode, inside: p.insideBlock, mirrorLoc: w.residents['${pid}']?.location ?? null, pending: qa.getLogic().routePending(), serverLoc: w.residents['${pidHost}']?.location ?? null };
-  })()`).catch((e) => ({ mode: 'ERR', inside: null, mirrorLoc: String(e).slice(0, 40), pending: false, serverLoc: null }));
-  const hMirror = await ev<string | null>(host, `(() => window.__vecinosQa.getWorld().residents['${pid}']?.location ?? null)`).catch(() => null);
-  console.log(`t=${((i + 1) * 0.5).toFixed(1)}s  lógica: ${g.mode}/${g.inside}  espejo-guest(guestTab): ${g.mirrorLoc}  pend:${g.pending}  espejo-guest(hostTab): ${hMirror}`);
+for (let i = 0; i < 6; i++) {
+  await guest.waitForTimeout(1000);
+  const dump = await ev<{ pos: { mode: string; floor: number; x: number; z: number }; log: { t: number; fn: string; args: string; stack: string }[] }>(guest, `(() => {
+    const l = window.__vecinosQa.getLogic();
+    const p = l.position();
+    return { pos: { mode: p.mode, floor: p.floor, x: Math.round(p.x * 10) / 10, z: Math.round(p.z * 10) / 10 }, log: (l.__log || []).splice(0) };
+  })()`);
+  console.log(`t=${i + 1}s  lógica=${dump.pos.mode}/p${dump.pos.floor} (${dump.pos.x},${dump.pos.z})  eventos nuevos: ${dump.log.length}`);
+  for (const e of dump.log) console.log(`   · [${e.t}] ${e.fn}(${e.args})  ← ${e.stack}`);
 }
+const errs = (guest as Page & { __errs?: string[] }).__errs ?? [];
+console.log('· errores JS guest:', errs.length === 0 ? '0' : errs.slice(0, 5).join(' || '));
 await browser.close();
 process.exit(0);
