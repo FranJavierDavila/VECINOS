@@ -2244,7 +2244,13 @@ class GameController {
             store.pushToast(translate(store.lang, 'ev.greetSay', { name: String(d.name), line }), 'good');
             if (rid) this.bubbles?.sayText(rid, line, 2.8);
             // v1.40 — abre de VERDAD: el vecino camina hasta el interior de su puerta.
-            if (rid && other?.home && this.world) {
+            // v1.69 (higiene) — SOLO NPC: a los HUMANOS no se los marionetiza. Antes, el
+            // knock_result del timbre de TU puerta te SACABA de donde estuvieras (¡también
+            // de la vivienda del vecino que estabas visitando!) y en remoto peleaba con la
+            // interpolación de poses del avatar ajeno (T4c/T4d de qa-v164-multi). El
+            // «el knock lo trae caminando» de v1.64 era para dueños IA (Marta va del bar
+            // a su puerta); el humano atiende (o no) con sus propios pies.
+            if (rid && other?.home && this.world && other.controller?.type !== 'human') {
               const b = this.world.blocks[other.home];
               if (b) {
                 const v = this.content.rules.view;
@@ -2258,7 +2264,7 @@ class GameController {
               }
             }
           }
-          if (rid) this.actors?.director.setGesture(rid, 'talk', 3.5);
+          if (rid && other?.controller?.type !== 'human') this.actors?.director.setGesture(rid, 'talk', 3.5);
           this.tutorial.notify('used:resident'); // v1.39 — paso «conoce a un vecino»
           break;
         }

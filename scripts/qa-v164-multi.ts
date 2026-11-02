@@ -135,7 +135,12 @@ const walk = await ev<{ x0: number; x1: number }>(guest, `(() => {
 })()`);
 console.log('· invitado anda:', JSON.stringify(walk));
 check('T2a el invitado se movió localmente', Math.abs(walk.x1 - walk.x0) > 0.5, `Δ=${(walk.x1 - walk.x0).toFixed(2)} m`);
-await host.waitForTimeout(1500); // poses en vuelo (10 Hz)
+// v1.69 — REANUDAR el bucle: las poses a 10 Hz las ENVÍA el frame loop (controller.update),
+// así que con qaHold activo NUNCA salían y el avatar remoto quedaba congelado (artefacto
+// del harness, no del juego). Fase B en vivo: el invitado anda con el bucle REAL (touch).
+await ev<void>(guest, `window.__vecinosQa.qaResume()`);
+await ev<void>(guest, `window.__vecinosQa.setTouch({ right: true })`);
+await host.waitForTimeout(700); // poses en vuelo (10 Hz) + el invitado andando de verdad
 const remote = await ev<{ p0: [number, number, number]; p1: [number, number, number] | null }>(host, `(async () => {
   const scene = window.__vecinosQa.getScene();
   const node = scene.getNodeByName('res_guest_1') || scene.meshes.find(m => m.name.startsWith('res_guest_1'));
@@ -145,6 +150,7 @@ const remote = await ev<{ p0: [number, number, number]; p1: [number, number, num
   await new Promise(r => setTimeout(r, 1200));
   return { p0, p1: read() };
 })()`).catch(() => ({ p0: null, p1: null }));
+await ev<void>(guest, `window.__vecinosQa.setTouch({ right: false })`); // fin de la caminata en vivo
 console.log('· avatar remoto en el anfitrión:', JSON.stringify(remote));
 check('T2b el anfitrión VE el avatar del invitado', !!remote.p0, JSON.stringify(remote.p0));
 if (remote.p0 && remote.p1) {
