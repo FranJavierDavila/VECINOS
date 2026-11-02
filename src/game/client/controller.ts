@@ -869,8 +869,23 @@ class GameController {
       if (rows && scoreCfg && rows.length > 0) {
         const lines = rows
           .map((r, i) => {
-            const bestFusibles = r.best['mg_fusibles'];
-            const extra = bestFusibles !== undefined && scoreCfg.boardExtraBest ? scoreCfg.boardExtraBest.replace('{secs}', bestFusibles.toFixed(1).replace('.', ',')) : '';
+            // FASE D — la mejor marca de CUALQUIER minijuego catalogado (la más rápida de
+            // todas), con su label del catálogo; antes solo se mostraba la de fusibles.
+            let extra = '';
+            if (scoreCfg.boardExtraBest) {
+              let bestSecs = Infinity;
+              let bestLabel = '';
+              for (const [mgId, mgCfg] of Object.entries(scoreCfg.minigames)) {
+                const secs = r.best[mgId];
+                if (secs !== undefined && secs < bestSecs) {
+                  bestSecs = secs;
+                  bestLabel = mgCfg.label ?? mgId;
+                }
+              }
+              if (Number.isFinite(bestSecs)) {
+                extra = scoreCfg.boardExtraBest.replace('{label}', bestLabel).replace('{secs}', bestSecs.toFixed(1).replace('.', ','));
+              }
+            }
             return (scoreCfg.boardLine ?? '{pos}. {name} · {points} pts')
               .replace('{pos}', String(i + 1))
               .replace('{name}', r.name)

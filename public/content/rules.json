@@ -15,19 +15,54 @@
     "score": {
       "title": "Vecino del mes",
       "missionCompletedPoints": 100,
-      "missionBonus": {},
+      "missionBonus": {
+        "m_ascensor": 50,
+        "m_manitas_ascensor": 50,
+        "m_festival_convocatoria": 75,
+        "m_festival_musica": 75,
+        "m_festival_grandia": 100,
+        "m_llegada_buitre": 50,
+        "m_okupa": 50,
+        "m_veredicto": 100
+      },
+      "excluded": ["m_qa_1", "m_qa_2", "m_qa_3", "m_qa_4", "m_qa_visita"],
       "minigames": {
         "mg_fusibles": {
           "label": "rearme de fusibles",
           "pointsPerRecord": 50,
           "maxSecs": 600
+        },
+        "mg_limpiar_cabina": {
+          "label": "fregatón de cabina",
+          "pointsPerRecord": 50,
+          "maxSecs": 600
+        },
+        "mg_desatascar": {
+          "label": "desatasco exprés",
+          "pointsPerRecord": 50,
+          "maxSecs": 600
+        },
+        "mg_trato_vecino": {
+          "label": "diplomacia de rellano",
+          "pointsPerRecord": 50,
+          "maxSecs": 600
+        },
+        "mg_fumigar": {
+          "label": "exterminio vecinal",
+          "pointsPerRecord": 50,
+          "maxSecs": 600
+        },
+        "mg_buzones": {
+          "label": "buzones revueltos",
+          "pointsPerRecord": 50,
+          "maxSecs": 600
         }
       },
-      "recordToast": "⏱️ {name} rearmó el cuadro en {secs} s — ¡mejor marca de la comunidad! (+{points} pts)",
-      "firstToast": "⏱️ {name} rearmó el cuadro en {secs} s (+{points} pts)",
+      "recordToast": "⏱️ {name} marcó {secs} s en {label} — ¡mejor marca de la comunidad! (+{points} pts)",
+      "firstToast": "⏱️ {name} marcó {secs} s en {label} (+{points} pts)",
       "boardTemplate": "🏅 VECINO DEL MES\n{lines}\nResuelve misiones y gana duelos de minijuegos para sumar puntos.",
       "boardLine": "{pos}. {name} · {points} pts{extra}",
-      "boardExtraBest": " · fusibles {secs} s"
+      "boardExtraBest": " · {label} {secs} s"
     },
     "authority": {
       "enabled": true,
@@ -91,8 +126,8 @@
       }
     },
     "work": {
-      "pay": 120,
-      "cooldownTicks": 120,
+      "pay": 90,
+      "cooldownTicks": 150,
       "funCost": 10,
       "toastCooldown": "Acabas de cerrar el portátil. Tus ojos te lo agradecen.",
       "toastDone": "+{amount} €: \"reunión que podía ser un correo\" (x1)."

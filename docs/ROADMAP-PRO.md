@@ -103,9 +103,19 @@
   qa-v164-multi TODO VERDE · regresión v123/v127/v130/v137(48✓)/v140/v141/v170/v171 ·
   tsc 0 sin caché · eslint limpio.
 
-### FASE D — Diseño de retención (continuo)
-- Bucle de juego en 1 página (sesiones 30/60/90 min); economía balanceada.
-- Reglas competitivas claras con ranking; 3 misiones co-op pulidas > 20 mediocres.
+### FASE D — Diseño de retención ✅ COMPLETADA (2026-11-02, v1.74)
+- ~~Bucle de juego en 1 página (sesiones 30/60/90 min); economía balanceada~~ ✅ v1.74:
+  one-pager docs/RETENCION-FASE-D.md (bucle → mobiliario → ranking, arcos 30/60/90);
+  trabajo 120/120 → 90 €/150 ticks (36 €/min), mobiliario 2.390 → 2.765 € (premium
+  arriba, baratos intactos) — set completo ≈ 2 sesiones de 90 min: hay horizonte.
+- ~~Reglas competitivas claras con ranking; 3 misiones co-op pulidas~~ ✅ v1.74:
+  score.excluded (QA fuera del ranking), missionBonus de saga (ascensor/festival/
+  historia mayor), LOS 6 minijuegos puntúan (antes solo fusibles), toasts/tablón con
+  {label}; co-op con fundsBonus por rol (100/100/150 €) ingresado en cada cartera +
+  negociación a 200 pts. QA: qa-v174 30 VERDE (unidad+E2E :3017: excluida→0 pts,
+  bienvenida→100, récord mg_buzones ±mejora/peor, co-op pts+€ por rol, work +90 €) ·
+  :3010 real desplegado (persistencia revivió la sesión sola) · regresión v137 48✓ /
+  v164-multi VERDE / v170 33-0 / v171 VERDE / v173 VERDE · tsc 0 · eslint limpio.
 
 ### FASE P — Producción (3-5 días)
 - Hosting estable + dominio; error tracking; analítica de embudo; PWA instalable
