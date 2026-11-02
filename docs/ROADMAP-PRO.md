@@ -58,7 +58,7 @@
 - Verificado en navegador: el AudioContext real decodifica SFX mono y loops estéreo
   (mismo sampleRate/duración), 0 errores de consola; tsc 0 · eslint limpio.
 
-### FASE V — Visual de 1ª línea (4-6 días) — EN CURSO (varios ítems ya cerrados)
+### FASE V — Visual de 1ª línea ✅ COMPLETADA (2026-11-02, v1.61→v1.72)
 - ~~Matar los ~670 coplanares~~ ✅ **CERRADO CON EVIDENCIA (v1.71-1.72)**:
   · Ventanas traseras + lavandería (v1.67): 0 pares vmarco/vidrio.
   · DECAY decales (v1.72): los 3 tipos (humedad/hollín/grietas) compartían el plano
