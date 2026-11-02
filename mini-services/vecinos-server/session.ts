@@ -37,8 +37,8 @@ export interface Session {
   participants: Map<string, Participant>;
   /** Contador de invitados creados en esta sesión (ids res_guest_N). */
   guestCounter: number;
-  /** Bucle de tick de la sesión (setInterval de node). */
-  timer: ReturnType<typeof setInterval>;
+  /** Bucle de tick de la sesión (setInterval de node). null mientras revive del disco. */
+  timer: ReturnType<typeof setInterval> | null;
   /** Borrado diferido cuando la sesión se queda sin participantes. */
   cleanup: ReturnType<typeof setTimeout> | null;
   // ── v1.55 — MARCADOR «VECINO DEL MES» (todo el criterio vive en rules.multiplayer.score) ──
@@ -65,6 +65,47 @@ export interface Session {
   // ── v1.56 — GRACIA DE RECONEXIÓN: participante cuyo socket murió; purga diferida ──
   /** residentId → timer de purga (30 s). Si rejoin llega antes, se cancela. */
   grace: Map<string, ReturnType<typeof setTimeout>>;
+  // ── FASE N — NETCODE PROFESIONAL (autoridad de servidor + métricas) ──
+  /** Última pose ACEPTADA por residente (mp:pose): ancla para validar velocidad/teleports. */
+  poses: Map<string, PoseTrace>;
+  /** Comandos por socket en el segundo en curso (rate limit de session:command). */
+  cmdWindow: Map<string, { sec: number; n: number }>;
+  /** Violaciones de movimiento por residente (ventana deslizante del catálogo). */
+  violations: Map<string, ViolationBook>;
+  /** Métricas de desync/anti-cheat de la sesión (expuestas en /health). */
+  metrics: SessionMetrics;
+  /** Último ack de estado por socket (session:ack): lag de desync en ticks de sim. */
+  acks: Map<string, { residentId: string; lastSeq: number; at: number }>;
+  /** Instante (ms) de restauración desde disco; undefined si la sesión nació en vivo. */
+  restoredAt?: number;
+}
+
+/** FASE N — ancla de la última pose aceptada de un residente. */
+export interface PoseTrace {
+  x: number;
+  z: number;
+  floor: number;
+  at: number;
+}
+
+/** FASE N — violaciones acumuladas por residente dentro de su ventana. */
+export interface ViolationBook {
+  count: number;
+  windowStart: number;
+}
+
+/** FASE N — contadores de la sesión (desync + anti-cheat) → /health. */
+export interface SessionMetrics {
+  posesIn: number;
+  posesRejected: number;
+  violations: number;
+  cmdsIn: number;
+  cmdsRejected: number;
+  acksIn: number;
+}
+
+export function freshMetrics(): SessionMetrics {
+  return { posesIn: 0, posesRejected: 0, violations: 0, cmdsIn: 0, cmdsRejected: 0, acksIn: 0 };
 }
 
 /** Lista plana de participantes con el formato exacto del protocolo ({ id, name, home }). */

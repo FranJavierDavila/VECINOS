@@ -24,6 +24,19 @@
  *   El audio NUNCA pasa por el servidor: solo la señalización WebRTC (offer/answer/ICE).
  *   En solitario (1 participante) el co-op no se ofrece y NADA se bloquea: las misiones
  *   normales del sim siguen igual que siempre.
+ *
+ * FASE N — NETCODE PROFESIONAL (v1.73):
+ *   · AUTORIDAD DE SERVIDOR en el movimiento: mp:pose se valida contra la última pose
+ *     aceptada (velocidad m/s y plantas/s del catálogo rules.multiplayer.authority);
+ *     los teleports se rechazan, violaciones en ventana → expulsión (anti-cheat básico).
+ *   · session:command con rate limit por socket (ventana fija de 1 s del catálogo).
+ *   · session:ack del cliente → lag de desync en ticks, expuesto en GET /health
+ *     (junto a métricas por sesión: poses, rechazos, violaciones, restauradas).
+ *   · PERSISTENCIA DE SESIONES: snapshot atómico a /tmp/vecinos-sessions.json cada 5 s
+ *     y en el cierre limpio; al arrancar se REVIVEN dentro de su TTL — el rejoin del
+ *     cliente encuentra la partida exacta incluso tras reinicio del proceso.
+ *   · Reconexión <10 s: ping/pong del engine ajustado (10 s) + rejoin automático.
+ *   El sim determinista de src/game/sim NO se toca (regla del proyecto).
  */
 import { createServer } from 'node:http';
 import { Server, type Socket } from 'socket.io';
@@ -31,11 +44,27 @@ import { formatIssues, loadContent } from '@/game/content';
 import { applyEffects, createWorld, dispatch, drainEvents, instantiateRooms, tick } from '@/game/sim';
 import { blockLabel, type Command, type World } from '@/game/core/types';
 import { generateSessionCode, isSpeed, participantsList, scoreRows, type Participant, type Session } from './session';
+import { freshMetrics } from './session';
+import { allowCmd, authorityOf, buildHealth, noteAck, noteViolation, validatePose } from './authority';
+import { hydrateSession, readPersistedFile, snapshotSessions, writePersistedFile, PERSIST_PATH, RESTORE_MAX_AGE_MS } from './persist';
 
-/** Puerto FIJO: Caddy reenvía aquí; no se lee process.env.PORT a propósito. */
-const PORT = 3010;
+/**
+ * Puerto FIJO 3010 (Caddy lo reenvía; el process.env.PORT genérico se IGNORA a propósito).
+ * Única excepción: VECINOS_QA_PORT — QA headless que levanta SU PROPIO servidor en un
+ * puerto desechable (persistencia/autoridad E2E sin tocar el servicio real). Caddy nunca
+ * define esa variable; en producción esto vale siempre 3010.
+ */
+const PORT = process.env.VECINOS_QA_PORT ? Number(process.env.VECINOS_QA_PORT) : 3010;
 /** Una sesión sin participantes se destruye tras este tiempo (join antes del plazo la rescata). */
 const SESSION_TTL_MS = 5 * 60 * 1000;
+/** Cadencia del snapshot de persistencia (FASE N). */
+const PERSIST_INTERVAL_MS = 5000;
+/** Fichero de snapshot: canónico para el servicio real (Caddy→3010); puerto propio para QA. */
+const PERSIST_FILE = PORT === 3010 ? PERSIST_PATH : `/tmp/vecinos-sessions-${PORT}.json`;
+/** Arranque del proceso: para /health. */
+const STARTED_AT = Date.now();
+/** true durante el cierre: el snapshot final ya se escribió, los destroy no reescriben. */
+let closing = false;
 
 // ── Contenido del juego: mismo loader que el cliente (el fetch de Bun resuelve file://) ──
 const contentUrl = new URL('../../public/content/', import.meta.url).href;
@@ -53,10 +82,30 @@ const io = new Server(httpServer, {
   // NO cambiar el path: Caddy lo exige (mismo setup que examples/websocket/server.ts).
   path: '/',
   cors: { origin: '*', methods: ['GET', 'POST'] },
+  // FASE N — reconexión <10 s: detectar vecinos muertos en ~20 s (antes: 25+20 s) sin
+  // castigar a redes móviles flacas (la gracia de 30 s y el rejoin absorben el rebote).
+  pingInterval: 10_000,
+  pingTimeout: 10_000,
+});
+
+// FASE N — GET /health: métricas de desync en HTTP plano (watchdog/curioso). El middleware
+// corre ANTES del propio engine de socket.io, así que no pisa el path '/' del handshake.
+io.engine.use((req: { url?: string }, res: { writeHead: (s: number, h: Record<string, string>) => void; end: (b: string) => void }, next: () => void) => {
+  const url = req.url ?? '';
+  if (url === '/health' || url.startsWith('/health?')) {
+    const body = JSON.stringify(buildHealth(sessions, Date.now() - STARTED_AT));
+    res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+    res.end(body);
+    return;
+  }
+  next();
 });
 
 const sessions = new Map<string, Session>();
 const sessionOfSocket = new Map<string, string>(); // socket.id → código de sesión
+
+/** FASE N — config de autoridad del catálogo (null = relay puro, comportamiento v1.57). */
+const authorityCfg = (): ReturnType<typeof authorityOf> => authorityOf(content.rules);
 
 // ── ACKs del protocolo (formas exactas del contrato) ──
 export type CreateAck = { ok: true; code: string; isHost: true; yourResidentId: string; scenarioId: string } | { ok: false; error: string };
@@ -78,16 +127,7 @@ function newSession(code: string, scenarioId: string, world: World): Session {
     pendingMinigame: null,
     participants: new Map(),
     guestCounter: 0,
-    timer: setInterval(() => {
-      // v1.56 — blindaje: si el sim lanzara una excepción, Bun se la tragaría en silencio
-      // y el mundo se congelaría sin error visible; se registra y el bucle sigue.
-      try {
-        for (let i = 0; i < session.speed; i++) tick(session.world, content);
-        broadcastState(session);
-      } catch (e) {
-        console.error(`[${code}] 💥 excepción en tick:`, e instanceof Error ? e.stack ?? e.message : e);
-      }
-    }, content.rules.multiplayer.tickSecondsPerTick * 1000),
+    timer: null,
     cleanup: null,
     // v1.55 — marcador «Vecino del mes»: el criterio completo vive en rules.multiplayer.score.
     scores: new Map(),
@@ -97,17 +137,65 @@ function newSession(code: string, scenarioId: string, world: World): Session {
     coop: { activeIdx: -1, assignments: new Map(), done: [], lastOfferAt: 0 },
     voice: new Map(),
     grace: new Map(),
+    // FASE N — runtime de autoridad y métricas.
+    poses: new Map(),
+    cmdWindow: new Map(),
+    violations: new Map(),
+    metrics: freshMetrics(),
+    acks: new Map(),
   };
   sessions.set(code, session);
   return session;
 }
 
+/** FASE N — arma el bucle de tick (idéntico para sesión nueva o revivida del disco). */
+function attachTimer(session: Session): void {
+  session.timer = setInterval(() => {
+    // v1.56 — blindaje: si el sim lanzara una excepción, Bun se la tragaría en silencio
+    // y el mundo se congelaría sin error visible; se registra y el bucle sigue.
+    try {
+      for (let i = 0; i < session.speed; i++) tick(session.world, content);
+      broadcastState(session);
+    } catch (e) {
+      console.error(`[${session.code}] 💥 excepción en tick:`, e instanceof Error ? e.stack ?? e.message : e);
+    }
+  }, content.rules.multiplayer.tickSecondsPerTick * 1000);
+}
+
+/**
+ * FASE N — REVIVE las sesiones del snapshot de disco (persistencia de sesión):
+ * roster fantasma con socketId centinela, bucle re-armado y TTL de limpieza armed:
+ * si nadie vuelve (rejoin) en SESSION_TTL_MS, la sesión revive→muere sin dejar basura.
+ */
+function reviveSessions(): number {
+  const file = readPersistedFile(PERSIST_FILE);
+  if (!file || file.sessions.length === 0) return 0;
+  const now = Date.now();
+  let revived = 0;
+  for (const saved of file.sessions) {
+    if (now - saved.savedAt > RESTORE_MAX_AGE_MS) continue; // mundo huérfano: mejor olvido
+    if (!content.scenarios[saved.scenarioId]) continue; // escenario ya no existe
+    if (sessions.has(saved.code)) continue;
+    const session = hydrateSession(saved);
+    sessions.set(session.code, session);
+    attachTimer(session);
+    // Sin sockets detrás: si nadie re-entra en el TTL, limpieza (el rejoin lo cancela).
+    session.cleanup = setTimeout(() => destroySession(session.code), SESSION_TTL_MS);
+    session.cleanup.unref();
+    revived += 1;
+    console.log(`[${session.code}] ♻ sesión REVIVIDA del disco (tick ${session.world.tick}, ${session.participants.size} fantasma(s), seq ${session.seq})`);
+  }
+  return revived;
+}
+
 function destroySession(code: string): void {
   const session = sessions.get(code);
   if (!session) return;
-  clearInterval(session.timer);
+  if (session.timer) clearInterval(session.timer);
   if (session.cleanup) clearTimeout(session.cleanup);
   sessions.delete(code);
+  // FASE N — el disco también se entera: sin esto, un reinicio reviviría la sesión muerta.
+  if (!closing) writePersistedFile(snapshotSessions(sessions), PERSIST_FILE);
   console.log(`[${code}] sesión destruida (TTL sin participantes)`);
 }
 
@@ -326,11 +414,20 @@ function leaveSession(socket: Socket, fromDisconnect = false): void {
 /** Purga real de un residente: fila de participantes, roles co-op, voz y avisos. */
 function purgeParticipant(session: Session, residentId: string, name: string, socketId?: string): void {
   const code = session.code;
-  if (socketId) session.participants.delete(socketId);
-  else {
+  if (socketId) {
+    session.participants.delete(socketId);
+    session.cmdWindow.delete(socketId); // FASE N — el rate limit muere con el socket
+    session.acks.delete(socketId);
+  } else {
     const entry = [...session.participants.entries()].find(([, p]) => p.residentId === residentId);
-    if (entry) session.participants.delete(entry[0]);
+    if (entry) {
+      session.participants.delete(entry[0]);
+      session.cmdWindow.delete(entry[0]);
+      session.acks.delete(entry[0]);
+    }
   }
+  session.poses.delete(residentId); // FASE N — sin traza, su regreso re-ancla limpio
+  session.violations.delete(residentId);
   const resident = session.world.residents[residentId];
   if (resident) resident.present = false;
   applyEffects(session.world, content, [{ op: 'toast', text: content.rules.multiplayer.leaveToast.replace('{name}', name) }], {});
@@ -393,6 +490,7 @@ io.on('connection', (socket) => {
     const world = createWorld(content, scenarioId);
     const code = generateSessionCode(sessions);
     const session = newSession(code, scenarioId, world);
+    attachTimer(session); // FASE N — el bucle ya no nace dentro de newSession (revive lo comparte)
     const host = world.residents[world.playerId]!; // el anfitrión ES world.playerId
     const participant: Participant = {
       socketId: socket.id,
@@ -467,6 +565,9 @@ io.on('connection', (socket) => {
   socket.on('session:command', (payload: { cmd: Command } | undefined) => {
     const found = lookup(socket.id);
     if (!found) return;
+    // FASE N — rate limit por socket (ventana fija de 1 s del catálogo): el spam de
+    // comandos no llega ni al sim ni al broadcast; solo cabe el ritmo de juego legítimo.
+    if (!allowCmd(authorityCfg(), found.session, socket.id, Date.now())) return;
     const cmd = payload?.cmd;
     if (!cmd || typeof cmd !== 'object' || typeof cmd.type !== 'string') return;
     // El actor SIEMPRE lo impone el servidor: el cliente nunca manda actor.
@@ -489,9 +590,11 @@ io.on('connection', (socket) => {
     broadcastState(found.session); // respuesta ágil al comando
   });
 
-  // ── v1.57 — POSES DE AVATARES (relay puro): el movimiento fino NUNCA toca el sim (la
-  // autoridad del sim sigue siendo la ubicación por bloque de los 'move'); esto solo pinta
-  // al vecino remoto andando de verdad. Validación estricta: números finitos y acotados. ──
+  // ── FASE N — POSES CON AUTORIDAD DE SERVIDOR: el movimiento fino NUNCA toca el sim (la
+  // autoridad del sim sigue siendo la ubicación por bloque de los 'move'), pero YA NO es
+  // client-trusted: cada pose se valida contra la última ACEPTADA del residente (velocidad
+  // m/s y plantas/s del catálogo). Teleport → rechazado + violación; spam de ritmo →
+  // rechazado; hueco largo de red → re-anclaje sin chequeo. Violaciones en ventana → kick. ──
   socket.on('mp:pose', (payload: { x?: number; z?: number; floor?: number } | undefined) => {
     const found = lookup(socket.id);
     if (!found) return;
@@ -501,12 +604,33 @@ io.on('connection', (socket) => {
     if (typeof x !== 'number' || typeof z !== 'number' || typeof floor !== 'number') return;
     if (!Number.isFinite(x) || !Number.isFinite(z) || !Number.isFinite(floor)) return;
     const cl = (n: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, n));
-    io.to(found.session.code).emit('mp:pose', {
-      from: found.participant.residentId,
-      x: cl(x, -600, 600),
-      z: cl(z, -600, 600),
-      floor: cl(floor, 0, 30),
-    });
+    const pose = { x: cl(x, -600, 600), z: cl(z, -600, 600), floor: cl(floor, 0, 30) };
+    const now = Date.now();
+    const verdict = validatePose(authorityCfg(), found.session, found.participant.residentId, pose, now);
+    if (!verdict.ok) {
+      // Anti-cheat básico: la teleport cuenta como violación (ventana del catálogo); el
+      // spam de ritmo solo se descarta. Con el umbral superado, fuera del vecindario.
+      const cfg = authorityCfg();
+      if (verdict.reason === 'teleport' && cfg && noteViolation(cfg, found.session, found.participant.residentId, now)) {
+        console.log(`[${found.session.code}] 🚨 ${found.participant.name} expulsado: ${cfg.kickViolations} violaciones de movimiento en ${cfg.violationWindowSec} s`);
+        socket.emit('session:error', { message: 'authority_kick' });
+        leaveSession(socket, false);
+        socket.disconnect();
+        return;
+      }
+      return; // pose rechazada: NO se reenvía a la sala
+    }
+    io.to(found.session.code).emit('mp:pose', { from: found.participant.residentId, ...pose });
+  });
+
+  // ── FASE N — ACK DE ESTADO: el cliente confirma el último seq aplicado → lag de desync
+  // en ticks por participante, visible en /health (nada de gameplay: solo telemetría). ──
+  socket.on('session:ack', (payload: { seq?: number } | undefined) => {
+    const found = lookup(socket.id);
+    if (!found) return;
+    const seq = payload?.seq;
+    if (typeof seq !== 'number' || !Number.isFinite(seq) || seq < 0) return;
+    noteAck(found.session, socket.id, found.participant.residentId, seq, Date.now());
   });
 
   // ── v1.64 — TIMBRE EN VIVO (relay puro): un vecino llama al timbre de una puerta y el
@@ -749,11 +873,13 @@ httpServer.listen(PORT, () => {
 
 // ── Cierre limpio ──
 
-let closing = false;
 function shutdown(signal: string): void {
   if (closing) return;
   closing = true;
   console.log(`${signal} recibido: cierre limpio…`);
+  // FASE N — foto final ANTES de destruir: el próximo arranque revive las sesiones y el
+  // rejoin del vecino encuentra su partida exacta (el destroy ya no reescribe el disco).
+  writePersistedFile(snapshotSessions(sessions), PERSIST_FILE);
   for (const code of [...sessions.keys()]) destroySession(code);
   io.close();
   httpServer.close(() => process.exit(0));
@@ -761,3 +887,12 @@ function shutdown(signal: string): void {
 }
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+// ── FASE N — PERSISTENCIA: revive sesiones del snapshot y fotografía cada 5 s ──
+
+const revivedCount = reviveSessions();
+if (revivedCount > 0) console.log(`♻ ${revivedCount} sesión(es) revivida(s) del disco (rejoin disponible)`);
+setInterval(() => {
+  if (closing) return;
+  writePersistedFile(snapshotSessions(sessions), PERSIST_FILE);
+}, PERSIST_INTERVAL_MS).unref();

@@ -28,6 +28,16 @@
       "boardTemplate": "🏅 VECINO DEL MES\n{lines}\nResuelve misiones y gana duelos de minijuegos para sumar puntos.",
       "boardLine": "{pos}. {name} · {points} pts{extra}",
       "boardExtraBest": " · fusibles {secs} s"
+    },
+    "authority": {
+      "enabled": true,
+      "maxSpeed": 9,
+      "maxFloorSpeed": 8,
+      "minPoseIntervalMs": 25,
+      "maxPoseGapMs": 2500,
+      "maxCmdsPerSec": 15,
+      "violationWindowSec": 60,
+      "kickViolations": 120
     }
   },
   "sim": {

@@ -14,6 +14,35 @@ export type Tone = 'info' | 'good' | 'bad';
 export type CamMode = 'edificio' | 'fachada' | 'planta' | 'estancia' | 'espia';
 export type Speed = 1 | 3 | 10;
 
+// ── FASE N — persistencia de sesión del lado cliente (auto-rejoin tras recarga) ──
+
+/** Clave localStorage con { code, residentId } de la última sesión de comunidad. */
+const MP_PERSIST_KEY = 'vecinos.mpSession';
+
+/** Lee la sesión guardada (null si no hay, está corrupta o falta algo). */
+export function readMpPersist(): { code: string; residentId: string } | null {
+  try {
+    if (typeof window === 'undefined') return null;
+    const raw = window.localStorage.getItem(MP_PERSIST_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw) as { code?: unknown; residentId?: unknown };
+    if (typeof p.code !== 'string' || typeof p.residentId !== 'string' || !p.code || !p.residentId) return null;
+    return { code: p.code, residentId: p.residentId };
+  } catch {
+    return null;
+  }
+}
+
+/** Borra la nota de sesión (rejoin imposible: la partida ya no existe). */
+export function clearMpPersist(): void {
+  try {
+    if (typeof window !== 'undefined') window.localStorage.removeItem(MP_PERSIST_KEY);
+  } catch {
+    // sin localStorage no hay nada que borrar
+  }
+}
+
+
 /** v1.65 — pestañas del cuaderno del vecino (panel sobre el escenario). */
 export type InfoTab = 'misiones' | 'edificio' | 'vecinos' | 'logros';
 
@@ -606,8 +635,19 @@ export const useGameStore = create<GameState>((set) => ({
   setEngineLost: () => set((s) => (s.engineLost ? s : { engineLost: true })),
   setSaveState: (saveState, at) => set({ saveState, savedAt: at ?? null }),
   setMpStatus: (mpStatus) => set({ mpStatus }),
-  setMpSession: (s) =>
-    set(s ? { mpCode: s.code, mpIsHost: s.isHost, mpMyResidentId: s.myResidentId } : { mpCode: null, mpIsHost: false, mpMyResidentId: null }),
+  setMpSession: (s) => {
+    set(s ? { mpCode: s.code, mpIsHost: s.isHost, mpMyResidentId: s.myResidentId } : { mpCode: null, mpIsHost: false, mpMyResidentId: null });
+    // FASE N — persistencia de sesión del LADO CLIENTE: con código+residente en localStorage,
+    // una recarga accidental vuelve a la comunidad sola (auto-rejoin del controller <10 s).
+    // Salir explícitamente (setMpSession(null)) borra la nota: decisión del vecino.
+    try {
+      if (typeof window === 'undefined') return;
+      if (s) window.localStorage.setItem(MP_PERSIST_KEY, JSON.stringify({ code: s.code, residentId: s.myResidentId }));
+      else window.localStorage.removeItem(MP_PERSIST_KEY);
+    } catch {
+      // localStorage lleno/bloqueado: el juego funciona igual (sin auto-rejoin, sin error).
+    }
+  },
   setMpParticipants: (mpParticipants) => set({ mpParticipants }),
   setMpPanelOpen: (mpPanelOpen) => set({ mpPanelOpen }),
   setMpError: (mpError) => set({ mpError }),

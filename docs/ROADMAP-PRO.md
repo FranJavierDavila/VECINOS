@@ -88,10 +88,20 @@
   techo más profundos, blancos sin quemar), noche cinematográfica y legible.
   QA: qa-v171-imageproc.ts 10/10 VERDE + qa-v170-audio 33/0 (regresión de contenido).
 
-### FASE N — Netcode profesional (4-6 días)
-- Autoridad de servidor en movimiento (validar velocidad/teleports) en vecinos-server.
-- Reconexión <10s con resync de estado; persistencia de sesión.
-- Métricas de desync; anti-cheat básico. El sim determinista de `src/game/sim/` NO se toca.
+### FASE N — Netcode profesional ✅ COMPLETADA (2026-11-02, v1.73)
+- ~~Autoridad de servidor en movimiento~~ ✅ v1.73: `authority.ts` valida cada mp:pose contra
+  la última pose ACEPTADA (velocidad m/s y plantas/s, spam de ritmo, hueco de red re-ancla)
+  — catálogo `rules.multiplayer.authority` (sin bloque = relay puro v1.57). Sim intacto.
+- ~~Reconexión <10s con resync de estado; persistencia de sesión~~ ✅ v1.73: reintentos
+  0,5–2 s + auto-rejoin tras recarga (localStorage) + snapshot atómico cada 5 s a
+  /tmp/vecinos-sessions.json (mundo, marcador, co-op, voz, roster centinela) con REVIVE
+  al arrancar dentro de TTL 30 min (E2E real: SIGTERM → relanzar → rejoin anfitrión+invitado).
+- ~~Métricas de desync; anti-cheat básico~~ ✅ v1.73: `/health` con posesIn/rejected,
+  violations, cmdsRejected y ackLag por vecino (session:ack desde applyRemoteState);
+  ventana deslizante de teleports → authority_kick (120); rate limit 15 cmd/s.
+- QA: qa-v173 47 VERDE (unidad+E2E servidor propio :3017) · test-pose 8/8 en :3010 real ·
+  qa-v164-multi TODO VERDE · regresión v123/v127/v130/v137(48✓)/v140/v141/v170/v171 ·
+  tsc 0 sin caché · eslint limpio.
 
 ### FASE D — Diseño de retención (continuo)
 - Bucle de juego en 1 página (sesiones 30/60/90 min); economía balanceada.
