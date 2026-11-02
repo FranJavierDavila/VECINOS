@@ -177,8 +177,18 @@ export class NetSession {
     });
     // Estado de transporte (la UI decide qué pinta con ello).
     cbs.onStatus?.('connecting');
-    this.socket.on('connect', () => cbs.onStatus?.('connected'));
-    this.socket.io.on('reconnect_attempt', () => cbs.onStatus?.('connecting'));
+    // FASE N — diagnóstico de transporte (consola): el auto-rejoin tras recarga depende de
+    // que el socket conecte pronto; con esto se ve qué transporte gana y qué falla.
+    console.info(`[vecinos-net] socket creado → ${SERVER_URL}`);
+    this.socket.on('connect', () => {
+      console.info(`[vecinos-net] conectado (${this.socket.id}) vía ${this.socket.io.engine?.transport?.name ?? '?'}`);
+      cbs.onStatus?.('connected');
+    });
+    this.socket.io.on('reconnect_attempt', (attempt: number) => {
+      console.info(`[vecinos-net] reintento #${attempt}`);
+      cbs.onStatus?.('connecting');
+    });
+    this.socket.on('connect_error', (e: Error) => console.warn(`[vecinos-net] connect_error: ${e.message}`));
     this.socket.on('disconnect', () => cbs.onStatus?.('disconnected'));
     // Mensajes de sesión (protocolo v1, formas exactas del contrato).
     this.socket.on('session:joined', (p: SessionJoinedPayload) => cbs.onJoined?.(p));
@@ -304,16 +314,41 @@ export class NetSession {
     this.socket.disconnect();
   }
 
-  /** emit con ack y vencimiento: { ok:false, error:'timeout' } si el servidor no responde a tiempo. */
+  /**
+   * emit con ack y vencimiento: { ok:false, error:'timeout' } si el servidor no responde a tiempo.
+   * FASE N — si el transporte aún no está conectado (auto-rejoin tras recarga: la petición
+   * nace en cuanto el socket se crea), se ESPERA al 'connect' antes de enviar: el buffer de
+   * socket.io sí reenvía el paquete, pero el temporizador del ack corre desde YA y el
+   * arranque de la página puede tardar más que ACK_TIMEOUT_MS → falso 'timeout' y el
+   * vecino expulsado de su propia partida.
+   */
   private request(event: 'session:create' | 'session:join' | 'session:rejoin', payload: Record<string, unknown>): Promise<HostJoinResult> {
-    return new Promise((resolve) => {
-      this.socket.timeout(ACK_TIMEOUT_MS).emit(event, payload, (err: Error | null, res: unknown) => {
-        if (err) {
-          resolve({ ok: false, error: 'timeout' });
-          return;
-        }
-        resolve(isHostJoinResult(res) ? res : { ok: false, error: 'timeout' });
+    const send = (): Promise<HostJoinResult> =>
+      new Promise((resolve) => {
+        this.socket.timeout(ACK_TIMEOUT_MS).emit(event, payload, (err: Error | null, res: unknown) => {
+          if (err) {
+            console.warn(`[vecinos-net] ${event} sin ack (${err instanceof Error ? err.message : 'error'}) · conectado: ${this.socket.connected}`);
+            resolve({ ok: false, error: 'timeout' });
+            return;
+          }
+          resolve(isHostJoinResult(res) ? res : { ok: false, error: 'timeout' });
+        });
       });
+    if (this.socket.connected) return send();
+    return new Promise((resolve) => {
+      const onConnect = (): void => {
+        cleanup();
+        void send().then(resolve);
+      };
+      const timer = setTimeout(() => {
+        cleanup();
+        resolve({ ok: false, error: 'timeout' });
+      }, ACK_TIMEOUT_MS + 6000);
+      const cleanup = (): void => {
+        clearTimeout(timer);
+        this.socket.off('connect', onConnect);
+      };
+      this.socket.once('connect', onConnect);
     });
   }
 }
