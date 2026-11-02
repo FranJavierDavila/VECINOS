@@ -68,9 +68,11 @@ for (const call of glassCalls) {
 check('los 7 cristales nacen finos en X y anchos en Z (regla, no ejemplos)', axisOk, `${glassCalls.length} llamadas auditadas`);
 
 console.log('── 2. Versiones ──');
-check('insignia v1.34 en i18n (es/en)', i18nTs.includes('v1.38 · pase de optimización') && i18nTs.includes('v1.38 · optimization pass'));
-check('sw.js bump a vecinos-v1.34', swJs.includes('vecinos-v1.38'));
-check('PwaRegister espera vecinos-v1.34', pwaTsx.includes('vecinos-v1.34'));
+// v1.71 (higiene) — consistencia cruzada en vez de versiones hardcodeadas.
+const swVer133 = (swJs.match(/const VERSION = '([^']+)'/) ?? [])[1] ?? '';
+const pwaVer133 = (pwaTsx.match(/EXPECTED_SW_VERSION = '([^']+)'/) ?? [])[1] ?? '';
+check('insignia vigente en i18n (pase de optimización, es/en)', i18nTs.includes("'opt.perfAuto':"));
+check('PwaRegister ESPEJA la VERSION de sw.js', swVer133 !== '' && swVer133 === pwaVer133, `sw=${swVer133} pwa=${pwaVer133}`);
 
 console.log('── 2.bis Avisos narrados 100% data-driven (v1.33: ecosistema + cutscenes) ──');
 check('ecosystem.json ya no habla de la 4C (el gato es de la 2C)', srcOf('public/content/ecosystem.json').includes('la gata de la 2C') && !srcOf('public/content/ecosystem.json').includes('gata de la 4C'));

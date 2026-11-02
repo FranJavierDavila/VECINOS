@@ -283,6 +283,12 @@ check('las lavadoras son SÓLIDAS: el jugador no llega a atravesarlas', blocked)
 console.log('── 8. Insignia y determinismo ──');
 check('insignia v1.38 (pase de optimización) en i18n', srcOf('src/game/client/i18n.ts').includes("'opt.perfAuto':"));
 check('sw.js cache bump al ser el runtime actual', srcOf('public/sw.js').includes('vecinos-v1.69')); // v1.46→v1.69: estaba CONGELADO 20 versiones (stale cache PWA)
+// v1.71 (higiene) — candado permanente: el EXPECTED_SW_VERSION de PwaRegister debe ESPEJAR la
+// VERSION de sw.js. Se desalineó 24 versiones (v1.45 vs v1.69) y cada visitante recurrente
+// pagaba una recarga extra por sesión. Consistencia cruzada, sin versiones hardcodeadas.
+const swVer = (srcOf('public/sw.js').match(/const VERSION = '([^']+)'/) ?? [])[1] ?? '';
+const pwaVer = (srcOf('src/components/game/PwaRegister.tsx').match(/EXPECTED_SW_VERSION = '([^']+)'/) ?? [])[1] ?? '';
+check('PwaRegister ESPEJA la VERSION de sw.js (sin desfase de caché)', swVer !== '' && swVer === pwaVer, `sw=${swVer} pwa=${pwaVer}`);
 const w1 = createWorld(content, 'slice');
 for (let i = 0; i < 240; i++) tick(w1, content);
 check('sim determinista (240 ticks)', w1.tick === 240);

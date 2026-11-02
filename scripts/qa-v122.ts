@@ -65,14 +65,17 @@ const mainRoad = v.exterior.rows.find((r) => r.defId === 'carretera');
 check('la carretera principal NO termina en seco (hasta fuera de pantalla)', !!mainRoad && mainRoad.x0 <= -60 && mainRoad.x1 >= 110, `x ${mainRoad?.x0}..${mainRoad?.x1}`);
 const zebra = v.exterior.rows.find((r) => r.defId === 'carretera_cruce');
 check('paso de cebra frente al portal (sin cuerpo, franjas del bloque)', !!zebra && !zebra.body && defOf('carretera_cruce')!.zebra && zebra.z0 === mainRoad!.z0, `x ${zebra?.x0}..${zebra?.x1}`);
-const branch = v.exterior.rows.find((r) => r.defId === 'carretera_bifurcacion');
-check('bifurcación transversal (orient z) que huye hacia la cámara', !!branch && branch.orient === 'z' && branch.z0 <= mainRoad!.z0 - 30 && branch.z0 + branch.depth >= mainRoad!.z0 - 0.5 && branch.z0 + branch.depth <= mainRoad!.z0 + mainRoad!.depth, `x ${branch?.x0}..${branch?.x1} · z ${branch?.z0}..${branch ? branch.z0 + branch.depth : NaN}`);
+// v1.71 (higiene): la bifurcación transversal fue RETIRADA del catálogo en rediseños
+// posteriores del exterior (hoy: carretera principal + cruce cebra). El invariante vivo:
+// la vía principal no termina en seco y el cruce peatonal existe.
+check('carretera principal + cruce cebra vigentes (bifurcación retirada del catálogo)', !!mainRoad && !!zebra && v.exterior.rows.every((r: { defId: string }) => r.defId !== 'carretera_bifurcacion'));
 const laterales = v.exterior.rows.filter((r) => r.defId === 'acera' && r.orient === 'z');
 const backWalk = v.exterior.rows.filter((r) => r.defId === 'acera' && r.orient === 'x' && r.z0 > 0);
 check('el edificio queda RODEADO: aceras laterales + trasera', laterales.length >= 2 && backWalk.length >= 1, `2 laterales + ${backWalk.length} trasera`);
 const gardens = v.exterior.rows.filter((r) => r.defId === 'jardin');
 const campos = v.exterior.rows.filter((r) => r.defId === 'campo');
-check('jardines cercanos (densos) y campo lejano (disperso con topes)', gardens.length >= 2 && gardens.every((g) => g.gridScatter) && campos.length >= 2 && campos.every((c) => c.gridScatter && (c.maxTrees ?? 99) <= 70), `${gardens.length} jardines · ${campos.length} campos · topes v1.24 con recortes 2D`);
+// v1.71 (higiene): el campo lejano se consolidó en UNA fila grande (topes v1.24 intactos).
+check('jardines cercanos (densos) y campo lejano (disperso con topes)', gardens.length >= 2 && gardens.every((g) => g.gridScatter) && campos.length >= 1 && campos.every((c) => c.gridScatter && (c.maxTrees ?? 99) <= 70), `${gardens.length} jardines · ${campos.length} campo · topes v1.24 con recortes 2D`);
 check('sin terreno desnudo: las filas cubren el suelo del mundo', (() => {
   // Muestreo determinista del rect del suelo (sin la huella del EDIFICIO, que no es suelo).
   const g = v.exterior.ground;

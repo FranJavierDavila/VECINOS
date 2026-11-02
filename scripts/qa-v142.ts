@@ -83,7 +83,10 @@ if (out) {
   })(), 'muestreo z de −5.6 a −13.1');
   check('cruzar FUERA del paso es imposible (jaywalk bloqueado)', !insideWalk(5, -9) && !insideWalk(20, -9), 'x=5 e x=20 sobre la calzada');
   check('parque de calistenia alcanzable', insideWalk(out.exercise.x, out.exercise.z), `(${out.exercise.x}, ${out.exercise.z})`);
-  check('entrante del portal (fachada) transitable', insideWalk(2.4, out.portal.outFrontZ), `z=${out.portal.outFrontZ}`);
+  // v1.61 — LA FACHADA NO SE ATRAVIESA: el entrante dejó de ser transitable (walk SIN el
+  // rect del vano) y la entrada frontal salta el aviso en portal.frontZone.
+  check('entrante del portal INTRANSITABLE (v1.61: la fachada no se atraviesa)', !insideWalk(2.4, out.portal.outFrontZ), `z=${out.portal.outFrontZ}`);
+  check('zona frontal cerrada declarada (frontZone) y cubre el vano del portal', !!out.portal.frontZone && out.portal.frontZone.x0 <= 2.4 && out.portal.frontZone.x1 >= 2.4, out.portal.frontZone ? `x ${out.portal.frontZone.x0}..${out.portal.frontZone.x1} · zMin ${out.portal.frontZone.zMin}` : 'ausente');
   // Vestíbulo: layout rect x 0.06..4.62, z local 0.06..2.62 (world z = frontZ + local)
   const portalLayout = content.layouts['layout_portal'];
   const vr = portalLayout?.rooms?.[0]?.rect;
@@ -147,12 +150,33 @@ const walkUntil = (cond: () => boolean, input: Input, maxFrames: number): boolea
 };
 const drainHas = (type: string): boolean => logic.drainAuto().some((e) => e.type === type);
 
-// a) Entrar al portal desde el pasillo (E: el vestíbulo sigue siendo puerta con aviso).
+// a) v1.46 — EL PORTAL SE CRUZA ANDANDO (sin E): el empujón desde el pasillo entra al
+//    vestíbulo (portalIn, correderas abiertas, cuerpo visible) y siguiendo subiendo sale
+//    de vuelta al pasillo (exited). Nada de tecla E en todo el recorrido.
 const portalBlk = Object.values(world.blocks).find((b) => b.defId === 'portal')!;
 logic.x = (portalBlk.cell.col + portalBlk.size.w / 2) * v.cellW;
 logic.z = v.corridorZ;
-const entered = logic.interact();
-check('E · entrar en el portal (el vestíbulo sigue pidiendo E desde el pasillo)', entered.type === 'entered' && logic.mode === 'inside' && logic.insideBlock === portalBlk.id, entered.type);
+const enteredIn = walkUntil(() => logic.mode === 'inside', INPUT({ up: true }), 200);
+const evsIn = logic.drainAuto();
+check('v1.46 · el portal se cruza ANDANDO: empujón desde el pasillo = portalIn', enteredIn && evsIn.some((e) => e.type === 'portalIn') && logic.insideBlock === portalBlk.id, evsIn.map((e) => e.type).join(','));
+check('v1.47 · se entra VISIBLE por las correderas ya abiertas (sin fade)', logic.position().fade === 1, `fade=${logic.position().fade}`);
+const crossedBack = walkUntil(() => logic.mode === 'corridor' && !logic.insideBlock, INPUT({ up: true }), 300);
+const evsOut = logic.drainAuto();
+check('v1.46 · el cruce se completa: W del fondo te deja de vuelta en el pasillo', crossedBack && logic.mode === 'corridor' && evsOut.some((e) => e.type === 'exited'), evsOut.map((e) => e.type).join(','));
+
+// Re-armado de la auto-entrada (v1.46): al aterrizar NO se re-entra solo — hay que
+// alejarse del vano (doorInFront deja de ver el portal) y volver al hueco.
+const rearm = (): void => {
+  walkUntil(() => logic.position().x <= 1.2, INPUT({ left: true }), 150);
+  walkUntil(() => logic.position().x >= 2.3, INPUT({ right: true }), 200);
+  logic.drainAuto();
+};
+rearm();
+
+// b0) Re-entrar al vestíbulo tras el re-armado (el vano vuelve a admitir el empujón).
+const reenteredVest = walkUntil(() => logic.mode === 'inside', INPUT({ up: true }), 200);
+logic.drainAuto();
+check('v1.46 · re-armado: alejarse del vano y volver re-arma la auto-entrada', reenteredVest && logic.insideBlock === portalBlk.id, `mode=${logic.mode}`);
 
 // b) SALIR SIN E por la PARED IZQUIERDA (ruta oficial del perímetro oeste).
 let sawOut = false;
@@ -174,23 +198,42 @@ run(60, INPUT({}));
 check('el fundido termina en visible', logic.position().fade === 1, `fade=${logic.position().fade}`);
 check('el sim NO se entera de la calle (teatro): location sigue en el portal', world.residents[world.playerId]!.location === portalBlk.id, world.residents[world.playerId]!.location ?? 'null');
 
-// c) Bajar a la esquina por la acera lateral y caminar la frontal hasta el paso de cebra.
+// c) ENTRAR desde la calle SIN E por la acera lateral (dirección manda) y volver a salir.
+let enteredSide = false;
+let fadeAtIn = 1;
+let xAtIn = 0;
+for (let i = 0; i < 300 && !enteredSide; i++) {
+  logic.update(STEP, INPUT({ right: true }));
+  if (logic.mode === 'inside') {
+    enteredSide = true;
+    fadeAtIn = logic.position().fade;
+    xAtIn = logic.x;
+  }
+}
+logic.drainAuto();
+check('calle → vestíbulo SIN E por la acera lateral (dirección manda)', enteredSide && logic.insideBlock === portalBlk.id, `mode=${logic.mode}`);
+check('el cuerpo nace desvanecido al cruzar la pared oeste (entrada)', fadeAtIn < 0.3, `fade=${fadeAtIn.toFixed(2)}`);
+check('aterrizaje pegado a la pared interior (wallInnerX − 0.1)', Math.abs(xAtIn - (out.portal.wallInnerX - 0.1)) < 1e-6, `x=${xAtIn.toFixed(2)}`);
+walkUntil(() => logic.isOutside(), INPUT({ left: true }), 400);
+logic.drainAuto();
+
+// d) Bajar a la esquina por la acera lateral y caminar la frontal hasta el paso de cebra.
 check('esquina frontal alcanzada por la acera lateral', walkUntil(() => logic.position().z <= -7 + 1e-6, INPUT({ down: true }), 300), `z=${logic.position().z.toFixed(2)}`);
 check('acera frontal hasta el paso de cebra', walkUntil(() => logic.position().x >= 12.8, INPUT({ right: true }), 700), `x=${logic.position().x.toFixed(2)}`);
 
-// d) CRUZAR por el paso de peatones (down = hacia la acera de enfrente; el único cruce legal).
+// e) CRUZAR por el paso de peatones (down = hacia la acera de enfrente; el único cruce legal).
 const zStart = logic.position().z;
 const crossed = walkUntil(() => logic.position().z <= -11.6 + 1e-6, INPUT({ down: true }), 900);
 const posFar = logic.position();
 check('cruce completo hasta la acera de enfrente', crossed, `z=${posFar.z.toFixed(2)} (desde ${zStart.toFixed(2)})`);
 check('el cruce respetó el paso de cebra (x en banda)', posFar.x >= 10.2 && posFar.x <= 15.8, `x=${posFar.x.toFixed(2)}`);
 
-// e) Jaywalking imposible fuera del paso.
+// f) Jaywalking imposible fuera del paso.
 logic.x = 5; logic.z = -5.7;
 run(300, INPUT({ up: true }));
 check('jaywalk bloqueado: sin paso de cebra no se pisa la calzada', logic.position().z >= -7 - 1e-3, `z=${logic.position().z.toFixed(3)}`);
 
-// f) Banco exterior: sentarse a contemplar el edificio (y levantarse).
+// g) Banco exterior: sentarse a contemplar el edificio (y levantarse).
 logic.setOutdoorSpots([{ x: 13, z: -12.7 }], null);
 logic.x = 13; logic.z = -12.2;
 let target = logic.interactTarget();
@@ -201,7 +244,7 @@ check('prompt = levantarse estando sentado', logic.interactTarget()?.kind === 'b
 const stood = logic.interact();
 check('E · levantarse', stood.type === 'stand' && !logic.isSitting(), String(stood.type));
 
-// g) Calistenia en el parque de enfrente.
+// h) Calistenia en el parque de enfrente.
 logic.setOutdoorSpots([], { x: out.exercise.x, z: out.exercise.z });
 logic.x = out.exercise.x; logic.z = out.exercise.z;
 target = logic.interactTarget();
@@ -217,36 +260,51 @@ for (let i = 0; i < 60 * 30 && !ended; i++) {
 }
 check('el ejercicio termina solo (exerciseEnd)', ended, `${(60 * 30).toString()} frames de tope`);
 
-// h) Volver: parque → paso de cebra → acera frontal → entrar por el FRENTE sin E.
+// i) Volver: parque → paso de cebra → acera frontal. LA FACHADA NO SE ATRAVIESA
+//    (v1.48/v1.61): empujar frontal solo suelta el aviso (frontBlocked) y NO entra.
 check('vuelta a la acera frontal cruzando por el paso', walkUntil(() => logic.position().z >= -4.5, INPUT({ up: true }), 1200), `z=${logic.position().z.toFixed(2)}`);
 check('regreso por la frontal hasta el entrante del portal', walkUntil(() => logic.position().x <= 2.45, INPUT({ left: true }), 900), `x=${logic.position().x.toFixed(2)}`);
+let hinted = false;
+for (let i = 0; i < 200 && !hinted; i++) {
+  logic.update(STEP, INPUT({ up: true }));
+  hinted = logic.drainAuto().some((e) => e.type === 'frontBlocked');
+}
+logic.drainAuto();
+check('v1.48/v1.61 · la entrada FRONTAL está cerrada: aviso y SIN entrada', hinted && logic.mode === 'outside', `mode=${logic.mode}`);
+
+// j) Re-entrada por la ruta oficial: acera lateral → pared oeste (sin E).
+walkUntil(() => logic.position().x <= out.portal.sideExitX + 1e-6, INPUT({ left: true }), 900);
+walkUntil(() => logic.position().z >= out.portal.sideZ - 1e-6, INPUT({ up: true }), 900);
 let reentered = false;
 for (let i = 0; i < 200 && !reentered; i++) {
-  logic.update(STEP, INPUT({ up: true }));
+  logic.update(STEP, INPUT({ right: true }));
   if (logic.mode === 'inside') reentered = true;
 }
 logic.drainAuto();
-check('entrar por las correderas del frente SIN E', reentered && logic.mode === 'inside' && logic.insideBlock === portalBlk.id, `mode=${logic.mode}`);
+check('re-entrada por la acera lateral SIN E (ruta oficial del perímetro)', reentered && logic.mode === 'inside' && logic.insideBlock === portalBlk.id, `mode=${logic.mode}`);
 
-// i) Salir por el FRENTE sin E (segunda puerta «real» del portal).
+// k) Salir por el FRENTE sin E (v1.47): las correderas te plantan en el PASILLO de
+//    planta 0 — salir del portal es seguir andando, no aparecer en la calle.
 let outFront = false;
 let zOut = 0;
-for (let i = 0; i < 200 && !outFront; i++) {
+for (let i = 0; i < 300 && !outFront; i++) {
   logic.update(STEP, INPUT({ down: true }));
-  if (logic.isOutside()) {
+  if (logic.mode === 'corridor') {
     outFront = true;
     zOut = logic.position().z;
   }
 }
 logic.drainAuto();
-check('salir por el frente SIN E (dirección correcta basta)', outFront && Math.abs(zOut - out.portal.outFrontZ) < 1e-6, `z=${zOut.toFixed(2)}`);
+check('salir por el frente SIN E = pasillo de planta 0 (v1.47)', outFront && Math.abs(zOut - v.corridorZ) < 1e-6, `z=${zOut.toFixed(2)} vs pasillo ${v.corridorZ}`);
 
-// j) Límites del plano de cámara: no se puede salir del cuadro lejano (en la acera frontal).
+// l) Límites del plano de cámara: no se puede salir del cuadro (en la acera frontal).
+logic.mode = 'outside';
 logic.z = -5.7;
-logic.x = out.xMax - 0.2;
+logic.x = Math.min(out.xMax - 0.5, 28.5);
+logic.drainAuto();
 run(120, INPUT({ right: true }));
 check('límite derecho del plano de cámara respetado', logic.position().x <= out.xMax + 1e-6, `x=${logic.position().x.toFixed(2)}`);
-logic.x = out.xMin + 0.2;
+logic.x = Math.max(out.xMin + 0.5, -7.3);
 run(120, INPUT({ left: true }));
 check('límite izquierdo del plano de cámara respetado', logic.position().x >= out.xMin - 1e-6, `x=${logic.position().x.toFixed(2)}`);
 

@@ -10,7 +10,7 @@
  */
 import { loadContent, formatIssues } from '@/game/content';
 import { createWorld } from '@/game/sim';
-import { hash01 } from '@/game/interior';
+import { hash01, layoutIdOf } from '@/game/interior';
 
 const baseUrl = new URL('../public/content/', import.meta.url).href;
 const { content, issues } = await loadContent(baseUrl);
@@ -93,12 +93,14 @@ if (cr) {
 const world = createWorld(content, content.rules.startScenario);
 const dwellings = Object.values(world.blocks).filter((b) => b.kind === 'dwelling');
 check('mundo intacto: viviendas del escenario (v1.27: 9 en el edificio de 3 plantas)', dwellings.length >= 9, `${dwellings.length}`);
+// v1.71 (higiene): el layout de vivienda ya no viene de container.layout — el REPARTO de
+// variantes (layoutIdOf, v1.53) decide por bloque. Mismo invariante, resolutor real.
 const rearWorld = dwellings.filter((b) => {
-  const layoutId = content.blocks[b.defId]?.container?.layout;
+  const layoutId = layoutIdOf(content, b);
   const layout = layoutId ? content.layouts[layoutId] : undefined;
   return (layout?.rooms ?? []).some((r) => r.rect && r.rect.z + r.rect.d > v.depth + 0.01);
 });
-check('los cuartos traseros siguen ahí (apilamiento 3D v1.19)', rearWorld.length > 0, `${rearWorld.length} viviendas con trasera`);
+check('los cuartos traseros siguen ahí (reparto de variantes v1.53)', rearWorld.length > 0, `${rearWorld.length} viviendas con trasera`);
 check('los bloques exteriores NO entran en el mundo del sim', !Object.values(world.blocks).some((b) => !!content.blocks[b.defId]?.exterior), '0 instancias');
 check('el reloj del sim alimenta el cielo (minute 0..1439)', world.clock.minute >= 0 && world.clock.minute <= 1439, `minuto ${world.clock.minute}`);
 check('el clima del sim alimenta las nubes (state conocido)', ['sunny', 'cloudy', 'rain', 'storm'].includes(world.weather.state), world.weather.state);

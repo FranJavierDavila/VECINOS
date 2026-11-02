@@ -38,8 +38,10 @@ const close = (a: number, b: number, eps = 1e-6) => Math.abs(a - b) < eps;
 
 // ── 1. Catálogo ──
 const v = content.rules.view;
-check('depthModule declarado (todos los bloques +1 módulo hacia el fondo)', v.depthModule === 1.4, `${v.depthModule} m`);
-check('viviendas a calado final 4.2 y comunes a 2.8 (módulo ya incluido)', close(v.depth, 4.2) && close(v.commonDepth, 2.8), `${v.depth}/${v.commonDepth}`);
+// v1.71 (higiene): el módulo de calado es hoy 2.0 (el 1.4 era la v1.19) — el inválido vivo es
+// que el catálogo declare el módulo y los calados coherentes con él (vivienda = módulo + 2.8).
+check('depthModule declarado (todos los bloques +1 módulo hacia el fondo)', v.depthModule === 2.0, `${v.depthModule} m`);
+check('viviendas a calado final 4.8 y comunes a 2.8 (módulo ya incluido)', close(v.depth, 4.8) && close(v.commonDepth, 2.8) && close(v.depth, v.depthModule + v.commonDepth), `${v.depth}/${v.commonDepth}`);
 check('pasillos frontales del DOBLE de calado (2 carriles)', close(v.corridorDepth, 2.6), `${v.corridorDepth} m`);
 check('línea del pasillo recolocada al carril interior (0.6 de la fachada)', close(v.corridorZ, v.roomZ - v.commonDepth / 2 - 0.6), `${v.corridorZ}`);
 check('rearBlock declarado (contorno rojo + fundidos)', v.rearBlock.outline === '#e63946' && v.rearBlock.fadeSeconds > 0 && v.rearBlock.junk >= 0, `${v.rearBlock.outline} · ${v.rearBlock.fadeSeconds}s`);
@@ -86,10 +88,25 @@ const HOME = world.residents[world.playerId]!.home;
 const homeBlock = world.blocks[HOME]!;
 const geo = layoutGeometryOf(content, homeBlock)!;
 const depth = v.depth;
+// v1.71 (higiene) — el apilamiento 3D v1.19 vive hoy como REPARTO de variantes (v1.53):
+// layoutIdOf reparte 12 layouts (plan abierto puro o con cuarto trasero dormitorio/baño/
+// trasera a z ≥ depth). Los invariantes vivos: la trasera (si la vivienda la tiene) es más
+// profunda que el bloque y SOLO se alcanza por el hueco de SU puerta (catálogo).
 const rear = geo.rooms.find((r) => r.rect.z + r.rect.d > depth + 0.01);
-check('la vivienda tiene cuarto trasero más profundo que el bloque', !!rear && rear.key === 'trasera', rear?.key ?? 'nada');
-check('la trasera NO se alcanza caminando fuera del hueco', !walkable(geo, roomAt(geo, 0.45, 4.1), 0.45, 4.3), 'x=0.45 fuera del hueco');
-check('la trasera SÍ se alcanza por la puerta del fondo', walkable(geo, roomAt(geo, 1.15, 4.1), 1.15, 4.3), 'x=1.15 en el hueco');
+const mainRoom = geo.rooms.find((r) => r.rect.z + r.rect.d <= depth + 0.01)!;
+if (rear) {
+  const dw = (geo.doorways ?? []).find((d) => [d.a, d.b].includes(rear.key));
+  check('la vivienda tiene cuarto trasero más profundo que el bloque', !!rear && ['dormitorio', 'bano', 'trasera'].includes(rear.key) && rear.rect!.z >= depth - 0.01, `${rear.key} @z${rear.rect!.z}`);
+  const zMain = mainRoom.rect!.z + mainRoom.rect!.d - 0.1;
+  const zRear = rear.rect!.z + 0.1;
+  const crossX = (x: number): boolean => walkable(geo, mainRoom, x, zMain) && walkable(geo, mainRoom, x, zRear);
+  const fuera = dw ? crossX(dw.at - dw.width / 2 - 0.3) : true;
+  const enHueco = dw ? crossX(dw.at) : false;
+  check('la trasera NO se alcanza caminando fuera del hueco', !!dw && !fuera, `x=${(dw!.at - dw!.width / 2 - 0.3).toFixed(2)} bloqueado`);
+  check('la trasera SÍ se alcanza por la puerta del fondo', enHueco, `x=${dw!.at.toFixed(2)} en el hueco`);
+} else {
+  check('variante de plan abierto puro (sin trasera en esta vivienda)', geo.rooms.length === 1, `${geo.rooms.length} estancia`);
+}
 check('los vecinos jamás deambulan a la trasera', (() => { for (let lap = 0; lap < 30; lap++) { const t = interiorTarget(content, geo, undefined, 'qa', lap); if (!t || t.z > depth) return false; } return true; })(), '');
 
 // ── 5. Sim E2E: dos carriles + trastero propio + puerta del fondo ──

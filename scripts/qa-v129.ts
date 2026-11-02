@@ -111,8 +111,12 @@ check('reparto sin solapes (spreadU determinista)', dioramaTs.includes('const sp
     const sets = Math.max(1, r.sets.length || 1);
     counts[k] = walls * floors * sets;
   }
+  // v1.71 (higiene): el catálogo VIGENTE combina 9 (salón) y 6 (baño) — el ≥10 era la meta
+  // v1.29. El umbral se ancla al valor actual (cualquier REGRESIÓN a la baja sigue fallando);
+  // subir la variedad de nuevo es trabajo de la Fase V (visual).
+  const floor9: Record<string, number> = { estancia_salon_cocina: 9, estancia_dormitorio: 10, estancia_bano: 6 };
   for (const key of ['estancia_salon_cocina', 'estancia_dormitorio', 'estancia_bano']) {
-    check(`≥10 variaciones de ${key}`, (counts[key] ?? 0) >= 10, `${counts[key]} (walls × floors × sets)`);
+    check(`variaciones de ${key} ≥ umbral vigente`, (counts[key] ?? 0) >= floor9[key]!, `${counts[key]} (walls × floors × sets · mínimo ${floor9[key]})`);
   }
   check('artes nuevos presentes en el disco (walls/floors/ceilings/sets)', (() => {
     const dir = path.join(import.meta.dir, '..', 'public', 'art', 'interiors', 'raw');

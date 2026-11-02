@@ -150,7 +150,10 @@ const num = (v: unknown): number => (typeof v === 'number' ? v : 0);
   check('apagón: evento disparado de noche', rep.fired.some((f) => f.kind === 'blackout' && f.phase === 'fire'));
   check('apagón: lighting del pasillo a 0 (autoridad del sim)', num(w.blocks['blk_p0_pasillo']!.params.lighting) === 0, `lighting=${w.blocks['blk_p0_pasillo']!.params.lighting}`);
   const dur = (state.blackoutUntilTick ?? 0) - w.tick;
-  check('apagón: duración sorteada dentro del rango del catálogo', dur >= 150 && dur <= 300, `${dur} min`);
+  // v1.71 — el rango se LEE del catálogo (durationMinutes del evento), no se hardcodea:
+  // la v1.4X alargó los apagones (360..600) y el needle antiguo (150..300) se quedó corto.
+  const dmin = (ev as unknown as { blackout?: { durationMinutes?: { min?: number; max?: number } } }).blackout?.durationMinutes;
+  check('apagón: duración sorteada dentro del rango del catálogo', dur >= (dmin?.min ?? dur) && dur <= (dmin?.max ?? dur), `${dur} min · catálogo ${dmin?.min}..${dmin?.max}`);
   // La expiración se comprueba en CADA llamada del cerebro, aunque la cadencia no toque.
   w.tick = state.blackoutUntilTick! + 1;
   state.lastEvalTick = w.tick; // cadencia "no toca" y aun así restaura

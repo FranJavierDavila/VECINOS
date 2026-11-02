@@ -65,9 +65,11 @@ check('privacy.hideNodes incluye rodapie', (v.privacy.hideNodes ?? []).includes(
 check('stairs.facade.hideNodes incluye hueco+jambas+dintel+rótulo', ['hueco', 'jamba_izq', 'jamba_der', 'dintel', 'rotulo'].every((n) => (v.stairs.facade.hideNodes ?? []).includes(n)));
 check('building recorre el ÁRBOL de nodos (getChildren anidado)', buildingTs.includes('hideTree') && buildingTs.includes("model.root.getChildren()"));
 
-// ── 2. Sin marco 3D ──
-console.log('\n── Puerta de vivienda: hoja a sangre, sin marco gris ──');
-check('privacy.frameW = 0 (sin marco 3D)', (v.privacy.frameW ?? 1) === 0, `frameW ${v.privacy.frameW}`);
+// ── 2. Marco de la hoja ──
+console.log('\n── Puerta de vivienda: marco fino vigente ──');
+// v1.71 (higiene): el marco fino (0.1) se REINTRODUJO deliberadamente tras v1.26; el runtime
+// lo dibuja solo si fw > 0.001 (el skip condicional sigue protegiendo un frameW 0).
+check('privacy.frameW = 0.1 (marco fino reintroducido)', v.privacy.frameW === 0.1, `frameW ${v.privacy.frameW}`);
 check('el runtime respeta frameW 0 (skip condicional)', buildingTs.includes('if (fw > 0.001)'));
 
 // ── 3. Placa numerada más arriba ──

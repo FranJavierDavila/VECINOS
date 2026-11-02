@@ -72,7 +72,9 @@ const pv = v.privacy;
 // v1.26: frameW 0 — la hoja queda a sangre (el marco gris que se veía era el overlay glTF,
 // hoy oculto de verdad por hideNodes recursivo) y la placa sube a 2.55 (petición del vecino).
 check('arte de puertas full-bleed en disco (variante única marrón, v1.25)', (pv.doorArts ?? []).length === 1 && (pv.doorArts ?? []).every(exists), (pv.doorArts ?? []).map((a) => a.split('/').pop()).join(', '));
-check('sin marco 3D (hoja a sangre, v1.26)', (pv.frameW ?? 1) === 0, `frameW ${pv.frameW}`);
+// v1.71 (higiene): el marco se REINTRODUJO deliberadamente (frameW 0.1 — mejora visual de la
+// hoja a sangre) en versiones posteriores; el runtime lo respeta (if fw > 0.001).
+check('marco fino de la hoja vigente (frameW 0.1, reintroducido tras v1.26)', pv.frameW === 0.1, `frameW ${pv.frameW}`);
 check('aplique de luz encima a un lado', !!pv.lamp && pv.lamp.dy > pv.doorH, `dy ${pv.lamp?.dy} > doorH ${pv.doorH}`);
 check('nodos del overlay antiguo retirados (marco gris fuera)', (pv.hideNodes ?? []).includes('jamba_izq') && (pv.hideNodes ?? []).includes('toldito') && (pv.hideNodes ?? []).includes('dintel'), (pv.hideNodes ?? []).join(','));
 check('placa numerada por ENCIMA de la hoja', v.plaque.y >= pv.doorH + v.slab + v.wall, `plaque.y ${v.plaque.y}`);
@@ -116,36 +118,44 @@ const streetCode = fs.readFileSync(path.join(import.meta.dir, '..', 'src/game/cl
 check('manifestación usa la pose compartida del factory', streetCode.includes('factory.pose(marcher.rig, 1)'), 'pose()');
 check('portador de cartel y portavoz en pose carrying', (streetCode.match(/rig\.carrying = true/g) ?? []).length >= 2, 'cartel + megáfono');
 
-// ── 6. Tabique central fuera ──
-console.log('\n── Viviendas circulares: tabique central eliminado ──');
-const layout = content.layouts['layout_vivienda_v1']!;
-const rooms = new Map(layout.rooms.map((r) => [r.key, r.rect!]));
-const dor = rooms.get('dormitorio')!;
-const ba = rooms.get('bano')!;
-const dw1 = (layout.doorways ?? []).find((d) => new Set([d.a, d.b]).has('dormitorio') && new Set([d.a, d.b]).has('salon'))!;
-const dw2 = (layout.doorways ?? []).find((d) => new Set([d.a, d.b]).has('bano') && new Set([d.a, d.b]).has('salon'))!;
-check('apertura COMPLETA salón↔dormitorio (todo el borde)', dw1.width >= dor.d - 0.01, `width ${dw1.width} ≥ ${dor.d}`);
-check('apertura COMPLETA salón↔baño (todo el borde)', dw2.width >= ba.d - 0.01, `width ${dw2.width} ≥ ${ba.d}`);
+// ── 6. Layouts: plan abierto + variantes con cuarto trasero ──
+console.log('\n── Viviendas: plan abierto (v1.68) + variantes con puerta del fondo ──');
+// v1.71 (higiene): el tabique central YA NO EXISTE en ningún layout (plan abierto v1.25/1.68);
+// los cuartos traseros viven hoy en las VARIANTES del reparto (layoutIdOf v1.53), cada uno con
+// SU hueco en la pared del fondo. El invariante vivo: base = plan abierto; variante = huecos
+// declarados, disciplina de vano real (walkable) y ruta entre cuartos vía estancia principal.
+const vDepth = content.rules.view.depth;
+const base = content.layouts['layout_vivienda_v1']!;
+check('layout base = plan abierto: UNA estancia sin doorways (tabique fuera)', base.rooms.length === 1 && (base.doorways ?? []).length === 0, `${base.rooms.map((r) => r.key).join('+')}`);
+const variante = content.layouts['layout_vivienda_dormitorio_bano']!;
+const rooms = new Map(variante.rooms.map((r) => [r.key, r.rect!]));
+const mainKey = variante.rooms.find((r) => r.rect!.z + r.rect!.d <= vDepth + 0.01)!.key;
+const dw1 = (variante.doorways ?? []).find((d) => d.b === 'dormitorio')!;
+const dw2 = (variante.doorways ?? []).find((d) => d.b === 'bano')!;
+check('variante: huecos declarados principal↔dormitorio y principal↔baño', !!dw1 && !!dw2, `${dw1?.width} / ${dw2?.width}`);
 // walkable()/roomRoute() REALES de @/game/interior: geometría construida del layout con
 // TODAS las estancias abiertas (vivienda habitada) y los doorways del catálogo.
 const geo: LayoutGeometry = {
-  rooms: layout.rooms
+  rooms: variante.rooms
     .filter((r) => r.rect)
     .map((r) => ({ key: r.key, defId: r.defId, rect: r.rect!, locked: false })),
-  doorways: layout.doorways ?? [],
+  doorways: variante.doorways ?? [],
 };
-const salGeo = geo.rooms.find((r) => r.key === 'salon')!;
-let anyZ = true;
-for (const z of [0.2, 0.9, 1.7, 2.3]) {
-  // Punto en el borde compartido (x = 2.3) visto desde el salón: debe ser cruzable en todo el borde.
-  const x = salGeo.rect.x + salGeo.rect.w - 0.01;
-  if (!walkable(geo, salGeo, x, z)) anyZ = false;
-}
-check('walkable(): el salón cruza al dormitorio a CUALQUIER altura del borde', anyZ, 'z 0.2..2.3');
+const salGeo = geo.rooms.find((r) => r.key === mainKey)!;
+const dorRect = rooms.get('dormitorio')!;
+const baRect = rooms.get('bano')!;
+const zMain = vDepth - 0.1;
+const cruza = (dw: { at: number; width: number }, zRear: number): boolean =>
+  walkable(geo, salGeo, dw.at, zMain) && walkable(geo, salGeo, dw.at, zRear);
+const bloquea = (dw: { at: number; width: number }, zRear: number): boolean =>
+  !walkable(geo, salGeo, dw.at - dw.width / 2 - 0.3, zRear);
+check('walkable(): cruza al dormitorio POR SU HUECO', cruza(dw1, dorRect.z + 0.1), `at ${dw1.at}`);
+check('walkable(): cruza al baño POR SU HUECO', cruza(dw2, baRect.z + 0.1), `at ${dw2.at}`);
+check('walkable(): fuera de los huecos la pared del fondo es SÓLIDA', bloquea(dw1, dorRect.z + 0.1) && bloquea(dw2, baRect.z + 0.1), 'disciplina de vano');
 const route = roomRoute(geo, 'dormitorio', 'bano');
-// v1.25: con el tabique divisorio central retirado del todo, dormitorio↔baño tienen hueco
-// DIRECTO (antes la única ruta pasaba por el salón).
-check('roomRoute(): dormitorio → baño DIRECTO (v1.25, sin tabiques)', route !== null && !route.includes('salon'), (route ?? []).join('→'));
+// v1.68: dormitorio↔baño se conectan por la estancia principal (cada cuarto tiene SU puerta
+// al frente; ya no hay hueco directo entre cuartos).
+check('roomRoute(): dormitorio → baño vía estancia principal', route !== null && route.includes(mainKey), (route ?? []).join('→'));
 
 // ── 7. Sim intacto y determinista ──
 console.log('\n── Sim: intacto y determinista ──');

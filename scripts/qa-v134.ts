@@ -110,8 +110,11 @@ check('auditoría: letras de columna inexistentes (1D/3D) SON violación', texts
 
 console.log('── 6. Árbol movido (izquierda → derecha) ──');
 const rules = JSON.parse(rulesJson);
-check('keepOut sobre el jardín izquierdo junto al edificio', rules.view.exterior.keepOut.some((k: { x0: number; x1: number }) => k.x0 === -19 && k.x1 === -6));
-check('árbol grande forzado a la DERECHA del edificio', rules.view.exterior.forcedTrees.some((t: { x: number; s: number }) => t.x === 44.5 && t.s === 1.35));
+// v1.71 (higiene): el keepOut izquierdo se ENSANCHÓ en versiones posteriores (-19..8.5):
+// misma intención (vegetación fuera del jardín junto al edificio), coordenadas vigentes.
+check('keepOut sobre el jardín izquierdo junto al edificio', rules.view.exterior.keepOut.some((k: { x0: number; x1: number }) => k.x0 === -19 && k.x1 === 8.5));
+// v1.71 (higiene): el árbol grande derecho vive hoy en x=50 (s 1.25); el 44.5/1.35 era del catálogo v1.34.
+check('árbol grande forzado a la DERECHA del edificio', rules.view.exterior.forcedTrees.some((t: { x: number; s: number }) => t.x === 50 && t.s >= 1.2));
 
 console.log('── 7. Portal: macetas y arbustos de verdad ──');
 const portal = JSON.parse(portalGltf);
@@ -127,9 +130,13 @@ check('arbusto = racimo de esferas (3 piezas por lado)', !!nodeOf('arbusto_izq_a
 check('el resto del portal INTACTO (misma fachada verificada)', !!nodeOf('cristal_izq') && !!nodeOf('toldo') && !!nodeOf('rotulo') && !!nodeOf('farol_izq'));
 
 console.log('── 8. Versiones ──');
-check('insignia v1.34 en i18n (es/en)', i18nTs.includes('v1.38 · pase de optimización') && i18nTs.includes('v1.38 · optimization pass'));
-check('sw.js bump a vecinos-v1.35', srcOf('public/sw.js').includes('vecinos-v1.38'));
-check('PwaRegister espera vecinos-v1.34', srcOf('src/components/game/PwaRegister.tsx').includes('vecinos-v1.34'));
+// v1.71 (higiene) — consistencia cruzada en vez de versiones hardcodeadas.
+const swJs134 = srcOf('public/sw.js');
+const pwaTsx134 = srcOf('src/components/game/PwaRegister.tsx');
+const swVer134 = (swJs134.match(/const VERSION = '([^']+)'/) ?? [])[1] ?? '';
+const pwaVer134 = (pwaTsx134.match(/EXPECTED_SW_VERSION = '([^']+)'/) ?? [])[1] ?? '';
+check('insignia vigente en i18n (pase de optimización, es/en)', srcOf('src/game/client/i18n.ts').includes("'opt.perfAuto':"));
+check('PwaRegister ESPEJA la VERSION de sw.js', swVer134 !== '' && swVer134 === pwaVer134, `sw=${swVer134} pwa=${pwaVer134}`);
 
 console.log('── 9. Contenido, resolver y sim intactos ──');
 check('contenido carga sin issues', issues.length === 0);

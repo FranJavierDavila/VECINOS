@@ -73,7 +73,8 @@ check('rules.view.camera: 2.5 / 2.9 / margen 2.4',
 check('schema de camera con defaults', schemasTs.includes('estanciaFloorH') && schemasTs.includes('estanciaEdgeMargin'));
 const cameraTs = srcOf('src/game/client/camera.ts');
 const controllerTs = srcOf('src/game/client/controller.ts');
-check('CameraRig.tuning existe con fallback a 2.0/2.2/0', cameraTs.includes('tuning: { estFloorH: number; estWidthW: number; estMargin: number }'));
+// v1.71 (higiene): el tuning ganó fachadaFactor/spyFactor (v1.4X); el needle apunta a la firma vigente.
+check('CameraRig.tuning existe con fallback a 2.0/2.2/0', cameraTs.includes('tuning: { estFloorH: number; estWidthW: number; estMargin: number; fachadaFactor: number; spyFactor: number }'));
 check('la Estancia encuadra con el catálogo (antes 2.0/2.2)', cameraTs.includes('est ? est.estFloorH : 2.0') && cameraTs.includes('est ? est.estWidthW : 2.2'));
 check('MARGEN en los extremos (solo Estancia): el personaje del canto sale en cuadro',
   cameraTs.includes('const margin = est ? est.estMargin : 0;') && cameraTs.includes('Math.max(lo, p.x)'));
@@ -93,8 +94,10 @@ check('los tres PNG regenerados existen y pesan', ['fachada_1_cerca.png', 'facha
   .every((f) => { const st = fs.statSync(path.join(process.cwd(), 'public/content/backdrop', f)); return st.size > 40000; }));
 check('niebla reducida en catálogo (0.3 / 0.45 — la definición manda)',
   rules.view.backdrop.layers[1]?.fog === 0.3 && rules.view.backdrop.layers[2]?.fog === 0.45);
-check('vScale y copias usan el canvas nuevo (sin 2048/256 hardcodeados)',
-  backdropTs.includes('usedH / CANVAS_H') && backdropTs.includes('c.width = CANVAS_W;') && !backdropTs.includes('width: 2048'));
+// v1.71 (higiene): el canvas se dimensiona al REAL de la imagen (c.width = lv.realW) y el
+// recorte usa realH — ya sin 2048/256 hardcodeados (la intención del check sigue intacta).
+check('vScale y copias usan el canvas dinámico (sin 2048/256 hardcodeados)',
+  backdropTs.includes('usedH / realH') && backdropTs.includes('c.width = lv.realW') && !backdropTs.includes('width: 2048'));
 
 console.log('── 6. Portal = imagen del hall ──');
 const interiorsCat = JSON.parse(srcOf('public/content/interiors.json'));
@@ -109,8 +112,11 @@ check('el arte es 1344×768 PNG real (aspecto 1.75 = el muro de 4.56×2.6 del la
 })());
 
 console.log('── 7. Insignia y determinismo ──');
-check('insignia v1.36 en i18n', srcOf('src/game/client/i18n.ts').includes('v1.38 · pase de optimización'));
-check('sw.js bump a vecinos-v1.38', srcOf('public/sw.js').includes('vecinos-v1.38'));
+check('insignia vigente en i18n (pase de optimización)', srcOf('src/game/client/i18n.ts').includes("'opt.perfAuto':"));
+// v1.71 (higiene) — consistencia cruzada en vez de versión hardcodeada.
+const swVer136 = (srcOf('public/sw.js').match(/const VERSION = '([^']+)'/) ?? [])[1] ?? '';
+const pwaVer136 = (srcOf('src/components/game/PwaRegister.tsx').match(/EXPECTED_SW_VERSION = '([^']+)'/) ?? [])[1] ?? '';
+check('PwaRegister ESPEJA la VERSION de sw.js', swVer136 !== '' && swVer136 === pwaVer136, `sw=${swVer136} pwa=${pwaVer136}`);
 const baseUrl = new URL('../public/content/', import.meta.url).href;
 const { content, issues } = await loadContent(baseUrl);
 check('contenido carga sin errores de esquema', issues.length === 0, issues.slice(0, 2).map((i) => i.message).join(' | '));

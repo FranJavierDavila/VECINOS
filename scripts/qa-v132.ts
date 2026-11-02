@@ -163,9 +163,11 @@ check('contenido real SIN menciones de plantas/viviendas imposibles', violations
 }
 
 console.log('── 9. Versiones ──');
-check('insignia v1.34 en i18n (es/en, la 1.32 fue sustituida por la nueva)', i18nTs.includes('v1.38 · pase de optimización') && i18nTs.includes('v1.38 · optimization pass'));
-check('sw.js bump a vecinos-v1.34 (sigue subiendo)', swJs.includes('vecinos-v1.38'));
-check('PwaRegister espera vecinos-v1.34', pwaTsx.includes('vecinos-v1.34'));
+// v1.71 (higiene) — consistencia cruzada en vez de versiones hardcodeadas.
+const swVer132 = (swJs.match(/const VERSION = '([^']+)'/) ?? [])[1] ?? '';
+const pwaVer132 = (pwaTsx.match(/EXPECTED_SW_VERSION = '([^']+)'/) ?? [])[1] ?? '';
+check('insignia vigente en i18n (pase de optimización, es/en)', i18nTs.includes("'opt.perfAuto':"));
+check('PwaRegister ESPEJA la VERSION de sw.js', swVer132 !== '' && swVer132 === pwaVer132, `sw=${swVer132} pwa=${pwaVer132}`);
 
 console.log('── Sim intacto ──');
 const hashes: string[] = [];

@@ -113,16 +113,21 @@ check('signos en la lista de emisivos nocturnos', trafficTs.includes('signs: Sta
 
 console.log('── 6. Faros de noche con la luz del cielo ──');
 check('umbral nocturno y lectura de daylight del backdrop', trafficTs.includes('NIGHT_DAYLIGHT') && trafficTs.includes('daylight?.()'));
-check('controller pasa la luz de día al tráfico', controllerTs.includes('createTraffic(this.scene, this.world, this.content, () => this.backdrop?.daylight ?? 1)'));
+// v1.71 (higiene): el needle cierra el paréntesis pero v1.4X añadió el callback de
+// transporte tras el daylight — el inválido real es el PREFIJO de la llamada.
+check('controller pasa la luz de día al tráfico', controllerTs.includes('createTraffic(this.scene, this.world, this.content, () => this.backdrop?.daylight ?? 1'));
 check('faros encendidos de noche (#fff1c2 ×1) y apagados de día (×0.12)', trafficTs.includes("night ? 1 : 0.12"));
 check('pilotos traseros nocturnos (#d43a2a ×0.85)', trafficTs.includes("night ? 0.85 : 0.18"));
 check('sirena rojo/azul alternando (patrulla)', trafficTs.includes("Color3.FromHexString('#c0392b').scale(on ? 1 : 0.2)"));
 check('matrícula sin emissive pero con textura (sin negros de alpha)', trafficTs.includes('pm.diffuseTexture = plateTex(def.plate)'));
 
 console.log('── 7. Versiones ──');
-check('insignia actual en i18n (v1.35, las anteriores fueron sustituidas)', i18nTs.includes('v1.38 · pase de optimización') && i18nTs.includes('v1.38 · optimization pass'));
-check('sw.js bump a vecinos-v1.34 (sigue subiendo)', swJs.includes('vecinos-v1.38'));
-check('PwaRegister espera vecinos-v1.34', pwaTsx.includes('vecinos-v1.34'));
+// v1.71 (higiene) — consistencia cruzada en vez de versiones hardcodeadas: la insignia y el
+// VERSION del SW evolucionan cada release; lo INVARIANTE es que PwaRegister espeje sw.js.
+const swVer131 = (swJs.match(/const VERSION = '([^']+)'/) ?? [])[1] ?? '';
+const pwaVer131 = (pwaTsx.match(/EXPECTED_SW_VERSION = '([^']+)'/) ?? [])[1] ?? '';
+check('insignia vigente en i18n (pase de optimización, es/en)', i18nTs.includes("'opt.perfAuto':"));
+check('PwaRegister ESPEJA la VERSION de sw.js', swVer131 !== '' && swVer131 === pwaVer131, `sw=${swVer131} pwa=${pwaVer131}`);
 
 console.log('── Sim intacto ──');
 const world = createWorld(content, 'slice');

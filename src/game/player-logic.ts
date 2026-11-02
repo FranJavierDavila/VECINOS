@@ -839,7 +839,12 @@ export class PlayerLogic {
       // (T4c/T4d de qa-v164-multi: «4 s después ya está en el pasillo»). Con sync aquí,
       // la cadena del router (pasillo0→escalera→…→pasilloN→vivienda) vuela también
       // desde dentro y el espejo converge antes de que reconcile mire.
-      this.sync();
+      // v1.70 — salvo que portalExitTriggers NOS HAYA ECHADO A LA CALLE en este mismo
+      // frame: sync() con mode≠interior resuelve la zona con zone() (función de pasillo,
+      // pensada para «sobre qué cubo estás de pie») sobre las coordenadas de la ACERA y
+      // «corrige» el sim al pasillo — el sim mentiría durante TODO el paseo (v1.42: la
+      // calle es TEATRO, la location se queda en el portal; qa-v142 lo vigila).
+      if (this.mode === 'inside') this.sync();
       return;
     }
     // Pasillo (v1.19): DOS carriles. A/D avanza en X; W/S, si no arrancan escalada (no hay

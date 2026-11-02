@@ -76,10 +76,14 @@ check('cambio de clip restaura los nodos sin cobertura', assetsTs.includes('rest
 console.log('── 3. Huecos de puerta: entrar por la puerta, no por la pared ──');
 check('fachada partida: tramos izq/der/dintel/umbral con la caja de la puerta', buildingTs.includes('${b.id}_puerta_i') && buildingTs.includes('${b.id}_puerta_d') && buildingTs.includes('${b.id}_puerta_dintel') && buildingTs.includes('${b.id}_puerta_umbral'));
 check('el hueco usa privacy.doorW y el nivel del suelo interior', buildingTs.includes('const doorGapW = pv.doorW;') && buildingTs.includes('const doorFloorY = bottom + v.slab + v.wall;'));
-check('frontParts se activan/desactivan juntos (privacidad/candado)', buildingTs.includes('for (const p of view.frontParts) p.setEnabled(wall);'));
+// v1.71 (higiene): el toggle v1.28 (setEnabled(wall)) evolucionó a la PIEL única v1.59:
+// applyStreetSkin viste TODOS los frontParts juntos (ladrillo desde la calle / gris de dentro).
+check('frontParts visten su piel JUNTOS (applyStreetSkin, una sola llamada)', buildingTs.includes('applyStreetSkin(on || streetFacade)') && (buildingTs.match(/applyStreetSkin/g) ?? []).length >= 2);
 check('routing: DestInside.doorX (entrar por el hueco)', routingTs.includes('doorX?: number;') && routingTs.includes('d.doorX !== undefined'));
 check('routing: salida por interiorRoute hasta la puerta propia', routingTs.includes('const doorExit = !!hs?.doorX && !!hs?.geo;') && routingTs.includes('interiorRoute(hs!.geo!, fromLocal, doorLocal)'));
-check('actors: doorX = centro del bloque de vivienda (donde vive la hoja)', actorsTs.includes('doorX: dest.inside.block.kind === \'dwelling\'') && actorsTs.includes('const doorX = b.kind === \'dwelling\' ? x0 + w / 2 : undefined;'));
+// v1.71 (higiene): doorX ya no se calcula inline — v1.47/v1.68 lo unificaron en frontDoors.ts
+// (frontDoorX: vano REAL del catálogo; vivienda = centro de SU hoja). Una sola verdad.
+check('actors: doorX = vano real de la fachada (frontDoors.ts compartido)', actorsTs.includes('const doorX = frontDoorX(v, b, x);') && actorsTs.includes('doorX: frontDoorX('));
 
 console.log('── 4. Puerta de escalera: encaje perfecto (canvas retrato) ──');
 check('stairDoorTex RETRATO (H=768, W proporcional — v1.27 la tenía apaisada)', buildingTs.includes('const TH = 768;') && buildingTs.includes('const TW = Math.max(32, Math.round((TH * stF.doorW) / stF.doorH));'));

@@ -83,7 +83,9 @@ const cat = content.interiors;
 check('wallTints declarado (≥3 tintes)', (cat?.wallTints.length ?? 0) >= 3, `${cat?.wallTints.length} tintes`);
 check('mirrorChance > 0', (cat?.mirrorChance ?? 0) > 0, `${cat?.mirrorChance}`);
 check('jitter > 0', (cat?.jitter ?? 0) > 0, `${cat?.jitter}`);
-check('salon con paredes alternativas', (cat?.rooms['estancia_salon_cocina']?.walls.length ?? 0) >= 2, cat?.rooms['estancia_salon_cocina']?.walls.join(', '));
+// v1.71 (higiene): la estancia principal de vivienda es HOY estancia_estudio_diafano (13
+// paredes alternativas) — el salón quedó como local de pared limpia. La variedad vive en el estudio.
+check('estudio (estancia principal) con paredes alternativas', (cat?.rooms['estancia_estudio_diafano']?.walls.length ?? 0) >= 2, cat?.rooms['estancia_estudio_diafano']?.walls.slice(0, 5).join(', ') + '…');
 check('dormitorio con paredes alternativas', (cat?.rooms['estancia_dormitorio']?.walls.length ?? 0) >= 2, cat?.rooms['estancia_dormitorio']?.walls.join(', '));
 check('artes alternativos en disco', ['wall_salon_b.png', 'wall_dormitorio_b.png'].every((f) => exists(`/art/interiors/raw/${f}`)));
 
@@ -96,26 +98,32 @@ check('manifiesto de actores con clip de andar disponible', actorIds.length >= 8
 
 // ── 9. Sin tabiques interiores ──
 console.log('\n── Plan abierto: sin tabique divisorio central ──');
+// v1.71 (higiene): el tabique central se retiró DEL TODO — layout_vivienda_v1 es plan abierto
+// de UNA estancia (estudio) y los cuartos traseros viven en las VARIANTES (layoutIdOf v1.53),
+// cada una con SU hueco. Invariantes vivos: base sin tabiques, variante con huecos declarados
+// y rutas entre estancias vía la principal.
 const layout = content.layouts['layout_vivienda_v1'];
-const dB = (layout?.doorways ?? []).find((d) => [d.a, d.b].includes('dormitorio') && [d.a, d.b].includes('bano'));
-check('hueco dormitorio↔baño declarado', !!dB, dB ? `eje ${dB.axis} ancho ${dB.width}` : 'NO');
-check('el hueco cubre TODO el borde compartido', !!dB && dB.width >= 2.5 - 0.01, `width ${dB?.width}`);
+const variante = content.layouts['layout_vivienda_dormitorio_bano']!;
+const mainKey = variante.rooms.find((r) => r.rect!.z + r.rect!.d <= v.depth + 0.01)!.key;
+const dB = (variante.doorways ?? []).find((d) => d.b === 'dormitorio');
+const dBano = (variante.doorways ?? []).find((d) => d.b === 'bano');
+check('layout base = UNA estancia sin tabiques (plan abierto)', !!layout && layout.rooms.length === 1 && (layout.doorways ?? []).length === 0, layout ? layout.rooms.map((r) => r.key).join('+') : 'NO');
+check('variante: huecos declarados a dormitorio y baño', !!dB && !!dBano, `${dB?.width} / ${dBano?.width}`);
 {
   // Geometría de layout a mano (layoutGeometryOf necesita un bloque vivo): la misma verdad
   // que consume walkable/roomRoute en runtime. Todas las estancias ABIERTAS: aquí se prueba
   // la declaración de huecos (libertad de movimiento), no el candado por estancia.
   const geo: LayoutGeometry = {
-    rooms: (layout?.rooms ?? []).map((r) => ({ key: r.key, defId: r.defId, rect: r.rect!, locked: false })),
-    doorways: layout?.doorways ?? [],
+    rooms: (variante.rooms ?? []).map((r) => ({ key: r.key, defId: r.defId, rect: r.rect!, locked: false })),
+    doorways: variante.doorways ?? [],
   };
-  const salon = geo.rooms.find((r) => r.key === 'salon')!;
-  // cruzar el antiguo tabique central a TRES alturas distintas
-  const cruzarCentral = [0.4, 1.25, 2.2].every((z) => walkable(geo, salon, salon.rect.x + salon.rect.w + 0.05, z));
-  check('walkable cruza el antiguo tabique a cualquier altura', cruzarCentral);
-  const ruta = roomRoute(geo, 'salon', 'bano');
-  check('ruta salon→baño directa existe', ruta !== null && ruta.length <= 2, (ruta ?? []).join('→'));
-  const rutaPorDorm = roomRoute(geo, 'salon', 'dormitorio');
-  check('ruta salon→dormitorio existe', rutaPorDorm !== null, (rutaPorDorm ?? []).join('→'));
+  const salon = geo.rooms.find((r) => r.key === mainKey)!;
+  const cruzarFondo = [dB!, dBano!].every((dw) => walkable(geo, salon, dw.at, v.depth - 0.1) && walkable(geo, salon, dw.at, v.depth + 0.1));
+  check('walkable cruza POR LOS HUECOS del fondo', cruzarFondo);
+  const ruta = roomRoute(geo, mainKey, 'bano');
+  check('ruta principal→baño directa existe', ruta !== null && ruta.length <= 2, (ruta ?? []).join('→'));
+  const rutaPorDorm = roomRoute(geo, mainKey, 'dormitorio');
+  check('ruta principal→dormitorio existe', rutaPorDorm !== null, (rutaPorDorm ?? []).join('→'));
 }
 
 // ── 10. Macetas billboard ──

@@ -88,8 +88,10 @@ const projJson = JSON.parse(srcOf('public/content/project.json')) as ProjectCata
 check('catálogo project.json con 3 niveles de temporada', projJson.levels.length === 3 && projJson.levels[2]!.id === 'orgullo');
 check('nivel 3 exige proyecto comunitario (15 misiones + 4500 € + reputación)', projJson.levels[2]!.goal.missions === 15 && projJson.levels[2]!.goal.funds === 4500 && projJson.levels[2]!.goal.reputation === 70);
 check('recompensa narrativa bilingüe en cada nivel', projJson.levels.every((l) => l.reward.es.length > 0 && l.reward.en.length > 0));
-check('evaluador puro support/project.ts + tarjeta siempre visible',
-  fs.existsSync(path.join(process.cwd(), 'src/game/support/project.ts')) && srcOf('src/app/page.tsx').includes('<ProjectCard'));
+// v1.71 (higiene): la tarjeta vive en ProjectCard.tsx y la monta el InfoDock (HUD v1.65);
+// page.tsx ya no la renderiza directamente. El invariante (tarjeta siempre accesible) sigue.
+check('evaluador puro support/project.ts + tarjeta montada en el dock',
+  fs.existsSync(path.join(process.cwd(), 'src/game/support/project.ts')) && srcOf('src/components/game/InfoDock.tsx').includes('<ProjectCard'));
 const projState = evaluateProject(projJson, { missions: 8, funds: 2500, reputation: 62 });
 check('evaluador: 8 misiones + 2500 € + rep 62 ⇒ NIVEL 2 cumplido (querido)', projState.level === 2, `level=${projState.level}`);
 
