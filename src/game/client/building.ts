@@ -2667,12 +2667,19 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         if (decayCfg.humidity && humTex) kinds.push({ key: 'humedad', tex: humTex, from: decayCfg.humidity.min, to: decayCfg.humidity.max, w: decayCfg.humidity.w, h: decayCfg.humidity.h });
         if (decayCfg.soot && soTex) kinds.push({ key: 'hollin', tex: soTex, from: decayCfg.soot.min, to: decayCfg.soot.max, w: decayCfg.soot.w, h: decayCfg.soot.h });
         if (decayCfg.cracks && grTex) kinds.push({ key: 'grietas', tex: grTex, from: 0, to: decayCfg.cracks.conditionMax, invert: true, w: decayCfg.cracks.w, h: decayCfg.cracks.h });
-        for (const k of kinds) {
+        for (const [ki, k] of kinds.entries()) {
           if (!k.tex) continue;
           const sx = 0.5 + (hash01(b.id, 71 + k.key.length) - 0.5) * Math.max(0.1, b.size.w * v.cellW - k.w - 0.5);
           const sy = y0 + 1.05 + (hash01(b.id, 81 + k.key.length) - 0.5) * 0.5;
+          // v1.72 — escalera de profundidad por tipo (anti z-fighting, técnica juntas/soleras):
+          // antes TODOS los decales compartían el plano backZ exacto y peleaban donde sus
+          // huellas solapaban (auditor v1.67: pares decal_grietas↔decal_humedad persistentes
+          // en cada vivienda). Cada tipo nace ki·zStep más cerca del espectador: humedad al
+          // fondo, hollín sobre ella, grietas delante — milímetros invisibles al ojo, y el
+          // orden de pintura resulta el natural (mancha → hollín → grieta).
+          const decalZ = backZ - ki * (decayCfg.zStep ?? 0.006);
           const dm = attach(b.id, MeshBuilder.CreatePlane(`decal_${k.key}_${b.id}`, { width: k.w, height: k.h }, scene));
-          dm.position.set(b.cell.col * v.cellW + sx, sy, backZ);
+          dm.position.set(b.cell.col * v.cellW + sx, sy, decalZ);
           dm.material = decalMat(`decal_${k.key}_${b.id}_mat`, k.tex, 0);
           dm.isPickable = false;
           dm.setEnabled(false);

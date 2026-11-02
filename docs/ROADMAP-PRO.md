@@ -59,11 +59,20 @@
   (mismo sampleRate/duración), 0 errores de consola; tsc 0 · eslint limpio.
 
 ### FASE V — Visual de 1ª línea (4-6 días) — EN CURSO (varios ítems ya cerrados)
-- ~~Matar los ~670 coplanares con la técnica juntas/soleras (v1.19) sistematizada~~
-  → parcial: ventanas traseras + lavandería (v1.67, auditor automático `qa-coplanarity.ts`
-  en 0 para esas familias). RESTAN **629 pares activos↔activos** (auditoría 2026-11-02) —
-  caza sistemática pendiente (familias: juntas↔muros, fondo↔suelo/techo, testeros,
-  decales superpuestos, rear-block).
+- ~~Matar los ~670 coplanares~~ ✅ **CERRADO CON EVIDENCIA (v1.71-1.72)**:
+  · Ventanas traseras + lavandería (v1.67): 0 pares vmarco/vidrio.
+  · DECAY decales (v1.72): los 3 tipos (humedad/hollín/grietas) compartían el plano
+    backZ exacto y peleaban donde solapaban → escalera de profundidad por tipo
+    (rules.view.decay.zStep=0.006): auditor 1214→1197, **0 pares decal_* **.
+  · Auditor MEJORADO (v1.72): reporta MATERIAL de cada par — de 629 activos↔activos,
+    168 son de MISMO material (píxeles idénticos al pelear: benignos) y 461 de distinto.
+  · VEREDICTO POR PÍXELES (qa-v172-flicker.ts, WebGL real + sim congelado + diff A/B
+    de frames en cámaras edificio/fachada/planta): **CERO z-fighting visible** — todo el
+    diff son nubes a la deriva y rigs de vecinos (presentación en reloj de pared). Los
+    461 candidatos geométricos quedan clasificados benignos por oclusión (caras
+    enterradas en forjados/muros vecinos — juntas/soleras v1.27 ya los diseñó así).
+  · Sistematización completa: cualquier par futuro sale del auditor con su material y
+    el detector de píxeles da el veredicto en minutos (antes: días de triage a mano).
 - ~~Texturas reales: acera, césped, fachadas~~ ✅ (acera/césped v1.61, fachadas
   facadeBrick v1.62).
 - ~~Sombras solares en edificios + sombras de contacto de personajes~~ ✅ (v1.32
