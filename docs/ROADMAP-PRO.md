@@ -58,11 +58,26 @@
 - Verificado en navegador: el AudioContext real decodifica SFX mono y loops estéreo
   (mismo sampleRate/duración), 0 errores de consola; tsc 0 · eslint limpio.
 
-### FASE V — Visual de 1ª línea (4-6 días)
-- Matar los ~670 coplanares con la técnica juntas/soleras (v1.19) sistematizada.
-- Texturas reales: acera, césped, fachadas.
-- Sombras solares en edificios (evaluar shadow-only) + sombras de contacto de personajes.
-- Quitar rascacielos del fondo; pase global de iluminación + tone mapping.
+### FASE V — Visual de 1ª línea (4-6 días) — EN CURSO (varios ítems ya cerrados)
+- ~~Matar los ~670 coplanares con la técnica juntas/soleras (v1.19) sistematizada~~
+  → parcial: ventanas traseras + lavandería (v1.67, auditor automático `qa-coplanarity.ts`
+  en 0 para esas familias). RESTAN **629 pares activos↔activos** (auditoría 2026-11-02) —
+  caza sistemática pendiente (familias: juntas↔muros, fondo↔suelo/techo, testeros,
+  decales superpuestos, rear-block).
+- ~~Texturas reales: acera, césped, fachadas~~ ✅ (acera/césped v1.61, fachadas
+  facadeBrick v1.62).
+- ~~Sombras solares en edificios + sombras de contacto de personajes~~ ✅ (v1.32
+  ShadowGenerator data-driven + v1.63 blob shadows con raycast al suelo real).
+- ~~Quitar rascacielos del fondo~~ ✅ (v1.21-1.62: parallax de sellos reales + huecos de
+  cielo «solares» deterministas).
+- ~~Pase global de iluminación + tone mapping~~ ✅ **v1.71**: `rules.view.imageProcessing`
+  (ACES + exposición 1.12 + contraste 1.04) aplicado por `scene.imageProcessingConfiguration`
+  (una verdad para todos los materiales, emisivos incluidos; GlowLayer compone encima).
+  Keyframes nocturnos compensados al pipeline (ambient noche 0.40-0.58 → 0.48-0.65):
+  la noche gana negros reales y ventanas encendidas SIN perder legibilidad de puertas.
+  A/B con WebGL real (swiftshader) en docs/shots/v171-*.png: día más rico (cielo/ladrillo/
+  techo más profundos, blancos sin quemar), noche cinematográfica y legible.
+  QA: qa-v171-imageproc.ts 10/10 VERDE + qa-v170-audio 33/0 (regresión de contenido).
 
 ### FASE N — Netcode profesional (4-6 días)
 - Autoridad de servidor en movimiento (validar velocidad/teleports) en vecinos-server.

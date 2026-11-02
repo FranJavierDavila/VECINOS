@@ -1925,6 +1925,14 @@ export interface Rules {
       ground?: string;
     };
     sun: { dir: [number, number, number]; intensity: number };
+    /** v1.71 — PASE GLOBAL DE IMAGEN (Fase V): tone mapping + exposición/contraste por la
+     *  scene.imageProcessingConfiguration. Presente → el controlador aplica el pase a toda
+     *  la escena; ausente → comportamiento clásico (QA headless intacto). */
+    imageProcessing?: {
+      toneMapping: 'aces' | 'khn' | 'none';
+      exposure: number;
+      contrast: number;
+    };
     lockedColor: string;
     vacantTint: number;
     brokenColor: string;
