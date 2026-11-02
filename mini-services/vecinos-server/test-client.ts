@@ -161,14 +161,14 @@ assert(me?.location === first.world.entry, 'a', `el invitado aparece en el porta
 // verdad que usa la IA) y después cobra. De paso: moves encadenados por el grafo, contrato
 // del router de movimiento en vivo (el humo del antiguo 'work' a distancia se acabó).
 {
-  let loc = me!.location;
+  let loc: string = me!.location ?? '';
   let guard = 0;
   while (loc !== joined.homeBlock && guard++ < 24) {
     const step = nextStepTowards(first.world, content, loc, joined.homeBlock);
     if (!step) break;
     c2.emit('session:command', { cmd: { type: 'move', resident: joined.yourResidentId, to: step } });
     const st = await waitState(c2, (s) => s.world.residents[joined.yourResidentId]?.location === step, `paso ${step}`);
-    loc = st.world.residents[joined.yourResidentId]!.location;
+    loc = st.world.residents[joined.yourResidentId]!.location ?? '';
   }
   assert(loc === joined.homeBlock, 'b', `el invitado caminó a SU vivienda por el grafo (${loc}, ${guard} pasos)`);
   const walletBefore = first.world.residents[joined.yourResidentId]!.wallet;

@@ -24,7 +24,8 @@
           }
         ],
         "pointsBonus": 150,
-        "completeToast": "🤝 {a} y {b} resolvieron «{title}» en equipo: +{points} pts para cada uno."
+        "fundsBonus": 100,
+        "completeToast": "🤝 {a} y {b} resolvieron «{title}» en equipo: +{points} pts y +{funds} € para cada uno."
       },
       {
         "id": "coop_goteo",
@@ -45,7 +46,8 @@
           }
         ],
         "pointsBonus": 150,
-        "completeToast": "🤝 {a} y {b} frenaron «{title}» en equipo: +{points} pts para cada uno."
+        "fundsBonus": 100,
+        "completeToast": "🤝 {a} y {b} frenaron «{title}» en equipo: +{points} pts y +{funds} € para cada uno."
       },
       {
         "id": "coop_negociacion",
@@ -65,8 +67,9 @@
             "objective": { "type": "reach", "block": "blk_p0_portal" }
           }
         ],
-        "pointsBonus": 150,
-        "completeToast": "🤝 {a} y {b} cerraron «{title}» en equipo: +{points} pts para cada uno."
+        "pointsBonus": 200,
+        "fundsBonus": 150,
+        "completeToast": "🤝 {a} y {b} cerraron «{title}» en equipo: +{points} pts y +{funds} € para cada uno. La comunidad sabe negociar."
       }
     ]
   },

@@ -549,6 +549,8 @@ export const rulesSchema = z.object({
         title: z.string(),
         missionCompletedPoints: z.number(),
         missionBonus: z.record(z.string(), z.number()),
+        // FASE D — misiones excluidas del marcador (QA u otras herramientas): nunca puntúan.
+        excluded: z.array(z.string()).optional(),
         minigames: z.record(z.string(), z.object({ label: z.string().optional(), pointsPerRecord: z.number(), maxSecs: z.number().optional() })),
         recordToast: z.string(),
         firstToast: z.string(),
@@ -3316,7 +3318,9 @@ export const mpCoopMissionSchema = z.object({
   /** Mínimo 2 roles: sin reparto no hay cooperación (la misión en solitario es la normal del sim). */
   roles: z.array(mpCoopRoleSchema).min(2),
   pointsBonus: z.number().int().positive(),
-  /** Tokens: {a} {b} (nombres de los roles asignados), {title}, {points}. */
+  /** FASE D — recompensa en € para CADA rol asignado al cerrar la misión (opcional). */
+  fundsBonus: z.number().int().nonnegative().optional(),
+  /** Tokens: {a} {b} (nombres de los roles asignados), {title}, {points}, {funds}. */
   completeToast: z.string().min(1),
 });
 

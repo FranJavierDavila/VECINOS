@@ -206,6 +206,8 @@ type ScoreCfg = {
   title: string;
   missionCompletedPoints: number;
   missionBonus: Record<string, number>;
+  /** FASE D — misiones fuera del ranking (QA): el servidor las salta al premiar. */
+  excluded?: string[];
   minigames: Record<string, { label?: string; pointsPerRecord: number; maxSecs?: number }>;
   recordToast: string;
   firstToast: string;
@@ -283,7 +285,7 @@ function coopTick(session: Session): void {
   console.log(`[${session.code}] 🤝 co-op ofertada: «${next!.title}»`);
 }
 
-/** Cierra la misión co-op: bonus a cada rol asignado + toast del catálogo + cooldown. */
+/** Cierra la misión co-op: bonus a cada rol asignado (pts + € FASE D) + toast del catálogo + cooldown. */
 function completeCoop(session: Session): void {
   const cfg = coopCfg();
   if (!cfg || session.coop.activeIdx < 0) return;
@@ -291,8 +293,17 @@ function completeCoop(session: Session): void {
   const names = mission.roles.map((r) => session.coop.assignments.get(r.id)?.name ?? '').filter((n) => n.length > 0);
   for (const a of session.coop.assignments.values()) {
     award(session, a.residentId, mission.pointsBonus, a.name);
+    // FASE D — el dinero en equipo: cada rol asignado cobra su parte en SU cartera.
+    const funds = mission.fundsBonus ?? 0;
+    if (funds > 0) {
+      const resident = session.world.residents[a.residentId];
+      if (resident) resident.wallet += funds;
+    }
   }
-  let text = mission.completeToast.replace('{title}', mission.title).replace('{points}', String(mission.pointsBonus));
+  let text = mission.completeToast
+    .replace('{title}', mission.title)
+    .replace('{points}', String(mission.pointsBonus))
+    .replace('{funds}', String(mission.fundsBonus ?? 0));
   names.forEach((n, i) => {
     text = text.replace(`{${String.fromCharCode(97 + i)}}`, n); // {a} {b} {c}…
   });
@@ -301,7 +312,7 @@ function completeCoop(session: Session): void {
   session.coop.activeIdx = -1;
   session.coop.assignments.clear();
   session.coop.lastOfferAt = Date.now();
-  console.log(`[${session.code}] ✅ co-op completada: «${mission.title}» (+${mission.pointsBonus} pts × ${names.length})`);
+  console.log(`[${session.code}] ✅ co-op completada: «${mission.title}» (+${mission.pointsBonus} pts, +${mission.fundsBonus ?? 0} € × ${names.length})`);
 }
 
 /** Libera los roles co-op de un residente (al salir). true si cambió algo. */
@@ -341,13 +352,17 @@ function broadcastState(session: Session): void {
     if (e.type === 'minigame_requested' && typeof e.data.minigame === 'string') session.pendingMinigame = e.data.minigame;
     // v1.55 — misión completada → puntos para quien la lleva (el anfitrión es world.playerId:
     // el sim solo avanza pasos por su señal; el catálogo añade bonus por misión concreta).
+    // FASE D — score.excluded: misiones herramienta (QA) nunca puntúan ni con bonus.
     if (cfg && e.type === 'mission_completed' && typeof e.data.mission === 'string') {
-      const host = [...session.participants.values()].find((p) => p.residentId === session.world.playerId);
-      if (host) {
-        const pts = cfg.missionCompletedPoints + (cfg.missionBonus[e.data.mission] ?? 0);
-        if (pts > 0) {
-          award(session, host.residentId, pts, host.name);
-          awarded = true;
+      const excluded = cfg.excluded ?? [];
+      if (!excluded.includes(e.data.mission)) {
+        const host = [...session.participants.values()].find((p) => p.residentId === session.world.playerId);
+        if (host) {
+          const pts = cfg.missionCompletedPoints + (cfg.missionBonus[e.data.mission] ?? 0);
+          if (pts > 0) {
+            award(session, host.residentId, pts, host.name);
+            awarded = true;
+          }
         }
       }
     }
@@ -677,6 +692,8 @@ io.on('connection', (socket) => {
     found.session.lastRecordAt.set(found.participant.residentId, now);
     const text = (prevBest === undefined ? cfg.firstToast : cfg.recordToast)
       .replace('{name}', found.participant.name)
+      // FASE D — {label}: el toast nombra el minijuego real (6 catalogados, no solo fusibles).
+      .replace('{label}', mgCfg.label ?? id)
       .replace('{secs}', row.best[id]!.toFixed(1).replace('.', ','))
       .replace('{points}', String(mgCfg.pointsPerRecord));
     applyEffects(found.session.world, content, [{ op: 'toast', text, tone: 'good' }], {});

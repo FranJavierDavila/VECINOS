@@ -1149,6 +1149,8 @@ export interface Rules {
       title: string;
       missionCompletedPoints: number;
       missionBonus: Record<string, number>;
+      /** FASE D — misiones excluidas del marcador (QA u otras herramientas): nunca puntúan. */
+      excluded?: string[];
       minigames: Record<string, { label?: string; pointsPerRecord: number; maxSecs?: number }>;
       recordToast: string;
       firstToast: string;
