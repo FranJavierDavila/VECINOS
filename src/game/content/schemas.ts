@@ -557,6 +557,23 @@ export const rulesSchema = z.object({
         boardExtraBest: z.string().optional(),
       })
       .optional(),
+    // FASE N — AUTORIDAD DE SERVIDOR (netcode profesional): límites de movimiento y ritmo
+    // que el servidor impone a los clientes. Todo opcional: sin bloque authority el
+    // servidor no valida (comportamiento v1.57, relay puro). maxSpeed deriva de
+    // view.runSpeed (3.9 m/s) con margen para ráfagas de red; maxFloorSpeed cubre
+    // ascensor/escalera; kickViolations 0 = nunca expulsar (solo métricas).
+    authority: z
+      .object({
+        enabled: z.boolean(),
+        maxSpeed: z.number().positive(),
+        maxFloorSpeed: z.number().positive(),
+        minPoseIntervalMs: z.number().nonnegative(),
+        maxPoseGapMs: z.number().positive(),
+        maxCmdsPerSec: z.number().positive(),
+        violationWindowSec: z.number().positive(),
+        kickViolations: z.number().nonnegative(),
+      })
+      .optional(),
   }),
   sim: z.object({
     night: scheduleWindowSchema,

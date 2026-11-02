@@ -1156,6 +1156,20 @@ export interface Rules {
       boardLine: string;
       boardExtraBest?: string;
     };
+    /** FASE N — AUTORIDAD DE SERVIDOR: límites de movimiento/ritmo impuestos por el
+     *  servidor a las poses (mp:pose) y a los comandos. Opcional: sin bloque, relay puro.
+     *  maxSpeed (m/s) deriva de view.runSpeed con margen para ráfagas; maxFloorSpeed
+     *  (plantas/s) cubre ascensor/escalera; kickViolations 0 = nunca expulsar. */
+    authority?: {
+      enabled: boolean;
+      maxSpeed: number;
+      maxFloorSpeed: number;
+      minPoseIntervalMs: number;
+      maxPoseGapMs: number;
+      maxCmdsPerSec: number;
+      violationWindowSec: number;
+      kickViolations: number;
+    };
   };
   sim: {
     /** Ventana nocturna: si existe actividad "sleep", se impone durante esta ventana. */

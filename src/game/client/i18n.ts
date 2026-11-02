@@ -27,7 +27,7 @@ const DICT: Record<string, { es: string; en: string }> = {
     es: 'Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.',
     en: 'Move-ins, noise, smells, wifi, pests, smoke and levies: the neighborhood simulator.',
   },
-  'header.version': { es: 'v1.66 · misiones y logros de MÁXIMA PRIORIDAD: banner gigante, badge post-it grande y anillo de alerta', en: 'v1.66 · missions & achievements at MAXIMUM priority: giant banner, big post-it badge and alert ring' },
+  'header.version': { es: 'v1.73 · netcode profesional (Fase N): autoridad de servidor en el movimiento, reconexión <10 s con persistencia de sesión y métricas de desync', en: 'v1.73 · professional netcode (Phase N): server-authoritative movement, <10 s reconnection with session persistence and desync metrics' },
   // ── Apagón de assets (v1.47: servidor de arte caído → mundo vacío/cápsulas) ──
   'assets.outage': {
     es: '⚠ No se pudo cargar el arte del juego (¿servidor caído?). El vecindario se recargará en {n} s…',
@@ -179,6 +179,8 @@ const DICT: Record<string, { es: string; en: string }> = {
   'ev.contentInvalid': { es: 'Contenido inválido: {n} errores de validación', en: 'Invalid content: {n} validation errors' },
   'ev.juntaConvocada': { es: '🗳️ Junta extraordinaria convocada desde el tablón. Los vecinos, en camino.', en: '🗳️ Extraordinary meeting called from the noticeboard. Neighbors on their way.' },
   'ev.soloResumed': { es: 'Has vuelto a tu partida en solitario.', en: 'Back to your solo game.' },
+  'ev.autoRejoined': { es: '👥 De vuelta a la comunidad: tu partida compartida te esperaba.', en: '👥 Back in the community: your shared session was waiting for you.' },
+  'ev.authorityKick': { es: '🚨 Expulsado de la comunidad: el servidor detectó movimiento imposible (teletransportes).', en: '🚨 Kicked from the community: the server detected impossible movement (teleports).' },
   'ev.saved': { es: 'Partida guardada. El acta queda en el tablón (y en SQLite).', en: 'Game saved. The minutes are on the noticeboard (and in SQLite).' },
   'ev.saveFailed': { es: 'No se pudo guardar la partida. ¿El administrador se habrá ido a comer?', en: 'Could not save the game. Perhaps the administrator went out for lunch?' },
   'ev.noSave': { es: 'Todavía no hay ninguna partida guardada.', en: 'There is no saved game yet.' },

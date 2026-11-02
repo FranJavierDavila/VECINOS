@@ -44,7 +44,7 @@ import { loadUnlocked, saveUnlocked } from './achievements-store';
 import { NetSession, type SessionStatePayload } from './net';
 import { VoiceChannel } from './voice';
 import { setController } from './bridge';
-import { selectModalOpen, selectWorldFrozen, setInfoDockTuning, setPhoneFreeMovement, useGameStore, type AchievementUi, type Speed, type Tone } from './store';
+import { selectModalOpen, selectWorldFrozen, setInfoDockTuning, setPhoneFreeMovement, useGameStore, clearMpPersist, readMpPersist, type AchievementUi, type Speed, type Tone } from './store';
 
 // v1.65 — CÁMARAS 1..5 reordenadas de CERCA a LEJOS + ESPÍA (petición del vecino):
 // 1 Estancia · 2 Planta · 3 Edificio · 4 Fachada · 5 Espía (otra vez 5: siguiente vecino).
@@ -255,6 +255,11 @@ class GameController {
       await this.restart();
       useGameStore.getState().markReady(backend);
       startGamepadPolling();
+      // FASE N — AUTO-REJOIN tras recarga: si había una sesión de comunidad anotada en
+      // localStorage, el vecino vuelve a ella sin tocar nada (el servidor re-difunde el
+      // mundo completo; ver connectNet/tryAutoRejoin). Tras caída irreversible, silencio:
+      // sigue su partida en solitario como si nada.
+      this.tryAutoRejoin();
       // Logros (v1.17): si el jugador cambia el idioma de la interfaz, los textos ya
       // resueltos de los logros se re-pintan con el catálogo (los desbloqueos se quedan).
       // v1.39 — y el CONTENIDO narrativo también se re-traduce (overlay ES→EN).
@@ -996,6 +1001,32 @@ class GameController {
     return r;
   }
 
+  /**
+   * FASE N — auto-rejoin tras RECARGA de la página: localStorage tenía { code, residentId }
+   * de la última comunidad (store.setMpSession). Se intenta una sola vez y en silencio:
+   * ok → session:joined + session:state re-sincronizan TODO (mundo, marcador, co-op, voz);
+   * fallo (TTL, reinicio sin snapshot, partida agotada) → nota borrada y partida en
+   * solitario sin un solo toast de error (nunca fue una acción del vecino).
+   */
+  private tryAutoRejoin(): void {
+    if (this.net || !this._content) return;
+    const saved = readMpPersist();
+    if (!saved) return;
+    useGameStore.getState().setMpStatus('connecting');
+    this.connectNet();
+    void this.net!.rejoin(saved.code, saved.residentId).then((res) => {
+      if (res.ok) {
+        useGameStore.getState().setMpStatus('connected'); // onJoined ya re-compone la sesión
+        useGameStore.getState().pushToast(translate(useGameStore.getState().lang, 'ev.autoRejoined'), 'good');
+        return;
+      }
+      clearMpPersist(); // la partida ya no existe: que no vuelva a intentarlo
+      this.net?.disconnect();
+      this.net = null;
+      useGameStore.getState().setMpStatus('off');
+    });
+  }
+
   /** Crea una partida compartida (este cliente queda como anfitrión). */
   hostSession(): void {
     if (this.net || !this._content) return;
@@ -1086,6 +1117,11 @@ class GameController {
         this.rebindLogic(); // v1.64 — el invitado controla SU residente, no el del anfitrión
       },
       onError: (m) => {
+        // FASE N — el servidor puede expulsar por anti-cheat (authority_kick): mensaje humano.
+        if (m === 'authority_kick') {
+          useGameStore.getState().pushToast(translate(useGameStore.getState().lang, 'ev.authorityKick'), 'bad');
+          return;
+        }
         useGameStore.getState().pushToast(m, 'bad');
       },
       onStatus: (st) => {
@@ -1107,6 +1143,8 @@ class GameController {
               } else {
                 // v1.56 (auditoría H1) — rejoin imposible (sesión TTL/reinicio): limpieza
                 // COMPLETA, si no el net huérfano bloquea «Crear/Unirse» y el micro queda capturado.
+                // FASE N — la nota de localStorage también se borra: la partida ya no existe.
+                clearMpPersist();
                 this.net?.disconnect();
                 this.net = null;
                 this.myResidentId = null;
@@ -1254,6 +1292,9 @@ class GameController {
   private applyRemoteState(s: SessionStatePayload): void {
     if (s.seq <= this.appliedSeq) return;
     this.appliedSeq = s.seq;
+    // FASE N — ack del estado aplicado: el servidor mide el lag de desync por vecino
+    // (ticks entre lo que difunde y lo que cada uno confirmó) y lo expone en /health.
+    this.net?.ack(s.seq);
     if (!this.world || this.world.scenarioId !== s.world.scenarioId) {
       void this.restart(s.world).then(() => {
         if (!this.world) return;

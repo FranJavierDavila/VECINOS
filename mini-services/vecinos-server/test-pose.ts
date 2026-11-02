@@ -1,13 +1,16 @@
 /**
- * VECINOS — smoke del protocolo v1.57 (poses de avatares + blindaje de 'move'), hermano de
- * test-client.ts: dos clientes socket.io directos a http://localhost:3010.
+ * VECINOS — smoke del protocolo v1.73 (poses CON autoridad de servidor + blindaje de 'move'),
+ * hermano de test-client.ts: dos clientes socket.io directos a http://127.0.0.1:3010.
  *
  * Asserts:
- *   (a) el invitado emite mp:pose y el anfitrión lo recibe con from = su residente (relay puro).
- *   (b) valores fuera de rango llegan ACOTADOS (x 9999 → ±600, floor −5 → 0): validación del servidor.
- *   (c) el invitado NO puede mover al anfitrión: 'move' con resident ajeno se re-imputa al remitente.
- *   (d) ambos reciben session:state con el MISMO tick (mundo compartido).
+ *   (a) el invitado emite mp:pose y el anfitrión lo recibe con from = su residente (relay fiel).
+ *   (b) la PRIMERA pose del anfitrión fuera de rango llega ACOTADA (x 9999 → 600, floor −5 → 0):
+ *       sin ancla previa no hay velocidad que validar — el clamp del servidor se mantiene.
+ *   (c) TELEPORT del invitado RECHAZADO (Fase N): un salto imposible NO llega a la sala
+ *       (distancia ≈ 570 m en milisegundos >> maxSpeed del catálogo).
+ *   (d) el invitado NO puede mover al anfitrión: 'move' con resident ajeno se re-imputa al remitente.
  *   (e) los comandos normales del invitado siguen funcionando (move propio OK).
+ *   (f) ambos reciben session:state con el MISMO tick (mundo compartido).
  *
  * PASS/FAIL por consola; process.exit(1) en fallo.
  */
@@ -103,21 +106,41 @@ assert(
   `pose fiel recibida por el anfitrión (${JSON.stringify(pose1)})`,
 );
 
+// (b) — la PRIMERA pose del anfitrión, fuera de rango: sin ancla no hay chequeo de
+// velocidad, así que el CLAMP del servidor sigue siendo observable (9999→600, −5→0).
 const poseClamped = waitFor<{ from: string; x: number; z: number; floor: number }>(
-  host,
+  guest,
   'mp:pose',
-  (p) => p.from === guestId && p.x !== 9999,
-  'pose acotada',
+  (p) => p.from === hostId,
+  'pose acotada del anfitrión',
 );
-guest.emit('mp:pose', { x: 9999, z: -9999, floor: -5 });
+host.emit('mp:pose', { x: 9999, z: -9999, floor: -5 });
 const pose2 = await poseClamped;
 assert(
   pose2.x === 600 && pose2.z === -600 && pose2.floor === 0,
   'clamp',
-  `valores abusivos acotados (${JSON.stringify(pose2)})`,
+  `valores abusivos acotados en la primera pose (${JSON.stringify(pose2)})`,
 );
 
-// (c) — el invitado intenta mover AL ANFITRIÓN: el servidor re-imputa el residente.
+// (c) — TELEPORT del invitado (Fase N): salto de ~570 m desde su ancla (1.23,−4.56) en
+// milisegundos. Velocidad imposible → el servidor NO lo reenvía a la sala.
+let teleportEcho: string | null = null;
+const onEcho = (p: { from: string }): void => {
+  if (p.from === guestId) teleportEcho = p.from;
+};
+host.on('mp:pose', onEcho);
+await new Promise((r) => setTimeout(r, 120)); // asegurar que el ancla del invitado ya está puesta
+const beforeRejected = Date.now();
+guest.emit('mp:pose', { x: 400, z: 400, floor: 0 });
+await new Promise((r) => setTimeout(r, 700)); // ventana generosa: nada debe llegar
+host.off('mp:pose', onEcho);
+assert(
+  teleportEcho === null,
+  'teleport rechazado',
+  `salto imposible NO reenviado en ${Date.now() - beforeRejected} ms (autoridad de servidor)`,
+);
+
+// (d) — el invitado intenta mover AL ANFITRIÓN: el servidor re-imputa el residente.
 const stateBefore = await waitFor<StateMsg>(guest, 'session:state', () => true, 'estado previo');
 const hostLocBefore = stateBefore.world.residents[hostId]!.location;
 const someBlock = Object.keys(stateBefore.world.blocks).find((id) => id !== hostLocBefore)!;
@@ -131,6 +154,7 @@ assert(
 );
 
 // (e) — el move PROPIO del invitado sigue funcionando.
+
 guest.emit('session:command', { cmd: { type: 'move', resident: guestId, to: someBlock } });
 const stateGuest = await waitFor<StateMsg>(
   guest,
@@ -140,7 +164,7 @@ const stateGuest = await waitFor<StateMsg>(
 );
 assert(stateGuest.world.residents[guestId]!.location === someBlock, 'move propio', `invitado movido a ${someBlock}`);
 
-// (d) — el mismo tick llega a ambos (mundo compartido).
+// (f) — el mismo tick llega a ambos (mundo compartido).
 const tickHost = await waitFor<StateMsg>(host, 'session:state', () => true, 'tick anfitrión');
 const tickGuest = await waitFor<StateMsg>(guest, 'session:state', () => true, 'tick invitado');
 assert(

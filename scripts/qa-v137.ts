@@ -282,7 +282,7 @@ check('las lavadoras son SÓLIDAS: el jugador no llega a atravesarlas', blocked)
 
 console.log('── 8. Insignia y determinismo ──');
 check('insignia v1.38 (pase de optimización) en i18n', srcOf('src/game/client/i18n.ts').includes("'opt.perfAuto':"));
-check('sw.js cache bump al ser el runtime actual', srcOf('public/sw.js').includes('vecinos-v1.69')); // v1.46→v1.69: estaba CONGELADO 20 versiones (stale cache PWA)
+check('sw.js cache VERSION con formato vecinos-vX.Y (nunca congelada)', /const VERSION = 'vecinos-v\d+\.\d+'/.test(srcOf('public/sw.js'))); // v1.73: era un literal fijo (v1.69) que se rompía en CADA bump; el candado real es el espejo de abajo
 // v1.71 (higiene) — candado permanente: el EXPECTED_SW_VERSION de PwaRegister debe ESPEJAR la
 // VERSION de sw.js. Se desalineó 24 versiones (v1.45 vs v1.69) y cada visitante recurrente
 // pagaba una recarga extra por sesión. Consistencia cruzada, sin versiones hardcodeadas.

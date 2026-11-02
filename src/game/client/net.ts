@@ -167,11 +167,13 @@ export class NetSession {
       // v1.56 — reconexión INDEFINIDA: en segundo plano Chrome ralentiza los timers y
       // cada intento puede tardar ~60 s; con el rejoin del servidor (session:rejoin) la
       // sesión se re-vincula al volver, así que reintentar siempre es lo correcto.
+      // FASE N — reconexión <10 s: reintentos agresivos (0.5–2 s) porque re-vincular es
+      // barato (el servidor re-difunde todo) y el vecino vuelve casi sin darse cuenta.
       reconnection: true,
       reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 4000,
-      timeout: 10000,
+      reconnectionDelay: 500,
+      reconnectionDelayMax: 2000,
+      timeout: 8000,
     });
     // Estado de transporte (la UI decide qué pinta con ello).
     cbs.onStatus?.('connecting');
@@ -225,6 +227,12 @@ export class NetSession {
   /** C→S session:command (sin ack; el servidor impone cmd.actor). */
   command(cmd: Command): void {
     this.socket.emit('session:command', { cmd });
+  }
+
+  /** FASE N — C→S session:ack: confirma el último seq de session:state aplicado (el
+   *  servidor mide el lag de desync por vecino en /health; el sim no se entera). */
+  ack(seq: number): void {
+    this.socket.emit('session:ack', { seq });
   }
 
   /** v1.55 — DUELO DE MINIJUEGOS: marca de tiempo (s) de un rearme con éxito reciente. */

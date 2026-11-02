@@ -16,6 +16,7 @@
  */
 import { io, type Socket } from 'socket.io-client';
 import { formatIssues, loadContent } from '@/game/content';
+import { nextStepTowards } from '@/game/sim/graph';
 import type { GameEvent, World } from '@/game/core/types';
 
 const SERVER_URL = 'http://localhost:3010';
@@ -155,11 +156,27 @@ assert(first.world.blocks[joined.homeBlock]?.occupancy === 'occupied' && first.w
 assert(me?.location === first.world.entry, 'a', `el invitado aparece en el portal (world.entry=${first.world.entry})`);
 
 // (b) work del invitado: cartera +rules.sim.work.pay
-const walletBefore = me!.wallet;
-c2.emit('session:command', { cmd: { type: 'work' } });
-const afterWork = await waitState(c2, (s) => (s.world.residents[joined.yourResidentId]?.wallet ?? walletBefore) !== walletBefore, 'wallet tras work');
-const walletAfter = afterWork.world.residents[joined.yourResidentId]!.wallet;
-assert(walletAfter === walletBefore + pay, 'b', `cartera del invitado ${walletBefore} → ${walletAfter} (+${pay}, rules.sim.work.pay del catálogo)`);
+// v1.39 «el portátil vive en casa»: el sim exige location===home y el invitado nace en el
+// portal, así que CAMINA a su vivienda con pasos del grafo del sim (nextStepTowards — misma
+// verdad que usa la IA) y después cobra. De paso: moves encadenados por el grafo, contrato
+// del router de movimiento en vivo (el humo del antiguo 'work' a distancia se acabó).
+{
+  let loc = me!.location;
+  let guard = 0;
+  while (loc !== joined.homeBlock && guard++ < 24) {
+    const step = nextStepTowards(first.world, content, loc, joined.homeBlock);
+    if (!step) break;
+    c2.emit('session:command', { cmd: { type: 'move', resident: joined.yourResidentId, to: step } });
+    const st = await waitState(c2, (s) => s.world.residents[joined.yourResidentId]?.location === step, `paso ${step}`);
+    loc = st.world.residents[joined.yourResidentId]!.location;
+  }
+  assert(loc === joined.homeBlock, 'b', `el invitado caminó a SU vivienda por el grafo (${loc}, ${guard} pasos)`);
+  const walletBefore = first.world.residents[joined.yourResidentId]!.wallet;
+  c2.emit('session:command', { cmd: { type: 'work' } });
+  const afterWork = await waitState(c2, (s) => (s.world.residents[joined.yourResidentId]?.wallet ?? walletBefore) !== walletBefore, 'wallet tras work');
+  const walletAfter = afterWork.world.residents[joined.yourResidentId]!.wallet;
+  assert(walletAfter === walletBefore + pay, 'b', `cartera del invitado ${walletBefore} → ${walletAfter} (+${pay}, rules.sim.work.pay del catálogo)`);
+}
 
 // (c) el reloj del mundo avanza entre dos states (bucle de tick activo)
 const s1 = await waitState(c2, () => true, 'state 1 para el reloj');
