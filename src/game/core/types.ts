@@ -1728,6 +1728,8 @@ export interface Rules {
       soot?: { min: number; max: number; w: number; h: number };
       cracks?: { conditionMax: number; w: number; h: number };
       grime?: { cleanlinessMax: number; w: number; h: number };
+      /** v1.72 — escalera anti z-fighting entre decales del mismo muro (m por tipo). */
+      zStep?: number;
     };
     /** v1.35 — llevar objetos encima (paquetes/mudanzas): actividades del catálogo que
      *  cargan una caja sobre la cabeza, colores y tamaño de la caja. */

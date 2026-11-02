@@ -1485,6 +1485,12 @@ export const rulesSchema = z.object({
         soot: z.object({ min: z.number().min(0).default(15), max: z.number().min(1).default(70), w: z.number().positive().default(0.8), h: z.number().positive().default(0.55) }).optional(),
         cracks: z.object({ conditionMax: z.number().min(1).default(55), w: z.number().positive().default(1.0), h: z.number().positive().default(1.3) }).optional(),
         grime: z.object({ cleanlinessMax: z.number().min(1).default(45), w: z.number().positive().default(1.0), h: z.number().positive().default(0.7) }).optional(),
+        /** v1.72 — ESCALERA DE PROFUNDIDAD entre decales del mismo muro (anti z-fighting,
+         *  técnica juntas/soleras): cada decal nace `idx·zStep` más CERCA del espectador que
+         *  el anterior — humedad al fondo, hollín sobre ella, grietas delante. Antes TODOS
+         *  compartían el mismo plano backZ y peleaban donde solapaban (auditor: pares
+         *  decal_grietas↔decal_humedad persistentes). Milímetros: invisible al ojo. */
+        zStep: z.number().positive().default(0.006),
       })
       .optional(),
     /** v1.35 — LLEVAR OBJETOS ENCIMA: actividades del catálogo que cargan caja/paquete

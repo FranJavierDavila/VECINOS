@@ -63,7 +63,7 @@ await page.evaluate(() => {
 });
 await page.waitForTimeout(1200);
 
-const audit = (): Promise<{ pairs: { a: string; b: string; axis: string; at: number; gap: number; area: number; enA: boolean; enB: boolean }[]; meshes: number; faces: number }> =>
+const audit = (): Promise<{ pairs: { a: string; b: string; ma: string; mb: string; axis: string; at: number; gap: number; area: number; enA: boolean; enB: boolean }[]; meshes: number; faces: number }> =>
   page.evaluate(() => {
     const scene = (window as unknown as { __vecinosQa: { getScene: () => { meshes: unknown[] } } }).__vecinosQa.getScene() as unknown as {
       meshes: Array<{
@@ -71,7 +71,7 @@ const audit = (): Promise<{ pairs: { a: string; b: string; axis: string; at: num
         geometry?: { getTotalVertices?: () => number } | null;
         getTotalVertices: () => number;
         rotation: { x: number; y: number; z: number };
-        material?: { disableDepthWrite?: boolean } | null;
+        material?: { disableDepthWrite?: boolean; name?: string } | null;
         isEnabled: () => boolean;
         computeWorldMatrix: (f?: boolean) => { m: number[] };
         getBoundingInfo: () => { boundingBox: { minimum: { x: number; y: number; z: number }; maximum: { x: number; y: number; z: number } } };
@@ -81,7 +81,7 @@ const audit = (): Promise<{ pairs: { a: string; b: string; axis: string; at: num
     const MIN_AREA = 0.0002; // 2 cm² de solape mínimo (costuras de 1-2 mm no cuentan)
     const MAX_SPAN = 80; // skybox/mundo fuera
     const skip = /viandante_|trafico_|_carry_|_bolsa_|sombra|shadow|particula|spark|humo|skybox|sky_|proxy|collider|lensflare|glow|^Clone of |_merged|^asc_|asc_puerta|hinge|_hoja$|_cabina/i;
-    type Item = { n: string; en: boolean; mn: number[]; mx: number[]; s: number[] };
+    type Item = { n: string; en: boolean; mat: string; mn: number[]; mx: number[]; s: number[] };
     const items: Item[] = [];
     for (const m of scene.meshes) {
       if (!m.geometry || m.getTotalVertices() === 0) continue;
@@ -123,7 +123,10 @@ const audit = (): Promise<{ pairs: { a: string; b: string; axis: string; at: num
       }
       const s = [mx[0]! - mn[0]!, mx[1]! - mn[1]!, mx[2]! - mn[2]!];
       if (Math.max(s[0]!, s[1]!, s[2]!) > MAX_SPAN) continue;
-      items.push({ n: m.name, en: m.isEnabled(), mn: mn as number[], mx: mx as number[], s });
+      // v1.72 — MATERIAL del par: dos caras coplanares del MISMO material producen píxeles
+      // idénticos al pelear (el z-fight solo es visible cuando los materiales difieren).
+      const matName = (mm as unknown as { name?: string } | null)?.name ?? '';
+      items.push({ n: m.name, en: m.isEnabled(), mat: matName, mn: mn as number[], mx: mx as number[], s });
     }
 
     // Caras: caja → 6 caras; eje fino (<0.1 mm) → PLANO (doble cara). Hash espacial por
@@ -151,7 +154,7 @@ const audit = (): Promise<{ pairs: { a: string; b: string; axis: string; at: num
         push({ it, a, at: it.mx[a]!, dir: 1 });
       }
     }
-    const out = new Map<string, { a: string; b: string; axis: string; at: number; gap: number; area: number; enA: boolean; enB: boolean }>();
+    const out = new Map<string, { a: string; b: string; ma: string; mb: string; axis: string; at: number; gap: number; area: number; enA: boolean; enB: boolean }>();
     for (const [k, arr] of buckets) {
       const [aStr, qStr] = k.split(':');
       const a = Number(aStr);
@@ -173,10 +176,11 @@ const audit = (): Promise<{ pairs: { a: string; b: string; axis: string; at: num
           const area = ow * od;
           if (area < MIN_AREA) continue;
           const [n1, n2] = A.it.n < B.it.n ? [A.it.n, B.it.n] : [B.it.n, A.it.n];
+          const [ma1, mb1] = A.it.n < B.it.n ? [A.it.mat, B.it.mat] : [B.it.mat, A.it.mat];
           const key = `${n1}|${n2}`;
           const prev = out.get(key);
           if (!prev || area > prev.area) {
-            out.set(key, { a: n1, b: n2, axis: 'xyz'[a]!, at: +(((A.at + B.at) / 2)).toFixed(4), gap: +Math.abs(A.at - B.at).toFixed(5), area: +area.toFixed(4), enA: A.it.en, enB: B.it.en });
+            out.set(key, { a: n1, b: n2, ma: ma1!, mb: mb1!, axis: 'xyz'[a]!, at: +(((A.at + B.at) / 2)).toFixed(4), gap: +Math.abs(A.at - B.at).toFixed(5), area: +area.toFixed(4), enA: A.it.en, enB: B.it.en });
           }
         }
       }
@@ -206,21 +210,37 @@ for (const p of persistent) {
 }
 
 console.log(`mallas auditadas: ${run1.meshes} · caras: ${run1.faces} · pares pas1: ${run1.pairs.length} · pas2: ${run2.pairs.length} · PERSISTENTES: ${persistent.length}`);
+// v1.72 — CLASIFICACIÓN POR MATERIAL: mismo material ⇒ píxeles idénticos al pelear ⇒
+// benigno por igual-material (solo importa el orden de dibujo, no el color). Distinto
+// material ⇒ candidato real a flickeo visible (cambia el color de los píxeles).
+const sameMat = persistent.filter((p) => p.ma === p.mb);
+const diffMat = persistent.filter((p) => p.ma !== p.mb);
+console.log(`por material: MISMO material (benigno): ${sameMat.length} · DISTINTO material (candidato): ${diffMat.length}`);
 // Triage: activos↔activos (visibles ya) vs pares con alguna malla OFF (bloques traseros en
 // reposo, decals apagados…): los primeros son los candidatos a flickeo REAL.
 const bothOn = persistent.filter((p) => p.enA && p.enB);
 const withOff = persistent.filter((p) => !(p.enA && p.enB));
 console.log('');
 console.log(`— ACTIVOS↔ACTIVOS: ${bothOn.length} —`);
+const bothOnDiff = bothOn.filter((p) => p.ma !== p.mb);
+const bothOnSame = bothOn.filter((p) => p.ma === p.mb);
+console.log(`  (distinto material — CANDIDATOS a flickeo: ${bothOnDiff.length} · mismo material: ${bothOnSame.length})`);
 const famOn = new Map<string, number>();
-for (const p of bothOn) {
-  const k = `${fam(p.a)} ⊥ ${fam(p.b)} [${p.axis}]`;
+for (const p of bothOnDiff) {
+  const k = `${fam(p.a)} ⊥ ${fam(p.b)} [${p.axis}] {${p.ma} ≠ ${p.mb}}`;
   famOn.set(k, (famOn.get(k) ?? 0) + 1);
 }
 for (const [k, n] of [...famOn.entries()].sort((x, y) => y[1] - x[1])) console.log(`${String(n).padStart(4)} × ${k}`);
+console.log('  — familias de mismo material (benignas por igual-material) —');
+const famOnSame = new Map<string, number>();
+for (const p of bothOnSame) {
+  const k = `${fam(p.a)} ⊥ ${fam(p.b)} [${p.axis}]`;
+  famOnSame.set(k, (famOnSame.get(k) ?? 0) + 1);
+}
+for (const [k, n] of [...famOnSame.entries()].sort((x, y) => y[1] - x[1]).slice(0, 30)) console.log(`${String(n).padStart(4)} × ${k}`);
 console.log('');
-for (const p of bothOn) {
-  console.log(`  [${p.axis}] gap=${p.gap}m área=${p.area}m² ${p.a}  ↔  ${p.b} @${p.at}`);
+for (const p of bothOnDiff) {
+  console.log(`  [${p.axis}] gap=${p.gap}m área=${p.area}m² ${p.a}  ↔  ${p.b} @${p.at} {${p.ma} ≠ ${p.mb}}`);
 }
 console.log('');
 console.log(`— con alguna malla OFF: ${withOff.length} (resumen por familia) —`);
