@@ -811,9 +811,15 @@ io.on('connection', (socket) => {
       const code = (payload?.code ?? '').trim().toUpperCase();
       const residentId = payload?.residentId ?? '';
       const session = sessions.get(code);
-      if (!session) return ack?.({ ok: false, error: 'unknown_code' });
+      if (!session) {
+        console.log(`⚠ rejoin FALLO ${code}: unknown_code (sesiones: ${[...sessions.keys()].join(',') || 'ninguna'})`);
+        return ack?.({ ok: false, error: 'unknown_code' });
+      }
       const prev = [...session.participants.entries()].find(([, p]) => p.residentId === residentId);
-      if (!prev) return ack?.({ ok: false, error: 'not_in_session' });
+      if (!prev) {
+        console.log(`[${code}] ⚠ rejoin FALLO: ${residentId} no está en el roster (${[...session.participants.values()].map((p) => p.residentId).join(',') || 'vacío'})`);
+        return ack?.({ ok: false, error: 'not_in_session' });
+      }
       const [oldSocketId, participant] = prev;
       // El socket viejo (si aún respira) sale limpio; el nuevo lo sustituye 1:1.
       if (oldSocketId !== socket.id) {
