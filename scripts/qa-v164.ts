@@ -33,7 +33,10 @@ const check = (name: string, cond: boolean, detail = '') => {
 interface StateMsg { seq: number; world: { tick: number; seed: number; residents: Record<string, { location: string | null; home: string }>; playerId: string } }
 type CreateAck = { ok: true; code: string; yourResidentId: string } | { ok: false; error: string };
 
-const host = io(SERVER, { transports: ['websocket', 'polling'], forceNew: true }) as Socket;
+// v1.71 (higiene): el server sirve socket.io en path '/' (contrato de Caddy, ver index.ts);
+// el cliente DEBE pedir el mismo path — el default '/socket.io/' solo chocaba con una
+// instancia vieja del server y hacía caer el suite con TransportError.
+const host = io(SERVER, { path: '/', transports: ['websocket', 'polling'], forceNew: true }) as Socket;
 await new Promise<void>((res, rej) => {
   const t = setTimeout(() => rej(new Error('timeout conectando al servidor')), 8000);
   host.on('connect', () => { clearTimeout(t); res(); });
