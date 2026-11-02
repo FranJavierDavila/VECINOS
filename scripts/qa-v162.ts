@@ -136,6 +136,10 @@ const bOk =
 console.log('   totalGaps:', totalGaps);
 
 // ── C. DOM del cuaderno ──
+// v1.71 (higiene): el HUD v1.65 cambió el DOM — el dock es ahora un div[role=tablist] con
+// etiqueta "Cuaderno del vecino" y el panel vive FUERA (InfoOverlay, [role=tabpanel] global).
+// El post-it 'Ayuda' se retiró (dock.tab.help legacy fuera): hoy los 4 post-its del cuaderno
+// son Misiones/Edificio/Vecinos/Logros (+ menú y cámara) y el panel nace PLEGADO al boot.
 type Dom1 = {
   dock: boolean;
   tabs?: (string | null)[];
@@ -143,14 +147,15 @@ type Dom1 = {
   panelHead?: string;
   ayudaEnDock?: boolean;
   miCasaEnDock?: boolean;
-  postitAyudaSuperior?: boolean;
+  postitsNotebook?: number;
   versionChip?: string;
 };
 const dom1 = await ev<Dom1>(`(() => {
-  const dock = document.querySelector('section[aria-label="Cuaderno del vecino"]');
+  const dock = document.querySelector('[role="tablist"][aria-label="Cuaderno del vecino"]');
   if (!dock) return { dock: false };
   const tabs = Array.from(dock.querySelectorAll('button[role="tab"]')).map(b => b.getAttribute('aria-label'));
-  const panel = dock.querySelector('[role="tabpanel"]');
+  const panel = document.querySelector('[role="tabpanel"]');
+  const postitLabels = Array.from(document.querySelectorAll('button.postit')).map(b => (b.getAttribute('aria-label') ?? ''));
   return {
     dock: true,
     tabs,
@@ -158,7 +163,7 @@ const dom1 = await ev<Dom1>(`(() => {
     panelHead: (panel?.textContent ?? '').slice(0, 60),
     ayudaEnDock: tabs.includes('Ayuda'),
     miCasaEnDock: tabs.includes('Mi casa'),
-    postitAyudaSuperior: !!Array.from(document.querySelectorAll('button.postit')).find(b => (b.getAttribute('aria-label') ?? '').includes('Ayuda')),
+    postitsNotebook: ['Misiones', 'Edificio', 'Vecinos', 'Logros'].filter((lb) => postitLabels.includes(lb)).length,
     versionChip: (Array.from(document.querySelectorAll('header span')).map(s => s.textContent).find(tx => tx && tx.startsWith('v1.'))) ?? ''
   };
 })()`);
@@ -166,7 +171,7 @@ console.log('C1. cuaderno:', JSON.stringify(dom1));
 
 const dockClick = (label: string) =>
   page.evaluate((lb) => {
-    const dock = document.querySelector('section[aria-label="Cuaderno del vecino"]');
+    const dock = document.querySelector('[role="tablist"][aria-label="Cuaderno del vecino"]');
     const btn = Array.from(dock?.querySelectorAll('button[role="tab"]') ?? []).find(
       (b) => b.getAttribute('aria-label') === lb,
     );
@@ -178,8 +183,7 @@ const dockClick = (label: string) =>
 await dockClick('Edificio');
 await page.waitForTimeout(500);
 const dom2 = await ev<{ panelOpen: boolean; notaCasa: boolean; conContenido: boolean }>(`(() => {
-  const dock = document.querySelector('section[aria-label="Cuaderno del vecino"]');
-  const panel = dock?.querySelector('[role="tabpanel"]');
+  const panel = document.querySelector('[role="tabpanel"]');
   const tx = panel?.textContent ?? '';
   return { panelOpen: !!panel, notaCasa: tx.includes('reforma') || tx.includes('🏠'), conContenido: tx.length > 40 };
 })()`);
@@ -188,16 +192,14 @@ console.log('C2. Edificio abierto:', JSON.stringify(dom2));
 await dockClick('Edificio');
 await page.waitForTimeout(500);
 const dom3 = await ev<{ panelOpen: boolean }>(`(() => {
-  const dock = document.querySelector('section[aria-label="Cuaderno del vecino"]');
-  return { panelOpen: !!dock?.querySelector('[role="tabpanel"]') };
+  return { panelOpen: !!document.querySelector('[role="tabpanel"]') };
 })()`);
 console.log('C3. plegado tras 2.º clic:', JSON.stringify(dom3));
 
 await dockClick('Logros');
 await page.waitForTimeout(500);
 const dom4 = await ev<{ panelOpen: boolean; head: string }>(`(() => {
-  const dock = document.querySelector('section[aria-label="Cuaderno del vecino"]');
-  const panel = dock?.querySelector('[role="tabpanel"]');
+  const panel = document.querySelector('[role="tabpanel"]');
   return { panelOpen: !!panel, head: (panel?.textContent ?? '').slice(0, 40) };
 })()`);
 console.log('C4. Logros:', JSON.stringify(dom4));
@@ -207,8 +209,8 @@ const cOk =
   dom1.tabs?.length === 4 &&
   !dom1.ayudaEnDock &&
   !dom1.miCasaEnDock &&
-  dom1.panelOpen &&
-  dom1.postitAyudaSuperior &&
+  dom1.postitsNotebook === 4 &&
+  !dom1.panelOpen && // v1.65: el panel nace PLEGADO al boot (la prioridad del día lo abre si toca)
   dom2.panelOpen &&
   dom2.notaCasa &&
   dom2.conContenido &&
