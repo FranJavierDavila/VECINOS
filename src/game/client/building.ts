@@ -1567,7 +1567,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       if (b.defId === 'trasteros' || b.defId === 'local_comercial') {
         const leafWs = b.defId === 'trasteros' ? [tc.doorW, tc.doorW] : [jh.doorW];
         const leafHs = b.defId === 'trasteros' ? [tc.doorH, tc.doorH] : [v.privacy.doorH];
-        const arts = b.defId === 'trasteros' ? [tc.doorArt, tc.doorArt] : ['/art/interiors/raw/door_casa_a.png'];
+        const arts = b.defId === 'trasteros' ? [tc.doorArt, tc.doorArt] : ['art/interiors/raw/door_casa_a.png'];
         leafWs.forEach((lw, li) => {
           const gx = gapWs[li]!;
           const lh = leafHs[li]!;
@@ -1734,7 +1734,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
             const runD = v.corridorDepth;
             const runW = Math.max(0.6, w - v.wall * 2);
             const runH = runD + 0.1;
-            const artBaseLoc = content.interiors?.artBase ?? '/art/interiors/raw/';
+            const artBaseLoc = content.interiors?.artBase ?? 'art/interiors/raw/';
             const runMat = mat(`${b.id}_tapete_mat`);
             runMat.diffuseTexture = plainArtTex(
               `${b.id}_tapete_tex`,

@@ -63,7 +63,7 @@ async function loadCatalog(): Promise<void> {
   if (catalog || loading) return;
   loading = (async () => {
     try {
-      const res = await fetch('/content/sounds.json');
+      const res = await fetch('content/sounds.json');
       const parsed = soundsCatalogSchema.safeParse(await res.json());
       if (parsed.success) {
         catalog = parsed.data;

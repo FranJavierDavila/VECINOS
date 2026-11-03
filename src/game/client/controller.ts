@@ -61,6 +61,9 @@ const MOVEMENT_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'Arrow
  * El sim no sabe que existe Babylon ni React; aquí es donde se tocan.
  * Tampoco contiene datos: TODO (contenido, balance, etiquetas, greybox) viene de /content/.
  */
+/** Clave de guardado local (sin backend): espejo del slot 'auto' de /api/save. */
+const SAVE_KEY = 'vecinos.save.auto';
+
 class GameController {
   private canvas: HTMLCanvasElement | null = null;
   private engine: AbstractEngine | null = null;
@@ -1496,8 +1499,17 @@ class GameController {
       store.setSaveState('saved', new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }));
       store.pushToast(translate(store.lang, 'ev.saved'), 'good');
     } catch {
-      store.setSaveState('error');
-      store.pushToast(translate(store.lang, 'ev.saveFailed'), 'bad');
+      // Sin backend (despliegue estático, p. ej. GitHub Pages): la partida cae a
+      // localStorage para que el guardado siga vivo sin servidor. Mismo toast de éxito:
+      // para el vecino da igual dónde vive su partida.
+      try {
+        localStorage.setItem(SAVE_KEY, JSON.stringify({ slot: 'auto', state: this.world }));
+        store.setSaveState('saved', new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }));
+        store.pushToast(translate(store.lang, 'ev.saved'), 'good');
+      } catch {
+        store.setSaveState('error');
+        store.pushToast(translate(store.lang, 'ev.saveFailed'), 'bad');
+      }
     }
   }
 
@@ -1507,18 +1519,34 @@ class GameController {
       store.pushToast(this.content.rules.multiplayer.texts.remoteSaveDisabled, 'info');
       return;
     }
+    // 1) Backend (sandbox/desarrollo); 2) sin backend (Pages estático) → localStorage.
+    let state: unknown = null;
     try {
       const res = await fetch('/api/save?slot=auto');
       const json = (await res.json()) as { state?: unknown };
-      if (!json.state || typeof json.state !== 'object') {
-        store.pushToast(translate(store.lang, 'ev.noSave'), 'info');
-        return;
+      if (json.state && typeof json.state === 'object') state = json.state;
+    } catch {
+      /* sin backend: cae al intento localStorage */
+    }
+    if (!state) {
+      try {
+        const raw = localStorage.getItem(SAVE_KEY);
+        const json = raw ? (JSON.parse(raw) as { state?: unknown }) : null;
+        if (json?.state && typeof json.state === 'object') state = json.state;
+      } catch {
+        /* guardado local corrupto o ausente */
       }
-      if (!this._content) {
-        store.pushToast(translate(store.lang, 'ev.contentLoading'), 'info');
-        return;
-      }
-      await this.restart(json.state as World);
+    }
+    if (!state) {
+      store.pushToast(translate(store.lang, 'ev.noSave'), 'info');
+      return;
+    }
+    if (!this._content) {
+      store.pushToast(translate(store.lang, 'ev.contentLoading'), 'info');
+      return;
+    }
+    try {
+      await this.restart(state as World);
       store.pushToast(translate(store.lang, 'ev.loaded'), 'good');
     } catch {
       store.pushToast(translate(store.lang, 'ev.loadFailed'), 'bad');

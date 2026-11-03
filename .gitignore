@@ -55,3 +55,6 @@ server.log
 tool-results/
 upload/
 --timeout
+
+# build de export para GitHub Pages (distDir propio, NEXT_PAGES=1)
+/.next-pages/

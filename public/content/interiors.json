@@ -1,5 +1,5 @@
 {
-  "artBase": "/art/interiors/raw/",
+  "artBase": "art/interiors/raw/",
   "keyColor": "#ffffff",
   "keyTolerance": 0.15,
   "processSize": 512,

@@ -33,6 +33,9 @@ function reloadOnce(): boolean {
 
 export function PwaRegister() {
   useEffect(() => {
+    // Build estático (GitHub Pages): el SW vive en un subpath y su precache es de raíz,
+    // así que registrar ahí sería un SW roto (y sin backend no aporta nada). Silencio.
+    if (process.env.NEXT_PUBLIC_SW === 'off') return;
     if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
 
     /** true solo si esta página fue servida por un SW anterior (primera visita: no). */

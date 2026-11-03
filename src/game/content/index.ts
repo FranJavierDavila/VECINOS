@@ -51,7 +51,7 @@ function indexById<T extends { id: string }>(list: T[]): Record<string, T> {
 }
 
 /** Descarga y valida los catálogos. Lanza si un fichero no cumple su schema; los errores de referencias se devuelven. */
-export async function loadContent(baseUrl: string = '/content/'): Promise<{ content: Content; issues: Issue[] }> {
+export async function loadContent(baseUrl: string = 'content/'): Promise<{ content: Content; issues: Issue[] }> {
   cache ??= (async () => {
     const raw = {} as Loaded;
     await Promise.all(

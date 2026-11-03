@@ -1,0 +1,49 @@
+# VECINOS — Fase H (higiene): CI de tolerancia cero.
+# Cada push pasa por: lint + typecheck estricto (0 errores, sin caché incremental)
+# + batería de QA headless determinista (suites verificadas sin navegador ni dev server).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  higiene:
+    name: lint + tsc(0) + QA headless
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Instalar dependencias
+        run: bun install --frozen-lockfile
+
+      - name: Lint (ESLint)
+        run: bun run lint
+
+      - name: Typecheck estricto (0 errores, sin caché)
+        # --incremental false: la caché tsbuildinfo puede servir diagnósticos obsoletos
+        # tras ediciones concurrentes (detectado en Fase H). Aquí manda la verdad completa.
+        run: bunx tsc --noEmit --incremental false
+
+      - name: QA headless (batería completa, 33 suites)
+        # TODAS las suites que corren sin navegador ni dev server (verificadas 0 fallos
+        # en Fase H, 2026-11-02). Las de navegador (qa-coplanarity, qa-v162..v166) quedan
+        # fuera: requieren WebGL. Contador de fallos: no corta en la primera, se ven TODAS.
+        run: |
+          SUITES="qa-25d qa-ecosystem qa-fasef qa-fasef2 qa-interior qa-pozos qa-routing qa-v115 qa-v119 qa-v120 qa-v121 qa-v122 qa-v123 qa-v124 qa-v125 qa-v126 qa-v127 qa-v128 qa-v129 qa-v130 qa-v131 qa-v132 qa-v133 qa-v134 qa-v135 qa-v136 qa-v137 qa-v139 qa-v140 qa-v141 qa-v142 qa-v160-stairs qa-v168-tabique"
+          fallos=0
+          for s in $SUITES; do
+            echo "── QA $s ──"
+            if ! timeout 120 bun "scripts/$s.ts"; then
+              echo "::error::QA suite $s FALLÓ"
+              fallos=$((fallos+1))
+            fi
+          done
+          echo "═══ Suites con fallos: $fallos / 33 ═══"
+          test "$fallos" -eq 0

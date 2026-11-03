@@ -760,7 +760,7 @@ export const rulesSchema = z.object({
             doorBottom: z.number().min(0).default(0.14),
             doorZ: z.number().default(0.08),
             wallT: z.number().positive().default(0.3),
-            art: z.string().default('/art/interiors/raw/door_comunal.png'),
+            art: z.string().default('art/interiors/raw/door_comunal.png'),
             numberColor: z.string().default('#1c1c1c'),
             hinge: z.enum(['left', 'right']).default('left'),
             openAngle: z.number().positive().default(1.75),
@@ -808,7 +808,7 @@ export const rulesSchema = z.object({
             doorBottom: 0.14,
             doorZ: 0.08,
             wallT: 0.3,
-            art: '/art/interiors/raw/door_comunal.png',
+            art: 'art/interiors/raw/door_comunal.png',
             numberColor: '#1c1c1c',
             hinge: 'left',
             openAngle: 1.75,
@@ -845,7 +845,7 @@ export const rulesSchema = z.object({
         floorSlab: { enabled: true, thickness: 0.14, color: '#b8c0a8', topAt: 0.14 },
         facade: {
           enabled: true, halfW: 1.2, fullWall: true, color: '#ddd1b8', doorW: 0.86, doorH: 1.84, doorBottom: 0.14, doorZ: 0.08, wallT: 0.3,
-          art: '/art/interiors/raw/door_comunal.png', numberColor: '#1c1c1c', hinge: 'left', openAngle: 1.75, openAhead: 1.05, openSpeed: 3.2,
+          art: 'art/interiors/raw/door_comunal.png', numberColor: '#1c1c1c', hinge: 'left', openAngle: 1.75, openAhead: 1.05, openSpeed: 3.2,
           window: { enabled: true, sill: 0.5, head: 2.3, color: '#cfe3ea', alpha: 0.24, mullions: 5, mullionW: 0.045, frameColor: '#7d7668', rear: true },
           hideNodes: [],
         },
@@ -1326,7 +1326,7 @@ export const rulesSchema = z.object({
          *  funcionan como las de las viviendas y dentro, estanterías para todos. */
         trasteroComunal: z
           .object({
-            doorArt: z.string().default('/art/interiors/raw/door_comunal.png'),
+            doorArt: z.string().default('art/interiors/raw/door_comunal.png'),
             doorW: z.number().positive().default(0.85),
             doorH: z.number().positive().default(1.72),
             doorDx: z.number().default(0.55),
@@ -1335,7 +1335,7 @@ export const rulesSchema = z.object({
             signBg: z.string().default('#3b3129'),
             signText: z.string().default('#ffd166'),
           })
-          .default({ doorArt: '/art/interiors/raw/door_comunal.png', doorW: 0.85, doorH: 1.72, doorDx: 0.55, shelfTiers: 3, sign: 'TRASTERO COMÚN', signBg: '#3b3129', signText: '#ffd166' }),
+          .default({ doorArt: 'art/interiors/raw/door_comunal.png', doorW: 0.85, doorH: 1.72, doorDx: 0.55, shelfTiers: 3, sign: 'TRASTERO COMÚN', signBg: '#3b3129', signText: '#ffd166' }),
         /** v1.30 — SALA DE JUNTAS (local de la comunidad): se mapea como local de reuniones
          *  (no como vivienda), con mesa y sillas; convocada una junta, los presentes entran
          *  y se sientan (también acoge fiestas). Asientos en coords LOCALES del bloque. */
@@ -1401,7 +1401,7 @@ export const rulesSchema = z.object({
         lavanderia: z
           .object({
             machines: z.number().int().min(1).default(4),
-            art: z.string().default('/art/interiors/raw/f_lavadora.png'),
+            art: z.string().default('art/interiors/raw/f_lavadora.png'),
             artH: z.number().positive().default(1.02),
             machineColor: z.string().default('#e8e6e0'),
             sign: z.string().default('LAVANDERÍA'),
@@ -1427,7 +1427,7 @@ export const rulesSchema = z.object({
             accentColor: z.string().optional(),
             topColor: z.string().optional(),
           })
-          .default({ machines: 4, art: '/art/interiors/raw/f_lavadora.png', artH: 1.02, machineColor: '#e8e6e0', sign: 'LAVANDERÍA', signBg: '#3b3129', signText: '#ffd166' }),
+          .default({ machines: 4, art: 'art/interiors/raw/f_lavadora.png', artH: 1.02, machineColor: '#e8e6e0', sign: 'LAVANDERÍA', signBg: '#3b3129', signText: '#ffd166' }),
         /** v1.46 — CRUCE POR MOVIMIENTO en los locales de planta 0 (sin tecla E): la
          *  salida se arma al adentrarse (armZ) y salta al volver al marco de la puerta
          *  (exitZ) DENTRO del vano (doorPad = tolerancia lateral alrededor del hueco,
@@ -1470,7 +1470,7 @@ export const rulesSchema = z.object({
         seeThrough: ['portal'],
         portalDoors: { slide: 0.96, openAhead: 1.7, openSeconds: 0.8, frame: '#8fa3ad', glass: '#cfe3ea', sheen: '#ffffff', handle: '#5d6b7a', alpha: 0.72 },
         garaje: { panel: '#c9ced6', panelShade: '#9aa2ad', rail: '#6d747d', window: '#dfe9ee', sign: 'GARAJES', signBg: '#3b3129', signText: '#ffd166', rampDepth: 1.1, rampColor: '#8f8d86' },
-        trasteroComunal: { doorArt: '/art/interiors/raw/door_comunal.png', doorW: 0.85, doorH: 1.72, doorDx: 0.55, shelfTiers: 3, sign: 'TRASTERO COMÚN', signBg: '#3b3129', signText: '#ffd166' },
+        trasteroComunal: { doorArt: 'art/interiors/raw/door_comunal.png', doorW: 0.85, doorH: 1.72, doorDx: 0.55, shelfTiers: 3, sign: 'TRASTERO COMÚN', signBg: '#3b3129', signText: '#ffd166' },
         hallDoors: { enabled: true, openAhead: 1.15, openSeconds: 0.45, openAngle: 1.0, liftAngle: 1.45 },
         juntaHall: {
           doorW: 1.05, sign: 'SALA DE JUNTAS', signBg: '#3b3129', signText: '#ffd166',
@@ -1479,7 +1479,7 @@ export const rulesSchema = z.object({
           standSpots: [[1.0, 2.62], [1.85, 2.62], [2.7, 2.62], [3.55, 2.62], [0.5, 0.5], [4.18, 0.5]],
           wood: '#8a5a33', woodDark: '#6f4926',
         },
-        lavanderia: { machines: 4, art: '/art/interiors/raw/f_lavadora.png', artH: 1.02, machineColor: '#e8e6e0', sign: 'LAVANDERÍA', signBg: '#3b3129', signText: '#ffd166' },
+        lavanderia: { machines: 4, art: 'art/interiors/raw/f_lavadora.png', artH: 1.02, machineColor: '#e8e6e0', sign: 'LAVANDERÍA', signBg: '#3b3129', signText: '#ffd166' },
       }),
     /** v1.35 — GRAFITIS: textos y dibujos graciosos del catálogo (spray en cabina y muros).
      *  cabinMin = nivel de cabin_graffiti en que aparece el mural; spillToWalls = nivel en
@@ -3017,7 +3017,7 @@ export const interiorDioramaSchema = z.object({
  *  v1.29 — `shell`: arte de la CARCASO de la vivienda (laterales + techo con paralaje,
  *  un solo bloque) — sideWalls/ceilings por hash y tinte neutro que casa con las estancias. */
 export const interiorsCatalogSchema = z.object({
-  artBase: z.string().default('/art/interiors/raw/'),
+  artBase: z.string().default('art/interiors/raw/'),
   keyColor: z.string().default('#ffffff'),
   keyTolerance: z.number().min(0).max(1).default(0.09),
   processSize: z.number().int().min(64).max(2048).default(512),

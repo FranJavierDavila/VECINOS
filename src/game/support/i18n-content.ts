@@ -34,7 +34,7 @@ async function loadDict(): Promise<void> {
   if (dict) return;
   loading ??= (async () => {
     try {
-      const res = await fetch('/content/translations.en.json');
+      const res = await fetch('content/translations.en.json');
       if (res.ok) dict = (await res.json()) as Dict;
     } catch {
       dict = {};
