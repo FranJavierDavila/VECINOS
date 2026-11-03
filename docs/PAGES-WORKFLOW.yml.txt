@@ -62,7 +62,9 @@ jobs:
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: out
+          # OJO verificado en build local (Next 16 + distDir propio): el export NO cae
+          # en out/ sino DENTRO del distDir → .next-pages ES el sitio completo.
+          path: .next-pages
 
       - id: deployment
         uses: actions/deploy-pages@v4
