@@ -160,9 +160,16 @@ const enteredIn = walkUntil(() => logic.mode === 'inside', INPUT({ up: true }), 
 const evsIn = logic.drainAuto();
 check('v1.46 · el portal se cruza ANDANDO: empujón desde el pasillo = portalIn', enteredIn && evsIn.some((e) => e.type === 'portalIn') && logic.insideBlock === portalBlk.id, evsIn.map((e) => e.type).join(','));
 check('v1.47 · se entra VISIBLE por las correderas ya abiertas (sin fade)', logic.position().fade === 1, `fade=${logic.position().fade}`);
-const crossedBack = walkUntil(() => logic.mode === 'corridor' && !logic.insideBlock, INPUT({ up: true }), 300);
+// v1.75 — el FONDO del vestíbulo ya NO expulsa (portalInnerExit retirado: era el
+// «teleport al portal» — aterrizaba en el paseo frontal cruzando el muro). El cruce se
+// completa por las CORREDERAS DEL FRENTE: W hasta el fondo (sigues dentro, sin teleport)
+// y S en el vano te devuelve al pasillo con el evento exited.
+const backZ = v.locals?.portal?.backZoneZ ?? 2.0;
+const pushedBack = walkUntil(() => logic.z >= backZ, INPUT({ up: true }), 300);
+check('v1.75 · el fondo del vestíbulo es fondo muerto (sin teleport)', pushedBack && logic.mode === 'inside' && logic.insideBlock === portalBlk.id, `z=${logic.z.toFixed(2)} mode=${logic.mode}`);
+const crossedBack = walkUntil(() => logic.mode === 'corridor' && !logic.insideBlock, INPUT({ down: true }), 400);
 const evsOut = logic.drainAuto();
-check('v1.46 · el cruce se completa: W del fondo te deja de vuelta en el pasillo', crossedBack && logic.mode === 'corridor' && evsOut.some((e) => e.type === 'exited'), evsOut.map((e) => e.type).join(','));
+check('v1.75 · el cruce se completa: S por las correderas te deja de vuelta en el pasillo', crossedBack && logic.mode === 'corridor' && evsOut.some((e) => e.type === 'exited'), evsOut.map((e) => e.type).join(','));
 
 // Re-armado de la auto-entrada (v1.46): al aterrizar NO se re-entra solo — hay que
 // alejarse del vano (doorInFront deja de ver el portal) y volver al hueco.
