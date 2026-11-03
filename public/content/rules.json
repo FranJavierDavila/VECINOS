@@ -25,7 +25,13 @@
         "m_okupa": 50,
         "m_veredicto": 100
       },
-      "excluded": ["m_qa_1", "m_qa_2", "m_qa_3", "m_qa_4", "m_qa_visita"],
+      "excluded": [
+        "m_qa_1",
+        "m_qa_2",
+        "m_qa_3",
+        "m_qa_4",
+        "m_qa_visita"
+      ],
       "minigames": {
         "mg_fusibles": {
           "label": "rearme de fusibles",
@@ -858,7 +864,7 @@
           "height": 24,
           "alpha": 0.85,
           "tint": "#f2efe6",
-          "fog": 0.25,
+          "fog": 0.35,
           "image": "content/backdrop/fachada_1_cerca.png",
           "windowColor": "#7d8ba0",
           "windowLitColor": "#ffd166",
@@ -873,14 +879,14 @@
           "nightGlow": 0.5,
           "depthWrite": true,
           "alphaCutOff": 0.4,
-          "skipChance": 0.25
+          "skipChance": 0.4
         },
         {
           "z": 44,
           "height": 32,
           "alpha": 0.72,
           "tint": "#e9e4d6",
-          "fog": 0.3,
+          "fog": 0.45,
           "image": "content/backdrop/fachada_2_media.png",
           "windowColor": "#8593a8",
           "windowLitColor": "#ffd166",
@@ -895,14 +901,14 @@
           "nightGlow": 0.4,
           "depthWrite": true,
           "alphaCutOff": 0.4,
-          "skipChance": 0.35
+          "skipChance": 0.5
         },
         {
           "z": 60,
           "height": 42,
           "alpha": 0.55,
           "tint": "#e6e2d8",
-          "fog": 0.45,
+          "fog": 0.6,
           "image": "content/backdrop/fachada_3_lejos.png",
           "windowColor": "#8d9bb0",
           "windowLitColor": "#ffe0a3",
@@ -917,7 +923,7 @@
           "nightGlow": 0.3,
           "depthWrite": true,
           "alphaCutOff": 0.4,
-          "skipChance": 0.45
+          "skipChance": 0.6
         }
       ],
       "rain": {
@@ -939,16 +945,16 @@
         "keyframes": [
           {
             "hour": 0,
-            "top": "#101623",
-            "horizon": "#232c40",
-            "ambient": 0.48,
+            "top": "#182030",
+            "horizon": "#2b3550",
+            "ambient": 0.56,
             "sun": 0
           },
           {
             "hour": 5,
             "top": "#17203a",
             "horizon": "#3a3f5c",
-            "ambient": 0.5,
+            "ambient": 0.57,
             "sun": 0
           },
           {
@@ -990,14 +996,14 @@
             "hour": 21.5,
             "top": "#232c40",
             "horizon": "#4a3f58",
-            "ambient": 0.52,
+            "ambient": 0.58,
             "sun": 0
           },
           {
             "hour": 24,
-            "top": "#101623",
-            "horizon": "#232c40",
-            "ambient": 0.48,
+            "top": "#182030",
+            "horizon": "#2b3550",
+            "ambient": 0.56,
             "sun": 0
           }
         ],

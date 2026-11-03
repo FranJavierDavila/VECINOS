@@ -1680,3 +1680,27 @@ Stage Summary:
 - FIX EN EL RUNTIME (`building.ts`): la bisagra de levantamiento deja el hardcode 1.86/2 y lee la MITAD DE ALTURA DEL ARTE (`doorMesh.scaling.y / 2`) — hoja y vano coinciden y la bisagra queda en el canto exacto sea cual sea el arte.
 - SIN BUMP DE SW: el service worker sirve /assets/ NETWORK-FIRST con cache:'reload' (desde v1.8, por la escalera v2/v3) — el glTF nuevo se recibe sin VERSION nueva.
 - QA: qa-v130 22✓/qa-v134 60✓/qa-v135 34✓/qa-v136 33✓/qa-v137 48✓ (197 checks del garaje VERDE) · verificación en escena viva (qaengine): `Clone of puerta_basculante` con scaling 2.16×1.92, colgada de la bisagra con offset −0.96 exacto (canto superior 1.92 = dintel, base 0 = suelo). Captura WebGL en headless pendiente de método (el compositor no compone el canvas sin preserveDrawingBuffer; CreateScreenshotUsingRenderTarget se cuelga con SwiftShader) — el encaje es determinista: jambas pintadas a cx±1.08, hoja ±1.08.
+
+## v1.78 — «la pantalla se va a negro»: niebla nocturna legible (backdrop)
+
+- PETICIÓN del vecino: de noche «no se ve nada» — quitar edificios del fondo y desaturar
+  como si hubiera niebla. Tres palancas, catálogo + runtime:
+  1. MÁS SOLARES (v1.62 ya tenía la palanca): skipChance 0.25/0.35/0.45 → **0.40/0.50/0.60**
+     — el cielo asoma entre bloques, el fondo pesa menos (rules.json).
+  2. MÁS NIEBLA: fog 0.25/0.30/0.45 → **0.35/0.45/0.60** — el filtro `saturate()` al pintar
+     los sellos deja las capas a 70/62/49% de saturación + lavado hacia fogColor.
+  3. NOCHE LEGIBLE (backdrop.ts): el velo nocturno de las capas baja 0.55→**0.38** y pasa de
+     navy cerrado rgba(18,24,40) a pizarra desaturado rgba(36,44,60); NUEVO lavado de niebla
+     nocturna rgba(132,142,158, nightF·0.15) source-atop tras pintar ventanas — los cuerpos
+     emergen de la niebla en vez de hundirse en negro (ventanas siguen mandando). Fallback
+     procedural recibe la misma niebla (consistencia). Catálogo: ambiente nocturno
+     0.48→**0.56** (keyframes 0/24h; 5h 0.57; 21.5h 0.58) y cielo noche menos negro
+     (#101623→#182030, #232c40→#2b3550). nightF baja a 0.42 → estrellas más suaves, coherente.
+- QA: tsc 0 sin caché · eslint backdrop.ts 0 · qa-v171-imageproc 10/10 VERDE · captura real
+  23:30 (scripts/shots-v178-noche.ts): siluetas legibles con ventanas encendidas, cielo con
+  gradiente y estrellas — ya no masa negra.
+- DESPLIEGUE: gh-pages force-push (carrera de siempre con el agente paralelo) + verificación
+  de contenido remoto (color 132,142,158 en el chunk y rules remoto con skip/fog nuevos);
+  :3000 dev lo recoge por hot-reload; el :3010 no requiere reinicio (reglas `view` no tocan
+  el sim). Ideas nuevas del director (cotilleo/afinidad, luz por planta, protesta de apagón,
+  tejado, borracho, juego ilegal, confianza) ya en ROADMAP-PRO.md backlog de FASE T.

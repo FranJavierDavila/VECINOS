@@ -31,6 +31,10 @@ import { playSoundAt } from './audio';
  *   «eliminar alguno de los edificios altos para ver algo más de cielo»). Determinista.
  * · MÁSCARA DE TINTE ALINEADA (v1.62): el destination-in del tinte heredaba el translate
  *   de banda y borraba cuerpos de edificios (la capa cercana conservaba ~12%) — corregido.
+ * · NIEBLA NOCTURNA (v1.78): «la pantalla se va a negro y no se ve nada» — más solares
+ *   (skipChance 0.4/0.5/0.6), más fog (0.35/0.45/0.6), velo nocturno desaturado y lavado
+ *   azulado sobre los edificios (siluetas en la niebla, no masas negras) + ambiente
+ *   nocturno del catálogo subido (0.48→0.56) y cielo nocturno un pelo menos negro.
  */
 
 interface LayerView {
@@ -377,8 +381,11 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
         ctx.globalCompositeOperation = 'source-over';
       }
       if (nightF > 0.02) {
+        // v1.78 — NOCHE LEGIBLE (petición del vecino: «la pantalla se va a negro y no se ve
+        // nada»): el velo nocturno baja de 0.55 y pasa de navy cerrado a un pizarra
+        // DESATURADO — las masas dejan de ser negras y se leen como siluetas al anochecer.
         ctx.globalCompositeOperation = 'source-atop';
-        ctx.fillStyle = `rgba(18,24,40,${(nightF * 0.55).toFixed(3)})`;
+        ctx.fillStyle = `rgba(36,44,60,${(nightF * 0.38).toFixed(3)})`;
         ctx.fillRect(0, 0, W, H);
         ctx.globalCompositeOperation = 'source-over';
         // Ventanas encendidas: retícula determinista por sello, brillo del catálogo.
@@ -402,6 +409,14 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
           }
         }
         ctx.globalAlpha = 1;
+        // v1.78 — NIEBLA NOCTURNA: tras el velo y las ventanas, lavado azulado claro y
+        // desaturado SOLO sobre los edificios (source-atop) — perspectiva aérea de madrugada:
+        // los cuerpos emergen de la niebla en lugar de hundirse en negro. Las ventanas
+        // encendidas siguen mandando (el lavado es suave y las deja como punto más vivo).
+        ctx.globalCompositeOperation = 'source-atop';
+        ctx.fillStyle = `rgba(132,142,158,${(nightF * 0.15).toFixed(3)})`;
+        ctx.fillRect(0, 0, W, H);
+        ctx.globalCompositeOperation = 'source-over';
       }
     } else {
       // ── Fallback procedural (v1.20): siluetas con ventanas y galerías. ──
@@ -411,6 +426,15 @@ export function createBackdrop(scene: Scene, world: World, content: Content, lig
         ctx.globalCompositeOperation = 'source-atop';
         ctx.globalAlpha = l.fog * 0.45;
         ctx.fillStyle = l.fogColor;
+        ctx.fillRect(0, 0, W, H);
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+      }
+      // v1.78 — misma niebla nocturna del camino de sellos (consistencia entre modos).
+      if (nightF > 0.02) {
+        ctx.globalCompositeOperation = 'source-atop';
+        ctx.globalAlpha = nightF * 0.15;
+        ctx.fillStyle = '#848e9e';
         ctx.fillRect(0, 0, W, H);
         ctx.globalAlpha = 1;
         ctx.globalCompositeOperation = 'source-over';
