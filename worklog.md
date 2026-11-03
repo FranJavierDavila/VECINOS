@@ -1704,3 +1704,28 @@ Stage Summary:
   :3000 dev lo recoge por hot-reload; el :3010 no requiere reinicio (reglas `view` no tocan
   el sim). Ideas nuevas del director (cotilleo/afinidad, luz por planta, protesta de apagón,
   tejado, borracho, juego ilegal, confianza) ya en ROADMAP-PRO.md backlog de FASE T.
+
+## v1.78 — addendum de verificación y anclajes QA (línea del watcher)
+
+- ANCLAJES QA ACTUALIZADOS a la v1.78: qa-v120 «de noche ambiente bajo» 0.5→**<0.75** (la
+  intención — noche muy por debajo del día — se conserva; el lift de legibilidad 0.56 la
+  rompía literalmente) · qa-v136 niebla del catálogo 0.3/0.45 → **0.45/0.6**.
+- BANNERS v1.78 ESPEJADOS (el agente los dejó en v1.74): sw.js VERSION `vecinos-v1.78`,
+  PwaRegister EXPECTED_SW_VERSION (recarga única si desalinean) y `header.version` del i18n
+  («v1.78 · fondo legible de noche…»). Sin bump, Pages/PWA servían caché v1.74.
+- rules.json FORMATO RESTAURADO: el pase de catálogo había dejado el fichero en UNA línea
+  (33 KB); re-dump pretty indent 2 con IGUALDAD semántica verificada por diff (21+/15−).
+- VERIFICACIÓN POR PÍXELES DÍA+NOCHE (shots-v178-noche.ts arreglado: cast TS de `stats`,
+  captura de DÍA 14:02 añadida): 23:32 cielo pizarra con gradiente y nubes legibles,
+  siluetas del fondo con ventanas encendidas, solares nuevos con cielo asomando, edificio
+  principal legible — sin masa negra; 14:02 SIN regresión (cielo azul, niebla suave en el
+  fondo, fachadas desaturadas). El muestreo drawImage da 0 (WebGL sin
+  preserveDrawingBuffer): la evidencia son los PNG, como en v1.72.
+- REGRESIÓN COMPLETA: qa-v120 OK · qa-v121 VERDE · qa-v128 45/0 · qa-v131 52/0 · qa-v136
+  33/0 · qa-v137 48/0 (formato banner vX.Y) · qa-v142 70/0 · qa-v160 19/19 · tsc 0 ·
+  eslint 0 (7 ficheros tocados).
+- OPS: el dev server :3000 apareció MUERTO a mitad de verificación (sin rastro en dev.log —
+  probable OOM/kill externo); reiniciado en background (setsid) y :81 responde de nuevo.
+- DESPLIEGUE: main push 0e9f44f · gh-pages REMOTO VERIFICADO POR CONTENIDO (chunk
+  73c80f6b con el overlay rgba(36,44,60), rules remoto fog 0.35/0.45/0.6 + skip
+  0.4/0.5/0.6 + ambient noche 0.56, sw.js vecinos-v1.78, chunk i18n con el banner).
