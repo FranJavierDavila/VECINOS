@@ -921,10 +921,13 @@ class GameController {
       return;
     }
     this.lastConvocaTick = world.tick;
-    world.junta = { agenda: cfg.presetAgenda.map((i) => ({ ...i })), votes: {}, playerVoted: false };
-    useGameStore.getState().setJunta(cfg.presetAgenda.map((i) => ({ id: i.id, title: i.title, description: i.description, cost: i.cost })));
     useGameStore.getState().pushLog(translate(useGameStore.getState().lang, 'ev.juntaConvocada'), 'info');
-    this.marchJunta(); // v1.30: igual que las juntas de misión, la sala recibe a los asistentes
+    // v1.75 — VÍA ÚNICA DE COMANDOS: el sim (local en clásico, el servidor en multi) abre la
+    // junta con la agenda del catálogo y emite junta_requested; el handler del evento abre el
+    // modal y manda a los asistentes a la sala (marchJunta). El antiguo `world.junta = {...}`
+    // LOCAL era invisible para el servidor autoritativo: el junta_vote moría en
+    // fail('no_junta') y la votación «no permitía votar» (sin resultados ni cierre).
+    this.sendCommand({ type: 'convoca_junta' });
   }
 
   /**
@@ -1319,6 +1322,7 @@ class GameController {
         if (!this.world) return;
         this.world.events = s.events.slice();
         this.handleEvents();
+        this.syncJuntaUi(); // v1.76 — resetUi() borró la junta abierta: la restaura del mundo del servidor
         this.reconcile();
         this.coopTickLocal(); // v1.56 — objetivos reach con el mundo recién llegado
         this.syncHud();
@@ -1330,6 +1334,7 @@ class GameController {
     this.world.events = s.events.slice();
     this.rebindLogic(); // v1.64 — el invitado ya existe en el mundo del servidor: se re-vincula aquí si faltaba
     this.handleEvents();
+    this.syncJuntaUi(); // v1.76 — junta viva en el servidor, modal perdido en la UI: reabre
     this.paintBuilding();
     this.reconcile();
     this.coopTickLocal(); // v1.56 — objetivos reach con la posición autoridad
@@ -1396,8 +1401,31 @@ class GameController {
     if (this.world && mission) {
       this.sendCommand({ type: 'answer_call', mission });
     }
+    this.drainPhoneQueue();
+  }
+
+  /** v1.76 — saca la siguiente llamada en espera (cola viva: al colgar el teléfono Y al cerrar la junta). */
+  private drainPhoneQueue(): void {
     const next = this.phoneQueue.shift();
     if (next) this.openPhone(next.mission, next.dialogId);
+  }
+
+  /**
+   * v1.76 — reabre el modal de junta cuando el mundo autoritativo la tiene ABIERTA pero la
+   * UI la perdió: resetUi() del restart (auto-rejoin FASE N a mitad de votación) o junta_requested
+   * consumido antes de conectar. Sin esto, el aviso de junta convocada queda en modo solo
+   * lectura: sin modal y sin forma de votar. No reabre si el servidor ya registró MI voto
+   * (world.junta.votes[playerId]) — el cierre con resultados es inminente — ni nunca la
+   * cierra por su cuenta (solo junta_closed manda). Segura en clásico: nunca hay junta
+   * huérfana en un mundo local.
+   */
+  private syncJuntaUi(): void {
+    const store = useGameStore.getState();
+    const junta = this.world?.junta ?? null;
+    if (!junta || store.junta !== null) return;
+    if (junta.votes[this.world!.playerId] !== undefined) return; // ya voté: resultados al caer
+    store.setJunta(junta.agenda.map((i) => ({ id: i.id, title: i.title, description: i.description, cost: i.cost })));
+    this.tutorial.tip('junta'); // mismo consejo contextual que la apertura normal
   }
 
   choose(choiceId: string): void {
@@ -2419,6 +2447,7 @@ class GameController {
         case 'junta_closed':
           store.setJunta(null);
           this.dismissJunta(); // v1.30: la sala se vacía, la IA retoma a los vecinos
+          this.drainPhoneQueue(); // v1.76: las llamadas aparcadas durante la votación suenan ahora
           break;
         case 'stairs_grumble':
           // Malestar vecinal (v1.5): texto del catálogo con el nombre del vecino que sube a pie.
@@ -2527,6 +2556,16 @@ class GameController {
   private openPhone(mission: string, dialogId: string): void {
     const dlg = this.content.dialogs[dialogId];
     if (!dlg || dlg.lines.length === 0) return;
+    // v1.76 — LA JUNTA TIENE PRIORIDAD: con el modal de votación abierto, ninguna llamada se
+    // monta encima (Radix apila el PhoneModal sobre el JuntaModal y react-remove-scroll deja
+    // la capa inferior INERTE: «A favor/En contra» se ven pero no responden — los botones
+    // «desactivados» del aviso de junta). La llamada espera en cola y suena al cerrar la
+    // junta (junta_closed drena la cola). El mundo de la junta está congelado: nadie la
+    // echa de menos mientras tanto.
+    if (useGameStore.getState().junta !== null) {
+      if (!this.phoneQueue.some((q) => q.mission === mission)) this.phoneQueue.push({ mission, dialogId });
+      return;
+    }
     this.tutorial.tip('phone'); // v1.39 — consejo contextual one-shot (idempotente)
     // Si ya hay una llamada en pantalla, la nueva espera en cola (dedupe por misión).
     if (this.phoneMission) {

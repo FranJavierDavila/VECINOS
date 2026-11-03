@@ -142,6 +142,19 @@ function run(world: World, content: Content, cmd: Command): CommandResult {
       applyEffect(world, content, { op: 'buy', target: b.id, price: b.availability.price }, { actor: actorId });
       return ok();
     }
+    case 'convoca_junta': {
+      // v1.75 — la presidencia convoca la junta EXTRAORDINARIA por la VÍA ÚNICA de comandos:
+      // en multijugador el mundo autoritativo es el del servidor, y el antiguo world.junta =
+      // {...} local del cliente nunca llegó al servidor (el junta_vote moría en fail
+      // 'no_junta': «los botones no permiten votar»). El sim abre la junta con la agenda del
+      // catálogo y emite junta_requested — el modal lo abre el handler del evento, igual que
+      // las juntas de misión, en clásico Y en remoto.
+      const camp = content.rules.sim.campaign;
+      if (!camp || world.junta) return fail('no_junta');
+      world.junta = { agenda: camp.presetAgenda.map((i) => ({ ...i })), votes: {}, playerVoted: false };
+      emit(world, 'junta_requested', { agenda: world.junta.agenda });
+      return ok();
+    }
     case 'junta_vote': {
       if (!world.junta) return fail('no_junta');
       // Multijugador: cada humano registra su voto; la votación se cierra cuando han votado todos.

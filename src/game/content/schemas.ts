@@ -1450,8 +1450,9 @@ export const rulesSchema = z.object({
         /** v1.35 — VESTÍBULO del portal: colores interiores del local. v1.36 — el interior
          *  es UNA IMAGEN del hall (interiors.json → wall_portal_hall.png); del catálogo solo
          *  quedan los colores de pared y suelo del diorama. v1.46 — backZoneZ: empujar
-         *  hacia el fondo del hall (W, z local ≥ backZoneZ) te deja en el pasillo de la
-         *  planta 0 SIN tecla E: el portal se cruza andando en ambos sentidos. */
+         *  hacia el fondo del hall (W, z local ≥ backZoneZ) te dejaba en el pasillo de la
+         *  planta 0 SIN tecla E. RETIRADO en v1.75 (el salto cruzaba el muro frontal: era
+         *  el «teleport al portal»); la clave queda en el catálogo por compatibilidad. */
         portal: z
           .object({
             backZoneZ: z.number().positive().optional(),

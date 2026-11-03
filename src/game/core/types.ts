@@ -1623,7 +1623,8 @@ export interface Rules {
       /** v1.35 — vestíbulo del portal. v1.36: el interior es UNA IMAGEN del hall
        *  (wall_portal_hall.png); del catálogo solo quedan los colores del diorama. */
       portal?: {
-        /** v1.46 — empujar W al fondo del hall (z local ≥ backZoneZ) te deja en el pasillo. */
+        /** v1.46 — zona trasera del vestíbulo (W, z local ≥ backZoneZ). SIN efecto desde
+         *  v1.75: el exit al pasillo era el «teleport al portal» (cruzaba el muro frontal). */
         backZoneZ?: number;
         lobby?: {
           wallColor: string;
@@ -2415,6 +2416,7 @@ export type Command =
   | { type: 'sleep'; actor?: string }
   | { type: 'buy_block'; block: string; actor?: string }
   | { type: 'junta_vote'; vote: Vote; actor?: string }
+  | { type: 'convoca_junta'; actor?: string }
   | { type: 'knock'; block: string; actor?: string }
   | { type: 'place_furniture'; block: string; room: string; slot: string; item: string; actor?: string }
   | { type: 'remove_furniture'; block: string; room: string; slot: string; actor?: string }
