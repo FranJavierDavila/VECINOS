@@ -124,6 +124,27 @@
 ### FASE T — Playtesting (1 semana)
 - 5-10 jugadores humanos reales; observar en silencio; iterar sobre evidencia.
 
+#### Ideas del vecino para tramas (backlog de FASE T, dictadas 2026-11-03 — SIN implementar)
+1. **Cotilleo en pasillos**: de vez en cuando varios vecinos se juntan en los pasillos
+   para cotillear. Existe AFINIDAD entre vecinos (y enemistades) que evoluciona con los
+   acontecimientos — grafo social dinámico que alimenta diálogos y eventos.
+2. **Luz de planta por presencia nocturna**: si un vecino anda de noche por el pasillo de
+   una planta, se enciende la luz de ESA planta; al desalojarse, se apaga (mismo patrón
+   que las escaleras). Con APAGÓN no se enciende nada. (El catálogo ya declara
+   `ecosystem.lights.nightRequiresPresence`; extender por planta y verificar.)
+3. **Protesta por apagón largo**: si el apagón dura mucho y hay vecino despierto, baja a
+   protestar ante el jugador que ejerza de PRESIDENTE y TIMBRA en su puerta hasta que le
+   abran o se canse de timbrar.
+4. **Tormenta → destrozo del tejado**: la tormenta puede dañar el tejado y causar entrada
+   de agua en los pisos superiores (co-op de goteo ya existe; este es el origen climático).
+5. **Vecino borracho**: alguno llega borracho dando tumbos por los pasillos hasta intentar
+   entrar en su vivienda (andar errático + interacción cómica en la puerta).
+6. **Juego ilegal**: algún vecino organiza partidas de juegos ilegales en su vivienda
+   (visitas sospechosas, riesgo de incidente/multa — gancho para misiones).
+7. **Confianza por conversación**: cruzarse con un vecino habilita HABLARLE; según la
+   conversación se gana o se pierde su CONFIANZA — parámetro que influye en las
+   modalidades competitivas y cooperativas (puente directo con la afinidad del punto 1).
+
 ## Reglas inquebrantables (de todo el proyecto)
 
 1. 100% data-driven: contenido en `public/content/*.json`, prohibido hardcodear.

@@ -54,7 +54,7 @@ check('capas a distintas z tras el edificio (parallax real 3D)', bd.layers.every
 check('capas con ventanas y galerías (edificios "como el nuestro")', bd.layers.every((l) => l.windowChance > 0 && l.windowColor.startsWith('#') && l.galleryColor.startsWith('#')), bd.layers.map((l) => l.buildings).join('/') + ' edificios');
 check('keyframes de cielo cubren el ciclo completo 0..24', bd.sky.keyframes.length >= 5 && bd.sky.keyframes[0]!.hour === 0 && bd.sky.keyframes[bd.sky.keyframes.length - 1]!.hour === 24, `${bd.sky.keyframes.length} keyframes`);
 const nights = bd.sky.keyframes.filter((k) => k.hour === 0 || k.hour === 24);
-check('de noche ambiente bajo y sol apagado', nights.every((k) => k.ambient < 0.5 && k.sun === 0), `ambient ${nights[0]?.ambient}`);
+check('de noche ambiente bajo y sol apagado (v1.78: legible — <0.75, muy por debajo del día)', nights.every((k) => k.ambient < 0.75 && k.sun === 0), `ambient ${nights[0]?.ambient}`);
 const noon = bd.sky.keyframes.find((k) => k.hour === 14);
 check('al mediodía ambiente y sol al máximo del catálogo', !!noon && noon.sun >= bd.sky.keyframes.reduce((m, k) => Math.max(m, k.sun), 0), `sun ${noon?.sun}`);
 check('atenuación del sol por clima (tormenta apaga)', (bd.sky.weatherDim.storm ?? 1) < (bd.sky.weatherDim.sunny ?? 1), `storm ${bd.sky.weatherDim.storm}`);

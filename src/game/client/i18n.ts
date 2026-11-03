@@ -27,7 +27,7 @@ const DICT: Record<string, { es: string; en: string }> = {
     es: 'Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.',
     en: 'Move-ins, noise, smells, wifi, pests, smoke and levies: the neighborhood simulator.',
   },
-  'header.version': { es: 'v1.74 · diseño de retención (Fase D): economía balanceada (trabajo 90 €/2,5 min, mobiliario 2.765 €), ranking claro «Vecino del mes» (6 minijuegos catalogados, misiones QA excluidas) y co-op con recompensa en € por rol', en: 'v1.74 · retention design (Phase D): balanced economy (work 90 €/2.5 min, furniture 2,765 €), clear "Neighbor of the month" ranking (6 catalogued minigames, QA missions excluded) and co-op with € reward per role' },
+  'header.version': { es: 'v1.78 · fondo legible de noche: más solares y niebla en los edificios del fondo (skipChance 0.4/0.5/0.6, fog 0.35/0.45/0.6), velo nocturno desaturado y cielo que ya no se va a negro', en: 'v1.74 · retention design (Phase D): balanced economy (work 90 €/2.5 min, furniture 2,765 €), clear "Neighbor of the month" ranking (6 catalogued minigames, QA missions excluded) and co-op with € reward per role' },
   // ── Apagón de assets (v1.47: servidor de arte caído → mundo vacío/cápsulas) ──
   'assets.outage': {
     es: '⚠ No se pudo cargar el arte del juego (¿servidor caído?). El vecindario se recargará en {n} s…',

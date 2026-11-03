@@ -92,8 +92,8 @@ check('blur horneado CANCELADO: cerca 0.4 / media 0.6 / lejos 1.1 (antes 0.6/2.2
   !genBackdrop.includes('blur: 2.2') && !genBackdrop.includes('blur: 4.5'));
 check('los tres PNG regenerados existen y pesan', ['fachada_1_cerca.png', 'fachada_2_media.png', 'fachada_3_lejos.png']
   .every((f) => { const st = fs.statSync(path.join(process.cwd(), 'public/content/backdrop', f)); return st.size > 40000; }));
-check('niebla reducida en catálogo (0.3 / 0.45 — la definición manda)',
-  rules.view.backdrop.layers[1]?.fog === 0.3 && rules.view.backdrop.layers[2]?.fog === 0.45);
+check('niebla del catálogo (v1.78: subida a 0.45 / 0.6 — «algo de niebla», la definición manda)',
+  rules.view.backdrop.layers[1]?.fog === 0.45 && rules.view.backdrop.layers[2]?.fog === 0.6);
 // v1.71 (higiene): el canvas se dimensiona al REAL de la imagen (c.width = lv.realW) y el
 // recorte usa realH — ya sin 2048/256 hardcodeados (la intención del check sigue intacta).
 check('vScale y copias usan el canvas dinámico (sin 2048/256 hardcodeados)',
