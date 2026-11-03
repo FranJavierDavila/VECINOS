@@ -3023,8 +3023,10 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
             // la hoja y sus nervios cuelgan de ella): entra con el resto de las puertas.
             const liftHinge = new TransformNode(`${b.id}_basculante_hinge`, scene);
             // Canto superior de la hoja, en el MISMO espacio local del arte (el loader niega
-            // la Z: se toma la posición viva del nodo, no la nominal del glTF).
-            liftHinge.position.set(doorMesh.position.x, doorMesh.position.y + 1.86 / 2, doorMesh.position.z);
+            // la Z: se toma la posición viva del nodo, no la nominal del glTF). v1.77: la
+            // MITAD de la altura sale del ARTE (scaling.y del nodo, 1.92) y no del hardcode
+            // 1.86 — hoja y vano coinciden ahora y la bisagra queda en el canto exacto.
+            liftHinge.position.set(doorMesh.position.x, doorMesh.position.y + doorMesh.scaling.y / 2, doorMesh.position.z);
             liftHinge.parent = model.root;
             const under = (mesh: Mesh): void => {
               const p = mesh.position.clone();

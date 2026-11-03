@@ -362,13 +362,18 @@ function buildGaraje(): Record<string, unknown> {
   box(g, 'cuerpo', mCuerpo, [0, 1.23, 0], [2.28, 2.46, 1.4]);
   box(g, 'zocalo', mZocalo, [0, 0.04, 0], [2.32, 0.08, 1.44]);
   box(g, 'hueco', mDark, [0, 0.99, 0.72], [1.94, 1.94, 0.08]);
-  box(g, 'puerta_basculante', mPuerta, [0, 0.97, 0.75], [1.86, 1.86, 0.07]);
-  box(g, 'nervio_1', mRib, [0, 0.55, 0.79], [1.86, 0.05, 0.03]);
-  box(g, 'nervio_2', mRib, [0, 0.97, 0.79], [1.86, 0.05, 0.03]);
-  box(g, 'nervio_3', mRib, [0, 1.39, 0.79], [1.86, 0.05, 0.03]);
+  // v1.77 — la hoja LLENA el vano del catálogo (locals.garaje.doorW 2.16 × doorH 1.92, v1.37):
+  // la vieja 1.86×1.86 (arte original v1.30, cuando la hoja ERA toda la fachada) dejaba 15 cm
+  // de hueco por lado y 6 cm arriba/abajo — «la puerta más pequeña que el hueco». Apoyada en
+  // el suelo (y 0→1.92) y a ras de jambas. Los faroles suben sobre la hoja: a la altura
+  // antigua (y 1.9) quedaban embebidos en las esquinas de la hoja nueva.
+  box(g, 'puerta_basculante', mPuerta, [0, 0.96, 0.75], [2.16, 1.92, 0.07]);
+  box(g, 'nervio_1', mRib, [0, 0.48, 0.79], [2.16, 0.05, 0.03]);
+  box(g, 'nervio_2', mRib, [0, 0.96, 0.79], [2.16, 0.05, 0.03]);
+  box(g, 'nervio_3', mRib, [0, 1.44, 0.79], [2.16, 0.05, 0.03]);
   box(g, 'rotulo', mSign, [0, 2.18, 0.75], [1.3, 0.2, 0.06]);
-  box(g, 'farol_izq', mLamp, [-0.95, 1.9, 0.78], [0.12, 0.2, 0.1]);
-  box(g, 'farol_der', mLamp, [0.95, 1.9, 0.78], [0.12, 0.2, 0.1]);
+  box(g, 'farol_izq', mLamp, [-0.95, 2.06, 0.78], [0.12, 0.2, 0.1]);
+  box(g, 'farol_der', mLamp, [0.95, 2.06, 0.78], [0.12, 0.2, 0.1]);
   wireRoot(g);
   return g.finish('vecinos-gen-fase-e (garaje v1)');
 }
