@@ -45,6 +45,14 @@ import { NetSession, type SessionStatePayload } from './net';
 import { VoiceChannel } from './voice';
 import { setController } from './bridge';
 import { selectModalOpen, selectWorldFrozen, setInfoDockTuning, setPhoneFreeMovement, useGameStore, clearMpPersist, readMpPersist, type AchievementUi, type Speed, type Tone } from './store';
+import { STATIC_EXPORT } from '@/game/support/paths';
+
+/**
+ * v1.77 — export estático (GitHub Pages): sin servidor, la partida vive en localStorage
+ * del navegador con la misma forma JSON que /api/save ({state}). Una sola clave: el slot
+ * único 'auto' es el que existe.
+ */
+const SAVE_LOCAL_KEY = 'vecinos.save.static.auto';
 
 // v1.65 — CÁMARAS 1..5 reordenadas de CERCA a LEJOS + ESPÍA (petición del vecino):
 // 1 Estancia · 2 Planta · 3 Edificio · 4 Fachada · 5 Espía (otra vez 5: siguiente vecino).
@@ -1093,6 +1101,13 @@ class GameController {
   }
 
   private connectNet(): void {
+    // v1.77 — export estático (GitHub Pages): no hay servidor de juego al otro lado del
+    // socket. Aviso honesto y cero reconexiones infinitas contra una URL que no existe.
+    if (STATIC_EXPORT) {
+      const s = useGameStore.getState();
+      s.pushToast(translate(s.lang, 'ev.netUnavailable'), 'info');
+      return;
+    }
     this.net = new NetSession({
       onState: (s) => this.applyRemoteState(s),
       onParticipants: (p) => useGameStore.getState().setMpParticipants(p),
@@ -1486,6 +1501,18 @@ class GameController {
     }
     store.setSaveState('saving');
     drainEvents(this.world); // la cola de eventos no entra en el guardado
+    // v1.77 — export estático: sin /api/save → localStorage (misma forma JSON {state}).
+    if (STATIC_EXPORT) {
+      try {
+        localStorage.setItem(SAVE_LOCAL_KEY, JSON.stringify({ state: this.world }));
+        store.setSaveState('saved', new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }));
+        store.pushToast(translate(store.lang, 'ev.saved'), 'good');
+      } catch {
+        store.setSaveState('error');
+        store.pushToast(translate(store.lang, 'ev.saveFailed'), 'bad');
+      }
+      return;
+    }
     try {
       const res = await fetch('/api/save', {
         method: 'POST',
@@ -1508,6 +1535,22 @@ class GameController {
       return;
     }
     try {
+      // v1.77 — export estático: lee el mismo localStorage que escribió save().
+      if (STATIC_EXPORT) {
+        const raw = localStorage.getItem(SAVE_LOCAL_KEY);
+        const local = raw ? (JSON.parse(raw) as { state?: unknown }) : null;
+        if (!local?.state || typeof local.state !== 'object') {
+          store.pushToast(translate(store.lang, 'ev.noSave'), 'info');
+          return;
+        }
+        if (!this._content) {
+          store.pushToast(translate(store.lang, 'ev.contentLoading'), 'info');
+          return;
+        }
+        await this.restart(local.state as World);
+        store.pushToast(translate(store.lang, 'ev.loaded'), 'good');
+        return;
+      }
       const res = await fetch('/api/save?slot=auto');
       const json = (await res.json()) as { state?: unknown };
       if (!json.state || typeof json.state !== 'object') {

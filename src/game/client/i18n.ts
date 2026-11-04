@@ -27,7 +27,7 @@ const DICT: Record<string, { es: string; en: string }> = {
     es: 'Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.',
     en: 'Move-ins, noise, smells, wifi, pests, smoke and levies: the neighborhood simulator.',
   },
-  'header.version': { es: 'v1.76 · FASE T: telemetría de playtest viva — minutos activos por sesión (latido solo con pestaña visible), errores deduplicados por huella, vista de sesiones en /api/telemetry', en: 'v1.76 · PHASE T: playtest telemetry live — active minutes per session (heartbeat only while tab visible), fingerprint-deduped errors, sessions view at /api/telemetry' },
+  'header.version': { es: 'v1.77 · jugable online: export estático para GitHub Pages — basePath /VECINOS, guardado en el navegador y degradación elegante sin servidor (telemetría en pausa, multijugador avisado)', en: 'v1.77 · playable online: static export for GitHub Pages — /VECINOS basePath, browser-side saves and graceful degradation without a server (telemetry paused, multiplayer announced)' },
   // ── Apagón de assets (v1.47: servidor de arte caído → mundo vacío/cápsulas) ──
   'assets.outage': {
     es: '⚠ No se pudo cargar el arte del juego (¿servidor caído?). El vecindario se recargará en {n} s…',
@@ -179,6 +179,7 @@ const DICT: Record<string, { es: string; en: string }> = {
   'ev.contentInvalid': { es: 'Contenido inválido: {n} errores de validación', en: 'Invalid content: {n} validation errors' },
   'ev.juntaConvocada': { es: '🗳️ Junta extraordinaria convocada desde el tablón. Los vecinos, en camino.', en: '🗳️ Extraordinary meeting called from the noticeboard. Neighbors on their way.' },
   'ev.soloResumed': { es: 'Has vuelto a tu partida en solitario.', en: 'Back to your solo game.' },
+  'ev.netUnavailable': { es: 'Multijugador no disponible en la versión web estática (necesita servidor). Tu partida en solitario está intacta.', en: 'Multiplayer is unavailable in the static web build (it needs a server). Your solo game is untouched.' },
   'ev.autoRejoined': { es: '👥 De vuelta a la comunidad: tu partida compartida te esperaba.', en: '👥 Back in the community: your shared session was waiting for you.' },
   'ev.authorityKick': { es: '🚨 Expulsado de la comunidad: el servidor detectó movimiento imposible (teletransportes).', en: '🚨 Kicked from the community: the server detected impossible movement (teleports).' },
   'ev.saved': { es: 'Partida guardada. El acta queda en el tablón (y en SQLite).', en: 'Game saved. The minutes are on the noticeboard (and in SQLite).' },

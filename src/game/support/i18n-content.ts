@@ -1,4 +1,5 @@
 import type { Content } from '@/game/core/types';
+import { withBase } from '@/game/support/paths';
 
 /** Idioma del chrome (espejo de options.ts sin importar la capa cliente). */
 type Lang = 'es' | 'en';
@@ -34,7 +35,7 @@ async function loadDict(): Promise<void> {
   if (dict) return;
   loading ??= (async () => {
     try {
-      const res = await fetch('/content/translations.en.json');
+      const res = await fetch(withBase('/content/translations.en.json'));
       if (res.ok) dict = (await res.json()) as Dict;
     } catch {
       dict = {};

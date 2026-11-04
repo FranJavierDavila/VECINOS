@@ -14,7 +14,11 @@
  *     navigator.sendBeacon (el último error de una pestaña cerrada también cuenta).
  *   - JAMÁS MOLESTA: todo envuelto en try/catch, sin logs propios en consola, sin
  *     reintento infinito si la red cae (los lotes se pierden con dignidad).
+ *   - v1.77 — EXPORT ESTÁTICO: en el build de GitHub Pages no hay /api/telemetry; los
+ *     lotes se descartan en silencio (la captura sigue viva por si el futuro la lee).
  */
+
+import { STATIC_EXPORT } from '@/game/support/paths';
 
 const MAX_BATCH = 12;
 const FLUSH_MS = 5000;
@@ -147,6 +151,8 @@ class TelemetryClient {
     if (this.buffer.length === 0) return;
     const events = this.buffer;
     this.buffer = [];
+    // v1.77 — sin servidor (export estático) no hay a dónde mandarlo: descarte digno.
+    if (STATIC_EXPORT) return;
     try {
       const body = JSON.stringify({ session: this.session, events });
       if (beacon && typeof navigator.sendBeacon === 'function') {

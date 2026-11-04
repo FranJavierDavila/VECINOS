@@ -3,6 +3,7 @@ import type { Content, World } from '@/game/core/types';
 import { hash01 } from '@/game/interior';
 import { B } from './babylon';
 import { instantiateActorAsset, type ActorRig } from './assets';
+import { withBase } from '@/game/support/paths';
 import { MODEL_YAW_OFFSET } from './actors';
 import { playSoundAt } from './audio';
 import type { AmbulanceTheater } from './ambulance';
@@ -220,7 +221,7 @@ export function createPedestrians(scene: Scene, world: World, content: Content, 
   const free: { gltf: ActorRig | null; prim: PedRig | null }[] = [];
   let poolReady = false;
   const buildPool = async (): Promise<void> => {
-    const base = content.assets?.base ?? '/assets/';
+    const base = content.assets?.base ?? withBase('/assets/');
     const jobs: Promise<void>[] = [];
     const total = Math.max(cfg.maxAlive, 1);
     for (let i = 0; i < total; i++) {

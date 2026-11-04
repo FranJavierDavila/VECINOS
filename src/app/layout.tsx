@@ -3,6 +3,9 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 
+/** GitHub Pages monta el juego en /VECINOS/ — manifest e iconos también cuelgan de ahí. */
+const BASE_PATH = (process.env.NEXT_PUBLIC_BASE_PATH ?? "").replace(/\/+$/, "");
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -19,7 +22,7 @@ export const metadata: Metadata = {
     "Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario. Sim determinista + render Babylon.js.",
   keywords: ["VECINOS", "juego", "simulación", "vecinos", "Babylon.js", "prototipo"],
   authors: [{ name: "Z.ai Team" }],
-  manifest: "/manifest.webmanifest",
+  manifest: `${BASE_PATH}/manifest.webmanifest`,
   applicationName: "VECINOS",
   appleWebApp: {
     capable: true,
@@ -28,9 +31,9 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/icons/icon-96.png", sizes: "96x96", type: "image/png" },
-      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
-      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+      { url: `${BASE_PATH}/icons/icon-96.png`, sizes: "96x96", type: "image/png" },
+      { url: `${BASE_PATH}/icons/icon-192.png`, sizes: "192x192", type: "image/png" },
+      { url: `${BASE_PATH}/icons/icon-512.png`, sizes: "512x512", type: "image/png" },
     ],
   },
 };

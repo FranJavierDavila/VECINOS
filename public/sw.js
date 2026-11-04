@@ -13,11 +13,19 @@
  *     en install + clients.claim en activate: un SW nuevo toma el mando de inmediato y la
  *     página se recarga UNA vez sola (guardada en PwaRegister). Adiós a la doble recarga manual.
  *   - Las peticiones que no son GET (save/load API) NUNCA se cachean.
+ *   - v1.77 — SCOPE-RELATIVE: el juego puede vivir bajo una subruta (GitHub Pages monta
+ *     /VECINOS/). Toda ruta del SW se resuelve contra self.registration.scope, así que
+ *     el mismo fichero vale para `/` (dev) y `/VECINOS/` (Pages) sin build-time mágico.
  */
-const VERSION = 'vecinos-v1.76'; // v1.76 (FASE T): telemetría de playtest viva — latido de actividad por minuto (solo pestaña visible), errores deduplicados por huella FNV-1a, vista de sesiones en GET /api/telemetry. Antes v1.75 (recuperación): la shell precacheada servía código viejo; el bump la refrescó
+const VERSION = 'vecinos-v1.77'; // v1.77 (jugable online): export estático para GitHub Pages — rutas del SW relativas al scope, manifest/icons relativos, basePath /VECINOS. Antes v1.76 (FASE T): telemetría de playtest viva
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
-const SHELL_ASSETS = ['/', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
+/** El scope de un SW siempre acaba en '/': '/' en dev, '/VECINOS/' en GitHub Pages. */
+const SCOPE = self.registration.scope;
+const SCOPE_PATH = new URL(SCOPE).pathname;
+/** Convierte una ruta raíz-absoluta ('/manifest.webmanifest') en absoluta-dentro-del-scope. */
+const scoped = (p) => new URL(p.replace(/^\/+/, ''), SCOPE).href;
+const SHELL_ASSETS = ['/', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'].map(scoped);
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -53,6 +61,10 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return; // save/load API: siempre red
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+  // Nada fuera del scope (en Pages el mismo origen puede alojar otras páginas).
+  if (!url.pathname.startsWith(SCOPE_PATH)) return;
+  /** Ruta con el prefijo del scope quitado: '/_next/x' tanto en '/' como en '/VECINOS/'. */
+  const rel = url.pathname.slice(SCOPE_PATH.length - 1);
 
   // Navegación y estáticos del despliegue: network-first con fallback a caché (modo avión).
   // cache:'reload' evita que el HTTP cache del navegador conteste 304 con contenido viejo.
@@ -60,9 +72,9 @@ self.addEventListener('fetch', (event) => {
   // la escalera vieja (v2) días después de deployar la v3.
   const deployable =
     req.mode === 'navigate' ||
-    url.pathname.startsWith('/_next/static/') ||
-    url.pathname.startsWith('/content/') ||
-    url.pathname.startsWith('/assets/');
+    rel.startsWith('/_next/static/') ||
+    rel.startsWith('/content/') ||
+    rel.startsWith('/assets/');
   if (deployable) {
     event.respondWith(
       fetch(req, { cache: 'reload' })
@@ -71,13 +83,13 @@ self.addEventListener('fetch', (event) => {
           caches.open(req.mode === 'navigate' ? SHELL_CACHE : RUNTIME_CACHE).then((c) => c.put(req, copy));
           return res;
         })
-        .catch(() => caches.match(req).then((hit) => hit ?? (req.mode === 'navigate' ? caches.match('/') : Promise.resolve(null))).then((hit) => hit ?? Response.error())),
+        .catch(() => caches.match(req).then((hit) => hit ?? (req.mode === 'navigate' ? caches.match(scoped('/')) : Promise.resolve(null))).then((hit) => hit ?? Response.error())),
     );
     return;
   }
 
   // Iconos: cache-first (no cambian entre despliegues).
-  if (!url.pathname.startsWith('/icons/')) return;
+  if (!rel.startsWith('/icons/')) return;
   event.respondWith(
     caches.match(req).then(
       (hit) =>

@@ -1,4 +1,5 @@
 import type { AchievementsCatalog, AssetsCatalog, Content, CrossingsCatalog, EcosystemContent, Effect, EmotesCatalog, InteriorsCatalog, StreetCatalog, SoundsCatalog, MusicCatalog, OnboardingCatalog, ProjectCatalog, PersonalitiesCatalog, CharacterDetailsCatalog, CharacterSpritesCatalog, MultiplayerCatalog } from '@/game/core/types';
+import { absolutizeContent, withBase } from '@/game/support/paths';
 import {
   achievementsCatalogSchema,
   blockListSchema,
@@ -51,7 +52,7 @@ function indexById<T extends { id: string }>(list: T[]): Record<string, T> {
 }
 
 /** Descarga y valida los catálogos. Lanza si un fichero no cumple su schema; los errores de referencias se devuelven. */
-export async function loadContent(baseUrl: string = '/content/'): Promise<{ content: Content; issues: Issue[] }> {
+export async function loadContent(baseUrl: string = withBase('/content/')): Promise<{ content: Content; issues: Issue[] }> {
   cache ??= (async () => {
     const raw = {} as Loaded;
     await Promise.all(
@@ -249,6 +250,11 @@ export async function loadContent(baseUrl: string = '/content/'): Promise<{ cont
       characterSprites,
       multiplayer,
     };
+
+    // v1.77 — export estático (GitHub Pages): toda ruta de arte/assets raíz-absoluta del
+    // catálogo (defaults de schemas incluidos) pasa a ser relativa al despliegue actual.
+    // En dev BASE_PATH='' → identidad: el comportamiento local no cambia.
+    absolutizeContent(content);
 
     const issues = validateContent(content);
     return { content, issues };
