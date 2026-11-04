@@ -1,0 +1,501 @@
+[
+  {
+    "id": "dlg_bienvenida",
+    "lines": [
+      {
+        "speaker": "Inmobiliaria Molina & Hijos",
+        "text": "¡Enhorabuena por su compra! Piso luminoso, tranquilo y sin historial... oficialmente."
+      },
+      {
+        "speaker": "Inmobiliaria Molina & Hijos",
+        "text": "Tres apuntes sin importancia: el ascensor está estropeado, la comunidad decide TODO en junta, y si oye taladros los domingos, no son suyos."
+      },
+      {
+        "speaker": "Inmobiliaria Molina & Hijos",
+        "text": "Suba, salude a su puerta y entre. El resto lo pone el barrio."
+      }
+    ]
+  },
+  {
+    "id": "dlg_ascensor",
+    "lines": [
+      {
+        "speaker": "Administrador de fincas",
+        "text": "Lo del ascensor: toca junta de vecinos. Como la luz del rellano. Como la fuente del patio. Como TODO en este edificio."
+      },
+      {
+        "speaker": "Administrador de fincas",
+        "text": "Aviso legal: la junta puede durar más que las obras."
+      }
+    ]
+  },
+  {
+    "id": "dlg_kevin_aviso",
+    "lines": [
+      {
+        "speaker": "Kevin (al teléfono)",
+        "text": "¡Buenas! Kevin, el nuevo del 2B. Me mudo esta tarde. Aviso: mi música tiene dos volúmenes, fiesta y FESTIVAL."
+      },
+      {
+        "speaker": "Kevin (al teléfono)",
+        "text": "Si es usted de dormir temprano, le recomiendo tapones. O venir. Hay helado para todos."
+      }
+    ]
+  },
+  {
+    "id": "dlg_inmobiliaria_piso",
+    "lines": [
+      {
+        "speaker": "Inmobiliaria Molina & Hijos",
+        "text": "Le han puesto precio al {blk:blk_p1_a}: la puerta de al lado de la suya. 3.200 €. \"Oportunidad\", la llamamos nosotros."
+      },
+      {
+        "speaker": "Inmobiliaria Molina & Hijos",
+        "text": "Si une los dos pisos, avise a un albañil... y a la cotilla, para el estreno."
+      }
+    ]
+  },
+  {
+    "id": "dlg_venganza",
+    "lines": [
+      {
+        "speaker": "Pinturillas (1B)",
+        "text": "Esto no se queda así. Purpurina. POR TODO EL PASILLO. Ni la junta podrá salvarte."
+      }
+    ]
+  },
+  {
+    "id": "dlg_laia",
+    "lines": [
+      {
+        "speaker": "Laia (1A, nueva)",
+        "text": "¡Hola! Soy Laia, la del 1A. Me acaban de dar las llaves y el wifi no va. ¿El password es \"derrama2026\"? Porque lo he probado."
+      },
+      {
+        "speaker": "Laia (1A, nueva)",
+        "text": "Prometo estudiar de noche. Bueno, estudiar. El volumen lo pone Mozart. En techno. Más o menos."
+      }
+    ]
+  },
+  {
+    "id": "dlg_buitre",
+    "lines": [
+      {
+        "speaker": "Sr. Vulture",
+        "text": "Buenos días. Fondo Buitre Inversiones. Compramos edificios \"con encanto\", reformamos y revendemos. Con gimnasio en la azotea."
+      },
+      {
+        "speaker": "Sr. Vulture",
+        "text": "Su comunidad me parece una oportunidad preciosa. De eso se trata: de oportunidades. Mías."
+      }
+    ]
+  },
+  {
+    "id": "dlg_decoracion",
+    "lines": [
+      {
+        "speaker": "Dolores (2B)",
+        "text": "Soy Dolores, del 1B. ¿Cómo has conseguido un piso SIN SOFÁ? ¿Sin cortinas? ¿Un CUADRO que no sea el contador de la luz?"
+      },
+      {
+        "speaker": "Dolores (2B)",
+        "text": "Esto pasa por no tener cotilla cerca... perdón. Por no tener VECINA ATENTA. En el tablón hay un panel nuevo: «Mi piso». Hasta yo lo sé usar."
+      },
+      {
+        "speaker": "Dolores (2B)",
+        "text": "Y si hueles algo raro a mediodía, no es un problema del edificio: es mi guiso. Un abrazo. Cuelgo, que se me quema."
+      }
+    ]
+  },
+  {
+    "id": "dlg_plagas",
+    "lines": [
+      {
+        "speaker": "Dolores (1B)",
+        "text": "CUCARACHAS. En MI cocina. Y no, no son mías: yo limpio. Son de la fiesta de arriba, vienen con el hambre de la mañana siguiente."
+      },
+      {
+        "speaker": "Dolores (1B)",
+        "text": "O lo arreglas tú, o subo yo. Y cuando subo yo, habla todo el edificio. Tienes hasta las cinco."
+      }
+    ]
+  },
+  {
+    "id": "dlg_humo",
+    "lines": [
+      {
+        "speaker": "Kevin (2B)",
+        "text": "Vecino. El detector de humo del rellano NO PARA DE PITAR desde el guiso quemado de la planta primera. Mi resaca tiene voz nueva."
+      },
+      {
+        "speaker": "Kevin (2B)",
+        "text": "Dicen que bajando las palancas del cuadro en el orden correcto se apaga. Dicen. Yo solo sé de altavoces."
+      }
+    ]
+  },
+  {
+    "id": "dlg_correos",
+    "lines": [
+      {
+        "speaker": "Don Ramón (presidente)",
+        "text": "El cartero ha mezclado la correspondencia del edificio. TODA. Hay un sobre del banco en el buzón del 1C. Y una carta de amor en el mío. No es de mi mujer."
+      },
+      {
+        "speaker": "Don Ramón (presidente)",
+        "text": "La junta sugiere (bueno, sugiero) que alguien con pulso y memoria lo ordene. Hoy. Antes de que Dolores \"ayude\"."
+      }
+    ]
+  },
+  {
+    "id": "dlg_qa",
+    "lines": [
+      {
+        "speaker": "Laboratorio Vecinal de QA",
+        "text": "Vecino, la junta ha aprobado (por unanimidad y sin leer) un circuito de cuatro pruebas técnicas."
+      },
+      {
+        "speaker": "Laboratorio Vecinal de QA",
+        "text": "Son minijuegos en modo fácil. Hasta el presidente lleva el cronómetro. Elija prueba y a lucirse."
+      }
+    ]
+  },
+  {
+    "id": "dlg_okupa",
+    "lines": [
+      {
+        "speaker": "Nando, el Okupa",
+        "text": "Buenas. Vivo en el 2A desde marzo. Técnicamente el piso está en venta, pero yo digo que la venta está en mí."
+      },
+      {
+        "speaker": "Nando, el Okupa",
+        "text": "No pido mucho: luz, agua y que no llamen mucho a la puerta. ¿Lo arreglamos como vecinos civilizados?"
+      }
+    ]
+  },
+  {
+    "id": "dlg_musico",
+    "lines": [
+      {
+        "speaker": "Rita, la Batería",
+        "text": "¡Vecino! ¿Has oído el redoble? Es el redoble del destino. Y de las paredes finas."
+      },
+      {
+        "speaker": "Rita, la Batería",
+        "text": "Ensayo de 8 a 10. Se puede negociar: horario, espuma, o que apadrines mi disco. Tú decides."
+      }
+    ]
+  },
+  {
+    "id": "dlg_bar_inaugura",
+    "lines": [
+      {
+        "speaker": "Doña Marisa (nota de voz)",
+        "text": "¡Vecino! Marisa, la del bajo. El local por fin abre: EL RINCÓN. Tapas, refresco y teletienda en la tele de barra. Inauguro el viernes."
+      },
+      {
+        "speaker": "Doña Marisa (nota de voz)",
+        "text": "Baja cuando quieras. La primera tapa la invito yo y la segunda también, porque nadie viene dos veces por voluntad propia hasta que vienen."
+      },
+      {
+        "speaker": "Doña Marisa (nota de voz)",
+        "text": "Ah, y aviso: aquí se ventila todo. TODO. Lo del portal, lo del guiso, lo del ascensor. Es como una junta pero con hielo."
+      }
+    ]
+  },
+  {
+    "id": "dlg_bar_ruido",
+    "lines": [
+      {
+        "speaker": "Administrador de fincas",
+        "text": "Tres quejas esta noche sobre El Rincón. La 3A, la 2C y el Sr. Vulture, que ha escrito un acta de 14 páginas sobre 'vibraciones estructurales'."
+      },
+      {
+        "speaker": "Administrador de fincas",
+        "text": "El local tiene el aislamiento de una fiesta de pueblo. Hay solución: obra acústica, junta, o el método español: aguantar y comentarlo."
+      }
+    ]
+  },
+  {
+    "id": "dlg_lavanderia",
+    "lines": [
+      {
+        "speaker": "Contestador de la junta",
+        "text": "Mensaje de Esperanza (2C): 'Los días impares la lavadora comunal es MÍA. Que conste en acta. Que conste en HIERRO.'"
+      },
+      {
+        "speaker": "Contestador de la junta",
+        "text": "Mensaje de Nando (2A): 'Sí, muy bonito, pero la máquina está atascada desde el martes y mi colada ya tiene opiniones.'"
+      },
+      {
+        "speaker": "Contestador de la junta",
+        "text": "Dos vecinos, una lavandería y cero consenso. Baja a echar un ojo antes de que esto salga en el tablón."
+      }
+    ]
+  },
+  {
+    "id": "dlg_garaje",
+    "lines": [
+      {
+        "speaker": "Administrador de fincas",
+        "text": "Llama para avisar: el Sr. Vulture ha registrado el garaje como 'sala de operaciones de inversión privada'. Con papel timbrado y todo."
+      },
+      {
+        "speaker": "Administrador de fincas",
+        "text": "Técnicamente no es ilegal hasta que la junta diga lo contrario. Y la junta, ya sabe, es usted y tres dormilanos."
+      },
+      {
+        "speaker": "Administrador de fincas",
+        "text": "Baje al garaje, mire el cartel con cara de gravedad y decida: acta, alquiler o farol. Yo cobro igual por las tres."
+      }
+    ]
+  },
+  {
+    "id": "dlg_trastero",
+    "lines": [
+      {
+        "speaker": "Contestador de la junta",
+        "text": "Mensaje de Pinturillas (1B): 'El trastero 7 es MI galería de latas. Tengo expuestos hasta cinco botes y una critica muy favorable de mi madre.'"
+      },
+      {
+        "speaker": "Contestador de la junta",
+        "text": "Mensaje de Doña Marisa: 'Las cajas del bar no caben en el bar. Ese trastero es de la COMUNIDAD, no del Museo Municipal del Grafiti.'"
+      },
+      {
+        "speaker": "Contestador de la junta",
+        "text": "Dos frentes, un trastero y cero acuerdos. Baje a arbitrar antes de que aparezcan las notas adhesivas."
+      }
+    ]
+  },
+  {
+    "id": "dlg_wifi",
+    "lines": [
+      {
+        "speaker": "Nico (3A)",
+        "text": "¿Tienes cinco segundos? Mi wifi se cae cada vez que lavo los platos. He cronometrado: la señal y yo no nos respetamos."
+      },
+      {
+        "speaker": "Nico (3A)",
+        "text": "La antena es de los noventa. Envía la señal a través de un hámster que corre dentro, según el de la tienda."
+      },
+      {
+        "speaker": "Nico (3A)",
+        "text": "Sube al portal, mira la antena conmigo y decidimos: antena nueva, junta o que aprenda a vivir del 3G como un hombre."
+      }
+    ]
+  },
+  {
+    "id": "dlg_festival_1",
+    "lines": [
+      {
+        "speaker": "El presidente (nota de voz)",
+        "text": "¡Vecino! Presidente habla. Prepare el acta: el FESTIVAL DEL PORTAL vuelve este año, con permiso de la comunidad y sin permiso de la junta de fiestas (porque no existe)."
+      },
+      {
+        "speaker": "El presidente (nota de voz)",
+        "text": "Necesito un hombre de confianza en la calle. Baje a El Rincón y cierre el patrocinio con Marisa: tapas, hielo y el local a disposición del barrio."
+      },
+      {
+        "speaker": "El presidente (nota de voz)",
+        "text": "Y ojo: esto se mueve por boca a boca. Cuanta más hype, mejor festival. La vecina del 1B ya está difundiendo, tranquilidad."
+      }
+    ]
+  },
+  {
+    "id": "dlg_festival_2",
+    "lines": [
+      {
+        "speaker": "Rita, la Batería (nota de voz)",
+        "text": "¿El garaje? Sí, mi batería y yo estamos de gira de garaje en garaje. Para el festival quiero un ensayo de verdad: con público que silbe."
+      },
+      {
+        "speaker": "Rita, la Batería (nota de voz)",
+        "text": "Si me aseguras el garaje y el cartel, monto el directo. Y aviso: toco con el alma Y con los vatios."
+      },
+      {
+        "speaker": "Rita, la Batería (nota de voz)",
+        "text": "Ah, y ha entrado una tía con un cubo de pintura preguntando por la pared buena del portal. Le he dicho que TODAS."
+      }
+    ]
+  },
+  {
+    "id": "dlg_festival_3",
+    "lines": [
+      {
+        "speaker": "Doña Marisa (nota de voz)",
+        "text": "¡Vecino! Esto se llena. El portal huele a limón y a expectación, y el hype ya se puede cortar con un cuchillo de jamón."
+      },
+      {
+        "speaker": "Doña Marisa (nota de voz)",
+        "text": "A las 19:00, brindis en el portal. El brindis NO se pospone ni por lluvia. La lluvia aguanta."
+      },
+      {
+        "speaker": "Doña Marisa (nota de voz)",
+        "text": "Y ha llegado una chica con un rodillo que dice que va a hacer el mural. Le he explicado que el toldo es sagrado. Me ha mirado. Creo que me ha pintado algo en la frente."
+      }
+    ]
+  },
+  {
+    "id": "dlg_buzon_4d",
+    "lines": [
+      {
+        "speaker": "Contestador del edificio",
+        "text": "📧 Aviso de la administración: «de nuevo una carta con ventana para el 1C. El cartero insiste. Rita también en que no la espera. Resolvedlo como pueblo»."
+      }
+    ]
+  },
+  {
+    "id": "dlg_manitas_ascensor",
+    "lines": [
+      {
+        "speaker": "Administrador de fincas",
+        "text": "Vuelvo a la carga con lo del ascensor: la junta no hizo NADA o votó que las rodillas son un invento moderno. Pero tengo un plan B con acento levantino."
+      },
+      {
+        "speaker": "Administrador de fincas",
+        "text": "Mi primo Manolo arregla ascensores. No preguntes cómo. Cobra la mitad que la empresa y no rellena formularios: directamente los DOBLA y los mete en la cabina."
+      },
+      {
+        "speaker": "Administrador de fincas",
+        "text": "Esta vez el ascensor se arregla sí o sí: con Manolo (300 €) o contigo, un destornillador y la cinta americana de tu padre. ¡Vamos a devolverle la verticalidad al edificio!"
+      }
+    ]
+  },
+  {
+    "id": "dlg_acta_humedad",
+    "lines": [
+      {
+        "speaker": "Administrador",
+        "text": "Buenas, aquí el administrador. En el acta de la merienda del 2A consta un punto nuevo: manchas en el techo del 3C."
+      },
+      {
+        "speaker": "Administrador",
+        "text": "Los vecinos merenderos piden acto. Yo puyo presupuesto. Usted decide: revisamos o esperamos."
+      }
+    ]
+  },
+  {
+    "id": "dlg_seranata",
+    "lines": [
+      {
+        "speaker": "Administrador",
+        "text": "Buenas. Queja oficial en el acta: 'guitarra festiva a deshoras en la tercera planta'. Firmas: varias. Aplausos: dos."
+      },
+      {
+        "speaker": "Administrador",
+        "text": "Puedo mediar con Tomás o aplicar tarifa de serenata. Lo dejo en sus manos, como manda el reglamento."
+      }
+    ]
+  },
+  {
+    "id": "dlg_resaca",
+    "lines": [
+      {
+        "speaker": "Administrador",
+        "text": "Buenas. El pasillo del 4º amanece con vasos, limones y un cartel que dice 'gracias por todo'."
+      },
+      {
+        "speaker": "Administrador",
+        "text": "O contratamos limpieza o lo damos por instalación artística. No hay tercera vía. Bueno, la hay, pero asusta."
+      }
+    ]
+  },
+  {
+    "id": "dlg_chisme_lavadora",
+    "lines": [
+      {
+        "speaker": "Administrador",
+        "text": "Buenas. Me llega que en la lavandería se ha debatido política de comunidad, cenas y pasillos."
+      },
+      {
+        "speaker": "Administrador",
+        "text": "Sin acta no hay acta. ¿Fuiste fuente o espectador? Necesito saber qué firmo."
+      }
+    ]
+  },
+  {
+    "id": "dlg_eco_visitas",
+    "lines": [
+      {
+        "speaker": "Vecina del 1B",
+        "text": "Vecino… he oído TRES cosas esta mañana en el pasillo. Una de ellas moja. Las otras dos son peores."
+      },
+      {
+        "speaker": "Vecina del 1B",
+        "text": "Entre la tarta del 2A, el pastel del 2C y el hielo del 1C, este edificio necesita un cronista. ¿Se ofrece?"
+      }
+    ]
+  },
+  {
+    "id": "dlg_polvo_aviso",
+    "lines": [
+      {
+        "speaker": "Presidente",
+        "text": "Vecino. Siento decirle que el del 3B está taladrando con una alegría que no le corresponde. El polvo ya pide asiento en la junta."
+      },
+      {
+        "speaker": "Presidente",
+        "text": "Yo lo llamo 'obra ilegal'. Él lo llama 'obra fina'. Mi garganta, que vive una planta más abajo, tiene tercera opinión."
+      },
+      {
+        "speaker": "Presidente",
+        "text": "Hable usted con él o prepárese para el parte oficial. Usted decide: la gente le saluda, aproveche el capital."
+      }
+    ]
+  },
+  {
+    "id": "dlg_juana_junta",
+    "lines": [
+      {
+        "speaker": "Juana Lebrato · Administración de Fincas",
+        "text": "¿Veintemil excusas? Eso es después. Juana Lebrato, administradora. Llega vecino nuevo, se convoca junta: es física de edificio."
+      },
+      {
+        "speaker": "Juana Lebrato · Administración de Fincas",
+        "text": "Esta tarde, en el portal. Presentaciones, algún guiño involuntario y una votación. De lo creativo de la votación se encarga la comisión. No pregunte."
+      },
+      {
+        "speaker": "Juana Lebrato · Administración de Fincas",
+        "text": "Baje al portal y léase el tablón. La junta es sagrada. Y eterna."
+      }
+    ]
+  },
+  {
+    "id": "dlg_juana_votacion",
+    "lines": [
+      {
+        "speaker": "Juana Lebrato · Administración de Fincas",
+        "text": "Ya está todo el mundo. Doña Espera ha traído bizcocho y el ex presidente, cara de pocos amigos."
+      },
+      {
+        "speaker": "Juana Lebrato · Administración de Fincas",
+        "text": "Primero las presentaciones. Luego la presidencia rotatoria: siete días de gloria. Relájese y sonría, que las urnas de esta comunidad tienen fama de... improvisadas."
+      }
+    ]
+  },
+  {
+    "id": "dlg_juana_derrama",
+    "lines": [
+      {
+        "speaker": "Juana Lebrato · Administración de Fincas",
+        "text": "Juana, de nuevo. Baje la voz: la tubería del 3B gotea en el 2B, y el fontanero cobra lo que pesa."
+      },
+      {
+        "speaker": "Juana Lebrato · Administración de Fincas",
+        "text": "Opciones, señoría: lo paga usted del bolsillo, lo votamos en junta (la derrama mola menos en persona), o miramos al techo con dignidad. Usted preside."
+      }
+    ]
+  },
+  {
+    "id": "dlg_juana_veredicto",
+    "lines": [
+      {
+        "speaker": "Juana Lebrato · Administración de Fincas",
+        "text": "Día siete. La junta se reúne para juzgar su gestión. Doña Espera ha traído bizcocho Y una libreta de apuntes. Mal asunto."
+      },
+      {
+        "speaker": "Juana Lebrato · Administración de Fincas",
+        "text": "Palabras finales, presidencia. Piense: la caja, las macetas, el ascensor... y su reputación, que en este portal vale la mitad de la plaza."
+      }
+    ]
+  }
+]

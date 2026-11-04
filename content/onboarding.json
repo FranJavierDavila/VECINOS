@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "enabled": true,
+  "welcome": {
+    "title": { "es": "¡Bienvenido al edificio!", "en": "Welcome to the building!" },
+    "text": {
+      "es": "Acabas de mudarte. Hay un tablón de avisos junto al portal, vecinos con mucho carácter y un edificio que agradecerá cada mejora. Tu primer día, guiado en 4 pasos.",
+      "en": "You've just moved in. There's a notice board by the lobby, neighbors with strong personalities, and a building that will thank every improvement. Your first day, guided in 4 steps."
+    },
+    "cta": { "es": "¡Vamos allá!", "en": "Let's go!" }
+  },
+  "steps": [
+    {
+      "id": "move",
+      "icon": "🕹️",
+      "title": { "es": "Muévete por el edificio", "en": "Move around the building" },
+      "text": {
+        "es": "Con WASD o las flechas (en móvil, los mandos táctiles). Recorre el pasillo de tu planta para estrenar zapatillas.",
+        "en": "Use WASD or the arrows (touch controls on mobile). Walk your floor's corridor to break in those slippers."
+      }
+    },
+    {
+      "id": "noticeboard",
+      "icon": "📌",
+      "title": { "es": "Lee el tablón de avisos", "en": "Read the notice board" },
+      "text": {
+        "es": "Acércate al tablón (junto al portal de planta 0) y pulsa E. Ahí vive el acta de la comunidad: arcas, clima y hasta cómo convocar una junta.",
+        "en": "Walk up to the notice board (by the ground-floor lobby) and press E. The community minutes live there: funds, weather and even how to call a meeting."
+      }
+    },
+    {
+      "id": "task",
+      "icon": "📋",
+      "title": { "es": "Completa una tarea", "en": "Complete a task" },
+      "text": {
+        "es": "Cuando suene el teléfono, atiéndelo: los encargos del vecindario llegan así. Termina uno y verás la comunidad agradecértelo.",
+        "en": "When the phone rings, answer it: neighborhood errands arrive that way. Finish one and watch the community thank you."
+      }
+    },
+    {
+      "id": "neighbor",
+      "icon": "👋",
+      "title": { "es": "Conoce a un vecino", "en": "Meet a neighbor" },
+      "text": {
+        "es": "Acércate a un vecino y pulsa E para llamar a su puerta (o saludar si está en el pasillo). Cada uno tiene su carácter: descúbrelos en la pestaña Vecinos.",
+        "en": "Walk up to a neighbor and press E to knock on their door (or greet them in the corridor). Each one has their own personality: discover them in the Neighbors tab."
+      }
+    }
+  ],
+  "tips": [
+    {
+      "id": "phone",
+      "icon": "📞",
+      "text": {
+        "es": "El teléfono trae encargos: atiende y cuelga para aceptarlos. Si suenan dos a la vez, la segunda espera su turno.",
+        "en": "The phone brings errands: answer and hang up to accept them. If two ring at once, the second one waits its turn."
+      }
+    },
+    {
+      "id": "junta",
+      "icon": "🗳️",
+      "text": {
+        "es": "En las juntas se vota el orden del día: cada vecino pesa lo suyo. Tu voto cuenta como el de la presidenta.",
+        "en": "Meetings vote on the agenda: every neighbor weighs in. Your vote counts as much as the president's."
+      }
+    },
+    {
+      "id": "elevator",
+      "icon": "🛗",
+      "text": {
+        "es": "Delante del ascensor, pulsa W/S para llamarlo y elige planta en su panel. Si está averiado… la escalera no muerde.",
+        "en": "In front of the elevator, press W/S to call it and pick a floor on its panel. If it's broken… the stairs don't bite."
+      }
+    },
+    {
+      "id": "minigame",
+      "icon": "🎮",
+      "text": {
+        "es": "Algunas tareas se resuelven con un minijuego rápido. Fallar no rompe la partida: reintenta con calma.",
+        "en": "Some tasks are solved with a quick minigame. Failing never breaks your save: retry at your own pace."
+      }
+    },
+    {
+      "id": "project",
+      "icon": "🏗️",
+      "text": {
+        "es": "El proyecto del edificio avanza con cada misión completada, cada euro en las arcas y tu reputación. Míralo siempre encima del registro.",
+        "en": "The building project advances with every completed mission, every euro in the funds and your reputation. Check it right above the log."
+      }
+    }
+  ],
+  "doneText": {
+    "es": "Tutorial del primer día completado. El resto, como en todo vecindario: viviéndolo.",
+    "en": "First-day tutorial complete. The rest, like in any neighborhood: by living it."
+  }
+}

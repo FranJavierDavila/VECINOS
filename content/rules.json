@@ -1,0 +1,2263 @@
+{
+  "startScenario": "slice",
+  "multiplayer": {
+    "guestArchetype": "jugador_base",
+    "guestWallet": 300,
+    "maxPlayers": 4,
+    "tickSecondsPerTick": 1,
+    "joinToast": "👥 {name} se muda a {block}. La comunidad crece (y el ruido también).",
+    "leaveToast": "👥 {name} se va de vacaciones. Su piso le espera (y sus macetas también).",
+    "texts": {
+      "sessionFull": "La comunidad está completa. Ni los okupas caben ya.",
+      "noVacant": "No queda vivienda libre para el recién llegado.",
+      "remoteSaveDisabled": "En comunidad se decide a la vez: guardar no cabe en el acta multijugador."
+    },
+    "score": {
+      "title": "Vecino del mes",
+      "missionCompletedPoints": 100,
+      "missionBonus": {
+        "m_ascensor": 50,
+        "m_manitas_ascensor": 50,
+        "m_festival_convocatoria": 75,
+        "m_festival_musica": 75,
+        "m_festival_grandia": 100,
+        "m_llegada_buitre": 50,
+        "m_okupa": 50,
+        "m_veredicto": 100
+      },
+      "excluded": [
+        "m_qa_1",
+        "m_qa_2",
+        "m_qa_3",
+        "m_qa_4",
+        "m_qa_visita"
+      ],
+      "minigames": {
+        "mg_fusibles": {
+          "label": "rearme de fusibles",
+          "pointsPerRecord": 50,
+          "maxSecs": 600
+        },
+        "mg_limpiar_cabina": {
+          "label": "fregatón de cabina",
+          "pointsPerRecord": 50,
+          "maxSecs": 600
+        },
+        "mg_desatascar": {
+          "label": "desatasco exprés",
+          "pointsPerRecord": 50,
+          "maxSecs": 600
+        },
+        "mg_trato_vecino": {
+          "label": "diplomacia de rellano",
+          "pointsPerRecord": 50,
+          "maxSecs": 600
+        },
+        "mg_fumigar": {
+          "label": "exterminio vecinal",
+          "pointsPerRecord": 50,
+          "maxSecs": 600
+        },
+        "mg_buzones": {
+          "label": "buzones revueltos",
+          "pointsPerRecord": 50,
+          "maxSecs": 600
+        }
+      },
+      "recordToast": "⏱️ {name} marcó {secs} s en {label} — ¡mejor marca de la comunidad! (+{points} pts)",
+      "firstToast": "⏱️ {name} marcó {secs} s en {label} (+{points} pts)",
+      "boardTemplate": "🏅 VECINO DEL MES\n{lines}\nResuelve misiones y gana duelos de minijuegos para sumar puntos.",
+      "boardLine": "{pos}. {name} · {points} pts{extra}",
+      "boardExtraBest": " · {label} {secs} s"
+    },
+    "authority": {
+      "enabled": true,
+      "maxSpeed": 9,
+      "maxFloorSpeed": 8,
+      "minPoseIntervalMs": 25,
+      "maxPoseGapMs": 2500,
+      "maxCmdsPerSec": 15,
+      "violationWindowSec": 60,
+      "kickViolations": 120
+    }
+  },
+  "sim": {
+    "night": {
+      "from": "23:00",
+      "to": "07:30"
+    },
+    "aiHopTicks": 2,
+    "elevator": {
+      "stairsMoodCost": 0.05,
+      "grumbleChance": 0.05,
+      "grumbleCooldownMinutes": 180,
+      "grumbleText": "🛗 {name} sube por la escalera porque el ascensor sigue averiado. Por el portal ya se oye lo que opina."
+    },
+    "doorbell": {
+      "reRingGraceSecs": 3.5
+    },
+    "phone": {
+      "freeMovement": true
+    },
+    "social": {
+      "gossipChance": 0.02,
+      "gossipMinGroup": 2,
+      "gossipCooldownMinutes": 90,
+      "gossipAffinityDelta": 2,
+      "talkCooldownMinutes": 30
+    },
+    "roof": {
+      "roofDef": "tejado",
+      "damageChancePerTick": 0.004,
+      "leakEveryTicks": 20,
+      "humidityPerLeak": 6,
+      "repairCost": 60,
+      "affinityPerRepair": 3,
+      "maxHumidity": 100
+    },
+    "drunk": {
+      "chance": 0.35,
+      "archetypes": [],
+      "staggerChance": 0.55,
+      "fumbleTries": 2,
+      "lineEveryHops": 3
+    },
+    "gamble": {
+      "hostArchetype": "fondo_buitre",
+      "startMinute": "22:00",
+      "endMinute": "03:00",
+      "chancePerNight": 0.3,
+      "maxGuests": 3,
+      "raidChancePerTick": 0.0015,
+      "fine": 120,
+      "fundsShare": 0.5,
+      "cooldownDays": 2
+    },
+    "protest": {
+      "watchDef": "pasillo_planta",
+      "watchParam": "lighting",
+      "belowThreshold": 20,
+      "delayMinutes": 45,
+      "recruitEveryMinutes": 10,
+      "ringIntervalMinutes": 4,
+      "maxRings": 5,
+      "calmAffinity": 4,
+      "calmTrust": 3,
+      "tiredAffinity": -3
+    },
+    "missionLoopMax": 4,
+    "defaultNeeds": {
+      "sleep": 80,
+      "social": 50,
+      "fun": 55,
+      "money": 60
+    },
+    "economy": {
+      "rentMinute": "09:00",
+      "corridorDirtParam": "cleanliness",
+      "corridorDirtPerTick": 0.005,
+      "needDrift": {
+        "sleep": {
+          "base": -0.04,
+          "activity": {
+            "sleep": 0.35
+          }
+        },
+        "fun": {
+          "base": -0.02,
+          "activity": {
+            "party": 0.5
+          }
+        },
+        "social": {
+          "base": -0.015,
+          "activity": {
+            "watch_corridor": 0.3
+          }
+        }
+      }
+    },
+    "work": {
+      "pay": 90,
+      "cooldownTicks": 150,
+      "funCost": 10,
+      "toastCooldown": "Acabas de cerrar el portátil. Tus ojos te lo agradecen.",
+      "toastDone": "+{amount} €: \"reunión que podía ser un correo\" (x1)."
+    },
+    "knock": {
+      "affinityGain": 2,
+      "asleepLine": "Zzz... zzz... (no abre, pero sí sueña)",
+      "fallbackLines": [
+        "¿Quién es? ¡Ahora bajo! ...(no baja)"
+      ]
+    },
+    "weather": {
+      "cycle": [
+        {
+          "state": "sunny",
+          "weight": 0.4
+        },
+        {
+          "state": "cloudy",
+          "weight": 0.25
+        },
+        {
+          "state": "rain",
+          "weight": 0.22
+        },
+        {
+          "state": "storm",
+          "weight": 0.13
+        }
+      ],
+      "durationMinutes": {
+        "min": 180,
+        "max": 480
+      }
+    },
+    "junta": {
+      "baseYes": 0.45,
+      "affinityDivisor": 200,
+      "generosityFactor": 0.2,
+      "defaultGenerosity": 0.3,
+      "moodThreshold": 25,
+      "moodPenalty": 0.15,
+      "trustWeight": 0.25,
+      "clamp": {
+        "min": 0.05,
+        "max": 0.95
+      }
+    },
+    "sleep": {
+      "restore": {
+        "sleep": 100,
+        "fun": 5,
+        "social": 5
+      },
+      "toastDone": "😴 Siesta oficial en regla. Los problemas pueden hacer cola fuera."
+    },
+    "campaign": {
+      "termMission": "m_presidencia_voto",
+      "endMission": "m_veredicto",
+      "termDays": 7,
+      "presidentLabel": "Presidencia",
+      "convocationCooldownMinutes": 360,
+      "presetAgenda": [
+        {
+          "id": "pintar_portal",
+          "title": "Pintar el portal",
+          "description": "Un color que no dé miedo al entrar. 250 € de caja.",
+          "cost": 250,
+          "effects": [
+            {
+              "op": "setParam",
+              "target": "portal.condition",
+              "delta": 12
+            },
+            {
+              "op": "toast",
+              "text": "Portal recién pintado: huele a obra y a victorias laborales.",
+              "tone": "good"
+            },
+            {
+              "op": "addReputation",
+              "resident": "player",
+              "amount": 6
+            }
+          ]
+        },
+        {
+          "id": "contingencia",
+          "title": "Engordar la caja de contingencia",
+          "description": "Cada vecino aporta 40 €. La caja de la comunidad sube 440 €.",
+          "cost": 0,
+          "effects": [
+            {
+              "op": "addFunds",
+              "to": "community",
+              "amount": 440
+            },
+            {
+              "op": "toast",
+              "text": "Aportación aprobada: la caja respira. Algunos han pagado con monedas del bote de la café.",
+              "tone": "info"
+            }
+          ]
+        },
+        {
+          "id": "macetas_extra",
+          "title": "Campaña de macetas en los pasillos",
+          "description": "Verde que da felicidad (y algo de sombra). 120 € del fondo comunal.",
+          "cost": 120,
+          "effects": [
+            {
+              "op": "toast",
+              "text": "Nuevas macetas en los pasillos. La jubilada ya ha adoptado tres.",
+              "tone": "good"
+            },
+            {
+              "op": "addReputation",
+              "resident": "player",
+              "amount": 4
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "view": {
+    "cellW": 2.4,
+    "cellH": 2.6,
+    "walkSpeed": 3,
+    "roomSpeed": 2.4,
+    "stairsSeconds": 1.6,
+    "elevatorSeconds": 0.6,
+    "margin": 0.35,
+    "nearRadius": 1.6,
+    "itemRadius": 0.9,
+    "corridorZ": -2.0,
+    "corridorDepth": 2.6,
+    "corridorRail": 0,
+    "depthModule": 2.0,
+    "npcWalkSpeed": 1.9,
+    "npcWanderSeconds": 8,
+    "roomZ": 0,
+    "depth": 4.8,
+    "wall": 0.1,
+    "gapW": 0.12,
+    "gapH": 0.14,
+    "slab": 0.07,
+    "sky": {
+      "r": 0.106,
+      "g": 0.122,
+      "b": 0.165
+    },
+    "ambient": {
+      "dir": [
+        0.2,
+        1,
+        -0.6
+      ],
+      "intensity": 0.85,
+      "ground": "#6b675e"
+    },
+    "sun": {
+      "dir": [
+        -0.4,
+        -0.7,
+        0.8
+      ],
+      "intensity": 0.55
+    },
+    "imageProcessing": {
+      "toneMapping": "aces",
+      "exposure": 1.12,
+      "contrast": 1.04
+    },
+    "lockedColor": "#7d8493",
+    "vacantTint": 0.45,
+    "brokenColor": "#c1666b",
+    "lockColor": "#ffd166",
+    "homeEdge": "#ffffff",
+    "channelGlow": {
+      "noise": "#ff5900",
+      "water": "#1a59cc",
+      "odors": "#74c69d",
+      "wifi": "#c77dff",
+      "smoke": "#9aa5b1",
+      "plagas": "#8bc34a",
+      "chisme": "#ff8fa3"
+    },
+    "actorFallbackColor": "#e8e6e1",
+    "actorFallbackHeight": 1.3,
+    "actorRadius": 0.28,
+    "exterior": {
+      "enabled": true,
+      "rows": [
+        {
+          "defId": "jardin",
+          "x0": -102,
+          "x1": -6,
+          "z0": -4.4,
+          "depth": 13.4,
+          "body": true,
+          "gridScatter": true,
+          "maxTrees": 26,
+          "maxBushes": 34
+        },
+        {
+          "defId": "jardin",
+          "x0": 32.2,
+          "x1": 132,
+          "z0": -4.4,
+          "depth": 13.4,
+          "body": true,
+          "gridScatter": true,
+          "maxTrees": 26,
+          "maxBushes": 34
+        },
+        {
+          "defId": "campo",
+          "x0": -102,
+          "x1": 132,
+          "z0": -120,
+          "depth": 106.2,
+          "body": true,
+          "gridScatter": true,
+          "maxTrees": 70,
+          "maxBushes": 90
+        },
+        {
+          "defId": "acera",
+          "x0": -6,
+          "x1": 0,
+          "z0": -4.4,
+          "depth": 10.8,
+          "body": true,
+          "orient": "z"
+        },
+        {
+          "defId": "acera",
+          "x0": 26.4,
+          "x1": 32.2,
+          "z0": -4.4,
+          "depth": 10.8,
+          "body": true,
+          "orient": "z"
+        },
+        {
+          "defId": "acera",
+          "x0": -6,
+          "x1": 32.2,
+          "z0": 6.4,
+          "depth": 2.6,
+          "body": true
+        },
+        {
+          "defId": "acera",
+          "x0": -102,
+          "x1": 132,
+          "z0": -7,
+          "depth": 2.6,
+          "body": true
+        },
+        {
+          "defId": "acera",
+          "x0": -102,
+          "x1": 132,
+          "z0": -13.8,
+          "depth": 2.2,
+          "body": true
+        },
+        {
+          "defId": "carretera",
+          "x0": -102,
+          "x1": 132,
+          "z0": -11.6,
+          "depth": 4.6,
+          "body": true
+        },
+        {
+          "defId": "carretera_cruce",
+          "x0": 10.8,
+          "x1": 15.2,
+          "z0": -11.6,
+          "depth": 4.6,
+          "body": false
+        },
+        {
+          "defId": "jardin",
+          "x0": -102,
+          "x1": 132,
+          "z0": 9.2,
+          "depth": 24,
+          "body": true,
+          "gridScatter": true,
+          "maxTrees": 46,
+          "maxBushes": 72
+        }
+      ],
+      "ground": {
+        "color": "#96a46f",
+        "size": 240,
+        "backZ": 34
+      },
+      "treeArt": [
+        {
+          "art": "art/trees/tree_round.png",
+          "w": 3.4,
+          "h": 4.4
+        },
+        {
+          "art": "art/trees/tree_pine.png",
+          "w": 3.2,
+          "h": 5.4
+        },
+        {
+          "art": "art/trees/tree_poplar.png",
+          "w": 2.2,
+          "h": 5.8
+        },
+        {
+          "art": "art/trees/tree_bushy.png",
+          "w": 3.0,
+          "h": 3.4
+        }
+      ],
+      "keepOut": [
+        {
+          "x0": -26.0,
+          "x1": 46.0,
+          "z0": -120.0,
+          "z1": 9.2
+        },
+        {
+          "x0": -19.0,
+          "x1": 8.5,
+          "z0": -4.4,
+          "z1": 6.6
+        }
+      ],
+      "forcedTrees": [
+        {
+          "x": -30.0,
+          "z": 3.0,
+          "art": "art/trees/tree_round.png",
+          "s": 1.2
+        },
+        {
+          "x": -38.0,
+          "z": 0.5,
+          "art": "art/trees/tree_bushy.png",
+          "s": 0.95
+        },
+        {
+          "x": -48.0,
+          "z": -2.0,
+          "art": "art/trees/tree_pine.png",
+          "s": 1.1
+        },
+        {
+          "x": 50.0,
+          "z": 2.0,
+          "art": "art/trees/tree_round.png",
+          "s": 1.25
+        },
+        {
+          "x": 60.0,
+          "z": 4.5,
+          "art": "art/trees/tree_bushy.png",
+          "s": 1.05
+        },
+        {
+          "x": 70.0,
+          "z": 0.0,
+          "art": "art/trees/tree_pine.png",
+          "s": 1.15
+        },
+        {
+          "x": -52.0,
+          "z": 24.0,
+          "art": "art/trees/tree_round.png",
+          "s": 1.15
+        },
+        {
+          "x": -44.0,
+          "z": 28.0,
+          "art": "art/trees/tree_pine.png",
+          "s": 1.2
+        },
+        {
+          "x": -36.0,
+          "z": 20.0,
+          "art": "art/trees/tree_poplar.png",
+          "s": 1.1
+        },
+        {
+          "x": -26.0,
+          "z": 26.0,
+          "art": "art/trees/tree_bushy.png",
+          "s": 1.0
+        },
+        {
+          "x": -18.0,
+          "z": 15.5,
+          "art": "art/trees/tree_round.png",
+          "s": 1.0
+        },
+        {
+          "x": -10.0,
+          "z": 27.0,
+          "art": "art/trees/tree_pine.png",
+          "s": 1.25
+        },
+        {
+          "x": -2.0,
+          "z": 18.0,
+          "art": "art/trees/tree_poplar.png",
+          "s": 1.05
+        },
+        {
+          "x": 6.0,
+          "z": 24.0,
+          "art": "art/trees/tree_round.png",
+          "s": 1.1
+        },
+        {
+          "x": 14.0,
+          "z": 16.0,
+          "art": "art/trees/tree_bushy.png",
+          "s": 0.95
+        },
+        {
+          "x": 22.0,
+          "z": 26.5,
+          "art": "art/trees/tree_pine.png",
+          "s": 1.1
+        },
+        {
+          "x": 30.0,
+          "z": 15.5,
+          "art": "art/trees/tree_poplar.png",
+          "s": 1.15
+        },
+        {
+          "x": 38.0,
+          "z": 27.0,
+          "art": "art/trees/tree_round.png",
+          "s": 1.2
+        },
+        {
+          "x": 46.0,
+          "z": 21.0,
+          "art": "art/trees/tree_bushy.png",
+          "s": 1.05
+        },
+        {
+          "x": 56.0,
+          "z": 26.0,
+          "art": "art/trees/tree_pine.png",
+          "s": 1.2
+        },
+        {
+          "x": 66.0,
+          "z": 18.5,
+          "art": "art/trees/tree_round.png",
+          "s": 1.1
+        },
+        {
+          "x": 78.0,
+          "z": 24.0,
+          "art": "art/trees/tree_poplar.png",
+          "s": 1.15
+        },
+        {
+          "x": 90.0,
+          "z": 27.0,
+          "art": "art/trees/tree_pine.png",
+          "s": 1.05
+        }
+      ],
+      "calisthenics": {
+        "enabled": true,
+        "x": 12.9,
+        "z": -15.4,
+        "w": 5.6,
+        "d": 2.8,
+        "ground": "#c26d4f",
+        "edge": "#8f4a33",
+        "postColor": "#6f4926",
+        "barColor": "#b8bfc7",
+        "boardColor": "#8a6a48",
+        "sign": "CALISTENIA",
+        "signBg": "#3b3129",
+        "signFg": "#ffd166",
+        "barH": 2.15,
+        "dipH": 1.22
+      },
+      "buildingShadow": {
+        "enabled": true,
+        "color": "#1e241c",
+        "alpha": 0.26,
+        "minLen": 4.5,
+        "maxLen": 17.0,
+        "spread": 1.14,
+        "skew": 1.05,
+        "note": "v1.61 sombra aproximada del edificio sobre la calle: franjas translucidas a la cota de cada tira, degradado hacia el extremo, longitud/desvio segun el sol visible del fondo. Sin luces ni shadow-maps extra."
+      }
+    },
+    "traffic": {
+      "enabled": true,
+      "lanes": [
+        {
+          "z": -8.3,
+          "dir": 1,
+          "speedMin": 6.5,
+          "speedMax": 9.5
+        },
+        {
+          "z": -10.3,
+          "dir": -1,
+          "speedMin": 6.5,
+          "speedMax": 9.5
+        }
+      ],
+      "spawnEveryMin": 6,
+      "spawnEveryMax": 20,
+      "maxAlive": 4,
+      "xMin": -84,
+      "xMax": 116,
+      "passX": 13.1,
+      "passRadius": 22,
+      "vehicles": [
+        {
+          "kind": "coche",
+          "chance": 0.4,
+          "length": 3.5,
+          "width": 1.62,
+          "height": 0.98,
+          "cabin": 0.48,
+          "plate": "1234 JKW",
+          "colors": [
+            "#c9564c",
+            "#e0b54e",
+            "#7fa05f",
+            "#e8e2d4",
+            "#5d6b7a"
+          ]
+        },
+        {
+          "kind": "taxi",
+          "chance": 0.12,
+          "length": 3.5,
+          "width": 1.62,
+          "height": 0.98,
+          "cabin": 0.48,
+          "plate": "T·1044",
+          "roofSign": "TAXI",
+          "colors": [
+            "#e0b54e"
+          ]
+        },
+        {
+          "kind": "furgoneta",
+          "chance": 0.14,
+          "length": 4.6,
+          "width": 1.84,
+          "height": 1.7,
+          "cabin": 0.3,
+          "plate": "5678 MFR",
+          "sideText": "MUDANZAS MOLINA",
+          "roofRack": true,
+          "colors": [
+            "#d8d2c2",
+            "#9fb8c8"
+          ]
+        },
+        {
+          "kind": "reparto",
+          "chance": 0.1,
+          "length": 5.4,
+          "width": 1.9,
+          "height": 2.05,
+          "cabin": 0.24,
+          "plate": "9012 RCT",
+          "sideText": "EL RACÓ · SUPERMINIMERCAT",
+          "axles": 3,
+          "colors": [
+            "#7fa05f",
+            "#e8e2d4"
+          ]
+        },
+        {
+          "kind": "bus",
+          "chance": 0.12,
+          "length": 8.4,
+          "width": 1.95,
+          "height": 2.3,
+          "cabin": 0.1,
+          "plate": "3456 BUS",
+          "destSign": "12 · PLAZA MAYOR",
+          "sideText": "12",
+          "axles": 3,
+          "colors": [
+            "#c9564c",
+            "#4e7a8a"
+          ]
+        },
+        {
+          "kind": "policia",
+          "chance": 0.12,
+          "length": 3.8,
+          "width": 1.66,
+          "height": 1.05,
+          "cabin": 0.5,
+          "plate": "P·0892",
+          "sideText": "POLICÍA",
+          "colors": [
+            "#eef0f2"
+          ],
+          "siren": true
+        }
+      ],
+      "ambulance": {
+        "length": 4.8,
+        "width": 1.9,
+        "height": 1.9,
+        "color": "#f2f4f4",
+        "sideText": "AMBULANCIA",
+        "stripe": "#e8641b",
+        "cross": "#c0392b",
+        "beaconA": "#2f6fb8",
+        "beaconB": "#e8b71b",
+        "stopZ": -8.3,
+        "stopAhead": 2.6,
+        "enterFrom": "left",
+        "speed": 8,
+        "doorSeconds": 0.8,
+        "medicSpeed": 1.5,
+        "carryHeight": 0.72,
+        "medicColor": "#f0f2f0",
+        "medicCapColor": "#2e8b6e",
+        "medicLegColor": "#3a4750"
+      },
+      "braking": {
+        "enabled": true,
+        "zebraHalfWidth": 2.4,
+        "minStopDist": 4.4,
+        "brakeDecel": 13,
+        "followGap": 6.5,
+        "hazardSeconds": 6
+      }
+    },
+    "pedestrians": {
+      "enabled": true,
+      "maxAlive": 6,
+      "spawnEveryMin": 4,
+      "spawnEveryMax": 14,
+      "speedMin": 0.9,
+      "speedMax": 1.5,
+      "enterChance": 0.28,
+      "exitChance": 0.35,
+      "enterX": 2.34,
+      "paths": [
+        {
+          "z": -5.5,
+          "x0": -84,
+          "x1": 116,
+          "dir": 1
+        },
+        {
+          "z": -6.1,
+          "x0": 116,
+          "x1": -84,
+          "dir": -1
+        },
+        {
+          "z": -12.6,
+          "x0": -84,
+          "x1": 116,
+          "dir": 1
+        },
+        {
+          "z": -13.2,
+          "x0": 116,
+          "x1": -84,
+          "dir": -1
+        }
+      ],
+      "colors": [
+        "#c9564c",
+        "#e0b54e",
+        "#5a9367",
+        "#9fb8c8",
+        "#b06f9e",
+        "#8a5a33",
+        "#5d6b7a",
+        "#e07a5f"
+      ],
+      "hatChance": 0.3,
+      "hatColors": [
+        "#3b3129",
+        "#c9564c",
+        "#4e7a8a"
+      ],
+      "enterZ": -1.7,
+      "social": {
+        "enabled": true,
+        "checkEvery": 1.6,
+        "distance": 1.3,
+        "maxConcurrent": 1,
+        "talkSeconds": 4.5,
+        "argueChance": 0.2,
+        "fightChance": 0.12,
+        "injuredChance": 0.75,
+        "hurtSeconds": 4,
+        "pairCooldown": 240
+      },
+      "sideRoute": {
+        "sideX": -2.9,
+        "sideZ": 0.35,
+        "cornerZ": -4.9,
+        "frontZ": -5.7,
+        "portalSideX": 0.3
+      }
+    },
+    "backdrop": {
+      "enabled": true,
+      "layers": [
+        {
+          "z": 30,
+          "height": 24,
+          "alpha": 0.85,
+          "tint": "#f2efe6",
+          "fog": 0.35,
+          "image": "content/backdrop/fachada_1_cerca.png",
+          "windowColor": "#7d8ba0",
+          "windowLitColor": "#ffd166",
+          "galleryColor": "#9fb8c8",
+          "buildings": 8,
+          "floors": [
+            3,
+            6
+          ],
+          "windowChance": 0.8,
+          "galleryChance": 0.35,
+          "nightGlow": 0.5,
+          "depthWrite": true,
+          "alphaCutOff": 0.4,
+          "skipChance": 0.4
+        },
+        {
+          "z": 44,
+          "height": 32,
+          "alpha": 0.72,
+          "tint": "#e9e4d6",
+          "fog": 0.45,
+          "image": "content/backdrop/fachada_2_media.png",
+          "windowColor": "#8593a8",
+          "windowLitColor": "#ffd166",
+          "galleryColor": "#a8bfd0",
+          "buildings": 7,
+          "floors": [
+            4,
+            8
+          ],
+          "windowChance": 0.75,
+          "galleryChance": 0.3,
+          "nightGlow": 0.4,
+          "depthWrite": true,
+          "alphaCutOff": 0.4,
+          "skipChance": 0.5
+        },
+        {
+          "z": 60,
+          "height": 42,
+          "alpha": 0.55,
+          "tint": "#e6e2d8",
+          "fog": 0.6,
+          "image": "content/backdrop/fachada_3_lejos.png",
+          "windowColor": "#8d9bb0",
+          "windowLitColor": "#ffe0a3",
+          "galleryColor": "#b3c8d8",
+          "buildings": 6,
+          "floors": [
+            5,
+            10
+          ],
+          "windowChance": 0.7,
+          "galleryChance": 0.25,
+          "nightGlow": 0.3,
+          "depthWrite": true,
+          "alphaCutOff": 0.4,
+          "skipChance": 0.6
+        }
+      ],
+      "rain": {
+        "count": 900,
+        "stormCount": 1700,
+        "fallSpeed": 27,
+        "wind": -4,
+        "color": "#cfe3f2",
+        "alpha": 0.5,
+        "length": 0.55,
+        "width": 0.035,
+        "wash": {
+          "color": "#9aa3ad",
+          "alpha": 0.34
+        }
+      },
+      "sky": {
+        "redrawSeconds": 6,
+        "keyframes": [
+          {
+            "hour": 0,
+            "top": "#182030",
+            "horizon": "#2b3550",
+            "ambient": 0.56,
+            "sun": 0
+          },
+          {
+            "hour": 5,
+            "top": "#17203a",
+            "horizon": "#3a3f5c",
+            "ambient": 0.57,
+            "sun": 0
+          },
+          {
+            "hour": 7,
+            "top": "#7e94b8",
+            "horizon": "#f0b47c",
+            "ambient": 0.62,
+            "sun": 0.35
+          },
+          {
+            "hour": 10,
+            "top": "#9cc4e4",
+            "horizon": "#e8e0c9",
+            "ambient": 0.95,
+            "sun": 0.9
+          },
+          {
+            "hour": 14,
+            "top": "#a6cdec",
+            "horizon": "#eee4cf",
+            "ambient": 1,
+            "sun": 1
+          },
+          {
+            "hour": 18,
+            "top": "#93a8cc",
+            "horizon": "#f2bd7e",
+            "ambient": 0.8,
+            "sun": 0.55
+          },
+          {
+            "hour": 20,
+            "top": "#5b5a86",
+            "horizon": "#e2855f",
+            "ambient": 0.65,
+            "sun": 0.2
+          },
+          {
+            "hour": 21.5,
+            "top": "#232c40",
+            "horizon": "#4a3f58",
+            "ambient": 0.58,
+            "sun": 0
+          },
+          {
+            "hour": 24,
+            "top": "#182030",
+            "horizon": "#2b3550",
+            "ambient": 0.56,
+            "sun": 0
+          }
+        ],
+        "weatherDim": {
+          "sunny": 1,
+          "cloudy": 0.95,
+          "rain": 0.8,
+          "storm": 0.6
+        },
+        "sunColorDay": "#ffd166",
+        "sunColorLow": "#f08a4b",
+        "sunSize": 3,
+        "sunArcHeight": 27,
+        "sunZ": 66,
+        "moonColor": "#e8ecf4",
+        "moonSize": 1.8,
+        "stars": 130,
+        "starColor": "#dfe7f2",
+        "horizonY": 12,
+        "overcast": {
+          "top": "#8e97a3",
+          "horizon": "#aeb4ba",
+          "rain": 0.85,
+          "storm": 1.0
+        }
+      },
+      "clouds": {
+        "count": 11,
+        "yMin": 17,
+        "yMax": 34,
+        "z": 27,
+        "speed": 1.1,
+        "color": "#ffffff",
+        "stormColor": "#7d848f",
+        "alphaClear": 0.9,
+        "alphaCloudy": 0.95,
+        "stormScale": 1.7
+      },
+      "storm": {
+        "flashEverySecs": [
+          5,
+          14
+        ],
+        "flashDecay": 2.6,
+        "boltXRange": [
+          -70,
+          70
+        ],
+        "topY": 30,
+        "groundY": 0,
+        "thunderDelaySecs": 2.0,
+        "thunderGain": 0.85
+      }
+    },
+    "lod": {
+      "enabled": true,
+      "focus": "player",
+      "levels": [
+        {
+          "dist": 14,
+          "hide": [
+            "edges"
+          ]
+        },
+        {
+          "dist": 24,
+          "hide": [
+            "edges",
+            "glow"
+          ]
+        }
+      ]
+    },
+    "camera": {
+      "estanciaFloorH": 2.5,
+      "estanciaWidthW": 2.9,
+      "estanciaEdgeMargin": 2.4,
+      "fachadaViewHFactor": 1.32,
+      "spyViewHFactor": 1
+    },
+    "fachadaCortina": {
+      "bottomBlind": 0.55,
+      "topBlind": 0.42,
+      "bandColor": "#cfc9bd",
+      "panelColor": "#7d8ba0",
+      "panelChance": 0.3,
+      "panelInset": 0.08
+    },
+    "facadeBrick": {
+      "enabled": true,
+      "tileMeters": 1.6,
+      "cols": 4,
+      "rows": 16,
+      "mortar": "#cdbfae",
+      "mortarW": 5,
+      "brick": "#b06a4f",
+      "brickTones": [
+        "#a25a43",
+        "#b8755a",
+        "#98503c",
+        "#c08068",
+        "#aa6449"
+      ],
+      "sheen": 0.12,
+      "note": "v1.60 PAÑOS CIEGOS DE LADRILLO EN LA FACHADA EXTERIOR (aclaración definitiva del vecino, con captura): el ladrillo viste SOLO los paños ciegos de la fachada exterior — bandas ciegas (arriba/abajo) y paneles ciegos de la cortina acristalada (fachada_cortina), visible en la vista FACHADA (tecla 0) y paseando por la acera — y la fachada del cubo de escalera desde fuera. Las paredes del PASILLO (frontParts de vivienda y fachadas de locales, las que se ven a través de los cristales) son INTERIORES: GRIS CLARO SIEMPRE, en todas las vistas. tileMeters = lado del mosaico en mundo; cols/rows = ladrillos por mosaico (fila sorda alternada, mosaico seamless); brickTones = variación determinista por ladrillo; sheen = relieve (luz arriba/sombra abajo)."
+    },
+    "noticeboard": {
+      "enabled": true,
+      "floor": 0,
+      "side": "left",
+      "inset": 0.82,
+      "z": -0.6,
+      "yaw": 5.11,
+      "postColor": "#6f4926",
+      "postW": 0.1,
+      "frameColor": "#8a5a33",
+      "frameW": 0.07,
+      "corkColor": "#c9a877",
+      "boardW": 1.5,
+      "boardH": 1.04,
+      "boardY": 1.68,
+      "deskW": 0.7,
+      "deskD": 0.44,
+      "deskY": 1.04,
+      "deskColor": "#8a5a33",
+      "deskSlant": 0.42,
+      "capColor": "#6f4926",
+      "headline": "TABLÓN DE ANUNCIOS",
+      "headlineBg": "#3b3129",
+      "headlineFg": "#ffd166",
+      "paperColors": [
+        "#f6f1e2",
+        "#fdd9e0",
+        "#eef3da",
+        "#fdf3cf"
+      ],
+      "notes": [
+        "SE BUSCA: vecino del karaoke nocturno. Recompensa: silencio.",
+        "La lavandería NO es un lavadero de fortunas: una colada por vecino.",
+        "Se busca gata llamada Bola. No responde… a nada, en realidad.",
+        "El parque de calistenia de enfrente ya está abierto. ¡A sudar!",
+        "El ascensor funciona. Crucemos los dedos hasta el próximo aviso."
+      ],
+      "colliderW": 0.95,
+      "colliderD": 0.5
+    },
+    "paseo": {
+      "enabled": true,
+      "everyMin": 40,
+      "everyMax": 110,
+      "maxOut": 2,
+      "chance": 0.85,
+      "lookSeconds": 0.95,
+      "doorWait": 1.1,
+      "crossMargin": 17,
+      "crossX": 13.0,
+      "curbNearZ": -5.6,
+      "curbFarZ": -13.1,
+      "parkX": 12.6,
+      "parkZ": -14.9,
+      "exerciseMin": 9,
+      "exerciseMax": 20,
+      "gesture": "dance",
+      "bob": 0.085,
+      "bobRate": 4.2,
+      "lines": [
+        "Un rato de barras y vuelvo, que la paella no se remueve sola.",
+        "El médico dijo ejercicio. El médico no vive en un cuarto sin ascensor.",
+        "Cruzo al parque… mirando a los dos lados, que la calle es la calle.",
+        "Calistenia: gratis, al aire libre y con espectáculo de coches.",
+        "A estirar las piernas al jardín de enfrente."
+      ],
+      "sideX": -2.9,
+      "sideZ": 0.35,
+      "cornerZ": -4.9,
+      "frontZ": -5.7,
+      "portalSideX": 0.3,
+      "benchChance": 0.3,
+      "strollChance": 0.25,
+      "taxiChance": 0.2,
+      "strollMeters": 9,
+      "sitSecondsMin": 8,
+      "sitSecondsMax": 22
+    },
+    "commonDepth": 2.8,
+    "actorTurnSpeed": 10,
+    "runSpeed": 3.9,
+    "runMultiplier": 1.75,
+    "animSync": {
+      "walkRefSpeed": 0.71,
+      "runRefSpeed": 1.63,
+      "minRate": 0.6,
+      "maxRate": 4.5
+    },
+    "stairs": {
+      "spanW": 2,
+      "doorLocalX": -1.14,
+      "entryHalf": 0.45,
+      "laneFront": 0.35,
+      "laneBack": 1.05,
+      "flightRun": 2.19,
+      "landingX": 0.5,
+      "stepCount": 8,
+      "climbSpeed": 1.8,
+      "floorSlab": {
+        "enabled": true,
+        "thickness": 0.14,
+        "color": "#b8c0a8",
+        "topAt": 0.14,
+        "note": "Forjado interior continuo del cubo de escalera a nivel de entrada: acabamos con el tramo 'sin suelo' dentro del bloque"
+      },
+      "facade": {
+        "enabled": true,
+        "halfW": 1.2,
+        "fullWall": true,
+        "color": "#dbd8d2",
+        "doorW": 0.86,
+        "doorH": 1.84,
+        "doorBottom": 0.14,
+        "doorZ": 0.08,
+        "wallT": 0.3,
+        "art": "art/interiors/raw/door_comunal.png",
+        "numberColor": "#1c1c1c",
+        "hinge": "left",
+        "openAngle": 1.75,
+        "openAhead": 1.05,
+        "openSpeed": 3.2,
+        "hideNodes": [
+          "hueco",
+          "jamba_izq",
+          "jamba_der",
+          "dintel",
+          "rotulo"
+        ],
+        "window": {
+          "enabled": true,
+          "sill": 0.5,
+          "head": 2.3,
+          "color": "#cfe3ea",
+          "alpha": 0.24,
+          "mullions": 5,
+          "mullionW": 0.045,
+          "frameColor": "#7d7668",
+          "rear": true
+        }
+      },
+      "activityLight": {
+        "enabled": true,
+        "dayCutoff": 0.4,
+        "glow": 0.9,
+        "fade": 2.4,
+        "meshes": [
+          "luz_interior",
+          "tira_luz"
+        ],
+        "color": "#ffedc2",
+        "wallGlow": 0.32
+      }
+    },
+    "elevator": {
+      "capacity": 4,
+      "doorWaitMs": 5000,
+      "doorMoveMs": 700,
+      "floorsPerSecond": 1.4,
+      "accelFloorsPerSecond2": 1.2,
+      "cabinColor": "#aeb8c2",
+      "doorColor": "#cbd5e1",
+      "callColor": "#ffd166",
+      "brokenColor": "#c1666b",
+      "rideZ": 0.35,
+      "doorArt": "art/interiors/raw/door_ascensor.png",
+      "indicator": {
+        "w": 0.24,
+        "h": 0.18,
+        "dx": -0.76,
+        "y": 1.12
+      },
+      "wallColor": "#dbd8d2",
+      "hideNodes": [
+        "hueco_puerta"
+      ],
+      "interior": {
+        "panelColor": "#cfd6dc",
+        "panelSeam": "#8f979f",
+        "panelTrim": "#a9b2ba",
+        "floorColor": "#5c636b",
+        "floorSeam": "#474d55",
+        "ceilingColor": "#e8e6e0",
+        "lightColor": "#fff3d6",
+        "lightEmissive": 0.9,
+        "handrail": true,
+        "handrailColor": "#8d939c",
+        "lightRange": 3.2,
+        "lightIntensity": 0.55
+      }
+    },
+    "plaque": {
+      "w": 0.85,
+      "h": 0.3,
+      "y": 2.32,
+      "z": -0.13,
+      "bg": "#3b3129",
+      "text": "#ffd166",
+      "fontPx": 88
+    },
+    "trasteros": {
+      "shelvesPerLevel": 8,
+      "margin": 0.55,
+      "bayW": 2.2,
+      "frontTiers": 2,
+      "backTiers": 3,
+      "tierH": 0.5,
+      "shelfD": 0.45,
+      "plankT": 0.05,
+      "postW": 0.08,
+      "junkChance": 0.62,
+      "floorJunk": 3,
+      "wood": "#8a5a33",
+      "woodDark": "#6f4926",
+      "junk": [
+        "#c9a66b",
+        "#7d8493",
+        "#9c6644",
+        "#84a59d",
+        "#e07a5f",
+        "#b08968"
+      ],
+      "emptyLabel": "—",
+      "ownBg": "#ffd166",
+      "ownText": "#3b3129",
+      "plaqueW": 0.52,
+      "plaqueH": 0.18,
+      "partitionExtra": 0.22,
+      "partitionColor": "#6f4926",
+      "headerH": 0.15,
+      "blockDepthFactor": 3,
+      "corridorW": 1.2,
+      "wallT": 0.08,
+      "doorW": 0.82,
+      "doorH": 1.72,
+      "unitH": 2.16,
+      "doorColor": "#7a5230",
+      "ownDoorColor": "#ffd166",
+      "oddSide": "left",
+      "blockDefId": "trasteros_columna",
+      "cellRoomDepth": 2.8,
+      "cellShelfTiers": 3,
+      "cellJunk": 7,
+      "guide": {
+        "w": 1.9,
+        "h": 0.44,
+        "aboveUnit": 0.62,
+        "bg": "#3b3129",
+        "text": "#ffd166",
+        "frame": "#6f4926"
+      }
+    },
+    "rearBlock": {
+      "outline": "#e63946",
+      "outlineWidth": 16,
+      "fadeSeconds": 0.45,
+      "peekSeconds": 0.5,
+      "peekDistance": 1.05,
+      "junk": 0,
+      "lampColor": "#ffedbe",
+      "window": {
+        "w": 1.15,
+        "h": 1.0,
+        "sill": 0.85,
+        "frame": "#6f4926",
+        "glass": "#bcd8e8",
+        "glassAlpha": 0.16
+      }
+    },
+    "roof": {
+      "pitchH": 1.2,
+      "overhang": 0.35,
+      "color": "#a44a3f",
+      "ridge": "#7d3b32",
+      "fascia": "#6f4926"
+    },
+    "pots": {
+      "perFloorMin": 2,
+      "perFloorMax": 4,
+      "doorClearance": 0.95,
+      "potColor": "#b5651d",
+      "soilColor": "#5d4037",
+      "plantColor": "#5a9367",
+      "plant2Color": "#84a59d",
+      "potR": 0.17,
+      "potH": 0.26,
+      "art": [
+        "art/interiors/raw/maceta_a.png",
+        "art/interiors/raw/maceta_b.png"
+      ],
+      "artH": 0.85
+    },
+    "seatAnchors": [
+      "bed",
+      "tv",
+      "desk"
+    ],
+    "privacy": {
+      "enabled": true,
+      "doorColor": "#5d4a3a",
+      "handleColor": "#ffd166",
+      "doorW": 0.95,
+      "doorH": 1.85,
+      "doorArts": [
+        "art/interiors/raw/door_casa_a.png"
+      ],
+      "frameW": 0.1,
+      "frameDepth": 0.1,
+      "hideNodes": [
+        "jamba_izq",
+        "jamba_der",
+        "dintel",
+        "placa",
+        "toldito",
+        "rodapie"
+      ],
+      "gapFill": {
+        "color": "#c8c5be",
+        "pad": 0.04,
+        "protrude": -0.03,
+        "stagger": 0.008
+      },
+      "skirtingDoorGap": true,
+      "coverArt": "art/interiors/raw/door_casa_a.png",
+      "lamp": {
+        "side": 1,
+        "dx": 0.68,
+        "dy": 2.1,
+        "color": "#3b3129",
+        "glowColor": "#ffd166"
+      },
+      "wallColor": "#dbd8d2",
+      "skirtingColor": "#a3a19b",
+      "skirtingH": 0.25,
+      "lockArt": "",
+      "lockW": 0.22,
+      "lockH": 0.28,
+      "night": {
+        "dayCutoff": 0.4,
+        "dioGlow": 0.3,
+        "floorGlow": 0.22,
+        "lampGlow": 0.85,
+        "wallSelf": 0.3
+      },
+      "solera": {
+        "color": "#c9c6bf",
+        "h": 0.13,
+        "protrude": 0.034,
+        "stagger": 0.01
+      },
+      "lockOnDoor": {
+        "dx": 0.22,
+        "yFrac": 0.52,
+        "out": 0.05
+      },
+      "occupiedAlpha": 0.75
+    },
+    "corridorFloor": {
+      "color": "#d8d7d2",
+      "grout": "#a3a199",
+      "tile": 0.4,
+      "contrast": 0.22,
+      "groutW": 9,
+      "speckle": 0.16
+    },
+    "glow": {
+      "enabled": true,
+      "intensity": 0.45,
+      "blurKernelSize": 32
+    },
+    "locals": {
+      "corridorWall": "#dbd8d2",
+      "hideNodes": {
+        "trasteros": [
+          "cuerpo",
+          "hueco_izq",
+          "hueco_der",
+          "persiana_izq",
+          "persiana_der",
+          "liston_izq",
+          "liston_der",
+          "candado_izq",
+          "candado_der"
+        ],
+        "local_comercial": [
+          "cuerpo",
+          "hueco_vitrina",
+          "cristal_izq",
+          "cristal_der",
+          "puerta",
+          "montante_izq",
+          "montante_der",
+          "marco_sup"
+        ],
+        "lavanderia_comunal": [
+          "cuerpo",
+          "maquina_1",
+          "maquina_2",
+          "maquina_3",
+          "portilla_1",
+          "portilla_2",
+          "portilla_3",
+          "cristal_1",
+          "cristal_2",
+          "cristal_3",
+          "cuerda",
+          "toalla_a",
+          "toalla_b",
+          "tubo_descarga"
+        ],
+        "portal": [
+          "cuerpo",
+          "hueco"
+        ],
+        "garaje": [
+          "cuerpo",
+          "hueco"
+        ]
+      },
+      "portalDoors": {
+        "slide": 0.96,
+        "openAhead": 1.7,
+        "openSeconds": 0.8,
+        "frame": "#8fa3ad",
+        "glass": "#cfe3ea",
+        "sheen": "#ffffff",
+        "handle": "#5d6b7a",
+        "alpha": 0.72,
+        "intentOpen": true,
+        "npcOpenAhead": 0.35,
+        "npcXRadius": 1.0
+      },
+      "garaje": {
+        "panel": "#c9ced6",
+        "panelShade": "#9aa2ad",
+        "rail": "#6d747d",
+        "window": "#dfe9ee",
+        "sign": "GARAJES",
+        "signBg": "#3b3129",
+        "signText": "#ffd166",
+        "rampDepth": 1.1,
+        "rampColor": "#8f8d86",
+        "doorW": 2.16,
+        "doorH": 1.92,
+        "furniture": {
+          "benchW": 1.35,
+          "benchH": 0.92,
+          "benchD": 0.55,
+          "benchY": 0.0,
+          "pegW": 1.1,
+          "pegH": 0.7,
+          "shelfW": 1.0,
+          "shelfH": 1.6,
+          "shelfD": 0.38,
+          "shelfTiers": 3,
+          "tireR": 0.3,
+          "tireCount": 3,
+          "boxW": 0.52,
+          "boxH": 0.34,
+          "boxD": 0.4,
+          "benchColor": "#6d747d",
+          "benchTopColor": "#8f8d86",
+          "tireColor": "#26221e",
+          "shelfColor": "#8a5a33",
+          "boxColor": "#c9a66b",
+          "pegColor": "#4a5560"
+        }
+      },
+      "trasteroComunal": {
+        "doorArt": "art/interiors/raw/door_trastero.png",
+        "doorW": 0.85,
+        "doorH": 1.72,
+        "doorDx": 0.55,
+        "shelfTiers": 3,
+        "sign": "TRASTERO COMÚN",
+        "signBg": "#3b3129",
+        "signText": "#ffd166"
+      },
+      "juntaHall": {
+        "doorW": 1.05,
+        "sign": "SALA DE JUNTAS",
+        "signBg": "#3b3129",
+        "signText": "#ffd166",
+        "tableW": 2.6,
+        "tableD": 0.95,
+        "tableZ": 1.5,
+        "seats": [
+          [
+            1.15,
+            0.72
+          ],
+          [
+            2.34,
+            0.72
+          ],
+          [
+            3.53,
+            0.72
+          ],
+          [
+            1.15,
+            2.28
+          ],
+          [
+            2.34,
+            2.28
+          ],
+          [
+            3.53,
+            2.28
+          ],
+          [
+            0.6,
+            1.5
+          ],
+          [
+            4.08,
+            1.5
+          ]
+        ],
+        "wood": "#8a5a33",
+        "woodDark": "#6f4926",
+        "standSpots": [
+          [
+            1.0,
+            2.62
+          ],
+          [
+            1.85,
+            2.62
+          ],
+          [
+            2.7,
+            2.62
+          ],
+          [
+            3.55,
+            2.62
+          ],
+          [
+            0.5,
+            0.5
+          ],
+          [
+            4.18,
+            0.5
+          ]
+        ]
+      },
+      "lavanderia": {
+        "machines": 4,
+        "art": "art/interiors/raw/f_lavadora.png",
+        "artH": 1.02,
+        "machineColor": "#e8e6e0",
+        "sign": "LAVANDERÍA",
+        "signBg": "#3b3129",
+        "signText": "#ffd166",
+        "stacks": 3,
+        "machineW": 0.64,
+        "washerH": 0.86,
+        "dryerH": 0.78,
+        "machineD": 0.6,
+        "stackGap": 0.05,
+        "drumOnChance": 0.55,
+        "drumSpeedMin": 2.2,
+        "drumSpeedMax": 4.4,
+        "bodyColor": "#e8e6e0",
+        "bodyShade": "#c9c7c0",
+        "frontColor": "#d8d6cf",
+        "drumColor": "#4a5560",
+        "drumGlass": "#8fa3ad",
+        "panelColor": "#5d6b7a",
+        "accentColor": "#84a59d",
+        "topColor": "#f2f0ea"
+      },
+      "hallDoors": {
+        "enabled": true,
+        "openAhead": 1.15,
+        "openSeconds": 0.45,
+        "openAngle": 1.0,
+        "garageOpenAhead": 2.9,
+        "garageOpenSeconds": 1.15,
+        "revealAt": 0.02,
+        "intentOpen": true,
+        "npcOpenAhead": 0.35,
+        "npcXRadius": 0.9,
+        "garageNpcOpenAhead": 0.5,
+        "garageNpcXRadius": 1.25
+      },
+      "walkIn": {
+        "armZ": 0.9,
+        "exitZ": 0.5,
+        "doorPad": 0.05,
+        "armOnEnter": true,
+        "visitorExit": true
+      },
+      "portal": {
+        "backZoneZ": 2.0,
+        "lobby": {
+          "wallColor": "#d8d3c8",
+          "floorColor": "#b9b3a4"
+        }
+      },
+      "seeThrough": [
+        "portal"
+      ]
+    },
+    "shadows": {
+      "enabled": true,
+      "mapSize": 2048,
+      "darkness": 0.34,
+      "bias": 0.0008,
+      "normalBias": 0.012,
+      "casters": [
+        "blk_",
+        "calle_",
+        "trafico_",
+        "viandante",
+        "res_",
+        "celador_",
+        "ambulancia",
+        "vidacomunal"
+      ],
+      "receivers": [
+        "suelo_mundo",
+        "calle_",
+        "blk_"
+      ],
+      "excluded": [
+        "costado",
+        "vidrio",
+        "ventanal",
+        "cristal",
+        "dio_",
+        "_guia",
+        "maquina",
+        "estrellas",
+        "nube_",
+        "fachada_",
+        "cielo_",
+        "sol",
+        "luna",
+        "lluvia",
+        "_hoja",
+        "_lama",
+        "sprite",
+        "cartel_panel",
+        "_rotulo",
+        "borde_",
+        "indicador",
+        "_tex",
+        "decal_",
+        "_bombo",
+        "losas",
+        "contact_shadow"
+      ],
+      "contact": {
+        "enabled": true,
+        "radius": 0.46,
+        "opacity": 0.4,
+        "color": "#0c0d10",
+        "offset": 0.022,
+        "maxRise": 2.6,
+        "stretch": 0.35,
+        "rayEvery": 0.09,
+        "rayUp": 0.55
+      }
+    },
+    "graffiti": {
+      "cabinMin": 1,
+      "spillToWalls": 25,
+      "alpha": 0.94,
+      "colors": [
+        "#ff5900",
+        "#c77dff",
+        "#2ec4b6",
+        "#ff8fa3",
+        "#ffd166"
+      ],
+      "outline": "#1c1c1c",
+      "texts": [
+        "AQUÍ PINTÓ PINTURILLAS",
+        "EL ASCENSOR VUELA",
+        "VECINOS: Sí A LA TIZA",
+        "ESTE MURO PAGA ALQUILER",
+        "Bajo SIN SUBIR",
+        "LA JUNTA MANDA (a veces)"
+      ],
+      "doodles": [
+        "corona",
+        "estrella",
+        "gato",
+        "flecha",
+        "carita",
+        "rayo"
+      ],
+      "wallLines": [
+        "ARTE URBANO AUTORIZADO POR NADIE",
+        "PROHIBIDO PROHIBIR (salvo ruido)",
+        "EL 3B DEBE UN CAFÉ"
+      ]
+    },
+    "decay": {
+      "humidity": {
+        "min": 30,
+        "max": 80,
+        "w": 1.1,
+        "h": 0.9
+      },
+      "soot": {
+        "min": 15,
+        "max": 70,
+        "w": 0.8,
+        "h": 0.55
+      },
+      "cracks": {
+        "conditionMax": 55,
+        "w": 1.0,
+        "h": 1.3
+      },
+      "grime": {
+        "cleanlinessMax": 45,
+        "w": 1.0,
+        "h": 0.7
+      },
+      "zStep": 0.006
+    },
+    "carry": {
+      "activities": [
+        "descarga_en_pasillo",
+        "obra_en_casa",
+        "pintar_mural"
+      ],
+      "boxColor": "#c9a66b",
+      "boxTape": "#a47148",
+      "parcelColor": "#e8e2d2",
+      "boxW": 0.52,
+      "boxH": 0.34,
+      "boxD": 0.4
+    },
+    "flashlight": {
+      "range": 4,
+      "intensity": 1.1,
+      "height": 1.25,
+      "color": "#ffdca8"
+    },
+    "outdoor": {
+      "umbrella": {
+        "color": "#b8452e",
+        "stickColor": "#5b4632",
+        "size": 1.02,
+        "openSeconds": 0.45
+      },
+      "bags": {
+        "colorA": "#d8c9a3",
+        "colorB": "#9fb875"
+      }
+    },
+    "taxi": {
+      "enabled": true,
+      "pickupX": 4.4,
+      "stopLaneZ": -8.3,
+      "stopX": 4.4,
+      "waitMin": 6,
+      "waitMax": 14,
+      "rideMin": 45,
+      "rideMax": 150
+    },
+    "outside": {
+      "xMin": -7.5,
+      "xMax": 29,
+      "walk": [
+        {
+          "x0": -7.5,
+          "z0": -7.0,
+          "x1": 29,
+          "z1": -4.4
+        },
+        {
+          "x0": -6,
+          "z0": -7.0,
+          "x1": 0,
+          "z1": 6.4
+        },
+        {
+          "x0": -7.5,
+          "z0": -13.8,
+          "x1": 29,
+          "z1": -11.6
+        },
+        {
+          "x0": 10.2,
+          "z0": -11.6,
+          "x1": 15.8,
+          "z1": -7.0
+        },
+        {
+          "x0": 7.0,
+          "z0": -17.6,
+          "x1": 19.0,
+          "z1": -13.8
+        }
+      ],
+      "portal": {
+        "outFrontZ": -2.2,
+        "inFrontZ": -1.75,
+        "sideExitX": -2.9,
+        "sideEnterX": -0.6,
+        "sideZ": 0.35,
+        "wallInnerX": 0.55,
+        "frontInnerZ": 0.42,
+        "fadeSeconds": 0.35,
+        "frontZone": {
+          "x0": -0.7,
+          "x1": 5.5,
+          "zMin": -4.9
+        }
+      },
+      "benchRadius": 1.3,
+      "exercise": {
+        "x": 12.9,
+        "z": -15.4,
+        "radius": 1.7,
+        "secondsMin": 6,
+        "secondsMax": 14,
+        "moodBoost": 6
+      },
+      "sitMoodBoost": 4,
+      "says": {
+        "out": [
+          "Aire libre. Que no se entere la junta.",
+          "Un vecino más en la acera. Saludo y sigo.",
+          "Si llueve, paraguas. Si no, moral de la buena."
+        ],
+        "into": [
+          "Mi portal, mis buzones, mis reglas.",
+          "Entra lateral se dice… bueno, tú ya me entiendes.",
+          "Hogar, dulce portal."
+        ],
+        "sit": [
+          "Cuatro plantas y ni un gruñido. Qué maravilla de edificio.",
+          "El mejor bloque del barrio. Y lo digo sin cobrar de la junta.",
+          "Banco, sol y fachada. No hace falta más para ser feliz."
+        ],
+        "exercise": [
+          "Una dominada… o dos… o ayuda, por favor.",
+          "El médico dijo ejercicio. El médico no vive aquí.",
+          "Calistenia gratis, con espectáculo de coches incluido."
+        ]
+      }
+    },
+    "housing": {
+      "signs": {
+        "venta": {
+          "text": "EN VENTA",
+          "bg": "#8a3b2f",
+          "fg": "#ffe9d2"
+        },
+        "alquiler": {
+          "text": "EN ALQUILER",
+          "bg": "#3f6b5f",
+          "fg": "#eafff5"
+        },
+        "w": 0.72,
+        "h": 0.2,
+        "dy": -0.35,
+        "out": 0.012
+      },
+      "okupa": {
+        "archetypes": [
+          "okupa"
+        ],
+        "text": "OKUPA",
+        "color": "#c23b2e",
+        "w": 0.85,
+        "h": 0.42,
+        "dx": 0.5,
+        "dy": 1.45,
+        "out": 0.006
+      }
+    },
+    "streetLife": {
+      "cameras": [
+        "edificio",
+        "fachada",
+        "planta",
+        "estancia",
+        "espia"
+      ]
+    },
+    "infoDock": {
+      "overlayMaxHeightFactor": 0.5,
+      "alerts": true,
+      "bannerShowMs": 6000,
+      "bannerQueueMax": 6
+    },
+    "alerts": {
+      "thresholds": {
+        "plague": 35,
+        "humidity": 50,
+        "noise": 55
+      },
+      "glyphs": {
+        "plague": "🐜",
+        "humidity": "💧",
+        "noise": "📢",
+        "mission": "❗"
+      },
+      "size": 0.82,
+      "yOverDoor": 0.3,
+      "blinkSecs": 1.1,
+      "color": "#c0392b"
+    },
+    "sideEntry": {
+      "hint": "→ Gira la esquina: se entra por el LATERAL del portal",
+      "toast": "🚪 La entrada frontal no es de acceso. Rodea la esquina: la puerta del portal está en el lateral.",
+      "cooldownSecs": 3.5,
+      "hintSecs": 2.8,
+      "sign": {
+        "text": "ENTRADA POR EL LATERAL",
+        "arrow": "←",
+        "x": 2.4,
+        "y": 2.62,
+        "w": 2.9,
+        "h": 0.66,
+        "plate": "#2e3a4a",
+        "ink": "#f2ead9",
+        "edge": "#ffd166",
+        "note": "v1.61 señal física sobre el vano del portal: la entrada es siempre por el lateral izquierdo."
+      }
+    },
+    "blackoutJokes": {
+      "everySecs": [
+        12,
+        22
+      ],
+      "radius": 6.0,
+      "lines": [
+        "¿Otra vez la luz? Esta comunidad paga la electricidad con monedas de chocolate.",
+        "Yo de pequeño también viví sin luz... era lo que había, no lo que se quería.",
+        "El que arregle los fusibles tiene mi voto en la próxima junta. Y un café.",
+        "¿Apagón? Yo lo llamo 'iluminación ambiental low-cost'.",
+        "Seguro que ha sidoPinturillas otra vez. Todo lo que pinta, lo apaga.",
+        "Las velas románticas las pone la comunidad. Gracias, cuadro de fusibles.",
+        "Mi abuela decía: donde hay apagón, hay presidente distraído.",
+        "¡Eh, la escalera es gratis pero el resbalón puede ser caro! ¡Llevad linterna!"
+      ]
+    },
+    "dwellingVariants": {
+      "seed": 7,
+      "layouts": [
+        "layout_vivienda_v1",
+        "layout_vivienda_dormitorio",
+        "layout_vivienda_bano",
+        "layout_vivienda_trasera",
+        "layout_vivienda_salon",
+        "layout_vivienda_salon_dormitorio",
+        "layout_vivienda_salon_bano",
+        "layout_vivienda_salon_trasera",
+        "layout_vivienda_dormitorio_bano",
+        "layout_vivienda_salon_dormitorio_bano",
+        "layout_vivienda_dormitorio_trasera",
+        "layout_vivienda_bano_trasera"
+      ]
+    }
+  },
+  "demo": {
+    "resident": "res_fiestero_01",
+    "block": "blk_p2_b",
+    "noise": 0.9,
+    "toast": "Fiesta en 2B. Observa el resplandor naranja del ruido (y compadece al 3B)."
+  },
+  "cutscene": {
+    "hold": 1.2,
+    "line": 3.2,
+    "walkMax": 14,
+    "focusViewH": 5.2,
+    "walkViewH": 6.4
+  },
+  "furniture": {
+    "refundRatio": 0.5,
+    "roomUnlock": {
+      "price": 250,
+      "toast": "Reforma hecha: paredes nuevas, olor a pintura y el albañil almorzando en tu cocina."
+    },
+    "errors": {
+      "unknown_target": "Ni el mueble ni el piso aparecen en el catastro.",
+      "not_yours": "Ese piso no es tuyo. Decorar lo ajeno se llama 'okupar'.",
+      "room_locked": "Esa estancia está en obras. Primero la reforma.",
+      "room_open": "Esa estancia ya está reformada. Lo que pasa es que no se nota.",
+      "slot_occupied": "Ahí ya hay algo. Mueve eso primero.",
+      "slot_empty": "Ahí no hay nada que quitar. Ni polvo, técnicamente.",
+      "slot_mismatch": "Eso no entra ahí. La física es terca.",
+      "no_money": "Sin fondos. El mueble se queda en el catálogo (y en tus sueños)."
+    }
+  },
+  "minigames": {
+    "winLine": "¡Dominado! Hasta el presidente aplaude.",
+    "loseLine": "Sin intentos. Esta vez gana el vecindario... por ahora.",
+    "hitLine": "¡Una más!",
+    "failLines": [
+      "Casi. Como el wifi del portal.",
+      "El vecindario no negocia, vecino.",
+      "Eso pasó de largo, como la paella del tercero.",
+      "Has pulsado con el corazón, no con el ojo.",
+      "Casi clavado. \"Casi\" no paga la derrama.",
+      "El vecino de enfrente lo ha visto. Y lo contará."
+    ],
+    "introByType": {
+      "timing_bar": "Pulsa ¡AHORA! cuando el cursor pise la zona verde.",
+      "tap_sequence": "Memoriza la secuencia de palancas y repítela sin fallar.",
+      "reflex_targets": "Toca los objetivos antes de que escapen. Los señuelos NO se tocan.",
+      "memory_pairs": "Voltea fichas y encuentra todas las parejas."
+    }
+  },
+  "touch": {
+    "deadzone": 0.35,
+    "stick": {
+      "base": 124,
+      "thumb": 52
+    },
+    "labels": {
+      "interact": "✋",
+      "camera": "🎥",
+      "move": "Mover"
+    },
+    "hint": "Mandos virtuales activados. El pulgar también tiene derecho a techo."
+  },
+  "labels": {
+    "weather": {
+      "sunny": "Soleado",
+      "cloudy": "Nublado",
+      "rain": "Lluvia",
+      "storm": "Tormenta"
+    },
+    "elevator": {
+      "ok": "funciona",
+      "broken": "averiado"
+    }
+  },
+  "interact": {
+    "exit": "E · salir a la escalera",
+    "doorEnter": "E · entrar en {block}",
+    "doorLocked": "E · {block}: candado",
+    "greet": "E · saludar a {name}",
+    "doorbell": "E · timbre de {name}",
+    "chat": "E · charlar con {name}",
+    "answerProtest": "E · abrir la puerta (protesta por el apagón)",
+    "repairRoof": "E · reparar el tejado (gotea la planta de arriba)",
+    "bench": "E · sentarse a contemplar el edificio",
+    "exercise": "E · un rato de calistenia",
+    "standUp": "E · levantarse",
+    "laptop": "E · conectarse al portátil",
+    "bed": "E · echar una siesta",
+    "storageEnter": "E · abrir TU trastero (el de la puerta dorada)",
+    "storageLocked": "Trastero ajeno · cada uno guarda sus esqueletos en el suyo",
+    "rearExit": "E · salir (el trastero vuelve a su misterio)",
+    "rearRoom": "Cuarto trasero · la parte de la casa que no sale en las fotos del anuncio",
+    "stairs": "W/S · escalera",
+    "elevator": "E · panel de plantas · W/S sube o baja",
+    "elevatorBroken": "Ascensor averiado · la escalera, al fondo del pasillo",
+    "mailbox": {
+      "prompt": "E · revisar los buzones",
+      "lines": [
+        "📧 Buzones: propaganda del súper, una circular de la junta y un sobre con ventana que no es tuyo. Como siempre.",
+        "📧 Buzones: folletos de menús para llevar. El del kebab ya te busca por tu número de portal.",
+        "📧 Buzones: una carta del banco para el 1C (otra vez equivocada) y cero nada para ti. El cartero hace lo que puede."
+      ]
+    },
+    "noticeboard": {
+      "prompt": "E · leer el tablón de la comunidad",
+      "template": "📌 Tablón · Día {day} · Caja de la comunidad: {funds} € · Ascensor: {elevator} · Cielo: {weather}. La junta agradece su lectura."
+    },
+    "fusebox": {
+      "prompt": "E · revisar el cuadro de fusibles",
+      "okLine": "💡 El cuadro está en orden: la luz del edificio va bien. De momento."
+    }
+  },
+  "texts": {
+    "ordinals": [
+      "baja",
+      "primera",
+      "segunda",
+      "tercera",
+      "cuarta",
+      "quinta",
+      "sexta",
+      "séptima",
+      "octava"
+    ],
+    "ordinalsEn": [
+      "ground",
+      "first",
+      "second",
+      "third",
+      "fourth",
+      "fifth",
+      "sixth",
+      "seventh",
+      "eighth"
+    ],
+    "floorTemplateEs": "{ordinal} planta",
+    "floorTemplateEn": "{ordinal} floor"
+  }
+}

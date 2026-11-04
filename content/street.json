@@ -1,0 +1,244 @@
+{
+  "version": 1,
+  "manifestation": {
+    "enabled": true,
+    "everyMin": 200,
+    "everyMax": 420,
+    "firstMin": 25,
+    "firstMax": 60,
+    "minDuration": 80,
+    "maxDuration": 150,
+    "minPeople": 12,
+    "maxPeople": 17,
+    "spacing": 0.72,
+    "speed": 0.55,
+    "lanes": [
+      {
+        "z": -5.4,
+        "x0": -70,
+        "x1": 108
+      },
+      {
+        "z": -12.7,
+        "x0": 108,
+        "x1": -70
+      }
+    ],
+    "placard": {
+      "w": 1.4,
+      "h": 0.9,
+      "stickH": 1.55,
+      "liftY": 2.05,
+      "bg": "#f6f1e2",
+      "ink": "#2b2b2b",
+      "accent": "#c9564c",
+      "fontSizePx": 72,
+      "carryEvery": 2
+    },
+    "megaphoneColor": "#e0b54e",
+    "megaphoneRaiser": 0,
+    "chantEveryMin": 4,
+    "chantEveryMax": 9,
+    "commentDelayMin": 4,
+    "commentDelayMax": 12,
+    "maxComments": 3,
+    "colors": [
+      "#c9564c",
+      "#e0b54e",
+      "#5a9367",
+      "#9fb8c8",
+      "#b06f9e",
+      "#5d6b7a",
+      "#e07a5f",
+      "#4e7a8a"
+    ],
+    "slotJitter": 0.55,
+    "spreadZ": 1.5
+  },
+  "topics": [
+    {
+      "id": "desahucios",
+      "chant": "¡Este bloque no se toca!",
+      "placards": [
+        "NO AL DESAHUCIO",
+        "CASAS PARA VIVIR",
+        "SALVAD NUESTRO BLOQUE",
+        "MOLINA & HIJOS: A LA CALLE TÚ"
+      ]
+    },
+    {
+      "id": "porteros",
+      "chant": "¡Por nuestro convenio!",
+      "placards": [
+        "LOS PORTEROS TAMBIÉN LLORAN",
+        "SIESTA PAGADA YA",
+        "6 HORAS Y CAFÉ CALIENTE",
+        "EL TIMBRE TAMBIÉN ES TRABAJO"
+      ]
+    },
+    {
+      "id": "derrama",
+      "chant": "¡Sin suplementos!",
+      "placards": [
+        "NO A LA DERRAMA CON SUPLEMENTO",
+        "EL ASCENSOR SE ARREGLA CON MUELLES, NO CON DINERO",
+        "DERRAMA SÍ, VAGANCIA NO"
+      ]
+    },
+    {
+      "id": "ascensor",
+      "chant": "¡Ascensor ya!",
+      "placards": [
+        "ASCENSOR YA",
+        "{plantas} PISOS A PIE: PREGUNTA A MIS RODILLAS",
+        "HEMOS SUBIDO POR LA ESCALERA Y SOLO QUEREMOS BAJAR"
+      ]
+    },
+    {
+      "id": "ruidos",
+      "chant": "¡Silencio vecinal!",
+      "placards": [
+        "SILENCIO A LAS 23:00",
+        "LA PERCUSIÓN NO ES VIDA",
+        "POR UN BLOQUE TRANQUILO"
+      ]
+    },
+    {
+      "id": "plantas",
+      "chant": "¡Verde para todos!",
+      "placards": [
+        "MÁS MACETAS EN LOS PASILLOS",
+        "RIEGO PARA EL JARDÍN COMUNAL",
+        "UN ÁRBOL POR VECINO"
+      ]
+    },
+    {
+      "id": "basura",
+      "chant": "¡La basura no vuela!",
+      "placards": [
+        "CONTENEDORES A 5 METROS",
+        "QUE ALGUIEN Baje EL CARTÓN",
+        "LA BASURA NO ES COMUNITARIA"
+      ]
+    },
+    {
+      "id": "terraza",
+      "chant": "¡Terraza y tapas!",
+      "placards": [
+        "QUEREMOS UN BAR CON TERRAZA",
+        "CHISPA EN EL PORTAL",
+        "EL BANCO 3 PIDE SOMBRA"
+      ]
+    },
+    {
+      "id": "mascotas",
+      "chant": "¡Gatos comunitarios!",
+      "placards": [
+        "UNA CASA PARA EL GATO DEL 3C",
+        "LAS MASCOTAS FUGADAS VUELVEN SOLAS",
+        "PIENSO DE CALIDAD EN LA LAVANDERÍA"
+      ]
+    },
+    {
+      "id": "repartidores",
+      "chant": "¡Plataformas a la mesa!",
+      "placards": [
+        "LOS REPARTIDORES TAMBIÉN SUBEN PISOS",
+        "ZAPATILLAS NUEVAS PARA EL REPARTO",
+        "LA COMIDA LLEGA FRÍA: RECLAMAMOS ASCENSOR"
+      ]
+    }
+  ],
+  "reactions": {
+    "bad": [
+      "¿Otra vez el megáfono? Que algunos intentamos dormir la siesta.",
+      "Si vienen a por el edificio, que traigan escaleras porque el ascensor no baja.",
+      "Protestar protestan mucho… y luego nadie firma para la lavandería.",
+      "Con el ruido este no se concentra ni el gato del 3C.",
+      "Yo también quiero protestar, pero me duele la espalda. Protesto sentado."
+    ],
+    "ok": [
+      "Hombre, una manifestación frente al portal. Con lo tranquila que estaba la calle…",
+      "Dicen que protestan por el edificio. Pues mira, no les falta razón.",
+      "¿Carteles otra vez? A ver si esta vez nos arreglan el ascensor, que aprovecho.",
+      "El de la megafonía no tiene mala voz, la verdad.",
+      "Otra protesta y no bajas al banco a tomar el sol. Lo tienen studied."
+    ],
+    "good": [
+      "¡Yo por la siesta también saldría con un cartel!",
+      "Si es por las macetas me apunto con las dos manos y la regadera.",
+      "Qué bien les queda el grito de guerra. Ensayan en la lavandería, seguro.",
+      "Los vecinos de al lado organizan cosas. Nuestro bloque pide ya una manifestación propia.",
+      "Me cae bien el del cartel del gato. Tiene prioridades claras."
+    ]
+  },
+  "outdoor": {
+    "exitLines": [
+      "Salgo por la izquierda, que la puerta de delante es para las fotos.",
+      "El perímetro izquierdo: el camino de los de verdad.",
+      "Un poco de aire. El ascensor sigue averiado, esto es cardio.",
+      "Si me buscáis, estaré dando vueltas a la manzana."
+    ],
+    "enterLines": [
+      "Se entra por el lado, como manda la tradición del bloque.",
+      "Por detrás del portal, sigilosamente, como un gato con llaves.",
+      "Otra vuelta y a la siesta. El edificio me recibe por su mejor cara.",
+      "Nada como entrar por casa: aunque sea rodeando media fachada."
+    ],
+    "benchLines": [
+      "Este banco tiene las mejores vistas del tráfico… y del vecino que frena mal.",
+      "Banco, sol y cotilleo: el trío perfecto.",
+      "Me sento dos minutos. Dos… o veinte.",
+      "Desde aquí el portal se ve mejor que desde el portal."
+    ],
+    "strollLines": [
+      "Media vuelta a la manzana y a casa, que la paella espera.",
+      "Caminar es gratis; volver, también… si no te da pereza.",
+      "¿Deprisa? Yo no conozco a ese señor.",
+      "Paso, saludo y sigo: el ejercicio del vecino moderno."
+    ],
+    "umbrellaLines": [
+      "Paraguas abierto: la lluvia hoy no me moja la siesta.",
+      "Con paraguas hasta la lluvia parece cortesana.",
+      "Agua fuera, tranquilidad dentro… de mi círculo seco.",
+      "Este paraguas ha visto más tormentas que el tejado."
+    ],
+    "bagsLines": [
+      "La compra de toda la semana… y un dulce que nadie debe saber.",
+      "Bolsas llenas, espalda en huelga.",
+      "Compré de todo menos tiempo para subirlo por la escalera.",
+      "Si preguntois, esto lo trae el taxi. No todo el mérito es mío."
+    ],
+    "taxiHail": [
+      "¡Taxi! Que para las escaleras ya estoy mayor.",
+      "¡Taxi! El ascensor sigue en huelga y yo no.",
+      "Un taxi, por favor: hoy me toca viajar con dignidad.",
+      "¡Taxiii! Se me enfría el enfado del comité."
+    ],
+    "taxiBoard": [
+      "Al mercado, conductor, y pise la aceleración con arte.",
+      "Vaya donde me venda verduras baratas.",
+      "Deme la vuelta a la manzana más larga que conozca.",
+      "Si oye un claxon, no es por nosotros: siga."
+    ],
+    "taxiBack": [
+      "Aquí mismo está bien. El cambio se lo queda la propina.",
+      "Justo frente al portal… por la izquierda, claro.",
+      "Gracias, conductor. Mi espalda le está eternamente agradecida.",
+      "Llego con la compra y sin sudar: milagro urbano."
+    ],
+    "nearMiss": [
+      "¡Pero bueno! ¿Se puede cruzar con un poco de aviso?",
+      "¡Casi me deja en la portada del barrio!",
+      "¡Qué frenazo! Mi corazón pide paso de peatones.",
+      "Uy… gracias por frenar, campeón del asfalto."
+    ],
+    "accident": [
+      "Mi espalda… y mi dignidad, por el paso de peatones.",
+      "El suelo de la calzada está más cómodo de lo que decían.",
+      "No es un abrazo del oso, es un coche… casi.",
+      "Me levanto yo solita. La compra, no tanto."
+    ],
+    "carHorn": "¡PIIIIP!"
+  }
+}

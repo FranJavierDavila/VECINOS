@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>VECINOS · Previsualización de assets (arte final)</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #1b1f29; color: #e8e6e1; font-family: system-ui, sans-serif; }
+  #bar { position: fixed; top: 0; left: 0; right: 0; z-index: 10; display: flex; gap: 8px; padding: 8px 12px; background: rgba(27,31,41,.9); align-items: center; }
+  #bar button { background: #f4a261; border: 0; border-radius: 8px; padding: 6px 12px; font-weight: 600; cursor: pointer; }
+  #bar button.on { background: #ffd166; }
+  #bar span { opacity: .75; font-size: 13px; }
+  #view { position: fixed; inset: 0; }
+  canvas { width: 100%; height: 100%; outline: none; touch-action: none; }
+</style>
+</head>
+<body>
+<div id="bar">
+  <button data-clip="idle">idle</button>
+  <button data-clip="walk">walk</button>
+  <button data-clip="spray">spray</button>
+  <button data-clip="__all">secuencia (3 s)</button>
+  <span>Pinturillas (glTF del piloto) + núcleo de comunicaciones · arrastra para orbitar</span>
+</div>
+<div id="view"></div>
+<script src="https://cdn.babylonjs.com/babylon.js"></script>
+<script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+<script>
+(async () => {
+  const engine = new BABYLON.Engine(document.createElement('canvas'), true, { preserveDrawingBuffer: true, stencil: true });
+  document.getElementById('view').appendChild(engine.getRenderingCanvas());
+  const scene = new BABYLON.Scene(engine);
+  scene.clearColor = new BABYLON.Color4(.106, .122, .165, 1);
+  const camera = new BABYLON.ArcRotateCamera('cam', -Math.PI / 2.4, Math.PI / 2.6, 7, new BABYLON.Vector3(0, 1.1, 0), scene);
+  camera.attachControl(engine.getRenderingCanvas(), true);
+  camera.wheelPrecision = 60;
+  new BABYLON.HemisphericLight('h', new BABYLON.Vector3(.2, 1, -.4), scene).intensity = .9;
+  const sun = new BABYLON.DirectionalLight('s', new BABYLON.Vector3(-.4, -.7, .8), scene);
+  sun.intensity = .6;
+  const ground = BABYLON.MeshBuilder.CreateGround('suelo', { width: 14, height: 8 }, scene);
+  const gm = new BABYLON.StandardMaterial('gm', scene);
+  gm.diffuseColor = new BABYLON.Color3(.16, .18, .22);
+  ground.material = gm;
+
+  // Personaje piloto: se instancia y se escalan sus clips por nombre lógico.
+  const kid = await BABYLON.SceneLoader.LoadAssetContainerAsync('/assets/actors/nino_grafitero.gltf', '', scene);
+  kid.addAllToScene();
+  const kidRoot = kid.rootNodes[0];
+  kidRoot.position.set(-1.1, 0, 0);
+  kidRoot.scaling.setAll(1.0); // altura nominal 1.2 m
+  const clips = {};
+  for (const g of kid.animationGroups) clips[g.name] = g;
+  const status = document.createElement('span');
+  document.getElementById('bar').appendChild(status);
+  let seqTimer = null;
+  const play = (name) => {
+    for (const g of Object.values(clips)) g.stop();
+    if (clips[name]) { clips[name].start(true); status.textContent = '▶ clip: ' + name; }
+    else status.textContent = '✗ clip no encontrado: ' + name;
+  };
+  document.querySelectorAll('#bar button').forEach((b) => {
+    b.onclick = () => {
+      document.querySelectorAll('#bar button').forEach((x) => x.classList.remove('on'));
+      b.classList.add('on');
+      if (seqTimer) { clearInterval(seqTimer); seqTimer = null; }
+      if (b.dataset.clip === '__all') {
+        const order = ['idle', 'walk', 'spray'];
+        let i = 0;
+        play(order[0]);
+        seqTimer = setInterval(() => { i = (i + 1) % 3; play(order[i]); }, 3000);
+      } else play(b.dataset.clip);
+    };
+  });
+  play('idle');
+
+  // Bloque piloto: núcleo de comunicaciones (celda completa 2.4 × 2.6 × 1.4).
+  const nuc = await BABYLON.SceneLoader.LoadAssetContainerAsync('/assets/blocks/nucleo_comunicaciones.gltf', '', scene);
+  nuc.addAllToScene();
+  const nucRoot = nuc.rootNodes[0];
+  nucRoot.position.set(1.6, 0, -.2);
+
+  engine.runRenderLoop(() => scene.render());
+  window.addEventListener('resize', () => engine.resize());
+  window.__PREVIEW_READY = true;
+})();
+</script>
+</body>
+</html>

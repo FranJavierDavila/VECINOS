@@ -1,0 +1,284 @@
+[
+  {
+    "id": "mg_limpiar_cabina",
+    "name": "Fregatón profesional",
+    "description": "Bayeta, jabón y precisión suiza: detén el cursor en la zona limpia para borrar el mural.",
+    "emoji": "🧽",
+    "type": "timing_bar",
+    "config": {
+      "rounds": 3,
+      "cursorSpeed": 0.9,
+      "zoneWidth": 0.24,
+      "zones": [
+        0.5
+      ],
+      "accelPerRound": 0.15,
+      "lives": 3
+    },
+    "onSuccess": [
+      {
+        "op": "setParam",
+        "target": "nucleo.cabin_graffiti",
+        "value": 0
+      },
+      {
+        "op": "toast",
+        "text": "Cabina reluciente. El mural pasa al olvido (y al acta).",
+        "tone": "good"
+      }
+    ],
+    "onFail": [
+      {
+        "op": "setParam",
+        "target": "nucleo.cabin_graffiti",
+        "delta": -10
+      },
+      {
+        "op": "toast",
+        "text": "Medio mural fuera. Pinturillas lo llama \"obra dialogada\".",
+        "tone": "bad"
+      }
+    ]
+  },
+  {
+    "id": "mg_desatascar",
+    "name": "Operación desatasco",
+    "description": "Dos vueltas de manivela en el momento justo. Tu techo (y el cubo del salón) lo agradecen.",
+    "emoji": "🔧",
+    "type": "timing_bar",
+    "config": {
+      "rounds": 2,
+      "cursorSpeed": 1.3,
+      "zoneWidth": 0.2,
+      "zones": [
+        0.35,
+        0.7
+      ],
+      "accelPerRound": 0.2,
+      "lives": 3
+    },
+    "onSuccess": [
+      {
+        "op": "setParam",
+        "target": "blk_p3_c.humidity",
+        "value": 8
+      },
+      {
+        "op": "toast",
+        "text": "Desatascado. El cubo del salón se jubila con honores.",
+        "tone": "good"
+      }
+    ],
+    "onFail": [
+      {
+        "op": "setParam",
+        "target": "blk_p3_c.humidity",
+        "delta": 5
+      },
+      {
+        "op": "toast",
+        "text": "Peor. Ahora el goteo tiene ritmo de bachata.",
+        "tone": "bad"
+      }
+    ]
+  },
+  {
+    "id": "mg_trato_vecino",
+    "name": "Diplomacia de rellano",
+    "description": "Negociar con Kevin requiere pulso. Tres acuerdos en la zona verde y hay pacto.",
+    "emoji": "🤝",
+    "type": "timing_bar",
+    "config": {
+      "rounds": 3,
+      "cursorSpeed": 1.6,
+      "zoneWidth": 0.18,
+      "zones": [
+        0.5
+      ],
+      "accelPerRound": 0.25,
+      "lives": 2
+    },
+    "onSuccess": [
+      {
+        "op": "addRelation",
+        "a": "player",
+        "b": "fiestero",
+        "affinity": 15
+      },
+      {
+        "op": "grantFavor",
+        "from": "fiestero",
+        "count": 1
+      },
+      {
+        "op": "toast",
+        "text": "Pacto alcanzado: fiesta hasta las 00:30 y helado para el rellano. Kevin te respeta.",
+        "tone": "good"
+      }
+    ],
+    "onFail": [
+      {
+        "op": "addRelation",
+        "a": "player",
+        "b": "fiestero",
+        "affinity": -5
+      },
+      {
+        "op": "toast",
+        "text": "Kevin te ha enseñado el grupo de WhatsApp de la fiesta. Te has quedado. Es de los buenos.",
+        "tone": "info"
+      }
+    ]
+  },
+  {
+    "id": "mg_fumigar",
+    "name": "Exterminio vecinal",
+    "description": "Las cucarachas del 2B se han mudado al 1B sin fianza. Aplástalas antes de que pidan el alta en el padrón.",
+    "emoji": "🪳",
+    "type": "reflex_targets",
+    "instruction": "Toca las cucarachas antes de que escapen. Las telas NO se tocan.",
+    "config": {
+      "targets": 8,
+      "spawnIntervalMs": 900,
+      "targetLifeMs": 1600,
+      "radiusPct": 9,
+      "missesAllowed": 4,
+      "lives": 2,
+      "emoji": "🪳",
+      "decoyEmoji": "🕸️",
+      "decoyChance": 0.2
+    },
+    "onSuccess": [
+      {
+        "op": "setParam",
+        "target": "blk_p1_b.plague",
+        "value": 0
+      },
+      {
+        "op": "addRelation",
+        "a": "player",
+        "b": "cotilla",
+        "affinity": 8
+      },
+      {
+        "op": "toast",
+        "text": "1B a prueba de bichos. Dolores te nombra vecino del mes (con acta).",
+        "tone": "good"
+      }
+    ],
+    "onFail": [
+      {
+        "op": "setParam",
+        "target": "blk_p1_b.plague",
+        "delta": 10
+      },
+      {
+        "op": "toast",
+        "text": "Las cucarachas te han visto. Y, por lo que sea, se han organizado.",
+        "tone": "bad"
+      }
+    ]
+  },
+  {
+    "id": "mg_fusibles",
+    "name": "El cuadro de fusibles",
+    "description": "El apagón dejó el cuadro general del garaje a medias. Memoriza la secuencia de palancas y rearma los fusibles para devolver la luz al edificio.",
+    "emoji": "💡",
+    "type": "tap_sequence",
+    "instruction": "Memoriza la secuencia de palancas y repítela.",
+    "config": {
+      "rounds": 3,
+      "pads": [
+        "🔴",
+        "🟡",
+        "🟢",
+        "🔵"
+      ],
+      "sequenceStart": 2,
+      "sequenceGrow": 1,
+      "showMs": 550,
+      "gapMs": 260,
+      "inputTimeoutMs": 6000,
+      "lives": 2
+    },
+    "onSuccess": [
+      {
+        "op": "setParam",
+        "target": "pasillo_planta",
+        "param": "lighting",
+        "value": 90
+      },
+      {
+        "op": "addReputation",
+        "resident": "player",
+        "amount": 5
+      },
+      {
+        "op": "toast",
+        "text": "💡 ¡CLA-CLAC! Fusibles rearmados: la luz vuelve al edificio. Los vecinos aplauden (y alguno se decepciona de no quejarse más).",
+        "tone": "good"
+      }
+    ],
+    "onFail": [
+      {
+        "op": "setParam",
+        "target": "nucleo.condition",
+        "delta": -5
+      },
+      {
+        "op": "toast",
+        "text": "Chispazo, portal a oscuras y una reclamación a la compañía eléctrica. La noche es joven.",
+        "tone": "bad"
+      }
+    ]
+  },
+  {
+    "id": "mg_buzones",
+    "name": "Buzones revueltos",
+    "description": "El cartero ha mezclado la correspondencia del edificio. Empareja cada cosa con su gemela antes de que Dolores clasifique por su cuenta.",
+    "emoji": "📬",
+    "type": "memory_pairs",
+    "instruction": "Voltea dos fichas y encuentra todas las parejas. Los errores cuestan paciencia vecinal.",
+    "config": {
+      "items": [
+        "🔑",
+        "📨",
+        "📦",
+        "🧢",
+        "🪴",
+        "🍷"
+      ],
+      "lives": 5
+    },
+    "onSuccess": [
+      {
+        "op": "addFunds",
+        "to": "player",
+        "amount": 120
+      },
+      {
+        "op": "addRelation",
+        "a": "player",
+        "b": "presidente",
+        "affinity": 10
+      },
+      {
+        "op": "toast",
+        "text": "Correspondencia al día. El presidente te debe un favor... y un sello.",
+        "tone": "good"
+      }
+    ],
+    "onFail": [
+      {
+        "op": "addReputation",
+        "resident": "player",
+        "amount": -5
+      },
+      {
+        "op": "toast",
+        "text": "Has entregado la nómina de Don Ramón a Kevin. Ahora es \"inversión en cripto\". Tema cerrado.",
+        "tone": "bad"
+      }
+    ]
+  }
+]

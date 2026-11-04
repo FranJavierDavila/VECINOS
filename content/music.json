@@ -1,0 +1,211 @@
+{
+ "version": 1,
+ "masterGain": 0.42,
+ "duckGain": 0.35,
+ "fadeSeconds": 3,
+ "dayParts": {
+  "morning": {
+   "from": 360,
+   "to": 720
+  },
+  "afternoon": {
+   "from": 720,
+   "to": 1140
+  },
+  "evening": {
+   "from": 1140,
+   "to": 1410
+  },
+  "night": {
+   "from": 1410,
+   "to": 360
+  }
+ },
+ "contexts": {
+  "morning": {
+   "tempo": 92,
+   "root": 60,
+   "scale": [
+    0,
+    2,
+    4,
+    7,
+    9
+   ],
+   "chords": [
+    [
+     0,
+     4,
+     7
+    ],
+    [
+     -3,
+     0,
+     4
+    ],
+    [
+     -7,
+     -3,
+     0
+    ],
+    [
+     -5,
+     -1,
+     2
+    ]
+   ],
+   "bassGain": 0.14,
+   "padGain": 0.05,
+   "leadGain": 0.1,
+   "leadDensity": 0.5,
+   "waves": {
+    "pad": "triangle",
+    "lead": "triangle",
+    "bass": "sine"
+   },
+   "file": "art/audio/music/loop_morning.wav",
+   "fileGain": 0.9
+  },
+  "afternoon": {
+   "tempo": 78,
+   "root": 60,
+   "scale": [
+    0,
+    2,
+    4,
+    7,
+    9
+   ],
+   "chords": [
+    [
+     0,
+     4,
+     7
+    ],
+    [
+     -5,
+     -1,
+     2
+    ],
+    [
+     -3,
+     0,
+     4
+    ],
+    [
+     -7,
+     -3,
+     0
+    ]
+   ],
+   "bassGain": 0.12,
+   "padGain": 0.06,
+   "leadGain": 0.08,
+   "leadDensity": 0.38,
+   "waves": {
+    "pad": "triangle",
+    "lead": "sine",
+    "bass": "sine"
+   },
+   "file": "art/audio/music/loop_afternoon.wav",
+   "fileGain": 0.9
+  },
+  "evening": {
+   "tempo": 66,
+   "root": 57,
+   "scale": [
+    0,
+    3,
+    5,
+    7,
+    10
+   ],
+   "chords": [
+    [
+     0,
+     3,
+     7
+    ],
+    [
+     -4,
+     0,
+     3
+    ],
+    [
+     -9,
+     -5,
+     -2
+    ],
+    [
+     -2,
+     2,
+     5
+    ]
+   ],
+   "bassGain": 0.13,
+   "padGain": 0.07,
+   "leadGain": 0.07,
+   "leadDensity": 0.3,
+   "waves": {
+    "pad": "triangle",
+    "lead": "sine",
+    "bass": "sine"
+   },
+   "file": "art/audio/music/loop_evening.wav",
+   "fileGain": 0.95
+  },
+  "night": {
+   "tempo": 54,
+   "root": 55,
+   "scale": [
+    0,
+    3,
+    5,
+    7,
+    10
+   ],
+   "chords": [
+    [
+     0,
+     3,
+     7
+    ],
+    [
+     -9,
+     -5,
+     -2
+    ],
+    [
+     -4,
+     0,
+     3
+    ],
+    [
+     -2,
+     2,
+     5
+    ]
+   ],
+   "bassGain": 0.12,
+   "padGain": 0.05,
+   "leadGain": 0.05,
+   "leadDensity": 0.18,
+   "waves": {
+    "pad": "sine",
+    "lead": "sine",
+    "bass": "sine"
+   },
+   "file": "art/audio/music/loop_night.wav",
+   "fileGain": 0.85
+  }
+ },
+ "rain": {
+  "gain": 0.12,
+  "stormGain": 0.18,
+  "filterHz": 720
+ },
+ "melodyOctaves": [
+  0,
+  12
+ ]
+}
