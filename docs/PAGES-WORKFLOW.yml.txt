@@ -1,0 +1,70 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# FUTURO: despliegue de Pages por GitHub Actions.
+#
+# HOY no puede vivir en .github/workflows/: el PAT del sandbox solo tiene
+# permiso Contents R-W y GitHub rechaza (con razón) pushes que crean o
+# modifican ficheros de workflow sin scope `workflow`. Mientras tanto, el
+# despliegue real se hace por la rama `gh-pages` (build export + push).
+#
+# Cuando el token tenga «Workflows: Read and write», mover ESTE fichero a
+# .github/workflows/pages.yml (sin cambios de fondo) y borrar la rama
+# gh-pages: este flujo construye en el runner de GitHub y publica con el
+# GITHUB_TOKEN del propio Actions (que sí puede crear workflows y activar
+# Pages con enablement: true). Ventaja: build y deploy verdes en cada push
+# a main, sin pasos locales.
+# ─────────────────────────────────────────────────────────────────────────────
+name: Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Instalar dependencias
+        run: bun install --frozen-lockfile
+
+      # Export estático: sin rutas de API (usaban SQLite/fs; el guardado cae a
+      # localStorage vía controller.ts cuando el fetch falla).
+      - name: Quitar rutas API (no existen en un export estático)
+        run: rm -rf src/app/api
+
+      - name: Build (export estático, NEXT_PAGES=1)
+        run: bunx next build
+        env:
+          NEXT_PAGES: '1'
+          NEXT_PUBLIC_SW: 'off'
+
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          # OJO verificado en build local (Next 16 + distDir propio): el export NO cae
+          # en out/ sino DENTRO del distDir → .next-pages ES el sitio completo.
+          path: .next-pages
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

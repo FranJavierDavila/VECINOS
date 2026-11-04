@@ -14,11 +14,13 @@
  *     navigator.sendBeacon (el último error de una pestaña cerrada también cuenta).
  *   - JAMÁS MOLESTA: todo envuelto en try/catch, sin logs propios en consola, sin
  *     reintento infinito si la red cae (los lotes se pierden con dignidad).
- *   - v1.77 — EXPORT ESTÁTICO: en el build de GitHub Pages no hay /api/telemetry; los
- *     lotes se descartan en silencio (la captura sigue viva por si el futuro la lee).
+ *   - v1.82 — EXPORT ESTÁTICO: en el build de GitHub Pages (NEXT_PUBLIC_SW=off, lo fija
+ *     scripts/deploy-pages.sh) no hay /api/telemetry; los lotes se descartan en silencio
+ *     (la captura sigue viva por si el futuro la lee). En dev el flag no llega: nada cambia.
  */
 
-import { STATIC_EXPORT } from '@/game/support/paths';
+/** true solo en el export estático (lo fija el despliegue a Pages con NEXT_PUBLIC_SW=off). */
+const STATIC_MODE: boolean = process.env.NEXT_PUBLIC_SW === 'off';
 
 const MAX_BATCH = 12;
 const FLUSH_MS = 5000;
@@ -151,8 +153,8 @@ class TelemetryClient {
     if (this.buffer.length === 0) return;
     const events = this.buffer;
     this.buffer = [];
-    // v1.77 — sin servidor (export estático) no hay a dónde mandarlo: descarte digno.
-    if (STATIC_EXPORT) return;
+    // v1.82 — sin servidor (export estático) no hay a dónde mandarlo: descarte digno.
+    if (STATIC_MODE) return;
     try {
       const body = JSON.stringify({ session: this.session, events });
       if (beacon && typeof navigator.sendBeacon === 'function') {

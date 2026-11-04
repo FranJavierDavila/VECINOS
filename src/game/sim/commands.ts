@@ -4,6 +4,7 @@ import { applyEffects, applyEffect } from './effects';
 import { advanceMissions, completeMission, notify } from './missions';
 import { nextRandom } from './rng';
 import { castVotes, resolveJunta } from './extra/junta';
+import { resolveTalk } from './extra/social';
 
 export interface CommandResult {
   ok: boolean;
@@ -140,6 +141,75 @@ function run(world: World, content: Content, cmd: Command): CommandResult {
       const b = world.blocks[cmd.block];
       if (!b?.availability) return fail('not_for_sale');
       applyEffect(world, content, { op: 'buy', target: b.id, price: b.availability.price }, { actor: actorId });
+      return ok();
+    }
+    case 'convoca_junta': {
+      // v1.75 — la presidencia convoca la junta EXTRAORDINARIA por la VÍA ÚNICA de comandos:
+      // en multijugador el mundo autoritativo es el del servidor, y el antiguo world.junta =
+      // {...} local del cliente nunca llegó al servidor (el junta_vote moría en fail
+      // 'no_junta': «los botones no permiten votar»). El sim abre la junta con la agenda del
+      // catálogo y emite junta_requested — el modal lo abre el handler del evento, igual que
+      // las juntas de misión, en clásico Y en remoto.
+      const camp = content.rules.sim.campaign;
+      if (!camp || world.junta) return fail('no_junta');
+      world.junta = { agenda: camp.presetAgenda.map((i) => ({ ...i })), votes: {}, playerVoted: false };
+      emit(world, 'junta_requested', { agenda: world.junta.agenda });
+      return ok();
+    }
+    case 'talk': {
+      // v1.79 — CHARLA CON TEMA por la VÍA ÚNICA de comandos (mismo motivo que convoca_junta:
+      // el servidor autoritativo de multi comparte este switch, y la CONFIANZA del vecino
+      // hacia el jugador solo cambia aquí dentro, nunca en presentación). El resultado lo
+      // resuelve la capa social según tema/arquetipo/afinidad y emite talk_result.
+      return resolveTalk(world, content, cmd);
+    }
+    case 'answer_door': {
+      // v1.80 — ABRIR AL PROTESTANTE por la VÍA ÚNICA de comandos (mismo motivo que talk:
+      // el sim es la autoridad y la afinidad/confianza del vecino solo cambian aquí dentro).
+      // Solo vale con la protesta TIMBRANDO y solo el PRESIDENTE puede abrir.
+      const protest = world.protest;
+      if (!protest || protest.phase !== 'ringing') return fail('no_protest');
+      if (actorId !== protest.presidentId) return fail('not_president');
+      const cfg = content.rules.sim.protest;
+      const line = content.social?.protest?.calmLine ?? null;
+      emit(world, 'protest_calmed', { resident: protest.protester, line });
+      // La protesta atendida suma: el vecino agradece que abrieras (relación protestante→presidente).
+      const protester = protest.protester ? world.residents[protest.protester] : undefined;
+      if (protester && cfg) {
+        let rel = protester.relations.find((x) => x.with === protest.presidentId);
+        if (!rel) protester.relations.push((rel = { with: protest.presidentId, affinity: 0, trust: 0 }));
+        rel.affinity = Math.min(100, Math.max(-100, rel.affinity + cfg.calmAffinity));
+        rel.trust = Math.min(100, Math.max(-100, rel.trust + cfg.calmTrust));
+      }
+      world.protest = null;
+      return ok();
+    }
+    case 'repair_roof': {
+      // v1.81 — REPARAR EL TEJADO por la VÍA ÚNICA de comandos (mismo motivo que talk/
+      // answer_door: el sim es la autoridad y la hucha/arcas/afinidades solo cambian aquí
+      // dentro). El ORIGEN del daño es el clima (extra/roof.ts deja roof_damage=1 en la
+      // tormenta y persiste tras ella); la reparación es del vecindario: sale de la hucha
+      // del actor y entra EN LAS ARCAS (la comunidad se paga su propio tejado — precedentes:
+      // 'buy' descuenta wallet directo en effects.ts y resolveJunta muta funds directo).
+      const cfg = content.rules.sim.roof;
+      const roofs = cfg ? Object.values(world.blocks).filter((b) => b.defId === cfg.roofDef) : [];
+      if (!roofs.some((b) => b.params.roof_damage === 1)) return fail('no_damage');
+      if (player.wallet < cfg.repairCost) return fail('poor');
+      player.wallet -= cfg.repairCost;
+      world.community.funds += cfg.repairCost;
+      for (const b of roofs) b.params.roof_damage = 0;
+      // Pequeña recompensa social: cada vecino IA de la planta residencial más alta (la de
+      // los áticos que chorreaban) agradece la obra (get-or-create, patrón de la capa extra).
+      let top = 0;
+      for (const b of Object.values(world.blocks)) if (b.kind === 'dwelling' && b.cell.floor > top) top = b.cell.floor;
+      for (const r of Object.values(world.residents)
+        .filter((x) => x.controller.type !== 'human' && x.id !== actorId && world.blocks[x.home]?.cell.floor === top)
+        .sort((a, b) => a.id.localeCompare(b.id))) {
+        let rel = r.relations.find((x) => x.with === actorId);
+        if (!rel) r.relations.push((rel = { with: actorId, affinity: 0, trust: 0 }));
+        rel.affinity = Math.min(100, Math.max(-100, rel.affinity + cfg.affinityPerRepair));
+      }
+      emit(world, 'roof_repaired', { actor: actorId, cost: cfg.repairCost, block: roofs[0]!.id });
       return ok();
     }
     case 'junta_vote': {

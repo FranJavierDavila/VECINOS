@@ -10,6 +10,7 @@ import { TEXT_SCALE_PCT } from '@/game/client/options';
 import { PhoneModal } from './PhoneModal';
 import { ChoicesModal } from './ChoicesModal';
 import { JuntaModal } from './JuntaModal';
+import { TalkModal } from './TalkModal';
 import { MinigameModal } from './MinigameModal';
 import { FinaleModal } from './FinaleModal';
 import { CutsceneOverlay } from './CutsceneOverlay';
@@ -218,6 +219,8 @@ export default function GameStage() {
       <ElevatorPanelModal />
       <ChoicesModal onChoose={(choiceId) => getController()?.choose(choiceId)} />
       <JuntaModal onVote={(vote) => getController()?.juntaVote(vote)} />
+      {/* v1.79 — selector de temas de charla: elegir manda el comando `talk` al sim. */}
+      <TalkModal onSelect={(topicId) => getController()?.talkChoose(topicId)} />
       <MinigameModal />
       <FinaleModal onClose={() => getController()?.finaleClose()} />
       <ToastStack onDismiss={(id) => useGameStore.getState().dropToast(id)} />

@@ -44,6 +44,12 @@ export function ResidentsPanel({ fill = false }: { fill?: boolean } = {}) {
               </span>
             </header>
             <p className="mt-0.5 text-[11px] italic leading-snug text-muted-foreground">«{r.tagline}»</p>
+            {/* v1.79 — confianza del vecino hacia el jugador (la mueve la charla con tema). */}
+            {r.trust !== null && (
+              <p className="mt-1 text-[10px] font-semibold tabular-nums text-sky-600 dark:text-sky-400" title={t('neighbors.trust')}>
+                🤝 {t('neighbors.trust')}: {r.trust}
+              </p>
+            )}
             {r.quote && <p className="mt-1 text-[11px] leading-snug">{r.quote}</p>}
             {r.tastes.length > 0 && (
               <ul className="mt-1.5 flex flex-wrap gap-1" aria-label={t('neighbors.tastes')}>

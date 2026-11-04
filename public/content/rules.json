@@ -25,7 +25,13 @@
         "m_okupa": 50,
         "m_veredicto": 100
       },
-      "excluded": ["m_qa_1", "m_qa_2", "m_qa_3", "m_qa_4", "m_qa_visita"],
+      "excluded": [
+        "m_qa_1",
+        "m_qa_2",
+        "m_qa_3",
+        "m_qa_4",
+        "m_qa_visita"
+      ],
       "minigames": {
         "mg_fusibles": {
           "label": "rearme de fusibles",
@@ -92,6 +98,52 @@
     },
     "phone": {
       "freeMovement": true
+    },
+    "social": {
+      "gossipChance": 0.02,
+      "gossipMinGroup": 2,
+      "gossipCooldownMinutes": 90,
+      "gossipAffinityDelta": 2,
+      "talkCooldownMinutes": 30
+    },
+    "roof": {
+      "roofDef": "tejado",
+      "damageChancePerTick": 0.004,
+      "leakEveryTicks": 20,
+      "humidityPerLeak": 6,
+      "repairCost": 60,
+      "affinityPerRepair": 3,
+      "maxHumidity": 100
+    },
+    "drunk": {
+      "chance": 0.35,
+      "archetypes": [],
+      "staggerChance": 0.55,
+      "fumbleTries": 2,
+      "lineEveryHops": 3
+    },
+    "gamble": {
+      "hostArchetype": "fondo_buitre",
+      "startMinute": "22:00",
+      "endMinute": "03:00",
+      "chancePerNight": 0.3,
+      "maxGuests": 3,
+      "raidChancePerTick": 0.0015,
+      "fine": 120,
+      "fundsShare": 0.5,
+      "cooldownDays": 2
+    },
+    "protest": {
+      "watchDef": "pasillo_planta",
+      "watchParam": "lighting",
+      "belowThreshold": 20,
+      "delayMinutes": 45,
+      "recruitEveryMinutes": 10,
+      "ringIntervalMinutes": 4,
+      "maxRings": 5,
+      "calmAffinity": 4,
+      "calmTrust": 3,
+      "tiredAffinity": -3
     },
     "missionLoopMax": 4,
     "defaultNeeds": {
@@ -170,6 +222,7 @@
       "defaultGenerosity": 0.3,
       "moodThreshold": 25,
       "moodPenalty": 0.15,
+      "trustWeight": 0.25,
       "clamp": {
         "min": 0.05,
         "max": 0.95
@@ -431,22 +484,22 @@
       },
       "treeArt": [
         {
-          "art": "/art/trees/tree_round.png",
+          "art": "art/trees/tree_round.png",
           "w": 3.4,
           "h": 4.4
         },
         {
-          "art": "/art/trees/tree_pine.png",
+          "art": "art/trees/tree_pine.png",
           "w": 3.2,
           "h": 5.4
         },
         {
-          "art": "/art/trees/tree_poplar.png",
+          "art": "art/trees/tree_poplar.png",
           "w": 2.2,
           "h": 5.8
         },
         {
-          "art": "/art/trees/tree_bushy.png",
+          "art": "art/trees/tree_bushy.png",
           "w": 3.0,
           "h": 3.4
         }
@@ -469,139 +522,139 @@
         {
           "x": -30.0,
           "z": 3.0,
-          "art": "/art/trees/tree_round.png",
+          "art": "art/trees/tree_round.png",
           "s": 1.2
         },
         {
           "x": -38.0,
           "z": 0.5,
-          "art": "/art/trees/tree_bushy.png",
+          "art": "art/trees/tree_bushy.png",
           "s": 0.95
         },
         {
           "x": -48.0,
           "z": -2.0,
-          "art": "/art/trees/tree_pine.png",
+          "art": "art/trees/tree_pine.png",
           "s": 1.1
         },
         {
           "x": 50.0,
           "z": 2.0,
-          "art": "/art/trees/tree_round.png",
+          "art": "art/trees/tree_round.png",
           "s": 1.25
         },
         {
           "x": 60.0,
           "z": 4.5,
-          "art": "/art/trees/tree_bushy.png",
+          "art": "art/trees/tree_bushy.png",
           "s": 1.05
         },
         {
           "x": 70.0,
           "z": 0.0,
-          "art": "/art/trees/tree_pine.png",
+          "art": "art/trees/tree_pine.png",
           "s": 1.15
         },
         {
           "x": -52.0,
           "z": 24.0,
-          "art": "/art/trees/tree_round.png",
+          "art": "art/trees/tree_round.png",
           "s": 1.15
         },
         {
           "x": -44.0,
           "z": 28.0,
-          "art": "/art/trees/tree_pine.png",
+          "art": "art/trees/tree_pine.png",
           "s": 1.2
         },
         {
           "x": -36.0,
           "z": 20.0,
-          "art": "/art/trees/tree_poplar.png",
+          "art": "art/trees/tree_poplar.png",
           "s": 1.1
         },
         {
           "x": -26.0,
           "z": 26.0,
-          "art": "/art/trees/tree_bushy.png",
+          "art": "art/trees/tree_bushy.png",
           "s": 1.0
         },
         {
           "x": -18.0,
           "z": 15.5,
-          "art": "/art/trees/tree_round.png",
+          "art": "art/trees/tree_round.png",
           "s": 1.0
         },
         {
           "x": -10.0,
           "z": 27.0,
-          "art": "/art/trees/tree_pine.png",
+          "art": "art/trees/tree_pine.png",
           "s": 1.25
         },
         {
           "x": -2.0,
           "z": 18.0,
-          "art": "/art/trees/tree_poplar.png",
+          "art": "art/trees/tree_poplar.png",
           "s": 1.05
         },
         {
           "x": 6.0,
           "z": 24.0,
-          "art": "/art/trees/tree_round.png",
+          "art": "art/trees/tree_round.png",
           "s": 1.1
         },
         {
           "x": 14.0,
           "z": 16.0,
-          "art": "/art/trees/tree_bushy.png",
+          "art": "art/trees/tree_bushy.png",
           "s": 0.95
         },
         {
           "x": 22.0,
           "z": 26.5,
-          "art": "/art/trees/tree_pine.png",
+          "art": "art/trees/tree_pine.png",
           "s": 1.1
         },
         {
           "x": 30.0,
           "z": 15.5,
-          "art": "/art/trees/tree_poplar.png",
+          "art": "art/trees/tree_poplar.png",
           "s": 1.15
         },
         {
           "x": 38.0,
           "z": 27.0,
-          "art": "/art/trees/tree_round.png",
+          "art": "art/trees/tree_round.png",
           "s": 1.2
         },
         {
           "x": 46.0,
           "z": 21.0,
-          "art": "/art/trees/tree_bushy.png",
+          "art": "art/trees/tree_bushy.png",
           "s": 1.05
         },
         {
           "x": 56.0,
           "z": 26.0,
-          "art": "/art/trees/tree_pine.png",
+          "art": "art/trees/tree_pine.png",
           "s": 1.2
         },
         {
           "x": 66.0,
           "z": 18.5,
-          "art": "/art/trees/tree_round.png",
+          "art": "art/trees/tree_round.png",
           "s": 1.1
         },
         {
           "x": 78.0,
           "z": 24.0,
-          "art": "/art/trees/tree_poplar.png",
+          "art": "art/trees/tree_poplar.png",
           "s": 1.15
         },
         {
           "x": 90.0,
           "z": 27.0,
-          "art": "/art/trees/tree_pine.png",
+          "art": "art/trees/tree_pine.png",
           "s": 1.05
         }
       ],
@@ -858,8 +911,8 @@
           "height": 24,
           "alpha": 0.85,
           "tint": "#f2efe6",
-          "fog": 0.25,
-          "image": "/content/backdrop/fachada_1_cerca.png",
+          "fog": 0.35,
+          "image": "content/backdrop/fachada_1_cerca.png",
           "windowColor": "#7d8ba0",
           "windowLitColor": "#ffd166",
           "galleryColor": "#9fb8c8",
@@ -873,15 +926,15 @@
           "nightGlow": 0.5,
           "depthWrite": true,
           "alphaCutOff": 0.4,
-          "skipChance": 0.25
+          "skipChance": 0.4
         },
         {
           "z": 44,
           "height": 32,
           "alpha": 0.72,
           "tint": "#e9e4d6",
-          "fog": 0.3,
-          "image": "/content/backdrop/fachada_2_media.png",
+          "fog": 0.45,
+          "image": "content/backdrop/fachada_2_media.png",
           "windowColor": "#8593a8",
           "windowLitColor": "#ffd166",
           "galleryColor": "#a8bfd0",
@@ -895,15 +948,15 @@
           "nightGlow": 0.4,
           "depthWrite": true,
           "alphaCutOff": 0.4,
-          "skipChance": 0.35
+          "skipChance": 0.5
         },
         {
           "z": 60,
           "height": 42,
           "alpha": 0.55,
           "tint": "#e6e2d8",
-          "fog": 0.45,
-          "image": "/content/backdrop/fachada_3_lejos.png",
+          "fog": 0.6,
+          "image": "content/backdrop/fachada_3_lejos.png",
           "windowColor": "#8d9bb0",
           "windowLitColor": "#ffe0a3",
           "galleryColor": "#b3c8d8",
@@ -917,7 +970,7 @@
           "nightGlow": 0.3,
           "depthWrite": true,
           "alphaCutOff": 0.4,
-          "skipChance": 0.45
+          "skipChance": 0.6
         }
       ],
       "rain": {
@@ -939,16 +992,16 @@
         "keyframes": [
           {
             "hour": 0,
-            "top": "#101623",
-            "horizon": "#232c40",
-            "ambient": 0.48,
+            "top": "#182030",
+            "horizon": "#2b3550",
+            "ambient": 0.56,
             "sun": 0
           },
           {
             "hour": 5,
             "top": "#17203a",
             "horizon": "#3a3f5c",
-            "ambient": 0.5,
+            "ambient": 0.57,
             "sun": 0
           },
           {
@@ -990,14 +1043,14 @@
             "hour": 21.5,
             "top": "#232c40",
             "horizon": "#4a3f58",
-            "ambient": 0.52,
+            "ambient": 0.58,
             "sun": 0
           },
           {
             "hour": 24,
-            "top": "#101623",
-            "horizon": "#232c40",
-            "ambient": 0.48,
+            "top": "#182030",
+            "horizon": "#2b3550",
+            "ambient": 0.56,
             "sun": 0
           }
         ],
@@ -1219,7 +1272,7 @@
         "doorBottom": 0.14,
         "doorZ": 0.08,
         "wallT": 0.3,
-        "art": "/art/interiors/raw/door_comunal.png",
+        "art": "art/interiors/raw/door_comunal.png",
         "numberColor": "#1c1c1c",
         "hinge": "left",
         "openAngle": 1.75,
@@ -1268,7 +1321,7 @@
       "callColor": "#ffd166",
       "brokenColor": "#c1666b",
       "rideZ": 0.35,
-      "doorArt": "/art/interiors/raw/door_ascensor.png",
+      "doorArt": "art/interiors/raw/door_ascensor.png",
       "indicator": {
         "w": 0.24,
         "h": 0.18,
@@ -1390,8 +1443,8 @@
       "potR": 0.17,
       "potH": 0.26,
       "art": [
-        "/art/interiors/raw/maceta_a.png",
-        "/art/interiors/raw/maceta_b.png"
+        "art/interiors/raw/maceta_a.png",
+        "art/interiors/raw/maceta_b.png"
       ],
       "artH": 0.85
     },
@@ -1407,7 +1460,7 @@
       "doorW": 0.95,
       "doorH": 1.85,
       "doorArts": [
-        "/art/interiors/raw/door_casa_a.png"
+        "art/interiors/raw/door_casa_a.png"
       ],
       "frameW": 0.1,
       "frameDepth": 0.1,
@@ -1426,7 +1479,7 @@
         "stagger": 0.008
       },
       "skirtingDoorGap": true,
-      "coverArt": "/art/interiors/raw/door_casa_a.png",
+      "coverArt": "art/interiors/raw/door_casa_a.png",
       "lamp": {
         "side": 1,
         "dx": 0.68,
@@ -1572,7 +1625,7 @@
         }
       },
       "trasteroComunal": {
-        "doorArt": "/art/interiors/raw/door_trastero.png",
+        "doorArt": "art/interiors/raw/door_trastero.png",
         "doorW": 0.85,
         "doorH": 1.72,
         "doorDx": 0.55,
@@ -1654,7 +1707,7 @@
       },
       "lavanderia": {
         "machines": 4,
-        "art": "/art/interiors/raw/f_lavadora.png",
+        "art": "art/interiors/raw/f_lavadora.png",
         "artH": 1.02,
         "machineColor": "#e8e6e0",
         "sign": "LAVANDERÍA",
@@ -2150,6 +2203,8 @@
     "greet": "E · saludar a {name}",
     "doorbell": "E · timbre de {name}",
     "chat": "E · charlar con {name}",
+    "answerProtest": "E · abrir la puerta (protesta por el apagón)",
+    "repairRoof": "E · reparar el tejado (gotea la planta de arriba)",
     "bench": "E · sentarse a contemplar el edificio",
     "exercise": "E · un rato de calistenia",
     "standUp": "E · levantarse",

@@ -13,6 +13,7 @@
  *   5. Regresión: el sim sigue vivo tras 120 ticks.
  */
 import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { loadContent, formatIssues } from '@/game/content';
 import { createWorld, tick } from '@/game/sim';
 import { PlayerLogic } from '@/game/player-logic';
@@ -34,8 +35,8 @@ const close = (a: number, b: number, eps = 1e-6) => Math.abs(a - b) < eps;
 // ── 1. Catálogo v1.21 ──
 const v = content.rules.view;
 const bd = v.backdrop;
-check('capas de fachadas con sello PNG declarado', bd.layers.length >= 3 && bd.layers.every((l) => !!l.image && l.image.startsWith('/content/backdrop/')), bd.layers.map((l) => l.image?.split('/').pop()).join(' · '));
-const onDisk = bd.layers.every((l) => l.image && existsSync(`public${l.image}`));
+check('capas de fachadas con sello PNG declarado', bd.layers.length >= 3 && bd.layers.every((l) => !!l.image && (l.image.startsWith('content/backdrop/') || l.image.startsWith('/content/backdrop/'))), bd.layers.map((l) => l.image?.split('/').pop()).join(' · '));
+const onDisk = bd.layers.every((l) => l.image && existsSync(join('public', l.image!)));
 check('los sellos existen en disco (variantes desenfocadas por capa)', onDisk, 'public/content/backdrop/*.png');
 check('blur creciente con la distancia (nombres cerca/media/lejos)', /cerca/.test(bd.layers[0]!.image ?? '') && /media/.test(bd.layers[1]!.image ?? '') && /lejos/.test(bd.layers[2]!.image ?? ''), '');
 check('tinte de armonización distinto por capa (v1.22: con niebla desde la cercana)', bd.layers.every((l) => l.tint.startsWith('#')) && bd.layers[0]!.tint !== bd.layers[1]!.tint && bd.layers[1]!.tint !== bd.layers[2]!.tint, `${bd.layers[0]!.tint} / ${bd.layers[1]!.tint} / ${bd.layers[2]!.tint}`);

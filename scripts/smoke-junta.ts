@@ -67,6 +67,23 @@ applyEffects(w2, content, [{ op: 'openJunta', agenda }], {});
 dispatch(w2, content, { type: 'junta_vote', vote: 'yes' });
 assert(w2.junta === null, 'partida clásica (1 humano): la votación se cierra con un solo voto');
 
+// ── 2b) v1.75 — convoca_junta por la VÍA ÚNICA de comandos (bug «no permite votar»): ──
+// la presidencia convoca y el SIM abre la junta (clásico) o el servidor la aplica y
+// difunde (multi). El antiguo world.junta = {...} local del cliente era invisible para
+// el servidor: el junta_vote moría en fail('no_junta') y nunca había cierre ni resultados.
+const w4 = createWorld(content, content.rules.startScenario);
+assert(w4.junta === null, 'mundo recién creado: sin junta');
+const rc = dispatch(w4, content, { type: 'convoca_junta' });
+assert(rc.ok && w4.junta !== null, 'convoca_junta abre la junta extraordinaria (agenda del catálogo)');
+assert(w4.junta!.agenda.length > 0 && w4.junta!.agenda.every((i) => !!i.title && typeof i.cost === 'number'), 'la agenda convocada viene del catálogo (presetAgenda)');
+const rd = dispatch(w4, content, { type: 'convoca_junta' });
+assert(!rd.ok && w4.junta !== null, 'doble convocatoria con la junta ya abierta falla limpio (no_junta) y la junta sigue');
+const rVote = dispatch(w4, content, { type: 'junta_vote', vote: 'yes' });
+assert(rVote.ok && w4.junta === null, 'voto tras convoca_junta SE CIERRA con resultados (el bug del vecino, arreglado)');
+const convEvents = drainEvents(w4);
+assert(!!convEvents.find((e) => e.type === 'junta_requested'), 'convoca_junta emite junta_requested (el modal lo abre el handler, igual que las juntas de misión)');
+assert(!!convEvents.find((e) => e.type === 'junta_result'), 'junta_result llega tras el voto (resultados visibles)');
+
 // ── 3) buy_block con actor: compra el invitado, no el anfitrión ──
 const w3 = createWorld(content, content.rules.startScenario);
 addGuest(w3, 'res_guest_2');

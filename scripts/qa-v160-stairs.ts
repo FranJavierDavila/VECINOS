@@ -90,10 +90,25 @@ logic.z = v.corridorZ;
 const entered = walkUntil(() => logic.mode === 'inside' && logic.insideBlock === portalBlk.id, INPUT({ up: true }), 300);
 check('empujón W en el vano cruza al vestíbulo (sin E, diseño v1.47)', entered && logic.mode === 'inside', `mode=${logic.mode}`);
 logic.drainAuto();
-// Del vestíbulo al pasillo: empujar al FONDO (W sobre backZoneZ, portalInnerExit).
-const outFront = walkUntil(() => logic.mode === 'corridor' && logic.floor === 0, INPUT({ up: true }), 600);
-check('vestíbulo → pasillo empujando al fondo (sin E)', outFront && logic.mode === 'corridor', `mode=${logic.mode} floor=${logic.floor}`);
-logic.drainAuto();
+// v1.75 — RETIRADO el exit por el FONDO del vestíbulo (portalInnerExit): empujar W al fondo
+// aterrizaba en el paseo frontal cruzando el muro — el «teleport al portal» del vecino.
+// AHORA: el fondo es fondo muerto (clampZ en el tabique) y la salida honesta es por las
+// CORREDERAS DEL FRENTE (S en el vano → pasillo de planta 0, v1.47).
+{
+  const backZ = v.locals?.portal?.backZoneZ ?? 2.0;
+  const pushed = walkUntil(() => logic.z >= backZ, INPUT({ up: true }), 600);
+  run(30, INPUT({ up: true }));
+  const pBack = pos();
+  check('empujón W al fondo del vestíbulo NO teleporta (fondo muerto, sigues dentro)', pushed && pBack.mode === 'inside' && pBack.insideBlock === portalBlk.id, `mode=${pBack.mode} inside=${pBack.insideBlock ?? 'null'} z=${pBack.z.toFixed(2)}`);
+  logic.drainAuto();
+  // Salida honesta: S hacia las correderas del frente → pasillo de planta 0.
+  const cols = frontDoorSpans(v, portalBlk);
+  const span = cols[0]!;
+  logic.x = (span.x0 + span.x1) / 2;
+  const outFront = walkUntil(() => logic.mode === 'corridor' && logic.floor === 0, INPUT({ down: true }), 600);
+  check('vestíbulo → pasillo por las correderas (S en el vano, sin E)', outFront && logic.mode === 'corridor', `mode=${logic.mode} floor=${logic.floor}`);
+  logic.drainAuto();
+}
 
 console.log('── 2. SUBIR escalera a planta 1 ──');
 // Caminar hacia el cubo de escalera (bloque con features.stairs en planta 0) y empujar W.

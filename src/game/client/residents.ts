@@ -173,6 +173,8 @@ export function residentsUiSnapshot(
       present: r.present,
       activity: r.activity,
       affinity: rel ? rel.affinity : null,
+      // v1.79 — confianza del vecino hacia el jugador (la mueve la charla con tema).
+      trust: rel ? rel.trust : null,
       tastes: (persona?.tastes ?? []).map((t) => loc(t, lang)),
       quote: persona?.signature ? loc(persona.signature, lang) : null,
     });

@@ -1,5 +1,7 @@
 import type { Content } from '@/game/core/types';
-import { STATIC_EXPORT } from '@/game/support/paths';
+
+/** true solo en el export estático (lo fija el despliegue a Pages con NEXT_PUBLIC_SW=off). */
+const STATIC_MODE: boolean = process.env.NEXT_PUBLIC_SW === 'off';
 import {
   DEFAULT_SHEET_LAYOUT,
   SHEET_ROW_NAMES,
@@ -299,12 +301,12 @@ export function openArtReference(content: Content): void {
     if (raw) downloadCanvas(buildTurnaroundCanvas(raw), `vecinos_${sel.value}_3vistas.png`);
   });
   // Guardar en el proyecto: persiste los 3 PNG bajo public/art/preview/ (URL estable para descargar).
-  // v1.77 — en export estático el handler hace descarga directa (ver STATIC_EXPORT arriba).
+  // v1.82 — en export estático el handler hace descarga directa (ver STATIC_MODE arriba).
   btnSave.addEventListener('click', () => {
     if (!raw) return;
     // v1.77 — export estático: no hay /api/artref-save; fallback honesto = descarga
     // directa de los 3 PNG al equipo (la herramienta de arte sigue sirviendo offline).
-    if (STATIC_EXPORT) {
+    if (STATIC_MODE) {
       downloadCanvas(raw, `vecinos_${sel.value}_spritesheet_8x8.png`);
       downloadCanvas(buildAnnotatedCanvas(raw), `vecinos_${sel.value}_referencia.png`);
       downloadCanvas(buildTurnaroundCanvas(raw), `vecinos_${sel.value}_3vistas.png`);

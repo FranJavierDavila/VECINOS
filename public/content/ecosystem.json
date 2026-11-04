@@ -42,7 +42,20 @@
       0.1,
       0.06
     ],
-    "nightRequiresPresence": true
+    "nightRequiresPresence": true,
+    "corridorInterior": {
+      "enabled": true,
+      "color": "#ffe3a1",
+      "nightIntensity": 0.6,
+      "fadeSecs": 0.9,
+      "lampsPerCorridor": 3,
+      "lampSize": [
+        0.12,
+        0.05,
+        0.12
+      ],
+      "heightRatio": 0.93
+    }
   },
   "mood": {
     "needs": {

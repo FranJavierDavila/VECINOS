@@ -17,7 +17,7 @@
  *     /VECINOS/). Toda ruta del SW se resuelve contra self.registration.scope, así que
  *     el mismo fichero vale para `/` (dev) y `/VECINOS/` (Pages) sin build-time mágico.
  */
-const VERSION = 'vecinos-v1.77'; // v1.77 (jugable online): export estático para GitHub Pages — rutas del SW relativas al scope, manifest/icons relativos, basePath /VECINOS. Antes v1.76 (FASE T): telemetría de playtest viva
+const VERSION = 'vecinos-v1.82'; // v1.82 (fusión): telemetría de playtest (latidos+sesiones) + las 7 ideas sociales del remoto — rutas del SW relativas al scope (mismo SW vale en / y bajo subruta). Antes v1.81 (remoto) y v1.77 (local) por caminos paralelos
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 /** El scope de un SW siempre acaba en '/': '/' en dev, '/VECINOS/' en GitHub Pages. */

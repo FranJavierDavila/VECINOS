@@ -1,5 +1,5 @@
 import { chromium } from 'playwright-core';
-const CHROME = '/home/z/.agent-browser/browsers/chrome-156.0.8078.73/chrome';
+const CHROME = '/home/z/.agent-browser/browsers/chrome-156.0.8078.80/chrome';
 const browser = await chromium.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 860 } });
 await page.goto('http://localhost:81/?qaengine=1', { waitUntil: 'domcontentloaded', timeout: 120_000 });

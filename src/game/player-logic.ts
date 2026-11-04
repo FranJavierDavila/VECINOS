@@ -30,7 +30,11 @@ export type InteractResult =
   | { type: 'frontBlocked' }
   /** v1.48 — CUADRO DE FUSIBLES (garaje): el controlador decide (apagón → minijuego;
    *  en calma → aviso del catálogo). Faltaba en la unión: el runtime lo usaba desde v1.48. */
-  | { type: 'fusebox' };
+  | { type: 'fusebox' }
+  /** v1.80 — PROTESTA EN TU PUERTA: la E abre (answer_door) en vez de entrar/timbrar. */
+  | { type: 'answerProtest' }
+  /** v1.81 — pasillo de la planta alta con el tejado dañado: la E repara (repair_roof). */
+  | { type: 'repairRoof' };
 
 /**
  * Firma de la vía de salida de comandos. En partida clásica el controlador devuelve el
@@ -91,6 +95,10 @@ export class PlayerLogic {
   readonly autoEvents: InteractResult[] = [];
   private readonly width: number;
   private readonly topFloor: number;
+  /** v1.81 — planta residencial más alta (la última CON viviendas): ahí avisa la E del
+   *  tejado dañado. El tejado y la bajocubierta son 'main' pero no viviendas, así que el
+   *  topFloor transitable y este no coinciden necesariamente en otras plantillas. */
+  private readonly topDwellingFloor: number;
   private readonly view;
   /** Residente controlado por esta lógica (world.playerId en solitario). */
   private readonly actorId: string;
@@ -153,6 +161,7 @@ export class PlayerLogic {
       // tiene forjado — nunca es topFloor aunque sea la planta más alta de la plantilla.
       ...blocks.filter((b) => this.content.blocks[b.defId]!.traversable !== false).map((b) => b.cell.floor),
     );
+    this.topDwellingFloor = Math.max(0, ...blocks.filter((b) => b.kind === 'dwelling').map((b) => b.cell.floor));
     // Si el actor aún no existe en el mundo (estado del servidor en camino), se cae al jugador clásico.
     const me = world.residents[this.actorId] ?? world.residents[world.playerId]!;
     const start = world.blocks[me.location ?? me.home] ?? blocks.find((b) => b.kind !== 'dwelling')!;
@@ -827,11 +836,15 @@ export class PlayerLogic {
         }
       }
       // v1.42 — SALIDA DEL PORTAL SIN E: en el vestíbulo, caminar hacia la PARED IZQUIERDA
-      // (ruta oficial del perímetro) o hacia las CORREDERAS DEL FRENTE ya te echa a la calle.
+      // (ruta oficial del perímetro) o hacia las CORREDERAS DEL FRENTE ya te echa al pasillo.
       this.portalExitTriggers(input);
-      // v1.46 — VESTÍBULO → PASILLO sin E: empujar hacia el fondo del hall (W) te deja en
-      // el pasillo de planta 0: el portal se CRUZA andando en ambos sentidos.
-      this.portalInnerExit(input);
+      // v1.46 — VESTÍBULO → PASILLO sin E (RETIRADO en v1.75): empujar al FONDO del hall
+      // aterrizaba en el pasillo de planta 0 — que en esta plantilla es el PASEO FRONTAL
+      // (z=corridorZ, delante de la fachada): el salto cruzaba 2,6 m de vestíbulo + muro
+      // frontal y el vecino lo vivía como «andar hacia el fondo me devuelve al portal».
+      // El cruce calle ↔ vestíbulo ↔ pasillo ya funciona por las correderas del frente
+      // (portalExitTriggers, v1.47); el fondo del vestíbulo vuelve a ser fondo muerto
+      // (clampZ frena en el tabique trasero), como manda la geometría del edificio.
       // v1.69 (higiene) — SYNC EN INTERIOR: era la única rama de movimiento SIN sync().
       // El invitado que entraba por timbre a una vivienda a N plantas del último bloque
       // confirmado por el servidor no mandaba NUNCA la cadena legal de moves (el servidor
@@ -896,8 +909,9 @@ export class PlayerLogic {
     // mera locomoción, igual que las de escalera) y la hoja se abre y entras. Con candado
     // no (norma del barrio: E avisa). Pasar de largo no abre ni entra (solo input.up).
     // v1.46 — EL PORTAL TAMBIÉN SE CRUZA ANDANDO: el empujón desde el pasillo entra al
-    // vestíbulo (las correderas se abren con el mismo intent); desde el vestíbulo, W al
-    // fondo te deja en el pasillo (portalInnerExit). Fin de la exclusión de v1.41: con el
+    // vestíbulo (las correderas se abren con el mismo intent); desde el vestíbulo, S por
+    // las correderas devuelve al pasillo (portalExitTriggers v1.47 — el fondo del hall es
+    // fondo muerto desde v1.75). Fin de la exclusión de v1.41: con el
     // empujón explícito ya no hay «entrar sin querer» al pasar de largo.
     if (ahead && input.up && ahead.kind !== 'dwelling' && ahead.access !== 'locked' && this.autoEnterLast !== ahead.id) {
       if (ahead.defId === 'portal') {
@@ -1019,21 +1033,6 @@ export class PlayerLogic {
       this.fade = 1; // visible: se cruza por la puerta ya abierta, sin teatro
       this.approached = null;
       this.autoEvents.push({ type: 'exited', block: portal.id });
-    }
-  }
-
-  /** v1.46 — VESTÍBULO → PASILLO sin E: empujar hacia el FONDO del hall (W, z local ≥
-   *  backZoneZ del catálogo) te deja en el pasillo de planta 0 — el portal se cruza
-   *  andando en ambos sentidos (calle ↔ vestíbulo ↔ pasillo), sin tecla E. tryExitHome
-   *  ya deja approached/autoEnterLast apuntando al portal: al aterrizar no se re-entra
-   *  solo; alejarse del vano lo rearma. */
-  private portalInnerExit(input: Input): void {
-    const portal = this.portalBlock();
-    if (!portal || this.insideBlock !== portal.id) return;
-    const backZ = this.view.locals.portal?.backZoneZ ?? 2.0;
-    if (input.up && this.z >= backZ) {
-      const r = this.tryExitHome();
-      if (r.type === 'exited') this.autoEvents.push(r);
     }
   }
 
@@ -1234,6 +1233,32 @@ export class PlayerLogic {
       const [za] = this.rangeOf(zoneFirst);
       if (this.content.blocks[zoneFirst.defId]!.features?.mailboxes && Math.abs(this.x - (za + 1.2)) < this.view.itemRadius) return { kind: 'mailbox' };
       const door = this.doorInFront();
+      // v1.80 — PROTESTA EN TU PUERTA: con world.protest TIMBRANDO y tú de presidente,
+      // la E sobre TU puerta es ABRIR (responder a la protesta) y no entrar/timbrar.
+      // Detección de puerta propia idéntica a la del timbre (dueño de la vivienda delante).
+      const protest = this.world.protest;
+      if (
+        door &&
+        door.kind === 'dwelling' &&
+        (door.ownerId === this.actorId || door.id === this.world.residents[this.actorId]?.home) &&
+        protest?.phase === 'ringing' &&
+        protest.presidentId === this.actorId
+      ) {
+        return { kind: 'answer_protest' };
+      }
+      // v1.81 — TEJADO DAÑADO: plantado en el pasillo de la planta residencial más alta con
+      // el tejado goteando (algún bloque del roofDef con roof_damage=1, origen climático en
+      // extra/roof.ts), la E es REPARAR. Va delante de las puertas porque el agua no espera:
+      // el CUÁNDO se ofrece es presentación; el coste y los efectos los pone el sim.
+      const roofCfg = this.content.rules.sim.roof;
+      if (
+        this.mode === 'corridor' &&
+        this.floor === this.topDwellingFloor &&
+        roofCfg &&
+        Object.values(this.world.blocks).some((b) => b.defId === roofCfg.roofDef && b.params.roof_damage === 1)
+      ) {
+        return { kind: 'repair_roof' };
+      }
       // v1.47 — la E solo anuncia puertas de VIVIENDA: los locales se entran andando
       // (empujón hacia la fachada) y anunciar «E · entrar» era el segundo sistema confuso.
       if (door && door.kind === 'dwelling') return { kind: 'door', blockId: door.id };
@@ -1303,6 +1328,10 @@ export class PlayerLogic {
     if (t?.kind === 'noticeboard') return { type: 'used', kind: 'noticeboard' };
     // v1.48 — CUADRO DE FUSIBLES: el controlador decide (apagón → minijuego; en calma → aviso).
     if (t?.kind === 'fusebox') return { type: 'fusebox' };
+    // v1.80 — PROTESTA EN TU PUERTA: abrir (el sim resuelve answer_door; el controlador suena).
+    if (t?.kind === 'answer_protest') return { type: 'answerProtest' };
+    // v1.81 — TEJADO: la E en el pasillo superior manda repair_roof (el sim cobra y repara).
+    if (t?.kind === 'repair_roof') return { type: 'repairRoof' };
     if (t?.kind === 'resident') {
       // v1.40 — CRUZARSE CON UN VECINO = CHARLA (regla del barrio): está fuera, en
       // circulación; la E os planta cara a cara y el controlador saca su línea de saludo.

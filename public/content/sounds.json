@@ -3,82 +3,82 @@
  "sounds": {
   "ui_click": {
    "kind": "file",
-   "file": "/art/audio/sfx/ui_click.wav",
+   "file": "art/audio/sfx/ui_click.wav",
    "gain": 0.8
   },
   "phone_ring": {
    "kind": "file",
-   "file": "/art/audio/sfx/phone_ring.wav",
+   "file": "art/audio/sfx/phone_ring.wav",
    "gain": 0.75
   },
   "door_open": {
    "kind": "file",
-   "file": "/art/audio/sfx/door_open.wav",
+   "file": "art/audio/sfx/door_open.wav",
    "gain": 0.9
   },
   "door_locked": {
    "kind": "file",
-   "file": "/art/audio/sfx/door_locked.wav",
+   "file": "art/audio/sfx/door_locked.wav",
    "gain": 0.9
   },
   "doorbell": {
    "kind": "file",
-   "file": "/art/audio/timbrecasa.mp3",
+   "file": "art/audio/timbrecasa.mp3",
    "gain": 0.9
   },
   "coins": {
    "kind": "file",
-   "file": "/art/audio/sfx/coins.wav",
+   "file": "art/audio/sfx/coins.wav",
    "gain": 0.85
   },
   "jingle_win": {
    "kind": "file",
-   "file": "/art/audio/sfx/jingle_win.wav",
+   "file": "art/audio/sfx/jingle_win.wav",
    "gain": 0.9
   },
   "jingle_lose": {
    "kind": "file",
-   "file": "/art/audio/sfx/jingle_lose.wav",
+   "file": "art/audio/sfx/jingle_lose.wav",
    "gain": 0.85
   },
   "gavel": {
    "kind": "file",
-   "file": "/art/audio/sfx/gavel.wav",
+   "file": "art/audio/sfx/gavel.wav",
    "gain": 0.9
   },
   "minigame_start": {
    "kind": "file",
-   "file": "/art/audio/sfx/minigame_start.wav",
+   "file": "art/audio/sfx/minigame_start.wav",
    "gain": 0.8
   },
   "mg_hit": {
    "kind": "file",
-   "file": "/art/audio/sfx/mg_hit.wav",
+   "file": "art/audio/sfx/mg_hit.wav",
    "gain": 0.85
   },
   "mg_miss": {
    "kind": "file",
-   "file": "/art/audio/sfx/mg_miss.wav",
+   "file": "art/audio/sfx/mg_miss.wav",
    "gain": 0.85
   },
   "thud": {
    "kind": "file",
-   "file": "/art/audio/sfx/thud.wav",
+   "file": "art/audio/sfx/thud.wav",
    "gain": 0.8
   },
   "drill": {
    "kind": "file",
-   "file": "/art/audio/sfx/drill.wav",
+   "file": "art/audio/sfx/drill.wav",
    "gain": 0.7
   },
   "wind": {
    "kind": "file",
-   "file": "/art/audio/sfx/wind.wav",
+   "file": "art/audio/sfx/wind.wav",
    "gain": 0.55
   },
   "stamp": {
    "kind": "file",
-   "file": "/art/audio/sfx/stamp.wav",
+   "file": "art/audio/sfx/stamp.wav",
    "gain": 0.8
   },
   "calle_vehiculo": {
@@ -500,37 +500,37 @@
   },
   "hucha_in": {
    "kind": "file",
-   "file": "/art/audio/sfx/hucha_in.wav",
+   "file": "art/audio/sfx/hucha_in.wav",
    "gain": 0.85
   },
   "hucha_out": {
    "kind": "file",
-   "file": "/art/audio/sfx/hucha_out.wav",
+   "file": "art/audio/sfx/hucha_out.wav",
    "gain": 0.8
   },
   "sirena_ambulancia": {
    "kind": "file",
-   "file": "/art/audio/sfx/sirena_ambulancia.wav",
+   "file": "art/audio/sfx/sirena_ambulancia.wav",
    "gain": 0.6
   },
   "golpe_pelea": {
    "kind": "file",
-   "file": "/art/audio/sfx/golpe_pelea.wav",
+   "file": "art/audio/sfx/golpe_pelea.wav",
    "gain": 0.7
   },
   "claxon": {
    "kind": "file",
-   "file": "/art/audio/sfx/claxon.wav",
+   "file": "art/audio/sfx/claxon.wav",
    "gain": 0.6
   },
   "frenazo": {
    "kind": "file",
-   "file": "/art/audio/sfx/frenazo.wav",
+   "file": "art/audio/sfx/frenazo.wav",
    "gain": 0.7
   },
   "trueno": {
    "kind": "file",
-   "file": "/art/audio/sfx/trueno.wav",
+   "file": "art/audio/sfx/trueno.wav",
    "gain": 0.8
   }
  },

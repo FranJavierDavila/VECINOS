@@ -15,7 +15,6 @@ import {
 } from './diorama';
 import { instantiateBlockAsset, type BlockMat } from './assets';
 import { reportAssetFailure, reportAssetOk } from './assetHealth';
-import { withBase } from '@/game/support/paths';
 
 interface BlockView {
   /** Cajas greybox estructurales (se ocultan cuando llega el modelo glTF; panel/candado NO van aquí). */
@@ -1568,7 +1567,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       if (b.defId === 'trasteros' || b.defId === 'local_comercial') {
         const leafWs = b.defId === 'trasteros' ? [tc.doorW, tc.doorW] : [jh.doorW];
         const leafHs = b.defId === 'trasteros' ? [tc.doorH, tc.doorH] : [v.privacy.doorH];
-        const arts = b.defId === 'trasteros' ? [tc.doorArt, tc.doorArt] : [withBase('/art/interiors/raw/door_casa_a.png')];
+        const arts = b.defId === 'trasteros' ? [tc.doorArt, tc.doorArt] : ['art/interiors/raw/door_casa_a.png'];
         leafWs.forEach((lw, li) => {
           const gx = gapWs[li]!;
           const lh = leafHs[li]!;
@@ -1735,7 +1734,7 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
             const runD = v.corridorDepth;
             const runW = Math.max(0.6, w - v.wall * 2);
             const runH = runD + 0.1;
-            const artBaseLoc = content.interiors?.artBase ?? withBase('/art/interiors/raw/');
+            const artBaseLoc = content.interiors?.artBase ?? 'art/interiors/raw/';
             const runMat = mat(`${b.id}_tapete_mat`);
             runMat.diffuseTexture = plainArtTex(
               `${b.id}_tapete_tex`,
@@ -3024,8 +3023,10 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
             // la hoja y sus nervios cuelgan de ella): entra con el resto de las puertas.
             const liftHinge = new TransformNode(`${b.id}_basculante_hinge`, scene);
             // Canto superior de la hoja, en el MISMO espacio local del arte (el loader niega
-            // la Z: se toma la posición viva del nodo, no la nominal del glTF).
-            liftHinge.position.set(doorMesh.position.x, doorMesh.position.y + 1.86 / 2, doorMesh.position.z);
+            // la Z: se toma la posición viva del nodo, no la nominal del glTF). v1.77: la
+            // MITAD de la altura sale del ARTE (scaling.y del nodo, 1.92) y no del hardcode
+            // 1.86 — hoja y vano coinciden ahora y la bisagra queda en el canto exacto.
+            liftHinge.position.set(doorMesh.position.x, doorMesh.position.y + doorMesh.scaling.y / 2, doorMesh.position.z);
             liftHinge.parent = model.root;
             const under = (mesh: Mesh): void => {
               const p = mesh.position.clone();

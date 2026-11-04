@@ -22,6 +22,8 @@ export interface GameControllerApi {
   phoneNext(): void;
   choose(choiceId: string): void;
   juntaVote(vote: 'yes' | 'no'): void;
+  /** v1.79 — selector de temas de charla: el vecino eligió tema y el sim resuelve la charla. */
+  talkChoose(topicId: string): void;
   finaleClose(): void;
   /** Cutscenes (Fase D): saltar la cinemática en curso (y las encadenadas en cola). */
   cutsceneSkip(): void;

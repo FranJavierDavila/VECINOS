@@ -603,6 +603,9 @@ export const rulesSchema = z.object({
       moodThreshold: z.number(),
       moodPenalty: z.number(),
       clamp: z.object({ min: z.number(), max: z.number() }),
+      /** v1.79 — peso de la CONFIANZA del vecino hacia el jugador en su voto
+       *  (pYes += clamp(trust, -50, 50) / 100 · trustWeight). Ausente/0 = como siempre. */
+      trustWeight: z.number().optional(),
     }),
     /** Campaña de presidencia (v1.18, presentación/support): la misión que otorga el cargo,
      *  la que cierra el mandato, su duración en días de juego y la agenda que el presidente
@@ -652,6 +655,145 @@ export const rulesSchema = z.object({
         freeMovement: z.boolean().default(true),
       })
       .default({ freeMovement: true }),
+    /** v1.79 — SOCIAL: cotilleo de pasillos (socialTick) y confianza por conversación
+     *  (comando `talk`). Defaults del catálogo: un rules.json sin bloque no cambia nada. */
+    social: z
+      .object({
+        /** Probabilidad por tick de que una pareja de pasillo suelte un cotilleo. */
+        gossipChance: z.number().min(0).max(1).default(0.02),
+        /** Vecinos IA despiertos en el mismo pasillo necesarios para cotillear. */
+        gossipMinGroup: z.number().int().min(2).default(2),
+        /** Minutos de sim que un vecino no vuelve a cotillear. */
+        gossipCooldownMinutes: z.number().positive().default(90),
+        /** Deriva de afinidad entre la pareja cotilleadora (ambos sentidos). */
+        gossipAffinityDelta: z.number().min(0).max(100).default(2),
+        /** Minutos de sim entre dos charlas con tema del jugador al mismo vecino. */
+        talkCooldownMinutes: z.number().min(0).default(30),
+      })
+      .default({ gossipChance: 0.02, gossipMinGroup: 2, gossipCooldownMinutes: 90, gossipAffinityDelta: 2, talkCooldownMinutes: 30 }),
+    /** v1.81 — TEJADO (idea #4): roofTick (extra/roof.ts) daña el tejado en tormenta y el
+     *  goteo moja los áticos (sube humidity de las viviendas de la planta alta, que alimenta
+     *  las manchas de humedad del ecosistema). Defaults del catálogo: un rules.json sin
+     *  bloque no se rompe (y sin tormenta no hay daño). */
+    roof: z
+      .object({
+        /** defId del bloque que hace de tejado. */
+        roofDef: z.string().min(1).default('tejado'),
+        /** Probabilidad por tick de tormenta de que el tejado ceda. */
+        damageChancePerTick: z.number().min(0).max(1).default(0.004),
+        /** Minutos entre goteos mientras el tejado siga dañado. */
+        leakEveryTicks: z.number().int().min(1).default(20),
+        /** Humedad que sube por goteo en cada ático. */
+        humidityPerLeak: z.number().min(0).max(100).default(6),
+        /** Coste de repair_roof (hucha → arcas de la comunidad). */
+        repairCost: z.number().min(0).default(60),
+        /** Afinidad ganada con cada vecino IA de la planta alta al reparar. */
+        affinityPerRepair: z.number().min(-100).max(100).default(3),
+        /** Tope de humedad por vivienda. */
+        maxHumidity: z.number().min(0).max(100).default(100),
+      })
+      .default({
+        roofDef: 'tejado',
+        damageChancePerTick: 0.004,
+        leakEveryTicks: 20,
+        humidityPerLeak: 6,
+        repairCost: 60,
+        affinityPerRepair: 3,
+        maxHumidity: 100,
+      }),
+    /** v1.81 — BORRACHO (idea #5): ai.ts puede traer a un vecino ebrio de madrugada:
+     *  tambaleo por los pasillos y faroleo en su puerta. Defaults del catálogo: un rules.json
+     *  sin bloque deja a todos sobrios. */
+    drunk: z
+      .object({
+        /** Probabilidad de ebriedad en cada regreso nocturno. */
+        chance: z.number().min(0).max(1).default(0.35),
+        /** Arquetipos susceptibles ([] = todos). */
+        archetypes: z.array(z.string()).default([]),
+        /** Probabilidad de que cada paso hacia casa sea un trompo. */
+        staggerChance: z.number().min(0).max(1).default(0.55),
+        /** Faroleos en su puerta antes de conseguir entrar. */
+        fumbleTries: z.number().int().min(0).default(2),
+        /** Un drunk_stumble cada N pasos de borrachera. */
+        lineEveryHops: z.number().int().min(1).default(3),
+      })
+      .default({ chance: 0.35, archetypes: [], staggerChance: 0.55, fumbleTries: 2, lineEveryHops: 3 }),
+    /** v1.81 — JUEGO ILEGAL (idea #6): gambleTick monta partidas de cartas nocturnas en la
+     *  vivienda del anfitrión (visitas sospechosas + riesgo de redada con multa). Defaults
+     *  del catálogo: un rules.json sin bloque no monta nunca partida. */
+    gamble: z
+      .object({
+        /** Arquetipo anfitrión (primero por id). */
+        hostArchetype: z.string().min(1).default('fondo_buitre'),
+        /** Ventana de la partida (cruza medianoche). */
+        startMinute: z.string().regex(/^\d{2}:\d{2}$/).default('22:00'),
+        endMinute: z.string().regex(/^\d{2}:\d{2}$/).default('03:00'),
+        /** Probabilidad por noche de partida. */
+        chancePerNight: z.number().min(0).max(1).default(0.3),
+        /** Invitados máximos. */
+        maxGuests: z.number().int().min(0).default(3),
+        /** Probabilidad de redada por tick con la partida en marcha. */
+        raidChancePerTick: z.number().min(0).max(1).default(0.0015),
+        /** Multa al anfitrión (hucha nunca bajo 0). */
+        fine: z.number().min(0).default(120),
+        /** Porción de la multa que entra en las arcas. */
+        fundsShare: z.number().min(0).max(1).default(0.5),
+        /** Días sin partida tras una redada. */
+        cooldownDays: z.number().int().min(0).default(2),
+        /** Afinidad que pierde cada invitado hacia el anfitrión en la redada. */
+        guestAffinityPenalty: z.number().min(-100).max(0).default(-2),
+      })
+      .default({
+        hostArchetype: 'fondo_buitre',
+        startMinute: '22:00',
+        endMinute: '03:00',
+        chancePerNight: 0.3,
+        maxGuests: 3,
+        raidChancePerTick: 0.0015,
+        fine: 120,
+        fundsShare: 0.5,
+        cooldownDays: 2,
+        guestAffinityPenalty: -2,
+      }),
+    /** v1.80 — PROTESTA POR APAGÓN: protestTick (extra/protest.ts) observa el param de luz
+     *  del pasillo (el que el apagón del ecosistema deja a cero); por debajo del umbral arma
+     *  world.protest y alguien termina timbrando en la puerta de la presidencia. Defaults
+     *  del catálogo: un rules.json sin bloque no cambia nada (no hay protesta). */
+    protest: z
+      .object({
+        /** defId de bloque vigilado (el que ev_apagon_nocturno apaga). */
+        watchDef: z.string().min(1).default('pasillo_planta'),
+        /** Param de iluminación vigilado. */
+        watchParam: z.string().min(1).default('lighting'),
+        /** Mínimo entre bloques por debajo del cual se arma la protesta (0..100). */
+        belowThreshold: z.number().min(0).max(100).default(20),
+        /** Minutos de apagón antes del primer recluta (gracia inicial). */
+        delayMinutes: z.number().min(0).default(45),
+        /** Minutos entre reintentos de recluta si nadie está despierto. */
+        recruitEveryMinutes: z.number().min(1).default(10),
+        /** Minutos entre timbrazos en la puerta del presidente. */
+        ringIntervalMinutes: z.number().min(1).default(4),
+        /** Timbrazos que aguanta el vecino antes de rendirse. */
+        maxRings: z.number().int().min(1).default(5),
+        /** Afinidad protestante→presidente al ABRIR la puerta. */
+        calmAffinity: z.number().min(-100).max(100).default(4),
+        /** Confianza protestante→presidente al ABRIR la puerta. */
+        calmTrust: z.number().min(-100).max(100).default(3),
+        /** Afinidad protestante→presidente al rendirse. */
+        tiredAffinity: z.number().min(-100).max(0).default(-3),
+      })
+      .default({
+        watchDef: 'pasillo_planta',
+        watchParam: 'lighting',
+        belowThreshold: 20,
+        delayMinutes: 45,
+        recruitEveryMinutes: 10,
+        ringIntervalMinutes: 4,
+        maxRings: 5,
+        calmAffinity: 4,
+        calmTrust: 3,
+        tiredAffinity: -3,
+      }),
   }),
   view: z.object({
     cellW: z.number(),
@@ -760,7 +902,7 @@ export const rulesSchema = z.object({
             doorBottom: z.number().min(0).default(0.14),
             doorZ: z.number().default(0.08),
             wallT: z.number().positive().default(0.3),
-            art: z.string().default('/art/interiors/raw/door_comunal.png'),
+            art: z.string().default('art/interiors/raw/door_comunal.png'),
             numberColor: z.string().default('#1c1c1c'),
             hinge: z.enum(['left', 'right']).default('left'),
             openAngle: z.number().positive().default(1.75),
@@ -808,7 +950,7 @@ export const rulesSchema = z.object({
             doorBottom: 0.14,
             doorZ: 0.08,
             wallT: 0.3,
-            art: '/art/interiors/raw/door_comunal.png',
+            art: 'art/interiors/raw/door_comunal.png',
             numberColor: '#1c1c1c',
             hinge: 'left',
             openAngle: 1.75,
@@ -845,7 +987,7 @@ export const rulesSchema = z.object({
         floorSlab: { enabled: true, thickness: 0.14, color: '#b8c0a8', topAt: 0.14 },
         facade: {
           enabled: true, halfW: 1.2, fullWall: true, color: '#ddd1b8', doorW: 0.86, doorH: 1.84, doorBottom: 0.14, doorZ: 0.08, wallT: 0.3,
-          art: '/art/interiors/raw/door_comunal.png', numberColor: '#1c1c1c', hinge: 'left', openAngle: 1.75, openAhead: 1.05, openSpeed: 3.2,
+          art: 'art/interiors/raw/door_comunal.png', numberColor: '#1c1c1c', hinge: 'left', openAngle: 1.75, openAhead: 1.05, openSpeed: 3.2,
           window: { enabled: true, sill: 0.5, head: 2.3, color: '#cfe3ea', alpha: 0.24, mullions: 5, mullionW: 0.045, frameColor: '#7d7668', rear: true },
           hideNodes: [],
         },
@@ -1326,7 +1468,7 @@ export const rulesSchema = z.object({
          *  funcionan como las de las viviendas y dentro, estanterías para todos. */
         trasteroComunal: z
           .object({
-            doorArt: z.string().default('/art/interiors/raw/door_comunal.png'),
+            doorArt: z.string().default('art/interiors/raw/door_comunal.png'),
             doorW: z.number().positive().default(0.85),
             doorH: z.number().positive().default(1.72),
             doorDx: z.number().default(0.55),
@@ -1335,7 +1477,7 @@ export const rulesSchema = z.object({
             signBg: z.string().default('#3b3129'),
             signText: z.string().default('#ffd166'),
           })
-          .default({ doorArt: '/art/interiors/raw/door_comunal.png', doorW: 0.85, doorH: 1.72, doorDx: 0.55, shelfTiers: 3, sign: 'TRASTERO COMÚN', signBg: '#3b3129', signText: '#ffd166' }),
+          .default({ doorArt: 'art/interiors/raw/door_comunal.png', doorW: 0.85, doorH: 1.72, doorDx: 0.55, shelfTiers: 3, sign: 'TRASTERO COMÚN', signBg: '#3b3129', signText: '#ffd166' }),
         /** v1.30 — SALA DE JUNTAS (local de la comunidad): se mapea como local de reuniones
          *  (no como vivienda), con mesa y sillas; convocada una junta, los presentes entran
          *  y se sientan (también acoge fiestas). Asientos en coords LOCALES del bloque. */
@@ -1401,7 +1543,7 @@ export const rulesSchema = z.object({
         lavanderia: z
           .object({
             machines: z.number().int().min(1).default(4),
-            art: z.string().default('/art/interiors/raw/f_lavadora.png'),
+            art: z.string().default('art/interiors/raw/f_lavadora.png'),
             artH: z.number().positive().default(1.02),
             machineColor: z.string().default('#e8e6e0'),
             sign: z.string().default('LAVANDERÍA'),
@@ -1427,7 +1569,7 @@ export const rulesSchema = z.object({
             accentColor: z.string().optional(),
             topColor: z.string().optional(),
           })
-          .default({ machines: 4, art: '/art/interiors/raw/f_lavadora.png', artH: 1.02, machineColor: '#e8e6e0', sign: 'LAVANDERÍA', signBg: '#3b3129', signText: '#ffd166' }),
+          .default({ machines: 4, art: 'art/interiors/raw/f_lavadora.png', artH: 1.02, machineColor: '#e8e6e0', sign: 'LAVANDERÍA', signBg: '#3b3129', signText: '#ffd166' }),
         /** v1.46 — CRUCE POR MOVIMIENTO en los locales de planta 0 (sin tecla E): la
          *  salida se arma al adentrarse (armZ) y salta al volver al marco de la puerta
          *  (exitZ) DENTRO del vano (doorPad = tolerancia lateral alrededor del hueco,
@@ -1450,8 +1592,9 @@ export const rulesSchema = z.object({
         /** v1.35 — VESTÍBULO del portal: colores interiores del local. v1.36 — el interior
          *  es UNA IMAGEN del hall (interiors.json → wall_portal_hall.png); del catálogo solo
          *  quedan los colores de pared y suelo del diorama. v1.46 — backZoneZ: empujar
-         *  hacia el fondo del hall (W, z local ≥ backZoneZ) te deja en el pasillo de la
-         *  planta 0 SIN tecla E: el portal se cruza andando en ambos sentidos. */
+         *  hacia el fondo del hall (W, z local ≥ backZoneZ) te dejaba en el pasillo de la
+         *  planta 0 SIN tecla E. RETIRADO en v1.75 (el salto cruzaba el muro frontal: era
+         *  el «teleport al portal»); la clave queda en el catálogo por compatibilidad. */
         portal: z
           .object({
             backZoneZ: z.number().positive().optional(),
@@ -1470,7 +1613,7 @@ export const rulesSchema = z.object({
         seeThrough: ['portal'],
         portalDoors: { slide: 0.96, openAhead: 1.7, openSeconds: 0.8, frame: '#8fa3ad', glass: '#cfe3ea', sheen: '#ffffff', handle: '#5d6b7a', alpha: 0.72 },
         garaje: { panel: '#c9ced6', panelShade: '#9aa2ad', rail: '#6d747d', window: '#dfe9ee', sign: 'GARAJES', signBg: '#3b3129', signText: '#ffd166', rampDepth: 1.1, rampColor: '#8f8d86' },
-        trasteroComunal: { doorArt: '/art/interiors/raw/door_comunal.png', doorW: 0.85, doorH: 1.72, doorDx: 0.55, shelfTiers: 3, sign: 'TRASTERO COMÚN', signBg: '#3b3129', signText: '#ffd166' },
+        trasteroComunal: { doorArt: 'art/interiors/raw/door_comunal.png', doorW: 0.85, doorH: 1.72, doorDx: 0.55, shelfTiers: 3, sign: 'TRASTERO COMÚN', signBg: '#3b3129', signText: '#ffd166' },
         hallDoors: { enabled: true, openAhead: 1.15, openSeconds: 0.45, openAngle: 1.0, liftAngle: 1.45 },
         juntaHall: {
           doorW: 1.05, sign: 'SALA DE JUNTAS', signBg: '#3b3129', signText: '#ffd166',
@@ -1479,7 +1622,7 @@ export const rulesSchema = z.object({
           standSpots: [[1.0, 2.62], [1.85, 2.62], [2.7, 2.62], [3.55, 2.62], [0.5, 0.5], [4.18, 0.5]],
           wood: '#8a5a33', woodDark: '#6f4926',
         },
-        lavanderia: { machines: 4, art: '/art/interiors/raw/f_lavadora.png', artH: 1.02, machineColor: '#e8e6e0', sign: 'LAVANDERÍA', signBg: '#3b3129', signText: '#ffd166' },
+        lavanderia: { machines: 4, art: 'art/interiors/raw/f_lavadora.png', artH: 1.02, machineColor: '#e8e6e0', sign: 'LAVANDERÍA', signBg: '#3b3129', signText: '#ffd166' },
       }),
     /** v1.35 — GRAFITIS: textos y dibujos graciosos del catálogo (spray en cabina y muros).
      *  cabinMin = nivel de cabin_graffiti en que aparece el mural; spillToWalls = nivel en
@@ -2449,6 +2592,10 @@ export const rulesSchema = z.object({
      *  paseo por el pasillo. {name} = nombre propio del vecino. */
     doorbell: z.string().optional(),
     chat: z.string().optional(),
+    /** v1.80 — protesta en TU puerta: prompt de la E cuando world.protest timbra. */
+    answerProtest: z.string().optional(),
+    /** v1.81 — tejado dañado y tú en el pasillo de la planta alta (E = repair_roof). */
+    repairRoof: z.string().optional(),
     /** v1.42 — calle: banco exterior, calistenia y levantarse (prompt de la E). */
     bench: z.string().optional(),
     exercise: z.string().optional(),
@@ -2809,6 +2956,26 @@ export const ecosystemContentSchema = z.object({
     /** v1.21: de noche las luces de pasillo SOLO si la instalación funciona Y hay algún
      *  vecino en ese pasillo (nadie pasea a oscuras por gusto). */
     nightRequiresPresence: z.boolean().default(false),
+    /** v1.80 — LÁMPARAS INTERIORES del pasillo (emisivas, sin PointLights): la planta se
+     *  ilumina de noche SOLO donde hay gente (mismo patrón que la activityLight de la
+     *  escalera: fundido + emissive) y con APAGÓN quedan a cero. Opcional: sin bloque,
+     *  el interior del pasillo queda como siempre. */
+    corridorInterior: z
+      .object({
+        enabled: z.boolean().default(true),
+        color: z.string().min(1).default('#ffe3a1'),
+        /** Intensidad emisiva con alguien en la planta de noche (0..1). */
+        nightIntensity: z.number().min(0).max(1).default(0.6),
+        /** Segundos de fundido hacia el nivel objetivo. */
+        fadeSecs: z.number().positive().default(0.9),
+        /** Lamparitas interiores por bloque de pasillo. */
+        lampsPerCorridor: z.number().int().min(1).default(3),
+        /** Tamaño (w,h,d en m) de cada lamparita. */
+        lampSize: z.tuple([z.number().positive(), z.number().positive(), z.number().positive()]).default([0.12, 0.05, 0.12]),
+        /** Altura de las lámparas como ratio de la altura de planta (0..1). */
+        heightRatio: z.number().min(0.1).max(1).default(0.93),
+      })
+      .optional(),
   }),
   mood: z.object({ needs: z.record(z.string(), z.number()) }),
   visuals: z.object({
@@ -2961,6 +3128,68 @@ export const crossingsCatalogSchema = z.object({
 export type CrossingsCatalogParsed = z.infer<typeof crossingsCatalogSchema>;
 
 
+// ───────────────────────── Capa social (v1.79, opcional) ─────────────────────────
+
+// Temas del selector de charla (comando `talk` del sim) y frases de cotilleo de pasillo
+// (evento gossip_started). Todo vive en public/content/social.json; el sim (extra/social.ts)
+// resuelve la CONFIANZA y la afinidad, y la presentación solo pinta bocadillos y toasts.
+// Los {a}/{b} del cotilleo son los nombres visibles de los dos cotilleadores.
+
+export const talkTopicSchema = z.object({
+  id: z.string().min(1),
+  label: localizedTextSchema,
+  /** Nombre de icono lucide para el botón del selector (con fallback en la UI). */
+  icon: z.string().min(1),
+  /** Probabilidad base de que la charla siente bien (0..1). */
+  gainChance: z.number().min(0).max(1),
+  /** Delta de confianza si la charla va bien (0..100). */
+  trustGain: z.number().min(0).max(100),
+  /** Delta de confianza si va mal (-100..0). */
+  trustLoss: z.number().min(-100).max(0),
+  /** Arquetipos que adoran el tema (+0.2 al gainChance): ids reales de archetypes.json. */
+  likedBy: z.array(z.string()),
+  /** Arquetipos a los que el tema les resta (-0.2). */
+  dislikedBy: z.array(z.string()),
+  linesGain: z.array(localizedTextSchema).min(1),
+  linesLoss: z.array(localizedTextSchema).min(1),
+});
+
+export const socialCatalogSchema = z.object({
+  topics: z.array(talkTopicSchema).min(1),
+  gossip: z.object({ lines: z.array(localizedTextSchema).min(1) }),
+  /** v1.80 — frases de la protesta por apagón (opcional): una línea por escalón de
+   *  timbrazo (el cliente elige por nº de timbrazo), la de calma al abrir y la de
+   *  rendición. Sin bloque, la protesta funciona igual pero sin bocadillos. */
+  protest: z
+    .object({
+      ringLines: z.array(localizedTextSchema).min(1),
+      calmLine: localizedTextSchema,
+      tiredLine: localizedTextSchema,
+    })
+    .optional(),
+  /** v1.81 — frases del vecino borracho (opcional): al cruzar el portal, al farolear en su
+   *  puerta y al colarse por fin. Sin bloque, el borracho tambalea en silencio. */
+  drunk: z
+    .object({
+      linesStart: z.array(localizedTextSchema).min(1),
+      linesFumble: z.array(localizedTextSchema).min(1),
+      linesHome: z.array(localizedTextSchema).min(1),
+    })
+    .optional(),
+  /** v1.81 — frases del juego ilegal (opcional): el invitado que sube y el anfitrión
+   *  cuando cae la redada. Sin bloque, las visitas suben en silencio. */
+  gamble: z
+    .object({
+      linesVisit: z.array(localizedTextSchema).min(1),
+      linesRaid: z.array(localizedTextSchema).min(1),
+    })
+    .optional(),
+});
+
+export type TalkTopicParsed = z.infer<typeof talkTopicSchema>;
+export type SocialCatalogParsed = z.infer<typeof socialCatalogSchema>;
+
+
 // ───────────────────────── Dioramas interiores (v1.23) ─────────────────────────
 
 /** Capa de billboard de mobiliario: un sprite con paralaje dentro de la estancia.
@@ -3017,7 +3246,7 @@ export const interiorDioramaSchema = z.object({
  *  v1.29 — `shell`: arte de la CARCASO de la vivienda (laterales + techo con paralaje,
  *  un solo bloque) — sideWalls/ceilings por hash y tinte neutro que casa con las estancias. */
 export const interiorsCatalogSchema = z.object({
-  artBase: z.string().default('/art/interiors/raw/'),
+  artBase: z.string().default('art/interiors/raw/'),
   keyColor: z.string().default('#ffffff'),
   keyTolerance: z.number().min(0).max(1).default(0.09),
   processSize: z.number().int().min(64).max(2048).default(512),

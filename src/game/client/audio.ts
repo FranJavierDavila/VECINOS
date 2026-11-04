@@ -9,7 +9,6 @@
 
 import { soundsCatalogSchema, type SoundsCatalog } from '@/game/content/schemas';
 import { loadOptions, saveOptionsPartial } from './options';
-import { withBase } from '@/game/support/paths';
 
 const MUTE_KEY = 'vecinos.muted';
 
@@ -64,7 +63,7 @@ async function loadCatalog(): Promise<void> {
   if (catalog || loading) return;
   loading = (async () => {
     try {
-      const res = await fetch(withBase('/content/sounds.json'));
+      const res = await fetch('content/sounds.json');
       const parsed = soundsCatalogSchema.safeParse(await res.json());
       if (parsed.success) {
         catalog = parsed.data;

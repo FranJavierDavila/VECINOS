@@ -3,8 +3,10 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 
-/** GitHub Pages monta el juego en /VECINOS/ — manifest e iconos también cuelgan de ahí. */
-const BASE_PATH = (process.env.NEXT_PUBLIC_BASE_PATH ?? "").replace(/\/+$/, "");
+/** En el export a GitHub Pages (NEXT_PAGES=1, basePath fijo /VECINOS) manifest e iconos
+ *  cuelgan de la subruta; en dev/servidor propio, de la raíz. Es código de servidor: el
+ *  env se lee en el build, no en el navegador. */
+const BASE_PATH = process.env.NEXT_PAGES === "1" ? "/VECINOS" : "";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

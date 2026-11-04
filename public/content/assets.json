@@ -1,5 +1,5 @@
 {
- "base": "/assets/",
+ "base": "assets/",
  "actors": {
   "nino_grafitero": {
    "model": "actors/nino_grafitero.gltf",

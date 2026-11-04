@@ -1,0 +1,170 @@
+{
+  "topics": [
+    {
+      "id": "t_clima",
+      "label": { "es": "El tiempo", "en": "The weather" },
+      "icon": "cloud-sun",
+      "gainChance": 0.7,
+      "trustGain": 3,
+      "trustLoss": -2,
+      "likedBy": ["jubilada", "repartidor"],
+      "dislikedBy": ["fondo_buitre", "estudiante"],
+      "linesGain": [
+        { "es": "Con este sol se tienta uno a echar la siesta en la azotea, ¿eh?", "en": "With sun like this, one's tempted to nap on the roof, eh?" },
+        { "es": "El aire del mar llegó hasta el portal. Buen presagio, eso es.", "en": "The sea breeze reached the lobby. A good omen, that is." },
+        { "es": "Ni una gota en toda la semana: hasta las macetas están felices.", "en": "Not a drop all week: even the houseplants are happy." }
+      ],
+      "linesLoss": [
+        { "es": "¿Que va a llover otra vez? Vaya, pues el tendal que tenía fuera…", "en": "It's going to rain again? Great, and my laundry was outside…" },
+        { "es": "Con este viento las persianas no dejan dormir ni al gato.", "en": "With this wind, the shutters won't even let the cat sleep." },
+        { "es": "Hace un frío que quita las ganas hasta de cotillear. Y eso es mucho decir.", "en": "So cold even gossiping loses its charm. And that's saying something." }
+      ]
+    },
+    {
+      "id": "t_reformas",
+      "label": { "es": "Reformas", "en": "Renovations" },
+      "icon": "hammer",
+      "gainChance": 0.65,
+      "trustGain": 4,
+      "trustLoss": -3,
+      "likedBy": ["electricista", "pintora", "fondo_buitre"],
+      "dislikedBy": ["okupa", "nino_grafitero"],
+      "linesGain": [
+        { "es": "Esa regleta nueva que has puesto en el portal… queda de lujo.", "en": "That new cable tray in the lobby… looks proper classy." },
+        { "es": "Un buen taladro y una mano amiga: media reforma, resuelta.", "en": "A good drill and a helping hand: half the rework done already." },
+        { "es": "Yo de pequeño ayudaba a mi tío albañil. Los ladrillos, qué tiempos.", "en": "As a kid I helped my mason uncle. Good old days, carrying bricks." }
+      ],
+      "linesLoss": [
+        { "es": "¿Otra vez taladrando a las ocho de la mañana? Que esto no es una obra.", "en": "Drilling at eight in the morning again? This isn't a worksite." },
+        { "es": "Ese empapelado… mire, no le digo nada, pero no le digo nada.", "en": "That wallpaper… well, I'll say nothing. And I mean it kindly." },
+        { "es": "Reformar está bien, pero el polvo del portal me lo como en las tostadas.", "en": "Renovating is fine, but I'm eating lobby dust with my toast." }
+      ]
+    },
+    {
+      "id": "t_mascotas",
+      "label": { "es": "Las mascotas", "en": "The pets" },
+      "icon": "dog",
+      "gainChance": 0.7,
+      "trustGain": 4,
+      "trustLoss": -2,
+      "likedBy": ["sanitaria", "jubilada", "inquilino"],
+      "dislikedBy": ["fondo_buitre", "musico"],
+      "linesGain": [
+        { "es": "Su perro me espera cada mañana en el rellano. Más puntual que el correo.", "en": "Your dog waits for me every morning. More punctual than the mail." },
+        { "es": "Pásese por el parque: hasta las palomas juegan con su caniche.", "en": "Swing by the park: even the pigeons play with your poodle." },
+        { "es": "Ese gato gris de la azotea ya es del barrio. Le hemos puesto nombre.", "en": "That grey rooftop cat belongs to the block now. We named it." }
+      ],
+      "linesLoss": [
+        { "es": "¿Otra vez el ladrido de madrugada? Que el perro también necesita dormir.", "en": "The barking at dawn again? The dog needs its sleep too, you know." },
+        { "es": "Mire, a mí las mascotas me respetan… de lejos. Bien lejos.", "en": "Look, pets respect me… from afar. Very, very far." },
+        { "es": "El arenero del balcón no es, precisamente, perfume de primera calidad.", "en": "A balcony litter box is not, precisely, high-end fragrance." }
+      ]
+    },
+    {
+      "id": "t_seguridad",
+      "label": { "es": "Seguridad del portal", "en": "Building security" },
+      "icon": "shield",
+      "gainChance": 0.6,
+      "trustGain": 4,
+      "trustLoss": -4,
+      "likedBy": ["presidente", "jubilada", "sanitaria"],
+      "dislikedBy": ["okupa", "nino_grafitero"],
+      "linesGain": [
+        { "es": "Con la cerradura nueva del portal se queda uno más tranquilo, sí.", "en": "With the new lobby lock, one does sleep easier. Yes sir." },
+        { "es": "Yo aviso de raros por el grupo del portal. Aquí nos cuidamos.", "en": "I report strangers on the block chat. We look after our own." },
+        { "es": "La mirilla nueva distingue hasta al repartidor del pan. Tecnología, oye.", "en": "The new peephole can tell the bread delivery apart. Technology!" }
+      ],
+      "linesLoss": [
+        { "es": "¿Que se me olvidó cerrar con llave una vez y ya soy el peligro andante?", "en": "I forget the lock ONE time and now I'm a walking hazard?" },
+        { "es": "Tanto candado y el timbre del tercero lleva años sin funcionar.", "en": "So many locks, yet the third-floor bell's been dead for years." },
+        { "es": "La puerta del garaje abierta no la dejé yo… ¿o sí? Bueno, ¡fue el viento!", "en": "I didn't leave the garage door open… did I? Eh, it was the wind!" }
+      ]
+    },
+    {
+      "id": "t_fiestas",
+      "label": { "es": "Las fiestas", "en": "The parties" },
+      "icon": "party-popper",
+      "gainChance": 0.75,
+      "trustGain": 3,
+      "trustLoss": -2,
+      "likedBy": ["fiestero", "musico", "estudiante", "inquilino", "cotilla"],
+      "dislikedBy": ["jubilada", "presidente"],
+      "linesGain": [
+        { "es": "Lo del sábado en el patio fue un fiestón. Usted no vio a la Pintora.", "en": "Saturday's courtyard party was a blast. You missed the painter's moves." },
+        { "es": "Sí, invítame a la próxima: llevo la paella y los cotilleos, pa'largo.", "en": "Invite me to the next one: I'll bring paella AND fresh gossip." },
+        { "es": "En mi pueblo las fiestas duraban tres días. Aquí les ganamos de lejos.", "en": "Back home, fiestas lasted three days. We've got them beat here." }
+      ],
+      "linesLoss": [
+        { "es": "El bajo ese hasta las tantas… que yo era joven, pero a las dos, ¿no?", "en": "That bass till the small hours… I was young too, but not at 2am!" },
+        { "es": "La última fiesta me dejó el portal hecho una pista de baile pegajosa.", "en": "The last party left our lobby a sticky dancefloor. Again." },
+        { "es": "Confeti en MI rellano. Confeti. Esto ya no es lo que era, le digo yo.", "en": "Confetti in MY hallway. Confetti. This block's going downhill." }
+      ]
+    },
+    {
+      "id": "t_rumor",
+      "label": { "es": "Un rumor", "en": "A rumor" },
+      "icon": "flame",
+      "gainChance": 0.5,
+      "trustGain": 6,
+      "trustLoss": -5,
+      "likedBy": ["cotilla"],
+      "dislikedBy": ["presidente", "sanitaria", "jubilada"],
+      "linesGain": [
+        { "es": "Psst… ¿no se ha enterado? El del 3ºB busca piso nuevo. Usted y yo, ¿eh?", "en": "Psst… haven't you heard? 3B is flat-hunting. Just between us, eh?" },
+        { "es": "Que lo digo bajito: el del bar y la del tercero… ya se les ve juntos.", "en": "Keep this under your hat: the bar owner and the third-floor lady…" },
+        { "es": "Esto no sale de aquí: dicen que el garaje esconde una moto clásica.", "en": "This stays here: word is the garage hides a classic motorbike." }
+      ],
+      "linesLoss": [
+        { "es": "¿Y a usted quién le ha contado eso? Porque yo no digo esas cosas.", "en": "And who told YOU that? I would never spread such things." },
+        { "es": "Para rumores tengo mala puntería: se lo solté a la persona equivocada.", "en": "I'm terrible with rumors: I blabbed to the wrong person. Again." },
+        { "es": "Yo nunca cotilleo. Bueno, hoy no. Bueno… ¿esto va grabado?", "en": "I never gossip. Well, not today. Well… is this thing recording?" }
+      ]
+    }
+  ],
+  "gossip": {
+    "lines": [
+      { "es": "¿Sabes que {a} dejó la basura en el rellano otra vez, {b}? Lo digo por un amigo…", "en": "Did you know {a} left the trash out AGAIN, {b}? Asking for a friend…" },
+      { "es": "Palabra de {a}: el del tercero vuelve a dar la lata con la música, {b}.", "en": "Word of {a}: the third-floor guy is at it with the music again, {b}." },
+      { "es": "Entre {a} y {b} sabemos las noticias del portal antes que el tablón.", "en": "Between {a} and {b}, block news reaches us before the noticeboard." },
+      { "es": "Guarda el secreto, {b}: dicen que {a} ronca con aires de ópera.", "en": "Keep the secret, {b}: they say {a} snores like an opera tenor." },
+      { "es": "{a} y {b} cotilleamos poco… pero lo poco que cotilleamos, es de calidad.", "en": "{a} and {b} don't gossip much… but what little we do, is quality." },
+      { "es": "No lo lleves a la junta, {b}: a {a} le han visto poniendo la lavadora a las tantas.", "en": "Don't bring this to the meeting, {b}: they saw {a} doing laundry at midnight." },
+      { "es": "Psst, {b}: {a} apuesta a que llueve antes del jueves. No nos falles.", "en": "Psst, {b}: {a} bets it rains before Thursday. Don't let us down." },
+      { "es": "Si alguien pregunta, {a} y {b} no sabemos nada del jarrón del rellano. ¿Trato?", "en": "If anyone asks, {a} and {b} know nothing about the hallway vase. Deal?" }
+    ]
+  },
+  "protest": {
+    "ringLines": [
+      { "es": "¿Se puede saber? Llevamos una hora a oscuras y la presidencia no se inmuta.", "en": "Excuse me? We've been in the dark an hour and the presidency doesn't care." },
+      { "es": "¡No es normal! Mi sopa se ha quedado a medio hacer y el pasillo negro. ¡Luz ya!", "en": "This is not normal! My soup is half-done and the hallway pitch black. Lights NOW!" },
+      { "es": "¡Timbre, timbre y más timbre! Que baje alguien del comité o no duerme nadie.", "en": "Ring, ring and more rings! Someone from the board comes down or nobody sleeps." },
+      { "es": "¡ESTOY HASTA EL MOÑO! ¡O abres la puerta o hago píxel el cuadro de fusibles yo solo!", "en": "I'VE HAD IT! Open this door or I'll fix the fuse box myself, wildly!" }
+    ],
+    "calmLine": { "es": "Perdona la insistencia… con el apagón y la oscurita, cualquiera pierde las formas. Gracias por abrir.", "en": "Sorry for the insistence… with the blackout and all this dark, anyone loses their manners. Thanks for opening." },
+    "tiredLine": { "es": "Bah, seguro que estás sordo o fuera. Mañana en la junta hablamos de esto.", "en": "Bah, you must be deaf or away. We'll talk about this at tomorrow's meeting." }
+  },
+  "drunk": {
+    "linesStart": [
+      { "es": "Yo no estoy bebido. Es el pasillo el que se mueve. Que conste.", "en": "I am NOT drunk. It's the hallway that's moving. For the record." },
+      { "es": "La escalera ha crecido un tramo. Lo juro. Habla con la junta.", "en": "The stairs grew a flight. I swear. Take it to the board." },
+      { "es": "Shhh… que duermen los vecinos. Y yo también, un poquito. De pie.", "en": "Shhh… the neighbors are sleeping. Me too, a little. Standing up." }
+    ],
+    "linesFumble": [
+      { "es": "La llave… está jadeando. Espérate, puñetas, que te tengo.", "en": "The key… it's panting. Hold still, you rascal, I've got you." },
+      { "es": "Esta no es mi puerta. La mía tiene el número más derecho.", "en": "This isn't my door. Mine has a straighter number." }
+    ],
+    "linesHome": [
+      { "es": "¿Ves? Entré sin ayuda. El sofá y yo tenemos un pacto.", "en": "See? Made it in unaided. The couch and I have an understanding." }
+    ]
+  },
+  "gamble": {
+    "linesVisit": [
+      { "es": "¿Una escalerilla arriba? Voy a ver un cuadro. Sí, un cuadro.", "en": "Up for a quick sec? Just checking a painting. Yes, a painting." },
+      { "es": "Esto es un taller de manualidades. Lo que se oye son tijeras.", "en": "This is a crafts workshop. Those are scissors you hear." }
+    ],
+    "linesRaid": [
+      { "es": "¡Son dominó, KOJO! ¿¡Desde cuándo el dominó es delito!?", "en": "It's DOMINOES, officer! Since when is dominoes a crime!?" },
+      { "es": "Paga la multa y ni una palabra en el grupo del portal. NADA.", "en": "Pay the fine and not one word on the block chat. NOTHING." }
+    ]
+  }
+}

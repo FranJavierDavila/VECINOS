@@ -1,27 +1,31 @@
 import type { NextConfig } from "next";
 
 /**
- * Dos modos de build, mismos fuentes:
- *  - Estándar (dev + servidor propio): output "standalone" como siempre.
- *  - Export estático (VECINOS_STATIC_EXPORT=1, lo usa el workflow de GitHub Pages):
- *    output "export" + trailingSlash — no hay servidor, el juego vive en /VECINOS/
- *    y las rutas /api/* no existen (el cliente degrada: guardado local, sin telemetría).
- * El basePath llega por NEXT_PUBLIC_BASE_PATH (build de Pages: /VECINOS) y lo consumen
- * el helper src/game/support/paths.ts y PwaRegister; aquí solo le enseña a Next dónde montar.
+ * Dos modos de build, elegidos por ENTORNO (nunca editando este fichero a mano):
+ *
+ *  · NORMAL (sandbox/desarrollo): `output: "standalone"`, tal cual siempre.
+ *
+ *  · PAGES (NEXT_PAGES=1): export estático para GitHub Pages. Solo lo usa el
+ *    despliegue (remoto o `NEXT_PAGES=1 bunx next build` local): exige basePath
+ *    del repositorio (`/VECINOS`) porque Pages sirve proyectos en subpath,
+ *    imágenes sin optimizar (no hay runtime de Next) y distDir PROPIO para no
+ *    pisar el `.next` del dev server si el build corre en la misma máquina.
+ *    El runtime del juego no toca rutas de servidor: las llamadas que hacían
+ *    falta (/api/save) tienen caída a localStorage en controller.ts.
  */
-const isStaticExport = process.env.VECINOS_STATIC_EXPORT === "1";
+const pagesMode = process.env.NEXT_PAGES === "1";
 
 const nextConfig: NextConfig = {
-  ...(isStaticExport
+  ...(pagesMode
     ? {
-        output: "export" as const,
-        trailingSlash: true as const,
+        output: "export",
+        basePath: "/VECINOS",
         images: { unoptimized: true },
-        // Solo basePath: Next ya antepone el basePath a los assets — un assetPrefix igual
-        // lo duplicaría (/VECINOS/VECINOS/_next/...).
-        basePath: process.env.NEXT_PUBLIC_BASE_PATH || undefined,
+        distDir: ".next-pages",
       }
-    : { output: "standalone" as const }),
+    : {
+        output: "standalone",
+      }),
   typescript: {
     ignoreBuildErrors: true,
   },

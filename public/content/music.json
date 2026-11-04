@@ -63,7 +63,7 @@
     "lead": "triangle",
     "bass": "sine"
    },
-   "file": "/art/audio/music/loop_morning.wav",
+   "file": "art/audio/music/loop_morning.wav",
    "fileGain": 0.9
   },
   "afternoon": {
@@ -107,7 +107,7 @@
     "lead": "sine",
     "bass": "sine"
    },
-   "file": "/art/audio/music/loop_afternoon.wav",
+   "file": "art/audio/music/loop_afternoon.wav",
    "fileGain": 0.9
   },
   "evening": {
@@ -151,7 +151,7 @@
     "lead": "sine",
     "bass": "sine"
    },
-   "file": "/art/audio/music/loop_evening.wav",
+   "file": "art/audio/music/loop_evening.wav",
    "fileGain": 0.95
   },
   "night": {
@@ -195,7 +195,7 @@
     "lead": "sine",
     "bass": "sine"
    },
-   "file": "/art/audio/music/loop_night.wav",
+   "file": "art/audio/music/loop_night.wav",
    "fileGain": 0.85
   }
  },

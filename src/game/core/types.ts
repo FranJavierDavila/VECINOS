@@ -781,6 +781,23 @@ export interface EcosystemContent {
     lampSize: [number, number, number];
     /** v1.21: de noche, luz solo si la instalación funciona Y hay vecinos en el pasillo. */
     nightRequiresPresence: boolean;
+    /** v1.80 — LÁMPARAS INTERIORES del pasillo (emisivas, sin luces dinámicas): la planta
+     *  se ilumina de noche SOLO donde hay gente (mismo patrón que la actividadLight de la
+     *  escalera) y con APAGÓN quedan a cero (circuito común caído). */
+    corridorInterior?: {
+      enabled: boolean;
+      color: string;
+      /** Intensidad emisiva con alguien en la planta de noche (0..1). */
+      nightIntensity: number;
+      /** Segundos de fundido hacia el nivel objetivo. */
+      fadeSecs: number;
+      /** Lamparitas interiores por bloque de pasillo. */
+      lampsPerCorridor: number;
+      /** Tamaño (w,h,d en m) de cada lamparita. */
+      lampSize: [number, number, number];
+      /** Altura de las lámparas como ratio de la altura de planta (0..1). */
+      heightRatio: number;
+    };
   };
   mood: {
     /** Pesos de necesidades para la media de ánimo de los residentes presentes. */
@@ -1111,6 +1128,9 @@ export interface Content {
   /** v1.56 — misiones cooperativas REALES + canal de voz (opcional): sin catálogo,
    *  el multijugador funciona como en v1.55 y en solitario nada cambia (nunca bloquea). */
   multiplayer?: MultiplayerCatalog;
+  /** Capa social (v1.79, opcional): temas de charla y cotilleo de pasillo. Sin catálogo,
+   *  la charla queda como siempre (saludo) y los pasillos callan. */
+  social?: SocialCatalog;
 }
 
 // ───────────────────────── Reglas y ajustes (catálogo rules.json) ─────────────────────────
@@ -1198,6 +1218,108 @@ export interface Rules {
       moodThreshold: number;
       moodPenalty: number;
       clamp: { min: number; max: number };
+      /** v1.79 — la confianza del vecino hacia el jugador pesa en su voto: pYes +=
+       *  clamp(trust, -50, 50) / 100 · trustWeight. Ausente/0 = comportamiento de siempre. */
+      trustWeight?: number;
+    };
+    /** v1.79 — CAPA SOCIAL: cotilleo de pasillos (socialTick) y confianza por conversación
+     *  (comando talk). Defaults en el schema: sin bloque en rules.json nada cambia. */
+    social: {
+      /** Probabilidad por tick de que una pareja de un pasillo suelte un cotilleo (0..1). */
+      gossipChance: number;
+      /** Vecinos IA despiertos en el mismo pasillo necesarios para cotillear. */
+      gossipMinGroup: number;
+      /** Minutos de sim que un vecino no vuelve a cotillear. */
+      gossipCooldownMinutes: number;
+      /** Deriva de afinidad entre la pareja cotilleadora (ambos sentidos). */
+      gossipAffinityDelta: number;
+      /** Minutos de sim entre dos charlas con tema del jugador al mismo vecino. */
+      talkCooldownMinutes: number;
+    };
+    /** v1.81 — TORMENTA → DESTROZO DEL TEJADO (idea #4): roofTick (extra/roof.ts) daña el
+     *  bloque del tejado durante la tormenta y el goteo sube la humedad de las viviendas de
+     *  la planta residencial más alta (la de los áticos) — el gancho climático de la misión
+     *  del goteo y de las manchas de humedad. Defaults en el schema: sin bloque, sin daño. */
+    roof: {
+      /** defId del bloque que hace de tejado (no transitable, cierra el edificio). */
+      roofDef: string;
+      /** Probabilidad por tick de tormenta de que el tejado ceda (≈1 vez cada 1/chance ticks). */
+      damageChancePerTick: number;
+      /** Goteo cada N ticks mientras el tejado siga dañado (persiste tras la tormenta). */
+      leakEveryTicks: number;
+      /** Humedad que sube por goteo en cada vivienda de la planta alta (0..maxHumidity). */
+      humidityPerLeak: number;
+      /** Coste del comando repair_roof (sale de la hucha y entra en las arcas). */
+      repairCost: number;
+      /** Afinidad que gana el reparador con cada vecino IA de la planta alta. */
+      affinityPerRepair: number;
+      /** Tope de humedad por vivienda. */
+      maxHumidity: number;
+    };
+    /** v1.81 — VECINO BORRACHO (idea #5): al volver al edificio de noche, un vecino puede
+     *  llegar ebrio (ai.ts): tambaleo errático por los pasillos y faroleo en SU puerta
+     *  hasta que entra. Defaults en el schema: sin bloque, todos sobrios. */
+    drunk: {
+      /** Probabilidad de ebriedad en cada regreso nocturno (0..1). */
+      chance: number;
+      /** Arquetipos susceptibles ([] = todos). */
+      archetypes: string[];
+      /** Probabilidad de que cada paso hacia casa sea un trompo (0..1). */
+      staggerChance: number;
+      /** Faroleos en su puerta antes de conseguir entrar. */
+      fumbleTries: number;
+      /** Un drunk_stumble cada N pasos de borrachera. */
+      lineEveryHops: number;
+    };
+    /** v1.81 — JUEGO ILEGAL (idea #6): el vecino del arquetipo anfitrión monta partidas de
+     *  cartas en SU vivienda de noche (gambleTick): visitas sospechosas y riesgo de redada
+     *  con multa (gancho para misiones futuras). Defaults en el schema: sin bloque, no hay
+     *  juego. */
+    gamble: {
+      /** Arquetipo anfitrión (sort by id, el primero que exista). */
+      hostArchetype: string;
+      /** Ventana nocturna de la partida (cruza medianoche). */
+      startMinute: string;
+      endMinute: string;
+      /** Probabilidad por noche de que haya partida (0..1). */
+      chancePerNight: number;
+      /** Invitados máximos (teleport al bloque del anfitrión). */
+      maxGuests: number;
+      /** Probabilidad de redada por tick con la partida en marcha (0..1). */
+      raidChancePerTick: number;
+      /** Multa al anfitrión en la redada (la hucha nunca baja de 0). */
+      fine: number;
+      /** Porción de la multa que entra en las arcas de la comunidad (0..1). */
+      fundsShare: number;
+      /** Días de resaca: tras una redada, no hay partida hasta dentro de N días. */
+      cooldownDays: number;
+      /** Afinidad que pierde cada invitado hacia el anfitrión cuando cae la redada. */
+      guestAffinityPenalty: number;
+    };
+    /** v1.80 — PROTESTA POR APAGÓN: protestTick (extra/protest.ts) observa el param de luz
+     *  del pasillo; por debajo del umbral arma world.protest y termina timbrando en la
+     *  puerta de la presidencia. Defaults en el schema: sin bloque, no hay protesta. */
+    protest: {
+      /** defId de bloque vigilado (el que el apagón deja a oscuras). */
+      watchDef: string;
+      /** Param de iluminación vigilado. */
+      watchParam: string;
+      /** Mínimo entre bloques por debajo del cual se arma la protesta. */
+      belowThreshold: number;
+      /** Minutos de apagón antes de que alguien baje (gracia inicial). */
+      delayMinutes: number;
+      /** Minutos entre reintentos de recluta si nadie está despierto. */
+      recruitEveryMinutes: number;
+      /** Minutos entre timbrazos en la puerta del presidente. */
+      ringIntervalMinutes: number;
+      /** Timbrazos que aguanta el vecino antes de rendirse. */
+      maxRings: number;
+      /** Afinidad protestante→presidente al ABRIR la puerta. */
+      calmAffinity: number;
+      /** Confianza protestante→presidente al ABRIR la puerta. */
+      calmTrust: number;
+      /** Afinidad protestante→presidente al rendirse. */
+      tiredAffinity: number;
     };
     /** Campaña de presidencia (v1.18, presentación/support): HUD del mandato y agenda
      *  convicable desde el tablón. El sim no la consume. */
@@ -1623,7 +1745,8 @@ export interface Rules {
       /** v1.35 — vestíbulo del portal. v1.36: el interior es UNA IMAGEN del hall
        *  (wall_portal_hall.png); del catálogo solo quedan los colores del diorama. */
       portal?: {
-        /** v1.46 — empujar W al fondo del hall (z local ≥ backZoneZ) te deja en el pasillo. */
+        /** v1.46 — zona trasera del vestíbulo (W, z local ≥ backZoneZ). SIN efecto desde
+         *  v1.75: el exit al pasillo era el «teleport al portal» (cruzaba el muro frontal). */
         backZoneZ?: number;
         lobby?: {
           wallColor: string;
@@ -2287,6 +2410,10 @@ export interface Rules {
     /** v1.40 — timbre de una vivienda ajena (E en su puerta) y charla con un vecino. */
     doorbell?: string;
     chat?: string;
+    /** v1.80 — protesta en TU puerta (E = abrir, responder a la protesta). */
+    answerProtest?: string;
+    /** v1.81 — tejado dañado y tú en el pasillo de la planta alta (E = repair_roof). */
+    repairRoof?: string;
     /** v1.48 — cuadro de fusibles del garaje: prompt de la E y línea sin apagón. */
     fusebox?: { prompt: string; okLine: string };
     /** v1.42 — calle: banco exterior y parque de calistenia. */
@@ -2328,6 +2455,66 @@ export interface Relation {
   with: string;
   affinity: number;
   trust: number;
+}
+
+/** ── v1.79: CAPA SOCIAL (social.json, opcional) ─────────────────────────────── */
+
+/**
+ * Tema de charla del selector de conversación: el sim resuelve el resultado por
+ * arquetipo/afinidad y mueve la CONFIANZA del vecino hacia el jugador (Relation.trust).
+ */
+export interface TalkTopic {
+  id: string;
+  label: LocalizedText;
+  icon: string;
+  /** Probabilidad base de que la charla siente bien (0..1). */
+  gainChance: number;
+  /** Delta de confianza si la charla va bien (0..100). */
+  trustGain: number;
+  /** Delta de confianza si va mal (-100..0). */
+  trustLoss: number;
+  /** Arquetipos que ADOREN este tema (+0.2 al gainChance) — ids reales del catálogo. */
+  likedBy: string[];
+  /** Arquetipos a los que el tema les da urticaria (-0.2). */
+  dislikedBy: string[];
+  linesGain: LocalizedText[];
+  linesLoss: LocalizedText[];
+}
+
+/** Catálogo social completo: temas de charla + frases de cotilleo de pasillo. */
+export interface SocialCatalog {
+  topics: TalkTopic[];
+  /** {a}/{b} = nombres de los cotilleadores (el que habla y el que escucha). */
+  gossip: { lines: LocalizedText[] };
+  /** v1.80 — PROTESTA POR APAGÓN: frases del vecino que timbra (una por escalón), la
+   *  línea de calma al abrir y la de rendición. Opcional: sin bloque, la protesta
+   *  funciona igual pero sin bocadillos. */
+  protest?: {
+    /** Escalaciones del timbrazo (el cliente elige por nº de timbrazo). */
+    ringLines: LocalizedText[];
+    /** Línea al ABRIR la puerta (protesta calmada). */
+    calmLine: LocalizedText;
+    /** Línea al rendirse (maxRings agotados). */
+    tiredLine: LocalizedText;
+  };
+  /** v1.81 — VECINO BORRACHO: frases del ebrio al llegar, al farolear en SU puerta y al
+   *  colarse por fin. Opcional: sin bloque, el borracho tambalea en silencio. */
+  drunk?: {
+    /** Al cruzar el portal de madrugada. */
+    linesStart: LocalizedText[];
+    /** Faroleo en su puerta (llave que no entra, Lezurra…). */
+    linesFumble: LocalizedText[];
+    /** Al colarse por fin. */
+    linesHome: LocalizedText[];
+  };
+  /** v1.81 — JUEGO ILEGAL: frases de los invitados que suben y del hostigo de la redada.
+   *  Opcional: sin bloque, las visitas suben en silencio. */
+  gamble?: {
+    /** Bocadillo del invitado camino de la partida. */
+    linesVisit: LocalizedText[];
+    /** Bocadillo del anfitrión cuando cae la redada. */
+    linesRaid: LocalizedText[];
+  };
 }
 
 export type Controller = { type: 'human'; playerId: string } | { type: 'ai'; profile: string } | { type: 'script' };
@@ -2377,6 +2564,30 @@ export interface JuntaState {
   playerVoted: boolean;
 }
 
+/** ── v1.80: PROTESTA POR APAGÓN (world.protest, costura del sim en extra/protest.ts) ── */
+
+/**
+ * Máquina de estados del sim: observa el param de luz del pasillo (rules.sim.protest);
+ * si cae por debajo del umbral (apagón del ecosistema) y hay vecino despierto, uno baja
+ * a la puerta del PRESIDENTE a timbrar hasta que abra (answer_door) o se canse.
+ * En multijugador no se arma: el cerebro del ecosistema (que muta el param) es local de
+ * cada cliente y el servidor la pisa con sus snapshots — limitación previa del apagón,
+ * aquí se hereda a propósito (misma coherencia: si no hay apagón, no hay protesta).
+ */
+export interface ProtestState {
+  /** Tick en que se detectó el apagón (param por debajo del umbral). */
+  startTick: number;
+  /** Vecino que protesta (null mientras espera a que haya alguien despierto). */
+  protester: string | null;
+  /** Residente al que se exige la puerta (presidencia de la comunidad). */
+  presidentId: string;
+  phase: 'marching' | 'ringing';
+  /** Timbrazos dados ya en la puerta del presidente. */
+  rings: number;
+  /** Último timbrazo / reintento de recluta (ritmos del catálogo). */
+  lastActionTick: number;
+}
+
 export interface World {
   schemaVersion: 1;
   scenarioId: string;
@@ -2396,6 +2607,8 @@ export interface World {
   missions: ActiveMission[];
   favors: Record<string, number>;
   junta: JuntaState | null;
+  /** v1.80 — protesta por apagón (null = tranquila; la arma extra/protest.ts). */
+  protest: ProtestState | null;
   events: GameEvent[];
 }
 
@@ -2415,11 +2628,18 @@ export type Command =
   | { type: 'sleep'; actor?: string }
   | { type: 'buy_block'; block: string; actor?: string }
   | { type: 'junta_vote'; vote: Vote; actor?: string }
+  | { type: 'convoca_junta'; actor?: string }
   | { type: 'knock'; block: string; actor?: string }
   | { type: 'place_furniture'; block: string; room: string; slot: string; item: string; actor?: string }
   | { type: 'remove_furniture'; block: string; room: string; slot: string; actor?: string }
   | { type: 'renovate_room'; block: string; room: string; actor?: string }
-  | { type: 'complete_minigame'; id: string; success: boolean; actor?: string };
+  | { type: 'complete_minigame'; id: string; success: boolean; actor?: string }
+  | { type: 'talk'; resident: string; topic: string; actor?: string }
+  /** v1.80 — abrir la puerta al vecino que protesta por el apagón (solo presidente). */
+  | { type: 'answer_door'; actor?: string }
+  /** v1.81 — reparar el tejado dañado por la tormenta (coste del catálogo; los de la
+   *  planta alta lo agradecen). */
+  | { type: 'repair_roof'; actor?: string };
 
 export interface CommandResult {
   ok: boolean;
@@ -2480,6 +2700,10 @@ export type InteractTarget =
   | { kind: 'rearExit' }
   /** v1.48 — cuadro de fusibles del garaje (con apagón: abrir el minijuego de rearme). */
   | { kind: 'fusebox' }
+  /** v1.80 — TU puerta con la protesta por el apagón timbrando: E = abrir (answer_door). */
+  | { kind: 'answer_protest' }
+  /** v1.81 — pasillo de la planta alta con el tejado dañado: E = reparar (repair_roof). */
+  | { kind: 'repair_roof' }
   /** v1.42 — calle: banco exterior (sentarse a contemplar el edificio). */
   | { kind: 'bench'; x: number; z: number; yaw: number }
   /** v1.42 — calle: parque de calistenia (hacer ejercicio). */

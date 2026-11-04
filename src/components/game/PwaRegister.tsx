@@ -14,9 +14,7 @@ import { useEffect } from 'react';
  * así que tras esa recarga todo (chunks, JSON y glTF) sale de la red del despliegue.
  */
 /** Debe espejar VERSION de public/sw.js (una recarga extra como máximo si se desalinean). */
-const EXPECTED_SW_VERSION = 'vecinos-v1.77';
-/** GitHub Pages monta el juego en /VECINOS/: el SW vive en la subruta, no en la raíz. */
-const BASE_PATH = (process.env.NEXT_PUBLIC_BASE_PATH ?? '').replace(/\/+$/, '');
+const EXPECTED_SW_VERSION = 'vecinos-v1.82';
 /** sessionStorage: como mucho UNA auto-recarga por sesión de pestaña. */
 const RELOAD_KEY = 'vecinos.swReloadDone';
 
@@ -35,6 +33,9 @@ function reloadOnce(): boolean {
 
 export function PwaRegister() {
   useEffect(() => {
+    // Build estático (GitHub Pages): el SW vive en un subpath y su precache es de raíz,
+    // así que registrar ahí sería un SW roto (y sin backend no aporta nada). Silencio.
+    if (process.env.NEXT_PUBLIC_SW === 'off') return;
     if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
 
     /** true solo si esta página fue servida por un SW anterior (primera visita: no). */
@@ -59,7 +60,7 @@ export function PwaRegister() {
 
     const register = () => {
       navigator.serviceWorker
-        .register(`${BASE_PATH}/sw.js`)
+        .register('/sw.js')
         .then((reg) => {
           // Busca actualizaciones del SW en cada carga: sin esto, el navegador puede tardar
           // en revalidar sw.js y un despliegue nuevo exigiría recargas extra para verse.
