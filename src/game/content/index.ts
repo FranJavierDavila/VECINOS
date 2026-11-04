@@ -484,6 +484,13 @@ export function validateContent(c: Content): Issue[] {
       for (const id of t.likedBy) if (!c.archetypes[id]) err(`social/topics/${t.id}`, `likedBy desconocido: ${id}`);
       for (const id of t.dislikedBy) if (!c.archetypes[id]) err(`social/topics/${t.id}`, `dislikedBy desconocido: ${id}`);
     }
+    // v1.85 — comedia de barrio: protagonistas y comparsas de cada trama son arquetipos
+    // reales (los bocadillos son texto libre; sin reparto en escena el skit simplemente
+    // no se representa — el motor lo salta, sin error).
+    for (const s of c.social.comedy?.skits ?? []) {
+      for (const id of s.protagonists) if (!c.archetypes[id]) err(`social/comedy/${s.id}`, `protagonista desconocido: ${id}`);
+      for (const id of s.coStars) if (!c.archetypes[id]) err(`social/comedy/${s.id}`, `comparsa desconocido: ${id}`);
+    }
   }
 
   return issues;

@@ -27,7 +27,7 @@ const DICT: Record<string, { es: string; en: string }> = {
     es: 'Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.',
     en: 'Move-ins, noise, smells, wifi, pests, smoke and levies: the neighborhood simulator.',
   },
-  'header.version': { es: 'v1.84 · puertas de escalera modernas grises, calidad máxima sin bajar de 30 FPS, últimas recomendaciones y medidores de reputación', en: 'v1.84 · modern gray stair doors, max quality without dropping below 30 FPS, latest recommendations and reputation meters' },
+  'header.version': { es: 'v1.85 · comedia de barrio: 18 tramas secundarias entre vecinos, presencia premiada con confianza y reputación, 2 temas de charla nuevos y 3 logros de teatro', en: 'v1.85 · neighborhood comedy: 18 secondary skits between neighbors, rewarded presence with trust and reputation, 2 new chat topics and 3 stage achievements' },
   // ── Apagón de assets (v1.47: servidor de arte caído → mundo vacío/cápsulas) ──
   'assets.outage': {
     es: '⚠ No se pudo cargar el arte del juego (¿servidor caído?). El vecindario se recargará en {n} s…',
@@ -221,6 +221,8 @@ const DICT: Record<string, { es: string; en: string }> = {
   'ev.gambleVisit': { es: '🃏 {name} sube a casa de {host}. A «ver un cuadro».', en: '🃏 {name} heads up to {host}\u2019s place. To "see a painting".' },
   'ev.gambleRaid': { es: '🚨 Redada en la mesa de {name}: multa de {n} €. Las arcas agradecen.', en: '🚨 Raid on {name}\u2019s table: €{n} fine. The funds say thanks.' },
   'ev.gambleOver': { es: '🃏 Se acabó la partida de {name}: cada cual a su cama.', en: '🃏 {name}\u2019s card game is over: everyone to bed.' },
+  // ── v1.85 — comedia de barrio: tramas secundarias entre vecinos IA ──
+  'ev.comedyWitness': { es: '🎭 Presencias la trama de barrio: +{trust} de confianza con los actores y +{rep} de reputación. La butaca se paga sola.', en: '🎭 You catch the neighborhood skit: +{trust} trust with the actors and +{rep} reputation. Front-row seats pay off.' },
   'ev.missionNew': { es: '📋 Nueva misión: {m}', en: '📋 New mission: {m}' },
   'ev.blockBought': { es: '🔑 {block} comprado por {price} €', en: '🔑 {block} bought for €{price}' },
   'ev.forSaleSign': { es: '🪧 Cartel de "SE VENDE" en {block} ({price} €)', en: '🪧 "FOR SALE" sign on {block} (€{price})' },

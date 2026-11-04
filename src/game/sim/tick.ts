@@ -8,6 +8,7 @@ import { socialTick } from './extra/social';
 import { protestTick } from './extra/protest';
 import { roofTick } from './extra/roof';
 import { gambleTick } from './extra/gamble';
+import { comedyTick } from './extra/comedy';
 
 /** Combina dos paquetes de emisiones (canal → bloque → intensidad), quedándose con el máximo. */
 function mergeEmissions(a: Emissions, b: Emissions): Emissions {
@@ -17,7 +18,7 @@ function mergeEmissions(a: Emissions, b: Emissions): Emissions {
   return out;
 }
 
-/** Avanza un minuto de juego: clima → IA → social → protesta → tejado → juego ilegal → emisiones (actividades + muebles) → influencias → misiones → economía. */
+/** Avanza un minuto de juego: clima → IA → social → protesta → tejado → juego ilegal → comedia → emisiones (actividades + muebles) → influencias → misiones → economía. */
 export function tick(world: World, content: Content, extraEmissions?: Emissions): void {
   world.tick += 1;
   world.clock.minute += 1;
@@ -31,6 +32,7 @@ export function tick(world: World, content: Content, extraEmissions?: Emissions)
   protestTick(world, content); // v1.80 — protesta por apagón (observa el param de luz del pasillo; sin bloque protest no hace nada)
   roofTick(world, content); // v1.81 — tormenta daña el tejado y gotea a los áticos (solo con tormenta)
   gambleTick(world, content); // v1.81 — juego ilegal nocturno del anfitrión (sin anfitrión no hay mesa)
+  comedyTick(world, content); // v1.85 — comedia de barrio: tramas secundarias entre vecinos IA (sin skits no hay teatro)
   let emissions = mergeEmissions(emissionsFromActivities(world, content), emissionsFromFurniture(world, content));
   if (extraEmissions) emissions = mergeEmissions(emissions, extraEmissions);
   propagate(world, content, emissions);

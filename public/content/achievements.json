@@ -4,124 +4,244 @@
     {
       "id": "a_acta_firmada",
       "icon": "📋",
-      "name": { "es": "Acta firmada", "en": "Minutes signed" },
+      "name": {
+        "es": "Acta firmada",
+        "en": "Minutes signed"
+      },
       "desc": {
         "es": "Termina tu primera misión. Ya llevas un acta y una idea fija: el ascensor.",
         "en": "Finish your first mission. You now have meeting minutes and one fixation: the elevator."
       },
-      "condition": { "kind": "mission_done", "mission": "m_bienvenida" }
+      "condition": {
+        "kind": "mission_done",
+        "mission": "m_bienvenida"
+      }
     },
     {
       "id": "a_boca_portal",
       "icon": "🗣️",
-      "name": { "es": "Boca del portal", "en": "Lobby mouthpiece" },
+      "name": {
+        "es": "Boca del portal",
+        "en": "Lobby mouthpiece"
+      },
       "desc": {
         "es": "Completa 3 misiones. Ya opinas en el portal sin que te lo pregunten.",
         "en": "Complete 3 missions. You now opine in the lobby unasked."
       },
-      "condition": { "kind": "missions_done", "count": 3 }
+      "condition": {
+        "kind": "missions_done",
+        "count": 3
+      }
     },
     {
       "id": "a_alma_edificio",
       "icon": "🏘️",
-      "name": { "es": "Alma del edificio", "en": "Soul of the building" },
+      "name": {
+        "es": "Alma del edificio",
+        "en": "Soul of the building"
+      },
       "desc": {
         "es": "Completa 7 misiones. El presidente te teme y la junta deletrea tu nombre.",
         "en": "Complete 7 missions. The president fears you and the board spells your name."
       },
-      "condition": { "kind": "missions_done", "count": 7 }
+      "condition": {
+        "kind": "missions_done",
+        "count": 7
+      }
     },
     {
       "id": "a_manitas",
       "icon": "🔧",
-      "name": { "es": "El primo del administrador", "en": "The caretaker's cousin" },
+      "name": {
+        "es": "El primo del administrador",
+        "en": "The caretaker's cousin"
+      },
       "desc": {
         "es": "Remata el plan B del ascensor. Manitas, cinta aislante y fe.",
         "en": "Wrap up the elevator plan B. Handyman, duct tape and faith."
       },
-      "condition": { "kind": "mission_done", "mission": "m_manitas_ascensor" }
+      "condition": {
+        "kind": "mission_done",
+        "mission": "m_manitas_ascensor"
+      }
     },
     {
       "id": "a_festival",
       "icon": "🎪",
-      "name": { "es": "Festival del portal", "en": "Lobby festival" },
+      "name": {
+        "es": "Festival del portal",
+        "en": "Lobby festival"
+      },
       "desc": {
         "es": "El gran día del Festival del Portal: ego, amplis y un felpudo de testigo.",
         "en": "Lobby Festival grand day: ego, amps and a doormat as witness."
       },
-      "condition": { "kind": "mission_done", "mission": "m_festival_grandia" }
+      "condition": {
+        "kind": "mission_done",
+        "mission": "m_festival_grandia"
+      }
     },
     {
       "id": "a_ascensor_ok",
       "icon": "🛗",
-      "name": { "es": "Milagro en el núcleo", "en": "Core miracle" },
+      "name": {
+        "es": "Milagro en el núcleo",
+        "en": "Core miracle"
+      },
       "desc": {
         "es": "El ascensor funciona. Que nadie lo toque ni mirándolo fuerte.",
         "en": "The elevator works. Nobody touch it, not even with a hard stare."
       },
-      "condition": { "kind": "elevator_ok" }
+      "condition": {
+        "kind": "elevator_ok"
+      }
     },
     {
       "id": "a_hucha",
       "icon": "🐷",
-      "name": { "es": "Hucha forrada", "en": "Padded piggy bank" },
+      "name": {
+        "es": "Hucha forrada",
+        "en": "Padded piggy bank"
+      },
       "desc": {
         "es": "Reúne 1.500 € en la cartera. El colchón protesta, pero aguanta.",
         "en": "Gather €1,500 in your wallet. The mattress complains, but holds."
       },
-      "condition": { "kind": "wallet", "amount": 1500 }
+      "condition": {
+        "kind": "wallet",
+        "amount": 1500
+      }
     },
     {
       "id": "a_caja_comunidad",
       "icon": "🏦",
-      "name": { "es": "Caja de la comunidad", "en": "Community chest" },
+      "name": {
+        "es": "Caja de la comunidad",
+        "en": "Community chest"
+      },
       "desc": {
         "es": "Fondos comunitarios por encima de 1.200 €. Ni para el ascensor… bueno, quizá sí.",
         "en": "Community funds above €1,200. Not enough for the elevator… well, maybe it is."
       },
-      "condition": { "kind": "funds", "amount": 1200 }
+      "condition": {
+        "kind": "funds",
+        "amount": 1200
+      }
     },
     {
       "id": "a_alcalde",
       "icon": "🏅",
-      "name": { "es": "Alcalde honorífico", "en": "Honorary mayor" },
+      "name": {
+        "es": "Alcalde honorífico",
+        "en": "Honorary mayor"
+      },
       "desc": {
         "es": "Reputación 70: te saludan ANTES de esquivarte.",
         "en": "Reputation 70: they greet you BEFORE sidestepping you."
       },
-      "condition": { "kind": "reputation", "amount": 70 }
+      "condition": {
+        "kind": "reputation",
+        "amount": 70
+      }
     },
     {
       "id": "a_leyenda",
       "icon": "🦸",
-      "name": { "es": "Leyenda del portal", "en": "Lobby legend" },
+      "name": {
+        "es": "Leyenda del portal",
+        "en": "Lobby legend"
+      },
       "desc": {
         "es": "Reputación 90: hasta el Fondo Buitre pide autógrafos en el rellano.",
         "en": "Reputation 90: even the Vulture Fund asks for autographs in the stairwell."
       },
       "hidden": true,
-      "condition": { "kind": "reputation", "amount": 90 }
+      "condition": {
+        "kind": "reputation",
+        "amount": 90
+      }
     },
     {
       "id": "a_semana",
       "icon": "📅",
-      "name": { "es": "Una semana de vecinos", "en": "A week of neighbors" },
+      "name": {
+        "es": "Una semana de vecinos",
+        "en": "A week of neighbors"
+      },
       "desc": {
         "es": "Sobrevive 7 días. El acta médica ya lo llama 'síndrome del rellano'.",
         "en": "Survive 7 days. The medical report already calls it 'stairwell syndrome'."
       },
-      "condition": { "kind": "day", "count": 7 }
+      "condition": {
+        "kind": "day",
+        "count": 7
+      }
     },
     {
       "id": "a_alma_gemela",
       "icon": "💌",
-      "name": { "es": "Alma gemela (de escalera)", "en": "Stairwell soulmate" },
+      "name": {
+        "es": "Alma gemela (de escalera)",
+        "en": "Stairwell soulmate"
+      },
       "desc": {
         "es": "Alguien te aprecia con afinidad 60. Chispas en el rellano (y en el acta).",
         "en": "Someone likes you at affinity 60. Sparks in the stairwell (and in the minutes)."
       },
       "hidden": true,
-      "condition": { "kind": "relation", "affinity": 60 }
+      "condition": {
+        "kind": "relation",
+        "affinity": 60
+      }
+    },
+    {
+      "id": "a_butaca",
+      "icon": "🎭",
+      "name": {
+        "es": "Butaca de primera fila",
+        "en": "Front-row seat"
+      },
+      "desc": {
+        "es": "Presencia 3 tramas cómicas del vecindario. El pasillo también es sala de cine.",
+        "en": "Witness 3 neighborhood skits. The hallway doubles as a cinema."
+      },
+      "condition": {
+        "kind": "skits_witnessed",
+        "count": 3
+      }
+    },
+    {
+      "id": "a_comediante",
+      "icon": "🎪",
+      "name": {
+        "es": "Público habitual",
+        "en": "Season regular"
+      },
+      "desc": {
+        "es": "Presencia 10 tramas cómicas. Ya te guardan sitio entre los post-its.",
+        "en": "Witness 10 neighborhood skits. They save you a spot next to the sticky notes."
+      },
+      "condition": {
+        "kind": "skits_witnessed",
+        "count": 10
+      }
+    },
+    {
+      "id": "a_comadre",
+      "icon": "🫖",
+      "hidden": true,
+      "name": {
+        "es": "La comadre del portal",
+        "en": "The lobby confidant"
+      },
+      "desc": {
+        "es": "Presencia 20 tramas cómicas. Lo que pasa en el pasillo, pasa por tu agenda.",
+        "en": "Witness 20 neighborhood skits. What happens in the hallway goes through your schedule."
+      },
+      "condition": {
+        "kind": "skits_witnessed",
+        "count": 20
+      }
     }
   ]
 }

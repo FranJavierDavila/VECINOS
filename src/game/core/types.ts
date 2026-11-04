@@ -829,7 +829,9 @@ export type AchievementCondition =
   | { kind: 'reputation'; amount: number }
   | { kind: 'day'; count: number }
   | { kind: 'relation'; affinity: number }
-  | { kind: 'elevator_ok' };
+  | { kind: 'elevator_ok' }
+  /** v1.85 — tramas cómicas presenciadas (world.skitsSeen, las cuenta extra/comedy.ts). */
+  | { kind: 'skits_witnessed'; count: number };
 
 export interface AchievementDef {
   id: string;
@@ -1295,6 +1297,30 @@ export interface Rules {
       cooldownDays: number;
       /** Afinidad que pierde cada invitado hacia el anfitrión cuando cae la redada. */
       guestAffinityPenalty: number;
+    };
+    /** v1.85 — COMEDIA DE BARRIO: comedyTick (extra/comedy.ts) monta TRAMAS SECUNDARIAS
+     *  cómicas entre vecinos IA (la paellera del músico, la guerra del tablón, el sofá que
+     *  no cabe…). El catálogo vive en social.json (social.comedy.skits) y esta config pone
+     *  el ritmo global. Defaults en el schema: sin catálogo, el pasillo sigue en silencio. */
+    comedy: {
+      /** Ticks entre evaluaciones de arranque de trama (1 tick = 1 minuto de sim). */
+      checkEveryTicks: number;
+      /** Probabilidad por evaluación de armar una trama si hay candidata (0..1). */
+      chancePerCheck: number;
+      /** Minutos por defecto de silencio para una trama tras representarse (si el skit
+       *  no trae cooldownMinutes propio). */
+      cooldownMinutes: number;
+      /** Minutos entre la fase 1 (línea del protagonista) y la fase 2 (respuesta del comparsa). */
+      phaseMinutes: number;
+      /** Minutos que la trama sigue «viva» en el bloque después de su última fase (el
+       *  vecino que pase y la presencie gana confianza con los actores). */
+      lingerMinutes: number;
+      /** Confianza que gana cada actor hacia el JUGADOR si este presencia la trama (0..100). */
+      witnessTrust: number;
+      /** Reputación que gana el jugador al presenciar la PRIMERA fase de una trama (0..100). */
+      witnessReputation: number;
+      /** Deriva de afinidad entre los dos actores (ambos sentidos). */
+      affinityDelta: number;
     };
     /** v1.80 — PROTESTA POR APAGÓN: protestTick (extra/protest.ts) observa el param de luz
      *  del pasillo; por debajo del umbral arma world.protest y termina timbrando en la
@@ -2498,11 +2524,42 @@ export interface TalkTopic {
   linesLoss: LocalizedText[];
 }
 
+/**
+ * v1.85 — TRAMA SECUNDARIA CÓMICA (social.comedy.skits): un sketch del vecindario entre
+ * vecinos IA. El protagonista suelta la línea P1 y, si hay comparsa disponible, este
+ * responde con la P2 minutos después. El registro del EventLog recoge una entrada del
+ * banco `logs`. Todo data-driven: añadir comedia = añadir JSON, sin tocar el sim.
+ */
+export interface ComedySkit {
+  id: string;
+  /** Título de la trama (QA/telemetría y futuro panel de «lo que te perdiste»). */
+  label: LocalizedText;
+  /** Ventana horaria (cruza medianoche sin problema). Ausente = cualquier hora. */
+  window?: { from: string; to: string };
+  /** Minutos de silencio para esta trama tras representarse (default: rules.sim.comedy). */
+  cooldownMinutes?: number;
+  /** Arquetipos válidos de protagonista (ids reales de archetypes.json). */
+  protagonists: string[];
+  /** Arquetipos válidos de comparsa ([] = trama en solitario, solo fase 1). */
+  coStars: string[];
+  /** Gesto social de las fases (stateAnimations: talk/laugh/argue…). */
+  gesture: string;
+  /** Línea(s) del protagonista (fase 1). */
+  linesP1: LocalizedText[];
+  /** Respuesta(s) del comparsa (fase 2). Con comparsa y pool vacío, fase 2 callada. */
+  linesP2: LocalizedText[];
+  /** Entradas del EventLog (el cliente elige una por hash del tick). */
+  logs: LocalizedText[];
+}
+
 /** Catálogo social completo: temas de charla + frases de cotilleo de pasillo. */
 export interface SocialCatalog {
   topics: TalkTopic[];
   /** {a}/{b} = nombres de los cotilleadores (el que habla y el que escucha). */
   gossip: { lines: LocalizedText[] };
+  /** v1.85 — COMEDIA DE BARRIO: tramas secundarias entre vecinos IA. Opcional: sin
+   *  bloque, el pasillo sigue en su silencio de siempre. */
+  comedy?: { skits: ComedySkit[] };
   /** v1.80 — PROTESTA POR APAGÓN: frases del vecino que timbra (una por escalón), la
    *  línea de calma al abrir y la de rendición. Opcional: sin bloque, la protesta
    *  funciona igual pero sin bocadillos. */
@@ -2605,6 +2662,27 @@ export interface ProtestState {
   lastActionTick: number;
 }
 
+/**
+ * v1.85 — TRAMA CÓMICA EN CURSO (extra/comedy.ts; null = el barrio está tranquilo).
+ * Serializable al completo (multi/persist), como ProtestState.
+ */
+export interface SkitState {
+  /** Id del skit del catálogo (social.comedy.skits). */
+  id: string;
+  /** Fase en curso: 1 = protagonista hablando; 2 = comparsa respondiendo. */
+  phase: 1 | 2;
+  /** Tick de arranque de la trama. */
+  startTick: number;
+  /** Protagonista (id de residente IA). */
+  a: string;
+  /** Comparsa (id de residente IA; null = trama en solitario). */
+  b: string | null;
+  /** Bloque donde se representa (pasillo del protagonista). */
+  block: string;
+  /** ¿Ha ganado ya el jugador su bonus por presenciar la primera fase? */
+  witnessed: boolean;
+}
+
 export interface World {
   schemaVersion: 1;
   scenarioId: string;
@@ -2626,6 +2704,11 @@ export interface World {
   junta: JuntaState | null;
   /** v1.80 — protesta por apagón (null = tranquila; la arma extra/protest.ts). */
   protest: ProtestState | null;
+  /** v1.85 — comedia de barrio: trama en curso (null = silencio) + cooldown por skit
+   *  + tramas presenciadas por el jugador (meta-progresión de logros). */
+  skit: SkitState | null;
+  skitCooldowns: Record<string, number>;
+  skitsSeen: number;
   events: GameEvent[];
 }
 

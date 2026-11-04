@@ -26,6 +26,8 @@ export interface AchievementSnapshot {
   missionsDone: string[];
   /** Mejor afinidad del jugador en SUS relaciones (0 si todavía no tiene ninguna). */
   bestAffinity: number;
+  /** v1.85 — tramas cómicas presenciadas (world.skitsSeen, las cuenta extra/comedy.ts). */
+  skitsSeen: number;
 }
 
 /** ¿Cumple este logro su condición con este snapshot? (pura, determinista, sin efectos). */
@@ -48,6 +50,8 @@ export function achievementUnlocked(def: Pick<AchievementDef, 'condition'>, snap
       return snap.bestAffinity >= c.affinity;
     case 'elevator_ok':
       return snap.elevatorStatus === 'ok';
+    case 'skits_witnessed':
+      return snap.skitsSeen >= c.count;
   }
 }
 

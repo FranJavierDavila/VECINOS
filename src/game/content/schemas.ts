@@ -755,6 +755,38 @@ export const rulesSchema = z.object({
         cooldownDays: 2,
         guestAffinityPenalty: -2,
       }),
+    /** v1.85 — COMEDIA DE BARRIO: comedyTick (extra/comedy.ts) monta tramas secundarias
+     *  cómicas entre vecinos IA con el catálogo social.comedy.skits. Defaults del catálogo:
+     *  un rules.json sin bloque no cambia nada (y sin skits tampoco hay teatro). */
+    comedy: z
+      .object({
+        /** Ticks entre evaluaciones de arranque (1 tick = 1 minuto de sim). */
+        checkEveryTicks: z.number().int().min(1).default(6),
+        /** Probabilidad por evaluación de armar una trama si hay candidata. */
+        chancePerCheck: z.number().min(0).max(1).default(0.5),
+        /** Minutos de silencio para un skit tras representarse (si el skit no trae el suyo). */
+        cooldownMinutes: z.number().int().min(1).default(720),
+        /** Minutos entre la fase 1 y la fase 2 (respuesta del comparsa). */
+        phaseMinutes: z.number().int().min(1).default(3),
+        /** Minutos que la trama sigue "viva" tras su última fase (presenciarla da confianza). */
+        lingerMinutes: z.number().int().min(0).default(6),
+        /** Confianza que gana cada actor hacia el JUGADOR al presenciar la trama. */
+        witnessTrust: z.number().min(0).max(100).default(2),
+        /** Reputación que gana el jugador al presenciar la primera fase. */
+        witnessReputation: z.number().min(0).max(100).default(1),
+        /** Deriva de afinidad entre actores (ambos sentidos). */
+        affinityDelta: z.number().min(-100).max(100).default(2),
+      })
+      .default({
+        checkEveryTicks: 6,
+        chancePerCheck: 0.5,
+        cooldownMinutes: 720,
+        phaseMinutes: 3,
+        lingerMinutes: 6,
+        witnessTrust: 2,
+        witnessReputation: 1,
+        affinityDelta: 2,
+      }),
     /** v1.80 — PROTESTA POR APAGÓN: protestTick (extra/protest.ts) observa el param de luz
      *  del pasillo (el que el apagón del ecosistema deja a cero); por debajo del umbral arma
      *  world.protest y alguien termina timbrando en la puerta de la presidencia. Defaults
@@ -3059,6 +3091,8 @@ export const achievementConditionSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('day'), count: z.number().int().min(1) }),
   z.object({ kind: z.literal('relation'), affinity: z.number().min(0).max(100) }),
   z.object({ kind: z.literal('elevator_ok') }),
+  /** v1.85 — tramas cómicas presenciadas (world.skitsSeen, las arma extra/comedy.ts). */
+  z.object({ kind: z.literal('skits_witnessed'), count: z.number().int().min(1) }),
 ]);
 
 export const achievementDefSchema = z.object({
@@ -3207,6 +3241,36 @@ export const socialCatalogSchema = z.object({
     .object({
       linesVisit: z.array(localizedTextSchema).min(1),
       linesRaid: z.array(localizedTextSchema).min(1),
+    })
+    .optional(),
+  /** v1.85 — COMEDIA DE BARRIO (opcional): tramas secundarias entre vecinos IA. Cada
+   *  skit es un mini-sketch data-driven: protagonista (línea P1), comparsa (P2) y entrada
+   *  del registro. Sin bloque (o sin skits), el pasillo sigue en su silencio de siempre. */
+  comedy: z
+    .object({
+      skits: z
+        .array(
+          z.object({
+            id: z.string().min(1),
+            label: localizedTextSchema,
+            /** Ventana horaria (cruza medianoche). Ausente = cualquier hora. */
+            window: z
+              .object({ from: z.string().regex(/^\d{2}:\d{2}$/), to: z.string().regex(/^\d{2}:\d{2}$/) })
+              .optional(),
+            /** Minutos de silencio para esta trama tras representarse (default: rules). */
+            cooldownMinutes: z.number().int().min(1).optional(),
+            /** Arquetipos válidos de protagonista/comparsa (ids reales de archetypes.json). */
+            protagonists: z.array(z.string().min(1)).min(1),
+            coStars: z.array(z.string().min(1)).default([]),
+            /** Gesto social de las fases (stateAnimations: talk/laugh/argue…). */
+            gesture: z.string().min(1).default('talk'),
+            /** Línea del protagonista (P1), respuesta del comparsa (P2) y logs. */
+            linesP1: z.array(localizedTextSchema).min(1),
+            linesP2: z.array(localizedTextSchema).default([]),
+            logs: z.array(localizedTextSchema).min(1),
+          }),
+        )
+        .default([]),
     })
     .optional(),
 });

@@ -17,7 +17,7 @@
  *     /VECINOS/). Toda ruta del SW se resuelve contra self.registration.scope, así que
  *     el mismo fichero vale para `/` (dev) y `/VECINOS/` (Pages) sin build-time mágico.
  */
-const VERSION = 'vecinos-v1.84'; // v1.84 (petición del vecino): puertas de escalera MODERNAS GRISES (door_moderna_gris), calidad máxima por defecto ('alta') con suelo de 30 FPS en el auto-ajuste, ÚLTIMAS RECOMENDACIONES en Misiones y MEDIDORES de reputación/afinidad/confianza. Antes v1.83 (restauración)
+const VERSION = 'vecinos-v1.85'; // v1.85 (petición del vecino): COMEDIA DE BARRIO — 18 tramas secundarias cómicas entre vecinos IA (extra/comedy.ts + social.comedy.skits), presencia premiada (confianza + reputación), 2 temas de charla nuevos, 16 cotilleos y 3 logros de teatro. Antes v1.84 (puertas grises, 30 FPS, recomendaciones y medidores)
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 /** El scope de un SW siempre acaba en '/': '/' en dev, '/VECINOS/' en GitHub Pages. */

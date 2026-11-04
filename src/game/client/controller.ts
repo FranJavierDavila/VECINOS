@@ -2719,6 +2719,48 @@ class GameController {
           // Cierre natural de la mesa: solo registro.
           store.pushLog(translate(store.lang, 'ev.gambleOver', { name: this.nameOf(d.host) }), 'info');
           break;
+        // ── v1.85 — COMEDIA DE BARRIO: tramas secundarias entre vecinos IA ──
+        case 'comedy_start': {
+          // Fase 1: el protagonista suelta su línea (bocadillo + gesto del catálogo) y el
+          // registro recoge la entrada del skit. Si el jugador está EN el bloque, el sim
+          // ya ha premiado la presencia (comedy_witness llega aparte).
+          const rid = typeof d.resident === 'string' ? d.resident : null;
+          const lineObj = d.line as LocalizedText | null | undefined;
+          const said = lineObj && typeof lineObj.es === 'string' ? loc(lineObj, store.lang) : '';
+          const labelObj = d.label as LocalizedText | null | undefined;
+          const label = labelObj && typeof labelObj.es === 'string' ? loc(labelObj, store.lang) : '';
+          if (rid && said) {
+            this.bubbles?.sayText(rid, said, 4.4);
+            this.actors?.director.setGesture(rid, typeof d.gesture === 'string' ? d.gesture : 'talk', 3.6);
+          }
+          const who = rid ? this.nameOf(rid) : '?';
+          store.pushLog(`🎭 ${label ? `${label} — ` : ''}${who}: «${said}»`, 'info');
+          break;
+        }
+        case 'comedy_phase': {
+          // Fase 2: el comparsa contesta (bocadillo + gesto); sin toast, la trama ya está en marcha.
+          const rid = typeof d.resident === 'string' ? d.resident : null;
+          const lineObj = d.line as LocalizedText | null | undefined;
+          const said = lineObj && typeof lineObj.es === 'string' ? loc(lineObj, store.lang) : '';
+          if (rid && said) {
+            this.bubbles?.sayText(rid, said, 4.4);
+            this.actors?.director.setGesture(rid, typeof d.gesture === 'string' ? d.gesture : 'talk', 3.6);
+          }
+          break;
+        }
+        case 'comedy_witness': {
+          // PRESENCIA PREMIADA: el jugador está en el bloque cuando la trama se representa.
+          // La confianza/reputación ya la movió el sim: aquí solo el post-it de la gracia.
+          store.pushToast(translate(store.lang, 'ev.comedyWitness', { trust: String(d.trust), rep: String(d.reputation) }), 'good');
+          break;
+        }
+        case 'comedy_end': {
+          // Telón: entrada del registro del catálogo (elegida por el sim, determinista).
+          const lineObj = d.log as LocalizedText | null | undefined;
+          const said = lineObj && typeof lineObj.es === 'string' ? loc(lineObj, store.lang) : '';
+          if (said) store.pushLog(`🎭 ${said}`, 'info');
+          break;
+        }
         case 'stairs_grumble':
           // Malestar vecinal (v1.5): texto del catálogo con el nombre del vecino que sube a pie.
           store.pushLog(String(this.content.rules.sim.elevator.grumbleText).replace('{name}', this.nameOf(d.resident)), 'info');
@@ -3102,6 +3144,7 @@ class GameController {
       elevatorStatus: String(elevatorBlock?.params.elevator_status ?? 'ok'),
       missionsDone: world.missions.filter((m) => m.state === 'done').map((m) => m.id),
       bestAffinity,
+      skitsSeen: world.skitsSeen ?? 0, // v1.85 — tramas cómicas presenciadas (extra/comedy.ts)
     };
 
     const fresh = evaluateAchievements(catalog, snap, this.unlockedAchievements);

@@ -133,6 +133,16 @@
       "fundsShare": 0.5,
       "cooldownDays": 2
     },
+    "comedy": {
+      "checkEveryTicks": 6,
+      "chancePerCheck": 0.5,
+      "cooldownMinutes": 720,
+      "phaseMinutes": 3,
+      "lingerMinutes": 6,
+      "witnessTrust": 2,
+      "witnessReputation": 1,
+      "affinityDelta": 2
+    },
     "protest": {
       "watchDef": "pasillo_planta",
       "watchParam": "lighting",
@@ -315,10 +325,10 @@
     "margin": 0.35,
     "nearRadius": 1.6,
     "itemRadius": 0.9,
-    "corridorZ": -2.0,
+    "corridorZ": -2,
     "corridorDepth": 2.6,
     "corridorRail": 0,
-    "depthModule": 2.0,
+    "depthModule": 2,
     "npcWalkSpeed": 1.9,
     "npcWanderSeconds": 8,
     "roomZ": 0,
@@ -500,19 +510,19 @@
         },
         {
           "art": "art/trees/tree_bushy.png",
-          "w": 3.0,
+          "w": 3,
           "h": 3.4
         }
       ],
       "keepOut": [
         {
-          "x0": -26.0,
-          "x1": 46.0,
-          "z0": -120.0,
+          "x0": -26,
+          "x1": 46,
+          "z0": -120,
           "z1": 9.2
         },
         {
-          "x0": -19.0,
+          "x0": -19,
           "x1": 8.5,
           "z0": -4.4,
           "z1": 6.6
@@ -520,140 +530,140 @@
       ],
       "forcedTrees": [
         {
-          "x": -30.0,
-          "z": 3.0,
+          "x": -30,
+          "z": 3,
           "art": "art/trees/tree_round.png",
           "s": 1.2
         },
         {
-          "x": -38.0,
+          "x": -38,
           "z": 0.5,
           "art": "art/trees/tree_bushy.png",
           "s": 0.95
         },
         {
-          "x": -48.0,
-          "z": -2.0,
+          "x": -48,
+          "z": -2,
           "art": "art/trees/tree_pine.png",
           "s": 1.1
         },
         {
-          "x": 50.0,
-          "z": 2.0,
+          "x": 50,
+          "z": 2,
           "art": "art/trees/tree_round.png",
           "s": 1.25
         },
         {
-          "x": 60.0,
+          "x": 60,
           "z": 4.5,
           "art": "art/trees/tree_bushy.png",
           "s": 1.05
         },
         {
-          "x": 70.0,
-          "z": 0.0,
+          "x": 70,
+          "z": 0,
           "art": "art/trees/tree_pine.png",
           "s": 1.15
         },
         {
-          "x": -52.0,
-          "z": 24.0,
+          "x": -52,
+          "z": 24,
           "art": "art/trees/tree_round.png",
           "s": 1.15
         },
         {
-          "x": -44.0,
-          "z": 28.0,
+          "x": -44,
+          "z": 28,
           "art": "art/trees/tree_pine.png",
           "s": 1.2
         },
         {
-          "x": -36.0,
-          "z": 20.0,
+          "x": -36,
+          "z": 20,
           "art": "art/trees/tree_poplar.png",
           "s": 1.1
         },
         {
-          "x": -26.0,
-          "z": 26.0,
+          "x": -26,
+          "z": 26,
           "art": "art/trees/tree_bushy.png",
-          "s": 1.0
+          "s": 1
         },
         {
-          "x": -18.0,
+          "x": -18,
           "z": 15.5,
           "art": "art/trees/tree_round.png",
-          "s": 1.0
+          "s": 1
         },
         {
-          "x": -10.0,
-          "z": 27.0,
+          "x": -10,
+          "z": 27,
           "art": "art/trees/tree_pine.png",
           "s": 1.25
         },
         {
-          "x": -2.0,
-          "z": 18.0,
+          "x": -2,
+          "z": 18,
           "art": "art/trees/tree_poplar.png",
           "s": 1.05
         },
         {
-          "x": 6.0,
-          "z": 24.0,
+          "x": 6,
+          "z": 24,
           "art": "art/trees/tree_round.png",
           "s": 1.1
         },
         {
-          "x": 14.0,
-          "z": 16.0,
+          "x": 14,
+          "z": 16,
           "art": "art/trees/tree_bushy.png",
           "s": 0.95
         },
         {
-          "x": 22.0,
+          "x": 22,
           "z": 26.5,
           "art": "art/trees/tree_pine.png",
           "s": 1.1
         },
         {
-          "x": 30.0,
+          "x": 30,
           "z": 15.5,
           "art": "art/trees/tree_poplar.png",
           "s": 1.15
         },
         {
-          "x": 38.0,
-          "z": 27.0,
+          "x": 38,
+          "z": 27,
           "art": "art/trees/tree_round.png",
           "s": 1.2
         },
         {
-          "x": 46.0,
-          "z": 21.0,
+          "x": 46,
+          "z": 21,
           "art": "art/trees/tree_bushy.png",
           "s": 1.05
         },
         {
-          "x": 56.0,
-          "z": 26.0,
+          "x": 56,
+          "z": 26,
           "art": "art/trees/tree_pine.png",
           "s": 1.2
         },
         {
-          "x": 66.0,
+          "x": 66,
           "z": 18.5,
           "art": "art/trees/tree_round.png",
           "s": 1.1
         },
         {
-          "x": 78.0,
-          "z": 24.0,
+          "x": 78,
+          "z": 24,
           "art": "art/trees/tree_poplar.png",
           "s": 1.15
         },
         {
-          "x": 90.0,
-          "z": 27.0,
+          "x": 90,
+          "z": 27,
           "art": "art/trees/tree_pine.png",
           "s": 1.05
         }
@@ -680,7 +690,7 @@
         "color": "#1e241c",
         "alpha": 0.26,
         "minLen": 4.5,
-        "maxLen": 17.0,
+        "maxLen": 17,
         "spread": 1.14,
         "skew": 1.05,
         "note": "v1.61 sombra aproximada del edificio sobre la calle: franjas translucidas a la cota de cada tira, degradado hacia el extremo, longitud/desvio segun el sol visible del fondo. Sin luces ni shadow-maps extra."
@@ -1074,7 +1084,7 @@
           "top": "#8e97a3",
           "horizon": "#aeb4ba",
           "rain": 0.85,
-          "storm": 1.0
+          "storm": 1
         }
       },
       "clouds": {
@@ -1101,7 +1111,7 @@
         ],
         "topY": 30,
         "groundY": 0,
-        "thunderDelaySecs": 2.0,
+        "thunderDelaySecs": 2,
         "thunderGain": 0.85
       }
     },
@@ -1206,7 +1216,7 @@
       "lookSeconds": 0.95,
       "doorWait": 1.1,
       "crossMargin": 17,
-      "crossX": 13.0,
+      "crossX": 13,
       "curbNearZ": -5.6,
       "curbFarZ": -13.1,
       "parkX": 12.6,
@@ -1418,7 +1428,7 @@
       "lampColor": "#ffedbe",
       "window": {
         "w": 1.15,
-        "h": 1.0,
+        "h": 1,
         "sill": 0.85,
         "frame": "#6f4926",
         "glass": "#bcd8e8",
@@ -1586,7 +1596,7 @@
         "alpha": 0.72,
         "intentOpen": true,
         "npcOpenAhead": 0.35,
-        "npcXRadius": 1.0
+        "npcXRadius": 1
       },
       "garaje": {
         "panel": "#c9ced6",
@@ -1604,10 +1614,10 @@
           "benchW": 1.35,
           "benchH": 0.92,
           "benchD": 0.55,
-          "benchY": 0.0,
+          "benchY": 0,
           "pegW": 1.1,
           "pegH": 0.7,
-          "shelfW": 1.0,
+          "shelfW": 1,
           "shelfH": 1.6,
           "shelfD": 0.38,
           "shelfTiers": 3,
@@ -1691,7 +1701,7 @@
         "woodDark": "#6f4926",
         "standSpots": [
           [
-            1.0,
+            1,
             2.62
           ],
           [
@@ -1730,7 +1740,7 @@
         "dryerH": 0.78,
         "machineD": 0.6,
         "stackGap": 0.05,
-        "drumOnChance": 1.0,
+        "drumOnChance": 1,
         "drumSpeedMin": 2.2,
         "drumSpeedMax": 4.4,
         "bodyColor": "#e8e6e0",
@@ -1746,7 +1756,7 @@
         "enabled": true,
         "openAhead": 1.15,
         "openSeconds": 0.45,
-        "openAngle": 1.0,
+        "openAngle": 1,
         "garageOpenAhead": 2.9,
         "garageOpenSeconds": 1.15,
         "revealAt": 0.02,
@@ -1764,7 +1774,7 @@
         "visitorExit": true
       },
       "portal": {
-        "backZoneZ": 2.0,
+        "backZoneZ": 2,
         "lobby": {
           "wallColor": "#d8d3c8",
           "floorColor": "#b9b3a4"
@@ -1884,12 +1894,12 @@
       },
       "cracks": {
         "conditionMax": 55,
-        "w": 1.0,
+        "w": 1,
         "h": 1.3
       },
       "grime": {
         "cleanlinessMax": 45,
-        "w": 1.0,
+        "w": 1,
         "h": 0.7
       },
       "zStep": 0.006
@@ -1941,13 +1951,13 @@
       "walk": [
         {
           "x0": -7.5,
-          "z0": -7.0,
+          "z0": -7,
           "x1": 29,
           "z1": -4.4
         },
         {
           "x0": -6,
-          "z0": -7.0,
+          "z0": -7,
           "x1": 0,
           "z1": 6.4
         },
@@ -1961,12 +1971,12 @@
           "x0": 10.2,
           "z0": -11.6,
           "x1": 15.8,
-          "z1": -7.0
+          "z1": -7
         },
         {
-          "x0": 7.0,
+          "x0": 7,
           "z0": -17.6,
-          "x1": 19.0,
+          "x1": 19,
           "z1": -13.8
         }
       ],
@@ -2103,7 +2113,7 @@
         12,
         22
       ],
-      "radius": 6.0,
+      "radius": 6,
       "lines": [
         "¿Otra vez la luz? Esta comunidad paga la electricidad con monedas de chocolate.",
         "Yo de pequeño también viví sin luz... era lo que había, no lo que se quería.",

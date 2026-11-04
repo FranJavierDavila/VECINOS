@@ -78,6 +78,7 @@ const baseSnap: AchievementSnapshot = {
   elevatorStatus: String(Object.values(world.blocks).find((b) => b.params.elevator_status !== undefined)?.params.elevator_status ?? 'ok'),
   missionsDone: [],
   bestAffinity: 0,
+  skitsSeen: 0, // v1.85 — tramas cómicas presenciadas (extra/comedy.ts)
 };
 if (catalog) {
   const initial = evaluateAchievements(catalog, baseSnap, new Set());

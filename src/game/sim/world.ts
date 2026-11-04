@@ -29,6 +29,9 @@ export function createWorld(content: Content, scenarioId: string, overrides: { s
     favors: {},
     junta: null,
     protest: null, // v1.80 — protesta por apagón (la arma extra/protest.ts)
+    skit: null, // v1.85 — comedia de barrio (la arma extra/comedy.ts)
+    skitCooldowns: {}, // v1.85 — silencio por skit tras representarse
+    skitsSeen: 0, // v1.85 — tramas presenciadas por el jugador (logros)
     events: [],
   };
 

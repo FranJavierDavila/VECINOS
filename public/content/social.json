@@ -2,169 +2,1583 @@
   "topics": [
     {
       "id": "t_clima",
-      "label": { "es": "El tiempo", "en": "The weather" },
+      "label": {
+        "es": "El tiempo",
+        "en": "The weather"
+      },
       "icon": "cloud-sun",
       "gainChance": 0.7,
       "trustGain": 3,
       "trustLoss": -2,
-      "likedBy": ["jubilada", "repartidor"],
-      "dislikedBy": ["fondo_buitre", "estudiante"],
+      "likedBy": [
+        "jubilada",
+        "repartidor"
+      ],
+      "dislikedBy": [
+        "fondo_buitre",
+        "estudiante"
+      ],
       "linesGain": [
-        { "es": "Con este sol se tienta uno a echar la siesta en la azotea, ¿eh?", "en": "With sun like this, one's tempted to nap on the roof, eh?" },
-        { "es": "El aire del mar llegó hasta el portal. Buen presagio, eso es.", "en": "The sea breeze reached the lobby. A good omen, that is." },
-        { "es": "Ni una gota en toda la semana: hasta las macetas están felices.", "en": "Not a drop all week: even the houseplants are happy." }
+        {
+          "es": "Con este sol se tienta uno a echar la siesta en la azotea, ¿eh?",
+          "en": "With sun like this, one's tempted to nap on the roof, eh?"
+        },
+        {
+          "es": "El aire del mar llegó hasta el portal. Buen presagio, eso es.",
+          "en": "The sea breeze reached the lobby. A good omen, that is."
+        },
+        {
+          "es": "Ni una gota en toda la semana: hasta las macetas están felices.",
+          "en": "Not a drop all week: even the houseplants are happy."
+        }
       ],
       "linesLoss": [
-        { "es": "¿Que va a llover otra vez? Vaya, pues el tendal que tenía fuera…", "en": "It's going to rain again? Great, and my laundry was outside…" },
-        { "es": "Con este viento las persianas no dejan dormir ni al gato.", "en": "With this wind, the shutters won't even let the cat sleep." },
-        { "es": "Hace un frío que quita las ganas hasta de cotillear. Y eso es mucho decir.", "en": "So cold even gossiping loses its charm. And that's saying something." }
+        {
+          "es": "¿Que va a llover otra vez? Vaya, pues el tendal que tenía fuera…",
+          "en": "It's going to rain again? Great, and my laundry was outside…"
+        },
+        {
+          "es": "Con este viento las persianas no dejan dormir ni al gato.",
+          "en": "With this wind, the shutters won't even let the cat sleep."
+        },
+        {
+          "es": "Hace un frío que quita las ganas hasta de cotillear. Y eso es mucho decir.",
+          "en": "So cold even gossiping loses its charm. And that's saying something."
+        }
       ]
     },
     {
       "id": "t_reformas",
-      "label": { "es": "Reformas", "en": "Renovations" },
+      "label": {
+        "es": "Reformas",
+        "en": "Renovations"
+      },
       "icon": "hammer",
       "gainChance": 0.65,
       "trustGain": 4,
       "trustLoss": -3,
-      "likedBy": ["electricista", "pintora", "fondo_buitre"],
-      "dislikedBy": ["okupa", "nino_grafitero"],
+      "likedBy": [
+        "electricista",
+        "pintora",
+        "fondo_buitre"
+      ],
+      "dislikedBy": [
+        "okupa",
+        "nino_grafitero"
+      ],
       "linesGain": [
-        { "es": "Esa regleta nueva que has puesto en el portal… queda de lujo.", "en": "That new cable tray in the lobby… looks proper classy." },
-        { "es": "Un buen taladro y una mano amiga: media reforma, resuelta.", "en": "A good drill and a helping hand: half the rework done already." },
-        { "es": "Yo de pequeño ayudaba a mi tío albañil. Los ladrillos, qué tiempos.", "en": "As a kid I helped my mason uncle. Good old days, carrying bricks." }
+        {
+          "es": "Esa regleta nueva que has puesto en el portal… queda de lujo.",
+          "en": "That new cable tray in the lobby… looks proper classy."
+        },
+        {
+          "es": "Un buen taladro y una mano amiga: media reforma, resuelta.",
+          "en": "A good drill and a helping hand: half the rework done already."
+        },
+        {
+          "es": "Yo de pequeño ayudaba a mi tío albañil. Los ladrillos, qué tiempos.",
+          "en": "As a kid I helped my mason uncle. Good old days, carrying bricks."
+        }
       ],
       "linesLoss": [
-        { "es": "¿Otra vez taladrando a las ocho de la mañana? Que esto no es una obra.", "en": "Drilling at eight in the morning again? This isn't a worksite." },
-        { "es": "Ese empapelado… mire, no le digo nada, pero no le digo nada.", "en": "That wallpaper… well, I'll say nothing. And I mean it kindly." },
-        { "es": "Reformar está bien, pero el polvo del portal me lo como en las tostadas.", "en": "Renovating is fine, but I'm eating lobby dust with my toast." }
+        {
+          "es": "¿Otra vez taladrando a las ocho de la mañana? Que esto no es una obra.",
+          "en": "Drilling at eight in the morning again? This isn't a worksite."
+        },
+        {
+          "es": "Ese empapelado… mire, no le digo nada, pero no le digo nada.",
+          "en": "That wallpaper… well, I'll say nothing. And I mean it kindly."
+        },
+        {
+          "es": "Reformar está bien, pero el polvo del portal me lo como en las tostadas.",
+          "en": "Renovating is fine, but I'm eating lobby dust with my toast."
+        }
       ]
     },
     {
       "id": "t_mascotas",
-      "label": { "es": "Las mascotas", "en": "The pets" },
+      "label": {
+        "es": "Las mascotas",
+        "en": "The pets"
+      },
       "icon": "dog",
       "gainChance": 0.7,
       "trustGain": 4,
       "trustLoss": -2,
-      "likedBy": ["sanitaria", "jubilada", "inquilino"],
-      "dislikedBy": ["fondo_buitre", "musico"],
+      "likedBy": [
+        "sanitaria",
+        "jubilada",
+        "inquilino"
+      ],
+      "dislikedBy": [
+        "fondo_buitre",
+        "musico"
+      ],
       "linesGain": [
-        { "es": "Su perro me espera cada mañana en el rellano. Más puntual que el correo.", "en": "Your dog waits for me every morning. More punctual than the mail." },
-        { "es": "Pásese por el parque: hasta las palomas juegan con su caniche.", "en": "Swing by the park: even the pigeons play with your poodle." },
-        { "es": "Ese gato gris de la azotea ya es del barrio. Le hemos puesto nombre.", "en": "That grey rooftop cat belongs to the block now. We named it." }
+        {
+          "es": "Su perro me espera cada mañana en el rellano. Más puntual que el correo.",
+          "en": "Your dog waits for me every morning. More punctual than the mail."
+        },
+        {
+          "es": "Pásese por el parque: hasta las palomas juegan con su caniche.",
+          "en": "Swing by the park: even the pigeons play with your poodle."
+        },
+        {
+          "es": "Ese gato gris de la azotea ya es del barrio. Le hemos puesto nombre.",
+          "en": "That grey rooftop cat belongs to the block now. We named it."
+        }
       ],
       "linesLoss": [
-        { "es": "¿Otra vez el ladrido de madrugada? Que el perro también necesita dormir.", "en": "The barking at dawn again? The dog needs its sleep too, you know." },
-        { "es": "Mire, a mí las mascotas me respetan… de lejos. Bien lejos.", "en": "Look, pets respect me… from afar. Very, very far." },
-        { "es": "El arenero del balcón no es, precisamente, perfume de primera calidad.", "en": "A balcony litter box is not, precisely, high-end fragrance." }
+        {
+          "es": "¿Otra vez el ladrido de madrugada? Que el perro también necesita dormir.",
+          "en": "The barking at dawn again? The dog needs its sleep too, you know."
+        },
+        {
+          "es": "Mire, a mí las mascotas me respetan… de lejos. Bien lejos.",
+          "en": "Look, pets respect me… from afar. Very, very far."
+        },
+        {
+          "es": "El arenero del balcón no es, precisamente, perfume de primera calidad.",
+          "en": "A balcony litter box is not, precisely, high-end fragrance."
+        }
       ]
     },
     {
       "id": "t_seguridad",
-      "label": { "es": "Seguridad del portal", "en": "Building security" },
+      "label": {
+        "es": "Seguridad del portal",
+        "en": "Building security"
+      },
       "icon": "shield",
       "gainChance": 0.6,
       "trustGain": 4,
       "trustLoss": -4,
-      "likedBy": ["presidente", "jubilada", "sanitaria"],
-      "dislikedBy": ["okupa", "nino_grafitero"],
+      "likedBy": [
+        "presidente",
+        "jubilada",
+        "sanitaria"
+      ],
+      "dislikedBy": [
+        "okupa",
+        "nino_grafitero"
+      ],
       "linesGain": [
-        { "es": "Con la cerradura nueva del portal se queda uno más tranquilo, sí.", "en": "With the new lobby lock, one does sleep easier. Yes sir." },
-        { "es": "Yo aviso de raros por el grupo del portal. Aquí nos cuidamos.", "en": "I report strangers on the block chat. We look after our own." },
-        { "es": "La mirilla nueva distingue hasta al repartidor del pan. Tecnología, oye.", "en": "The new peephole can tell the bread delivery apart. Technology!" }
+        {
+          "es": "Con la cerradura nueva del portal se queda uno más tranquilo, sí.",
+          "en": "With the new lobby lock, one does sleep easier. Yes sir."
+        },
+        {
+          "es": "Yo aviso de raros por el grupo del portal. Aquí nos cuidamos.",
+          "en": "I report strangers on the block chat. We look after our own."
+        },
+        {
+          "es": "La mirilla nueva distingue hasta al repartidor del pan. Tecnología, oye.",
+          "en": "The new peephole can tell the bread delivery apart. Technology!"
+        }
       ],
       "linesLoss": [
-        { "es": "¿Que se me olvidó cerrar con llave una vez y ya soy el peligro andante?", "en": "I forget the lock ONE time and now I'm a walking hazard?" },
-        { "es": "Tanto candado y el timbre del tercero lleva años sin funcionar.", "en": "So many locks, yet the third-floor bell's been dead for years." },
-        { "es": "La puerta del garaje abierta no la dejé yo… ¿o sí? Bueno, ¡fue el viento!", "en": "I didn't leave the garage door open… did I? Eh, it was the wind!" }
+        {
+          "es": "¿Que se me olvidó cerrar con llave una vez y ya soy el peligro andante?",
+          "en": "I forget the lock ONE time and now I'm a walking hazard?"
+        },
+        {
+          "es": "Tanto candado y el timbre del tercero lleva años sin funcionar.",
+          "en": "So many locks, yet the third-floor bell's been dead for years."
+        },
+        {
+          "es": "La puerta del garaje abierta no la dejé yo… ¿o sí? Bueno, ¡fue el viento!",
+          "en": "I didn't leave the garage door open… did I? Eh, it was the wind!"
+        }
       ]
     },
     {
       "id": "t_fiestas",
-      "label": { "es": "Las fiestas", "en": "The parties" },
+      "label": {
+        "es": "Las fiestas",
+        "en": "The parties"
+      },
       "icon": "party-popper",
       "gainChance": 0.75,
       "trustGain": 3,
       "trustLoss": -2,
-      "likedBy": ["fiestero", "musico", "estudiante", "inquilino", "cotilla"],
-      "dislikedBy": ["jubilada", "presidente"],
+      "likedBy": [
+        "fiestero",
+        "musico",
+        "estudiante",
+        "inquilino",
+        "cotilla"
+      ],
+      "dislikedBy": [
+        "jubilada",
+        "presidente"
+      ],
       "linesGain": [
-        { "es": "Lo del sábado en el patio fue un fiestón. Usted no vio a la Pintora.", "en": "Saturday's courtyard party was a blast. You missed the painter's moves." },
-        { "es": "Sí, invítame a la próxima: llevo la paella y los cotilleos, pa'largo.", "en": "Invite me to the next one: I'll bring paella AND fresh gossip." },
-        { "es": "En mi pueblo las fiestas duraban tres días. Aquí les ganamos de lejos.", "en": "Back home, fiestas lasted three days. We've got them beat here." }
+        {
+          "es": "Lo del sábado en el patio fue un fiestón. Usted no vio a la Pintora.",
+          "en": "Saturday's courtyard party was a blast. You missed the painter's moves."
+        },
+        {
+          "es": "Sí, invítame a la próxima: llevo la paella y los cotilleos, pa'largo.",
+          "en": "Invite me to the next one: I'll bring paella AND fresh gossip."
+        },
+        {
+          "es": "En mi pueblo las fiestas duraban tres días. Aquí les ganamos de lejos.",
+          "en": "Back home, fiestas lasted three days. We've got them beat here."
+        }
       ],
       "linesLoss": [
-        { "es": "El bajo ese hasta las tantas… que yo era joven, pero a las dos, ¿no?", "en": "That bass till the small hours… I was young too, but not at 2am!" },
-        { "es": "La última fiesta me dejó el portal hecho una pista de baile pegajosa.", "en": "The last party left our lobby a sticky dancefloor. Again." },
-        { "es": "Confeti en MI rellano. Confeti. Esto ya no es lo que era, le digo yo.", "en": "Confetti in MY hallway. Confetti. This block's going downhill." }
+        {
+          "es": "El bajo ese hasta las tantas… que yo era joven, pero a las dos, ¿no?",
+          "en": "That bass till the small hours… I was young too, but not at 2am!"
+        },
+        {
+          "es": "La última fiesta me dejó el portal hecho una pista de baile pegajosa.",
+          "en": "The last party left our lobby a sticky dancefloor. Again."
+        },
+        {
+          "es": "Confeti en MI rellano. Confeti. Esto ya no es lo que era, le digo yo.",
+          "en": "Confetti in MY hallway. Confetti. This block's going downhill."
+        }
       ]
     },
     {
       "id": "t_rumor",
-      "label": { "es": "Un rumor", "en": "A rumor" },
+      "label": {
+        "es": "Un rumor",
+        "en": "A rumor"
+      },
       "icon": "flame",
       "gainChance": 0.5,
       "trustGain": 6,
       "trustLoss": -5,
-      "likedBy": ["cotilla"],
-      "dislikedBy": ["presidente", "sanitaria", "jubilada"],
+      "likedBy": [
+        "cotilla"
+      ],
+      "dislikedBy": [
+        "presidente",
+        "sanitaria",
+        "jubilada"
+      ],
       "linesGain": [
-        { "es": "Psst… ¿no se ha enterado? El del 3ºB busca piso nuevo. Usted y yo, ¿eh?", "en": "Psst… haven't you heard? 3B is flat-hunting. Just between us, eh?" },
-        { "es": "Que lo digo bajito: el del bar y la del tercero… ya se les ve juntos.", "en": "Keep this under your hat: the bar owner and the third-floor lady…" },
-        { "es": "Esto no sale de aquí: dicen que el garaje esconde una moto clásica.", "en": "This stays here: word is the garage hides a classic motorbike." }
+        {
+          "es": "Psst… ¿no se ha enterado? El del 3ºB busca piso nuevo. Usted y yo, ¿eh?",
+          "en": "Psst… haven't you heard? 3B is flat-hunting. Just between us, eh?"
+        },
+        {
+          "es": "Que lo digo bajito: el del bar y la del tercero… ya se les ve juntos.",
+          "en": "Keep this under your hat: the bar owner and the third-floor lady…"
+        },
+        {
+          "es": "Esto no sale de aquí: dicen que el garaje esconde una moto clásica.",
+          "en": "This stays here: word is the garage hides a classic motorbike."
+        }
       ],
       "linesLoss": [
-        { "es": "¿Y a usted quién le ha contado eso? Porque yo no digo esas cosas.", "en": "And who told YOU that? I would never spread such things." },
-        { "es": "Para rumores tengo mala puntería: se lo solté a la persona equivocada.", "en": "I'm terrible with rumors: I blabbed to the wrong person. Again." },
-        { "es": "Yo nunca cotilleo. Bueno, hoy no. Bueno… ¿esto va grabado?", "en": "I never gossip. Well, not today. Well… is this thing recording?" }
+        {
+          "es": "¿Y a usted quién le ha contado eso? Porque yo no digo esas cosas.",
+          "en": "And who told YOU that? I would never spread such things."
+        },
+        {
+          "es": "Para rumores tengo mala puntería: se lo solté a la persona equivocada.",
+          "en": "I'm terrible with rumors: I blabbed to the wrong person. Again."
+        },
+        {
+          "es": "Yo nunca cotilleo. Bueno, hoy no. Bueno… ¿esto va grabado?",
+          "en": "I never gossip. Well, not today. Well… is this thing recording?"
+        }
+      ]
+    },
+    {
+      "id": "t_comida",
+      "label": {
+        "es": "La comida",
+        "en": "Food"
+      },
+      "icon": "soup",
+      "gainChance": 0.65,
+      "trustGain": 4,
+      "trustLoss": -2,
+      "likedBy": [
+        "jubilada",
+        "inquilino",
+        "repartidor",
+        "sanitaria"
+      ],
+      "dislikedBy": [
+        "fiestero",
+        "estudiante",
+        "fondo_buitre"
+      ],
+      "linesGain": [
+        {
+          "es": "El cocido del Hiper a las doce: hay que cogerle el punto al hambre.",
+          "en": "The Hiper's stew at noon: you've got to catch hunger at just the right moment."
+        },
+        {
+          "es": "Yo hago la tortilla sin cebolla, pero no juzgo a los que la llevan. Los miro raro, pero no juzgo.",
+          "en": "I make my omelet onion-free, and I don't judge those who add it. I just stare. Oddly."
+        },
+        {
+          "es": "El olor a guiso del tercero me despierta mejor que cualquier alarma.",
+          "en": "The stew smell from the third floor wakes me better than any alarm."
+        }
+      ],
+      "linesLoss": [
+        {
+          "es": "Poner pescado a hervir a las nueve de la noche es un atentado, oiga.",
+          "en": "Boiling fish at nine in the evening is an assault, I tell you."
+        },
+        {
+          "es": "El microondas del pasillo de la comunidad sigue oliendo a palomitas quemadas. AÑOS.",
+          "en": "The community-hall microwave still reeks of burnt popcorn. YEARS now."
+        },
+        {
+          "es": "¿Que has invitado a cenar a media escalera y no has contado con MI estómago?",
+          "en": "You invited half the staircase to dinner and didn't count on MY stomach?"
+        }
+      ]
+    },
+    {
+      "id": "t_apanos",
+      "label": {
+        "es": "Apaños caseros",
+        "en": "Home fixes"
+      },
+      "icon": "wrench",
+      "gainChance": 0.7,
+      "trustGain": 4,
+      "trustLoss": -3,
+      "likedBy": [
+        "electricista",
+        "pintora",
+        "fondo_buitre"
+      ],
+      "dislikedBy": [
+        "presidente",
+        "estudiante",
+        "okupa"
+      ],
+      "linesGain": [
+        {
+          "es": "Con cinta aislante y paciencia se arregla hasta el ánimo, ya lo digo yo.",
+          "en": "With duct tape and patience you can fix even your mood. Trust me."
+        },
+        {
+          "es": "La puerta del trastero la abrí yo con la ceja. De no tocarla, nada.",
+          "en": "I opened the storage door with my eyebrow. Pure not-touching technique."
+        },
+        {
+          "es": "Un destornillador y una tarde: la persiana ya no imita al pregón del Hiper.",
+          "en": "One screwdriver, one afternoon: the shutter no longer mimics the Hiper's loudspeaker."
+        }
+      ],
+      "linesLoss": [
+        {
+          "es": "El grifo ese gotea en modo sonata. Y no es la buena sonata, digamos.",
+          "en": "That faucet drips in sonata mode. And not the good sonata, let's say."
+        },
+        {
+          "es": "«Mañana lo miro». Ese mañana lleva tres inviernos repitiéndose.",
+          "en": "\"I'll check it tomorrow.\" That tomorrow has repeated itself for three winters."
+        },
+        {
+          "es": "Cada apaño del tercero acaba con un cubo nuevo en el pasillo. Es estadística.",
+          "en": "Every third-floor fix ends with a new bucket in the hallway. It's statistics."
+        }
       ]
     }
   ],
   "gossip": {
     "lines": [
-      { "es": "¿Sabes que {a} dejó la basura en el rellano otra vez, {b}? Lo digo por un amigo…", "en": "Did you know {a} left the trash out AGAIN, {b}? Asking for a friend…" },
-      { "es": "Palabra de {a}: el del tercero vuelve a dar la lata con la música, {b}.", "en": "Word of {a}: the third-floor guy is at it with the music again, {b}." },
-      { "es": "Entre {a} y {b} sabemos las noticias del portal antes que el tablón.", "en": "Between {a} and {b}, block news reaches us before the noticeboard." },
-      { "es": "Guarda el secreto, {b}: dicen que {a} ronca con aires de ópera.", "en": "Keep the secret, {b}: they say {a} snores like an opera tenor." },
-      { "es": "{a} y {b} cotilleamos poco… pero lo poco que cotilleamos, es de calidad.", "en": "{a} and {b} don't gossip much… but what little we do, is quality." },
-      { "es": "No lo lleves a la junta, {b}: a {a} le han visto poniendo la lavadora a las tantas.", "en": "Don't bring this to the meeting, {b}: they saw {a} doing laundry at midnight." },
-      { "es": "Psst, {b}: {a} apuesta a que llueve antes del jueves. No nos falles.", "en": "Psst, {b}: {a} bets it rains before Thursday. Don't let us down." },
-      { "es": "Si alguien pregunta, {a} y {b} no sabemos nada del jarrón del rellano. ¿Trato?", "en": "If anyone asks, {a} and {b} know nothing about the hallway vase. Deal?" }
+      {
+        "es": "¿Sabes que {a} dejó la basura en el rellano otra vez, {b}? Lo digo por un amigo…",
+        "en": "Did you know {a} left the trash out AGAIN, {b}? Asking for a friend…"
+      },
+      {
+        "es": "Palabra de {a}: el del tercero vuelve a dar la lata con la música, {b}.",
+        "en": "Word of {a}: the third-floor guy is at it with the music again, {b}."
+      },
+      {
+        "es": "Entre {a} y {b} sabemos las noticias del portal antes que el tablón.",
+        "en": "Between {a} and {b}, block news reaches us before the noticeboard."
+      },
+      {
+        "es": "Guarda el secreto, {b}: dicen que {a} ronca con aires de ópera.",
+        "en": "Keep the secret, {b}: they say {a} snores like an opera tenor."
+      },
+      {
+        "es": "{a} y {b} cotilleamos poco… pero lo poco que cotilleamos, es de calidad.",
+        "en": "{a} and {b} don't gossip much… but what little we do, is quality."
+      },
+      {
+        "es": "No lo lleves a la junta, {b}: a {a} le han visto poniendo la lavadora a las tantas.",
+        "en": "Don't bring this to the meeting, {b}: they saw {a} doing laundry at midnight."
+      },
+      {
+        "es": "Psst, {b}: {a} apuesta a que llueve antes del jueves. No nos falles.",
+        "en": "Psst, {b}: {a} bets it rains before Thursday. Don't let us down."
+      },
+      {
+        "es": "Si alguien pregunta, {a} y {b} no sabemos nada del jarrón del rellano. ¿Trato?",
+        "en": "If anyone asks, {a} and {b} know nothing about the hallway vase. Deal?"
+      },
+      {
+        "es": "Dicen que {a} vende entradas para ver el ascensor roto. Con descuento, {b}.",
+        "en": "They say {a} sells tickets to see the broken elevator. With a discount, {b}."
+      },
+      {
+        "es": "{a} jura que el basurero responde si le hablas a las tres de la mañana. Ni broma, {b}.",
+        "en": "{a} swears the dumpster talks back at three in the morning. No joke, {b}."
+      },
+      {
+        "es": "Lo del karaoke de la impresora ya es patrimonio del barrio, {b}. Y lo canta {a}.",
+        "en": "The printer karaoke is neighborhood heritage now, {b}. And {a} performs it."
+      },
+      {
+        "es": "{a} tiene un pacto con las palomas del patio. Con ellas NO se mete uno, {b}.",
+        "en": "{a} has a pact with the courtyard pigeons. You do NOT mess with those, {b}."
+      },
+      {
+        "es": "Que la lavadora del sótano mueve cosas por la noche, {b}. COSAS. Díselo a {a}.",
+        "en": "The basement washer moves things at night, {b}. THINGS. Tell {a} about it."
+      },
+      {
+        "es": "{a} vendió un «cuarzo curativo» en el portal. Era una baldosa, {b}. Una baldosa.",
+        "en": "{a} sold a \"healing crystal\" in the lobby. It was a floor tile, {b}. A floor tile."
+      },
+      {
+        "es": "El tablón amaneció otra vez lleno de post-its de {a}. Guerra fría, {b}.",
+        "en": "The noticeboard woke up covered in {a}'s sticky notes again. Cold war, {b}."
+      },
+      {
+        "es": "A {a} le han visto practicando baile de salón… con la aspiradora de socio, {b}.",
+        "en": "{a} was spotted practicing ballroom dancing… with the vacuum as partner, {b}."
+      }
     ]
   },
   "protest": {
     "ringLines": [
-      { "es": "¿Se puede saber? Llevamos una hora a oscuras y la presidencia no se inmuta.", "en": "Excuse me? We've been in the dark an hour and the presidency doesn't care." },
-      { "es": "¡No es normal! Mi sopa se ha quedado a medio hacer y el pasillo negro. ¡Luz ya!", "en": "This is not normal! My soup is half-done and the hallway pitch black. Lights NOW!" },
-      { "es": "¡Timbre, timbre y más timbre! Que baje alguien del comité o no duerme nadie.", "en": "Ring, ring and more rings! Someone from the board comes down or nobody sleeps." },
-      { "es": "¡ESTOY HASTA EL MOÑO! ¡O abres la puerta o hago píxel el cuadro de fusibles yo solo!", "en": "I'VE HAD IT! Open this door or I'll fix the fuse box myself, wildly!" }
+      {
+        "es": "¿Se puede saber? Llevamos una hora a oscuras y la presidencia no se inmuta.",
+        "en": "Excuse me? We've been in the dark an hour and the presidency doesn't care."
+      },
+      {
+        "es": "¡No es normal! Mi sopa se ha quedado a medio hacer y el pasillo negro. ¡Luz ya!",
+        "en": "This is not normal! My soup is half-done and the hallway pitch black. Lights NOW!"
+      },
+      {
+        "es": "¡Timbre, timbre y más timbre! Que baje alguien del comité o no duerme nadie.",
+        "en": "Ring, ring and more rings! Someone from the board comes down or nobody sleeps."
+      },
+      {
+        "es": "¡ESTOY HASTA EL MOÑO! ¡O abres la puerta o hago píxel el cuadro de fusibles yo solo!",
+        "en": "I'VE HAD IT! Open this door or I'll fix the fuse box myself, wildly!"
+      }
     ],
-    "calmLine": { "es": "Perdona la insistencia… con el apagón y la oscurita, cualquiera pierde las formas. Gracias por abrir.", "en": "Sorry for the insistence… with the blackout and all this dark, anyone loses their manners. Thanks for opening." },
-    "tiredLine": { "es": "Bah, seguro que estás sordo o fuera. Mañana en la junta hablamos de esto.", "en": "Bah, you must be deaf or away. We'll talk about this at tomorrow's meeting." }
+    "calmLine": {
+      "es": "Perdona la insistencia… con el apagón y la oscurita, cualquiera pierde las formas. Gracias por abrir.",
+      "en": "Sorry for the insistence… with the blackout and all this dark, anyone loses their manners. Thanks for opening."
+    },
+    "tiredLine": {
+      "es": "Bah, seguro que estás sordo o fuera. Mañana en la junta hablamos de esto.",
+      "en": "Bah, you must be deaf or away. We'll talk about this at tomorrow's meeting."
+    }
   },
   "drunk": {
     "linesStart": [
-      { "es": "Yo no estoy bebido. Es el pasillo el que se mueve. Que conste.", "en": "I am NOT drunk. It's the hallway that's moving. For the record." },
-      { "es": "La escalera ha crecido un tramo. Lo juro. Habla con la junta.", "en": "The stairs grew a flight. I swear. Take it to the board." },
-      { "es": "Shhh… que duermen los vecinos. Y yo también, un poquito. De pie.", "en": "Shhh… the neighbors are sleeping. Me too, a little. Standing up." }
+      {
+        "es": "Yo no estoy bebido. Es el pasillo el que se mueve. Que conste.",
+        "en": "I am NOT drunk. It's the hallway that's moving. For the record."
+      },
+      {
+        "es": "La escalera ha crecido un tramo. Lo juro. Habla con la junta.",
+        "en": "The stairs grew a flight. I swear. Take it to the board."
+      },
+      {
+        "es": "Shhh… que duermen los vecinos. Y yo también, un poquito. De pie.",
+        "en": "Shhh… the neighbors are sleeping. Me too, a little. Standing up."
+      }
     ],
     "linesFumble": [
-      { "es": "La llave… está jadeando. Espérate, puñetas, que te tengo.", "en": "The key… it's panting. Hold still, you rascal, I've got you." },
-      { "es": "Esta no es mi puerta. La mía tiene el número más derecho.", "en": "This isn't my door. Mine has a straighter number." }
+      {
+        "es": "La llave… está jadeando. Espérate, puñetas, que te tengo.",
+        "en": "The key… it's panting. Hold still, you rascal, I've got you."
+      },
+      {
+        "es": "Esta no es mi puerta. La mía tiene el número más derecho.",
+        "en": "This isn't my door. Mine has a straighter number."
+      }
     ],
     "linesHome": [
-      { "es": "¿Ves? Entré sin ayuda. El sofá y yo tenemos un pacto.", "en": "See? Made it in unaided. The couch and I have an understanding." }
+      {
+        "es": "¿Ves? Entré sin ayuda. El sofá y yo tenemos un pacto.",
+        "en": "See? Made it in unaided. The couch and I have an understanding."
+      }
     ]
   },
   "gamble": {
     "linesVisit": [
-      { "es": "¿Una escalerilla arriba? Voy a ver un cuadro. Sí, un cuadro.", "en": "Up for a quick sec? Just checking a painting. Yes, a painting." },
-      { "es": "Esto es un taller de manualidades. Lo que se oye son tijeras.", "en": "This is a crafts workshop. Those are scissors you hear." }
+      {
+        "es": "¿Una escalerilla arriba? Voy a ver un cuadro. Sí, un cuadro.",
+        "en": "Up for a quick sec? Just checking a painting. Yes, a painting."
+      },
+      {
+        "es": "Esto es un taller de manualidades. Lo que se oye son tijeras.",
+        "en": "This is a crafts workshop. Those are scissors you hear."
+      }
     ],
     "linesRaid": [
-      { "es": "¡Son dominó, KOJO! ¿¡Desde cuándo el dominó es delito!?", "en": "It's DOMINOES, officer! Since when is dominoes a crime!?" },
-      { "es": "Paga la multa y ni una palabra en el grupo del portal. NADA.", "en": "Pay the fine and not one word on the block chat. NOTHING." }
+      {
+        "es": "¡Son dominó, KOJO! ¿¡Desde cuándo el dominó es delito!?",
+        "en": "It's DOMINOES, officer! Since when is dominoes a crime!?"
+      },
+      {
+        "es": "Paga la multa y ni una palabra en el grupo del portal. NADA.",
+        "en": "Pay the fine and not one word on the block chat. NOTHING."
+      }
+    ]
+  },
+  "comedy": {
+    "skits": [
+      {
+        "id": "c_paellera",
+        "label": {
+          "es": "La percusión terapéutica",
+          "en": "Therapeutic percussion"
+        },
+        "window": {
+          "from": "23:00",
+          "to": "01:30"
+        },
+        "cooldownMinutes": 720,
+        "protagonists": [
+          "musico"
+        ],
+        "coStars": [
+          "jubilada",
+          "cotilla"
+        ],
+        "gesture": "argue",
+        "linesP1": [
+          {
+            "es": "¡Que es PERCUSIÓN TERAPÉUTICA! El timbal y yo tenemos un acuerdo emocional.",
+            "en": "It's THERAPEUTIC PERCUSSION! The timbal and I have an emotional arrangement."
+          },
+          {
+            "es": "Ensayo el solo final. El disco no se graba solo… aunque sí a estas horas.",
+            "en": "Rehearsing the final solo. The album won't record itself… though it will record at this hour."
+          },
+          {
+            "es": "Es timbal LO SABE TODO. No puedo dejarlo a media frase.",
+            "en": "The timbal KNOWS EVERYTHING. I can't leave it mid-sentence."
+          }
+        ],
+        "linesP2": [
+          {
+            "es": "¡Que son las DOCE Y MEDIA! Mi oído ya tiene contrato indefinido, mal pagado.",
+            "en": "It's HALF PAST TWELVE! My ear is on a permanent contract now. Badly paid."
+          },
+          {
+            "es": "Voy a subir yo el timbal a la azotea. Con cerillas. De las largas.",
+            "en": "I'll carry that timbal to the roof myself. With matches. The long ones."
+          },
+          {
+            "es": "Terapéutica tu abuela. Me has dejado la siesta del reloj biológico hecha un cristo.",
+            "en": "Therapeutic, my foot. You've wrecked my biological clock's nap entirely."
+          }
+        ],
+        "logs": [
+          {
+            "es": "El timbal del músico vuelve a sonar a las tantas. El edificio entero acompasa.",
+            "en": "The musician's timbal is at it again after hours. The whole building keeps the beat."
+          },
+          {
+            "es": "Ensayo nocturno: el timbal gana la batalla contra el sentido común.",
+            "en": "Night rehearsal: the timbal wins its battle against common sense."
+          }
+        ]
+      },
+      {
+        "id": "c_decibel",
+        "label": {
+          "es": "El expediente del sonómetro",
+          "en": "The decibel dossier"
+        },
+        "window": {
+          "from": "15:00",
+          "to": "17:00"
+        },
+        "cooldownMinutes": 620,
+        "protagonists": [
+          "jubilada"
+        ],
+        "coStars": [
+          "estudiante",
+          "musico",
+          "fiestero"
+        ],
+        "gesture": "argue",
+        "linesP1": [
+          {
+            "es": "74 DECIBELIOS. He medido su siesta con la app del sobrino. Se acabó.",
+            "en": "74 DECIBELS. I measured your nap with my nephew's app. It's over."
+          },
+          {
+            "es": "El sonómetro no miente: usted hace más ruido que la obra del Hiper.",
+            "en": "The sound meter doesn't lie: you're louder than the Hiper construction site."
+          },
+          {
+            "es": "Siesta de 15 a 17. Lo que no entre en esa ventana, entra en mi expediente.",
+            "en": "Nap time is 3 to 5. Anything outside that window goes into my dossier."
+          }
+        ],
+        "linesP2": [
+          {
+            "es": "¿Y que yo estornude ya es delito? Es que hasta el aire la acusa.",
+            "en": "So sneezing is a crime now? Even the air is testifying against me."
+          },
+          {
+            "es": "¡Es que la app también me ha medido a MÍ! ¡Esto es una dictadura de decibelios!",
+            "en": "The app measured ME too! This is a decibel dictatorship!"
+          },
+          {
+            "es": "Presente su expediente. Yo presentaré el mío: sus zapatos en la escalera a las 7.",
+            "en": "File your dossier. I'll file mine: your shoes on the stairs at 7 sharp."
+          }
+        ],
+        "logs": [
+          {
+            "es": "La jubilada patrulla el pasillo con el sonómetro casero. Nadie respira (74,2 dB).",
+            "en": "The retiree patrols the hall with her DIY sound meter. Nobody breathes (74.2 dB)."
+          },
+          {
+            "es": "Guerra de decibelios en la siesta: el expediente de la jubilada gana páginas.",
+            "en": "Siesta decibel war: the retiree's dossier keeps gaining pages."
+          }
+        ]
+      },
+      {
+        "id": "c_tendal",
+        "label": {
+          "es": "La caída del tendal",
+          "en": "The laundry-line collapse"
+        },
+        "window": {
+          "from": "09:00",
+          "to": "12:00"
+        },
+        "cooldownMinutes": 520,
+        "protagonists": [
+          "jubilada"
+        ],
+        "coStars": [
+          "repartidor",
+          "cotilla"
+        ],
+        "gesture": "argue",
+        "linesP1": [
+          {
+            "es": "¡MI TENDAL! ¡Doce sábanas! ¡Doce! ¿Quién ha sido? No me valen palomas.",
+            "en": "MY LAUNDRY LINE! Twelve sheets! TWELVE! Who did this? Pigeons don't count."
+          },
+          {
+            "es": "Las pinzas de la ropa no caen solas. Esto tiene diseño, tiene autoría.",
+            "en": "Clothespins don't fall on their own. This has design. This has an author."
+          },
+          {
+            "es": "El gato del rellano sonríe. ESE GATO SABE ALGO.",
+            "en": "The hallway cat is smiling. THAT CAT KNOWS SOMETHING."
+          }
+        ],
+        "linesP2": [
+          {
+            "es": "Yo solo he venido a entregar un paquete. Salgo del edificio y me llueve lencería.",
+            "en": "I just came to deliver a package. I leave the building and lingerie rains on me."
+          },
+          {
+            "es": "El gato es de nadie y de todos: no le eche las culpas de SU colada.",
+            "en": "The cat belongs to everyone and no one: don't pin YOUR laundry on it."
+          },
+          {
+            "es": "Yo lo he visto todo desde la ventana. Vendo copias del vídeo. Baratas.",
+            "en": "I saw the whole thing from my window. I sell copies of the footage. Cheap."
+          }
+        ],
+        "logs": [
+          {
+            "es": "Cae el tendal de la jubilada por segunda vez esta semana. El gato, sin comentarios.",
+            "en": "The retiree's laundry line falls for the second time this week. The cat declines to comment."
+          },
+          {
+            "es": "Naufragio textil en el patio: sábanas al suelo y sospechosos habituales.",
+            "en": "Textile shipwreck in the courtyard: sheets on the floor, usual suspects present."
+          }
+        ]
+      },
+      {
+        "id": "c_tablon",
+        "label": {
+          "es": "La guerra de los post-its",
+          "en": "The sticky-note war"
+        },
+        "cooldownMinutes": 420,
+        "protagonists": [
+          "cotilla",
+          "okupa"
+        ],
+        "coStars": [
+          "presidente",
+          "jubilada"
+        ],
+        "gesture": "talk",
+        "linesP1": [
+          {
+            "es": "Soy yo el que firma «Anónimo» en el tablón. PERO HOY NO. Hoy he sido otro anónimo.",
+            "en": "I'M the one signing \"Anonymous\" on the noticeboard. BUT NOT TODAY. Today I was a different anonymous."
+          },
+          {
+            "es": "Tres post-its míos, dos respuestas de «un vecino preocupado». Nos queremos, se nota.",
+            "en": "Three notes from me, two replies from \"a concerned neighbor.\" We love each other, it shows."
+          },
+          {
+            "es": "El tablón es el twitter del barrio, pero sin bloqueos. Ahí no hay bloques.",
+            "en": "The noticeboard is the neighborhood's social network, minus the block buttons."
+          }
+        ],
+        "linesP2": [
+          {
+            "es": "¿«Anónimo»? A usted le reconozco la letra Y el rimel del título. Anónimo yo también.",
+            "en": "\"Anonymous\"? I recognize your handwriting AND the eyeliner on the heading. I'm anonymous too."
+          },
+          {
+            "es": "El tablón es de la COMUNIDAD. Los post-its que ponga, con mayúscula y remitente.",
+            "en": "The noticeboard belongs to the COMMUNITY. Your sticky notes need capital letters and a sender."
+          },
+          {
+            "es": "Ha usado mi color favorito de rotulador. Esto sube de tono, sí.",
+            "en": "You used my favorite marker color. This is heating up, it truly is."
+          }
+        ],
+        "logs": [
+          {
+            "es": "Guerra de post-its anónimos en el tablón. La comunidad amanece literaria.",
+            "en": "Sticky-note war on the noticeboard. The community wakes up literary."
+          },
+          {
+            "es": "El tablón, otra vez a pleno rendimiento: crítica de vecinos, firmas dudosas.",
+            "en": "The noticeboard at full capacity again: neighborly critique, dubious signatures."
+          }
+        ]
+      },
+      {
+        "id": "c_ambientador",
+        "label": {
+          "es": "Perfumería del basurero",
+          "en": "Dumpster perfumery"
+        },
+        "cooldownMinutes": 470,
+        "protagonists": [
+          "sanitaria"
+        ],
+        "coStars": [
+          "inquilino",
+          "jubilada",
+          "electricista"
+        ],
+        "gesture": "talk",
+        "linesP1": [
+          {
+            "es": "He puesto el ambientador GIGANTE del Hiper en el basurero. Ahora huele a bosque con notas de basura.",
+            "en": "I put the GIANT Hiper air freshener in the dumpster. It smells like forest now. With landfill notes."
+          },
+          {
+            "es": "Pino, lavanda y una base de… ¿esto qué es? Lo he pagado CARO. Que al menos disimule.",
+            "en": "Pine, lavender and a base of… what IS that? I paid a PREMIUM. The least it can do is camouflage."
+          },
+          {
+            "es": "El basurero tenía carácter. Yo le he dado alcance internacional: ahora huele a otro barrio.",
+            "en": "The dumpster had character. I gave it international reach: now it smells like a different neighborhood."
+          }
+        ],
+        "linesP2": [
+          {
+            "es": "Huele a bosque quemado. Pero ¡eh!, es un bosque. Mejora aceptada.",
+            "en": "It smells like burnt forest. But hey, it IS a forest. Improvement accepted."
+          },
+          {
+            "es": "Yo lo he olido desde el garaje. El pino ha llegado antes que el ascensor.",
+            "en": "I could smell it from the garage. The pine arrived before the elevator."
+          },
+          {
+            "es": "Con la factura esa de ambientador haces dos luces LED del pasillo. Dígalo, al menos.",
+            "en": "That air-freshener receipt is two LED hallway lights. At least say so."
+          }
+        ],
+        "logs": [
+          {
+            "es": "El basurero del portal estrena fragancia de bosque. La comunidad, dividida (y perfumada).",
+            "en": "The lobby dumpster debuts a forest fragrance. The community is divided (and perfumed)."
+          },
+          {
+            "es": "Campaña de olfato: ambientador gigante en el basurero. Nadie sabe si aplaudir.",
+            "en": "Scent campaign: giant air freshener in the dumpster. Nobody knows whether to applaud."
+          }
+        ]
+      },
+      {
+        "id": "c_alfombra",
+        "label": {
+          "es": "La alfombra voladora",
+          "en": "The flying rug"
+        },
+        "window": {
+          "from": "09:30",
+          "to": "11:30"
+        },
+        "cooldownMinutes": 520,
+        "protagonists": [
+          "fiestero"
+        ],
+        "coStars": [
+          "repartidor"
+        ],
+        "gesture": "argue",
+        "linesP1": [
+          {
+            "es": "¡AHAHA! La alfombra vuela mejor que los drones del tercero. ¡PUMBA!",
+            "en": "AHAHA! The rug flies better than the third floor's drones. WHEE!"
+          },
+          {
+            "es": "Sacudir la alfombra ES cardio. Mi médico lo aprobaría si lo viera… desde abajo, claro.",
+            "en": "Beating a rug IS cardio. My doctor would approve if he saw it… from below, of course."
+          },
+          {
+            "es": "Que si el polvo… ¡el polvo tiene que irse a ALGÚN sitio, y el sitio no es mi salón!",
+            "en": "About the dust… the dust has to go SOMEWHERE, and the somewhere is not my living room!"
+          }
+        ],
+        "linesP2": [
+          {
+            "es": "¡Me ha caído el polvo de TU alfombra encima! ¡El paquete ya huele a sebada!",
+            "en": "YOUR rug's dust landed on me! The package smells like a wheat field now!"
+          },
+          {
+            "es": "¡Esto es un desfile aéreo! ¡He visto volar la alfombra Y una zapatilla!",
+            "en": "This is an air show! I saw the rug fly AND a slipper!"
+          },
+          {
+            "es": "¡Me lo pongo en la queja oficial! ¡Del polvo ajeno también se hace polvo, sabía usted!",
+            "en": "That's going in my official complaint! Dust from other people's dust is still dust, you know!"
+          }
+        ],
+        "logs": [
+          {
+            "es": "La alfombra del fiestero vuela desde el balcón. El repartidor, debajo, firma el acta.",
+            "en": "The partier's rug takes flight off the balcony. The courier below signs the report."
+          },
+          {
+            "es": "Ducha de polvo en la entrada: la alfombra del fiestero ha vuelto a volar.",
+            "en": "Dust shower at the entrance: the partier's rug has flown again."
+          }
+        ]
+      },
+      {
+        "id": "c_pilates",
+        "label": {
+          "es": "Pilates de pasillo",
+          "en": "Hallway pilates"
+        },
+        "window": {
+          "from": "06:45",
+          "to": "08:00"
+        },
+        "cooldownMinutes": 420,
+        "protagonists": [
+          "sanitaria"
+        ],
+        "coStars": [
+          "inquilino",
+          "repartidor",
+          "electricista"
+        ],
+        "gesture": "talk",
+        "linesP1": [
+          {
+            "es": "Inhaloooo… y exhaloooo. La esterilla es MÍA, el pasillo es del bloque: convivencia.",
+            "en": "Inhaaale… and exhaaale. The mat is MINE, the hallway belongs to the block: coexistence."
+          },
+          {
+            "es": "El pilates de pasillo es gratuito. El que sepa esperar a que acabe la postura, entra.",
+            "en": "Hallway pilates is free. Whoever can wait out the pose may pass."
+          },
+          {
+            "es": "Respiración diafragmática a las siete. Ustedes disimulen el prisa que llevan.",
+            "en": "Diaphragmic breathing at seven. Kindly disguise all that rushing."
+          }
+        ],
+        "linesP2": [
+          {
+            "es": "Muy sana usted. ¿Y si respiramos yendo a trabajar? Que llevo el turno en el cuerpo.",
+            "en": "Very healthy of you. How about we breathe on the way to work? My shift is in my bones."
+          },
+          {
+            "es": "He saltado la esterilla dos veces. Es que es slalom o es tarde, no hay más clases.",
+            "en": "I've hopped over the mat twice. It's slalom or it's late — there are no other classes."
+          },
+          {
+            "es": "Yo paso por el lateral. Con la caja de herramientas. En modo cangrejo. Cotidiano.",
+            "en": "I'll take the side. With the toolbox. Crab mode. Just another Tuesday."
+          }
+        ],
+        "logs": [
+          {
+            "es": "Clase de pilates en el pasillo a las 7:00. El bloque entero entra en modo cangrejo.",
+            "en": "Hallway pilates class at 7:00. The entire block goes into crab mode."
+          },
+          {
+            "es": "La esterilla bloquea el pasillo: respiración profunda con obstáculo fijo.",
+            "en": "The mat blocks the hallway: deep breathing with a fixed obstacle."
+          }
+        ]
+      },
+      {
+        "id": "c_karaoke",
+        "label": {
+          "es": "El karaoke de la impresora",
+          "en": "Printer karaoke"
+        },
+        "window": {
+          "from": "22:00",
+          "to": "00:30"
+        },
+        "cooldownMinutes": 520,
+        "protagonists": [
+          "estudiante"
+        ],
+        "coStars": [
+          "musico",
+          "fiestero"
+        ],
+        "gesture": "laugh",
+        "linesP1": [
+          {
+            "es": "La impresora ES mi micrófono: canta, escupe hojas y tiene presencia escénica.",
+            "en": "The printer IS my microphone: it sings, spits paper, and has stage presence."
+          },
+          {
+            "es": "Karaoke de impresora: esta noche solo baladas de tinta negra.",
+            "en": "Printer karaoke: tonight, black-ink ballads only."
+          },
+          {
+            "es": "¡Do re mi… BZZZT! Lo ves? ¡Tiene rango! La impresora tiene MÁS rango que yo.",
+            "en": "Do re mi… BZZZT! See that? What a range! The printer has MORE range than me."
+          }
+        ],
+        "linesP2": [
+          {
+            "es": "El dueto lo acepto, pero el encore lo canta la tostadora. Esa sí tiene grave.",
+            "en": "I'll take the duet, but the toaster sings the encore. THAT one has a bass voice."
+          },
+          {
+            "es": "Yo traigo los coros. Los coros se hacen con la lavadora a 1400 revoluciones.",
+            "en": "I bring the backing vocals. Backing vocals are made at 1400 washer rpm."
+          },
+          {
+            "es": "Esto ya es una banda. Que nadie se llame a engaño: mañana toca gira por el rellano.",
+            "en": "This is a band now. Nobody act surprised: tomorrow we tour the stairwells."
+          }
+        ],
+        "logs": [
+          {
+            "es": "Karaoke clandestino: la impresora de micrófono y la lavadora de coros.",
+            "en": "Clandestine karaoke: printer on mic, washer on backing vocals."
+          },
+          {
+            "es": "El estudiante ha encontrado su micro. La impresora, su vocación. El bloque, otro tema.",
+            "en": "The student found his mic. The printer found its calling. The block found another topic."
+          }
+        ]
+      },
+      {
+        "id": "c_sofa",
+        "label": {
+          "es": "El sofá que no sube",
+          "en": "The sofa that won't climb"
+        },
+        "window": {
+          "from": "17:00",
+          "to": "20:00"
+        },
+        "cooldownMinutes": 470,
+        "protagonists": [
+          "inquilino"
+        ],
+        "coStars": [
+          "fondo_buitre",
+          "electricista"
+        ],
+        "gesture": "talk",
+        "linesP1": [
+          {
+            "es": "El sofá no sube por la escalera. La escalera no baja por el sofá. Filosofía pura.",
+            "en": "The sofa won't go up the stairs. The stairs won't come down for the sofa. Pure philosophy."
+          },
+          {
+            "es": "He medido: el sofá mide 2,4 metros y la escalera 2,39. Media mano de mala suerte.",
+            "en": "I measured it: the sofa is 2.4 meters, the stairs 2.39. Half a hand of bad luck."
+          },
+          {
+            "es": "Lo he girado, girado, girado… Ahora está mirando a la escalera. Nos miramos los tres.",
+            "en": "I turned it, turned it, turned it… Now it's staring at the staircase. The three of us are staring."
+          }
+        ],
+        "linesP2": [
+          {
+            "es": "Por dos mil te lo sube el del fondo_buitre. El sofá, no tú. Eso ya es otro precio.",
+            "en": "For two grand the vulture guy carries it up. The sofa, not you. That's a different quote."
+          },
+          {
+            "es": "Con una polea, una cuerda y fe, sube. Lo digo por la fe: la cuerda ya la he visto peor.",
+            "en": "With a pulley, a rope and faith, it'll go up. I mean the faith: I've seen worse ropes."
+          },
+          {
+            "es": "Yo lo desmonto en cuatro, te lo subo en quince y lo dejo mejor. Presupuesto: cervezas.",
+            "en": "I'll dismantle it into four parts, carry it up in fifteen, leave it better. Quote: beers."
+          }
+        ],
+        "logs": [
+          {
+            "es": "El sofá de caja plana no cabe en la escalera: crisis geométrica en el rellano.",
+            "en": "The flat-pack sofa doesn't fit the stairs: geometric crisis on the landing."
+          },
+          {
+            "es": "Negociaciones subidas de tono para subir un sofá. La escalera, intratable.",
+            "en": "Heated negotiations to get one sofa upstairs. The stairs remain unmoved."
+          }
+        ]
+      },
+      {
+        "id": "c_timbre",
+        "label": {
+          "es": "La Polonesa del timbre",
+          "en": "The doorbell polonaise"
+        },
+        "window": {
+          "from": "18:00",
+          "to": "22:00"
+        },
+        "cooldownMinutes": 520,
+        "protagonists": [
+          "cotilla"
+        ],
+        "coStars": [
+          "jubilada",
+          "presidente"
+        ],
+        "gesture": "laugh",
+        "linesP1": [
+          {
+            "es": "El timbre LLEVA media hora con la Polonesa. Ya sé cómo acaba, pero no me atrevo a pararla.",
+            "en": "The doorbell's been playing the Polonaise for HALF AN HOUR. I know how it ends, I just daren't stop it."
+          },
+          {
+            "es": "Ding-dong-ding-dong… es hipnotismo de portal. Nadie entra, nadie sale.",
+            "en": "Ding-dong-ding-dong… it's lobby hypnosis. Nobody enters, nobody leaves."
+          },
+          {
+            "es": "He aplaudido, he gritado, he cantado el acompañamiento. Sigue. La Polonesa NO SE DETIENE.",
+            "en": "I've clapped, shouted, sung along. Still going. The Polonaise WILL NOT STOP."
+          }
+        ],
+        "linesP2": [
+          {
+            "es": "Es señal. Cuando el timbre toca la Polonesa, sube el agua caliente. Lo decía mi abuela.",
+            "en": "It's a sign. When the doorbell plays the Polonaise, the hot water improves. My grandmother said so."
+          },
+          {
+            "es": "A mí me suena a campanas de boda. ¿Quién se casa en este bloque? ¿ANÓNIMO SE CASA?",
+            "en": "Sounds like wedding bells to me. Who's getting married in this block? IS ANONYMOUS GETTING MARRIED?"
+          },
+          {
+            "es": "Baje el fusible, hombre, baje el fusible. Ah… ¿que el timbre no cuelga del fusible? Pues vaya.",
+            "en": "Flip the fuse, dear, flip the fuse. Oh… the doorbell isn't on that fuse? Well then."
+          }
+        ],
+        "logs": [
+          {
+            "es": "El timbre del portal toca la Polonesa en bucle. El portal, hipnotizado.",
+            "en": "The lobby doorbell loops the Polonaise. The lobby, hypnotized."
+          },
+          {
+            "es": "Timbre poseído en el hall: media hora de Polonesa y nadie se atreve a cortar.",
+            "en": "Possessed doorbell in the hall: half an hour of Polonaise and nobody dares cut it."
+          }
+        ]
+      },
+      {
+        "id": "c_dron",
+        "label": {
+          "es": "El dron de papel",
+          "en": "The paper drone"
+        },
+        "window": {
+          "from": "16:00",
+          "to": "19:00"
+        },
+        "cooldownMinutes": 420,
+        "protagonists": [
+          "nino_grafitero"
+        ],
+        "coStars": [
+          "jubilada",
+          "cotilla"
+        ],
+        "gesture": "talk",
+        "linesP1": [
+          {
+            "es": "El dron de papel SÍ tenía permiso de vuelo. Lo firmé yo. En el patio. Con rotulador.",
+            "en": "The paper drone DID have flight clearance. I signed it myself. In the courtyard. In marker."
+          },
+          {
+            "es": "Aterrizaje técnico en el tendal del tercero. Técnico. Todo técnico.",
+            "en": "Technical landing on the third floor's laundry line. Technical. All technical."
+          },
+          {
+            "es": "Es un prototipo. Los prototipos eligen dónde caerse. Es ciencia, no lo preguntes.",
+            "en": "It's a prototype. Prototypes choose where they land. It's science, don't ask."
+          }
+        ],
+        "linesP2": [
+          {
+            "es": "El dron ese ha aterrizado entre mis sábanas. Ahora es propiedad comunitaria. Y está castigado.",
+            "en": "That drone landed among MY sheets. It's community property now. And it's grounded."
+          },
+          {
+            "es": "Yo lo he visto: primero voló, luego dudó, luego cayó con estilo. Para archivo.",
+            "en": "I saw it all: it flew, it hesitated, it fell with style. Archived."
+          },
+          {
+            "es": "Tranqui, que el vídeo del aterrizaje ya está en el grupo. Con música y todo.",
+            "en": "Relax, the landing video is already in the group chat. With music and everything."
+          }
+        ],
+        "logs": [
+          {
+            "es": "El dron de papel del grafitero aterriza en el tendal más cercano. Ciencia, dicen.",
+            "en": "The graffiti kid's paper drone lands on the nearest laundry line. Science, they say."
+          },
+          {
+            "es": "Vuelo sin permiso (firmado por el piloto) sobre el patio: dron papelero recuperado.",
+            "en": "Unauthorized flight (cleared by the pilot) over the courtyard: paper drone recovered."
+          }
+        ]
+      },
+      {
+        "id": "c_gatos",
+        "label": {
+          "es": "La asamblea felina",
+          "en": "The feline assembly"
+        },
+        "window": {
+          "from": "22:00",
+          "to": "01:00"
+        },
+        "cooldownMinutes": 620,
+        "protagonists": [
+          "cotilla"
+        ],
+        "coStars": [
+          "jubilada",
+          "estudiante"
+        ],
+        "gesture": "talk",
+        "linesP1": [
+          {
+            "es": "Siete gatos en el garaje. SIETE. He tomado acta: tres rubios, dos grises, dos disidentes.",
+            "en": "Seven cats in the garage. SEVEN. I took minutes: three blondes, two greys, two dissidents."
+          },
+          {
+            "es": "La asamblea felina ha votado el garaje como sede. No les pregunten por el quórum.",
+            "en": "The feline assembly voted the garage as headquarters. Don't ask about the quorum."
+          },
+          {
+            "es": "Acta de gatos, punto uno: el garaje es de ellos. Punto dos: no hay punto dos.",
+            "en": "Cat minutes, item one: the garage is theirs. Item two: there is no item two."
+          }
+        ],
+        "linesP2": [
+          {
+            "es": "¿Y quién limpia el acta? Porque la asamblea ya ha firmado. CON LAS PATAS. En el polvo.",
+            "en": "And who cleans up the minutes? The assembly already signed. WITH THEIR PAWS. In the dust."
+          },
+          {
+            "es": "El gris es el presidente de la asamblea, te lo digo yo. Manda mucho.",
+            "en": "The grey one chairs the assembly, I'm telling you. Very bossy."
+          },
+          {
+            "es": "Añado al acta: la jubilada lleva galletas. La asamblea, disuelta por amor.",
+            "en": "Adding to the minutes: the retiree brought cookies. Assembly dissolved out of love."
+          }
+        ],
+        "logs": [
+          {
+            "es": "Asamblea de gatos en el garaje con acta de la cotilla. Quórum: peludo.",
+            "en": "Cat assembly in the garage, minutes taken by the gossip. Quorum: furry."
+          },
+          {
+            "es": "El garaje, sede felina por votación unánime. La cotilla tomó notas.",
+            "en": "The garage is now feline HQ by unanimous vote. The gossip took notes."
+          }
+        ]
+      },
+      {
+        "id": "c_spin",
+        "label": {
+          "es": "Spin clandestino",
+          "en": "Clandestine spin class"
+        },
+        "window": {
+          "from": "19:00",
+          "to": "22:00"
+        },
+        "cooldownMinutes": 470,
+        "protagonists": [
+          "fiestero"
+        ],
+        "coStars": [
+          "estudiante",
+          "repartidor"
+        ],
+        "gesture": "laugh",
+        "linesP1": [
+          {
+            "es": "Clase de spin en el trastero: 2 € el pedaleo, la música la pone el termo eléctrico.",
+            "en": "Spin class in the storage room: €2 a pedal, the water heater drops the beats."
+          },
+          {
+            "es": "El trastero tiene BUENA acústica y el contador de la comunidad manda luz gratis. Amor.",
+            "en": "The storage room has GREAT acoustics and the community meter gives free light. Love."
+          },
+          {
+            "es": "¡Pedaleen! ¡La bici es estática pero la facturación es dinámica!",
+            "en": "Pedal! The bike is static but the billing is DYNAMIC!"
+          }
+        ],
+        "linesP2": [
+          {
+            "es": "Me apunto si hay toalla. Y si el termo canta, canta conmigo.",
+            "en": "Count me in if there's a towel. And if the heater sings, it sings with me."
+          },
+          {
+            "es": "Dos euros por morir pedaleando entre cajas de Navidad. Soy de la generación que sí.",
+            "en": "Two euros to pedal to death among Christmas boxes. My generation says yes."
+          },
+          {
+            "es": "Yo reparto paquetes, no pedaleo: pásame el termo que te pongo la banda sonora.",
+            "en": "I deliver packages, I don't pedal: hand me the heater, I'll queue the soundtrack."
+          }
+        ],
+        "logs": [
+          {
+            "es": "Clase de spin clandestina en el trastero: el contador de la comunidad, sudando.",
+            "en": "Clandestine spin class in the storage room: the community meter, sweating."
+          },
+          {
+            "es": "El fiestero cobra por pedaleo entre cajas de trastero. Dos asistentes y un termo.",
+            "en": "The partier charges per pedal among storage boxes. Two attendees and a water heater."
+          }
+        ]
+      },
+      {
+        "id": "c_bursatil",
+        "label": {
+          "es": "Conferencia bursátil en el portal",
+          "en": "Stock tips in the lobby"
+        },
+        "window": {
+          "from": "09:00",
+          "to": "14:00"
+        },
+        "cooldownMinutes": 520,
+        "protagonists": [
+          "fondo_buitre"
+        ],
+        "coStars": [
+          "jubilada",
+          "inquilino"
+        ],
+        "gesture": "talk",
+        "linesP1": [
+          {
+            "es": "¡COMPRA! ¡VENDE! ¡COMPRA!… Es la técnica del portal: el eco multiplica la confianza.",
+            "en": "BUY! SELL! BUY!… It's the lobby technique: the echo multiplies confidence."
+          },
+          {
+            "es": "La cartera del barrio sube: lo he visto en el brillo de los buzones.",
+            "en": "The neighborhood portfolio is up: I saw it in the shine of the mailboxes."
+          },
+          {
+            "es": "Les ofrezco cartera gestionada. Comisión: 2%. Riesgo: mío. Ganancia: nuestra. Sobre todo mía.",
+            "en": "I offer managed portfolios. Fee: 2%. Risk: mine. Gains: ours. Mostly mine."
+          }
+        ],
+        "linesP2": [
+          {
+            "es": "Yo metí mis ahorros en una huerta del balcón. Rinde tomates, pero rinde SEGURO.",
+            "en": "I put my savings in a balcony garden. It yields tomatoes, but it yields RELIABLY."
+          },
+          {
+            "es": "Gestiona esto: el fondo de emergencia son 40 € bajo la maceta del pasillo. Ni un céntimo más.",
+            "en": "Manage this: the emergency fund is €40 under the hallway planter. Not a cent more."
+          },
+          {
+            "es": "COMPRA tú. Yo vendo huevos del mercado. Ahí está miAlpha. O mi beta. Algo acaba en a.",
+            "en": "YOU buy. I sell market eggs. That's my Alpha. Or my beta. Something ends in A."
+          }
+        ],
+        "logs": [
+          {
+            "es": "Conferencia bursátil improvisada en el portal: el eco aprueba, la jubilada duda.",
+            "en": "Improvised stock conference in the lobby: the echo approves, the retiree doubts."
+          },
+          {
+            "es": "El fondo_buitre vende humo financiado por el eco del portal. Solicitudes de cartera: 0.",
+            "en": "The vulture sells smoke funded by the lobby echo. Portfolio applications: 0."
+          }
+        ]
+      },
+      {
+        "id": "c_contestador",
+        "label": {
+          "es": "El contestador presidencial",
+          "en": "The presidential answering machine"
+        },
+        "window": {
+          "from": "10:00",
+          "to": "20:00"
+        },
+        "cooldownMinutes": 420,
+        "protagonists": [
+          "presidente"
+        ],
+        "coStars": [
+          "cotilla",
+          "jubilada"
+        ],
+        "gesture": "talk",
+        "linesP1": [
+          {
+            "es": "El contestador dice: «Usted es el cliente 14 en orden de importancia». Y cuelga. Todo el rato.",
+            "en": "The answering machine says: \"You are customer 14 in order of importance.\" Then it hangs up. Every time."
+          },
+          {
+            "es": "El banco me llama para decir que me llamará el banco. Es un ciclo. Es espiritual.",
+            "en": "The bank calls to say the bank will call. It's a cycle. It's spiritual."
+          },
+          {
+            "es": "Mensaje del Hiper: «Su pedido de tapas está por llegar». Lo dice desde el martes. Es poesía.",
+            "en": "Message from the Hiper: \"Your tapas order is on its way.\" It's been saying that since Tuesday. It's poetry."
+          }
+        ],
+        "linesP2": [
+          {
+            "es": "El contestador mío también responde. Dice: «Estamos para atenderle» y se queda pensando.",
+            "en": "My machine answers too. It says: \"We are here to serve you,\" then it thinks about it."
+          },
+          {
+            "es": "Yo llamo a tu contestador para oír la música. Es lo más moderno del bloque.",
+            "en": "I call your answering machine just to hear the hold music. It's the most modern thing in the block."
+          },
+          {
+            "es": "Anota esto: «el contestador del presidente tiene más visitas que el tablón». Al acta.",
+            "en": "Write this down: \"the president's answering machine gets more visits than the noticeboard.\" Into the minutes."
+          }
+        ],
+        "logs": [
+          {
+            "es": "El contestador del presidente, en bucle: banco, Hiper y poesía moderna.",
+            "en": "The president's answering machine, on loop: bank, Hiper and modern poetry."
+          },
+          {
+            "es": "Mensajes cruzados en el contestador presidencial. Nadie cuelga. Nadie atiende.",
+            "en": "Crossed messages on the presidential answering machine. Nobody hangs up. Nobody answers."
+          }
+        ]
+      },
+      {
+        "id": "c_picnic",
+        "label": {
+          "es": "El picnic del ascensor",
+          "en": "The elevator picnic"
+        },
+        "window": {
+          "from": "19:00",
+          "to": "23:00"
+        },
+        "cooldownMinutes": 520,
+        "protagonists": [
+          "fiestero"
+        ],
+        "coStars": [
+          "estudiante",
+          "inquilino"
+        ],
+        "gesture": "laugh",
+        "linesP1": [
+          {
+            "es": "El ascensor SE HA PARADO. Técnicamente estoy en un salón panorámico con vistas al 2ºB.",
+            "en": "The elevator STOPPED. Technically I'm in a panoramic lounge with views of 2B."
+          },
+          {
+            "es": "He sacado la merienda de la mochila: si el ascensor nos retiene, que nos retenga COMIENDO.",
+            "en": "Got the snacks out of my backpack: if the elevator holds us, let it hold us EATING."
+          },
+          {
+            "es": "Dos minutos parado y ya he montado un picnic. La cabina huele a tortilla. Señales.",
+            "en": "Two minutes stalled and I've already set up a picnic. The cabin smells of omelet. Signs."
+          }
+        ],
+        "linesP2": [
+          {
+            "es": "Hay sitio para la tortilla y para el drama: reparte, que el ascensor NO baja.",
+            "en": "There's room for omelet and for drama: share it, the elevator is NOT coming down."
+          },
+          {
+            "es": "Yo subo el último pedido. O bajo. Según coma. Estoy en tus manos y en la cabina.",
+            "en": "I'm delivering the last package. Or descending. Depends on the eating. I'm in your hands. And the cabin."
+          },
+          {
+            "es": "Esto lo contará mi nieto: «el día que el ascensor se paró y hubo tortilla».",
+            "en": "My grandkid will tell this story: \"the day the elevator stopped and there was omelet.\""
+          }
+        ],
+        "logs": [
+          {
+            "es": "El ascensor, parado dos minutos: picnic de cabina con tortilla del fiestero.",
+            "en": "The elevator, stalled two minutes: cabin picnic with the partier's omelet."
+          },
+          {
+            "es": "Parada técnica del ascensor convertida en merienda. El motor, con hambre.",
+            "en": "Elevator technical stop turned into a snack break. The motor, hungry."
+          }
+        ]
+      },
+      {
+        "id": "c_mudanza",
+        "label": {
+          "es": "La mudanza exprés",
+          "en": "The express move-in"
+        },
+        "window": {
+          "from": "14:00",
+          "to": "19:00"
+        },
+        "cooldownMinutes": 470,
+        "protagonists": [
+          "okupa"
+        ],
+        "coStars": [
+          "nino_grafitero",
+          "estudiante"
+        ],
+        "gesture": "talk",
+        "linesP1": [
+          {
+            "es": "La mudanza exprés: TODO entra por la ventana con la cuerda de la ropa. Es logística.",
+            "en": "The express move-in: EVERYTHING comes in through the window on the laundry line. It's logistics."
+          },
+          {
+            "es": "El sofá ya está dentro. Por fuera. Con estilo. Nadie tocó la escalera, conste.",
+            "en": "The sofa is already inside. From outside. With style. Nobody touched the stairs, mind you."
+          },
+          {
+            "es": "Cuerda, fe y un nudo que aprendí viendo un documental de barcos. Listo.",
+            "en": "Rope, faith, and a knot I learned from a ship documentary. Done."
+          }
+        ],
+        "linesP2": [
+          {
+            "es": "El sillón ha pasado volando por mi ventana. Con cojines. Es lo más bonito que he visto.",
+            "en": "The armchair just flew past my window. With cushions. The most beautiful thing I've ever seen."
+          },
+          {
+            "es": "¿Y si se cae algo? Que caiga con estilo, como dice él. El estilo ya lo trae de fábrica.",
+            "en": "And if something falls? It falls with style, like he says. The style comes factory-installed."
+          },
+          {
+            "es": "Yo ayudo con la cuerda, pero quiero el sofá para la película del sábado. Trato hecho.",
+            "en": "I'll help with the rope, but I want the sofa for Saturday's movie. Deal's a deal."
+          }
+        ],
+        "logs": [
+          {
+            "es": "Mudanza exprés del okupa: muebles entrando por la ventana con cuerda de tender.",
+            "en": "The squatter's express move-in: furniture arriving through the window on a clothesline."
+          },
+          {
+            "es": "Logística aérea de balcón: la cuerda de la ropa, convertida en grúa residencial.",
+            "en": "Balcony air logistics: the laundry rope, repurposed as a residential crane."
+          }
+        ]
+      },
+      {
+        "id": "c_contador",
+        "label": {
+          "es": "La luz de obra",
+          "en": "The worksite light"
+        },
+        "window": {
+          "from": "08:00",
+          "to": "20:00"
+        },
+        "cooldownMinutes": 470,
+        "protagonists": [
+          "electricista"
+        ],
+        "coStars": [
+          "presidente",
+          "fondo_buitre"
+        ],
+        "gesture": "talk",
+        "linesP1": [
+          {
+            "es": "La furgo va enchufada al contador de la escalera. Técnicamente es una luz de obra.",
+            "en": "The van is plugged into the staircase meter. Technically, it's a worksite light."
+          },
+          {
+            "es": "La batería de la furgo no rinde. El contador de la comunidad, ese rinde. Lo he notado.",
+            "en": "The van battery underperforms. The community meter, though? That one delivers. I've noticed."
+          },
+          {
+            "es": "Es para el termosifón. ¿Sabes lo que es ducharse con agua del mar en noviembre? Eso.",
+            "en": "It's for the water heater. You know what a November sea-water shower feels like? That."
+          }
+        ],
+        "linesP2": [
+          {
+            "es": "«Luz de obra» para hacer la colada en la furgo. La obra esa vive MUY bien, ¿eh?",
+            "en": "A \"worksite light\" that does laundry in the van. That worksite lives VERY well, huh?"
+          },
+          {
+            "es": "El contador de la comunidad ya está solicitando su propio sueldo. Y razón tiene.",
+            "en": "The community meter is filing for its own salary now. And honestly, fair."
+          },
+          {
+            "es": "Preséntame el parte de obra y te acepto el enchufe. ¿El parte incluye la ducha caliente, no?",
+            "en": "Show me the work log and I'll accept the plug. The log includes the hot shower, right?"
+          }
+        ],
+        "logs": [
+          {
+            "es": "La furgo del electricista chupa del contador de la escalera: «es una luz de obra».",
+            "en": "The electrician's van is sipping from the staircase meter: \"it's a worksite light.\""
+          },
+          {
+            "es": "Enchufe clandestino documentado: la batería de la furgo, feliz; el contador, no.",
+            "en": "Clandestine plug documented: the van battery, happy; the meter, not so much."
+          }
+        ]
+      }
     ]
   }
 }
