@@ -172,6 +172,8 @@ export interface ResidentUi {
   activity: string | null;
   /** Afinidad con el jugador (0..100) o null si aún no hay relación. */
   affinity: number | null;
+  /** v1.79 — confianza del vecino hacia el jugador (-100..100) o null si aún no hay relación. */
+  trust: number | null;
   tastes: string[];
   quote: string | null;
 }
@@ -242,6 +244,19 @@ export interface JuntaItemUi {
   title: string;
   description: string;
   cost: number;
+}
+
+/** ── v1.79: selector de temas de charla (modal de conversación con un vecino) ── */
+export interface TalkTopicUi {
+  id: string;
+  label: string;
+  icon: string;
+}
+
+export interface TalkState {
+  residentId: string;
+  name: string;
+  topics: TalkTopicUi[];
 }
 
 export interface ParamUi {
@@ -366,6 +381,8 @@ interface GameState {
   elevatorPanel: ElevatorPanelState | null;
   choices: ChoiceState | null;
   junta: JuntaItemUi[] | null;
+  /** v1.79 — picker de temas de charla abierto sobre un vecino (null = cerrado). */
+  talk: TalkState | null;
   minigame: MinigameState | null;
   /** v1.48 — flecha animada del LATERAL del portal (entrada frontal cerrada): texto activo
    *  o null. La pinta GameStage y la limpia el controlador al caducar. */
@@ -453,6 +470,8 @@ interface GameState {
   setElevatorPanel: (p: ElevatorPanelState | null) => void;
   setChoices: (c: ChoiceState | null) => void;
   setJunta: (items: JuntaItemUi[] | null) => void;
+  /** v1.79 — abre/cierra el selector de temas de charla. */
+  setTalk: (t: TalkState | null) => void;
   setMinigame: (m: MinigameState | null) => void;
   /** v1.48 — aviso animado de «gira la esquina» (null = oculto). */
   setSideHint: (text: string | null) => void;
@@ -480,9 +499,9 @@ interface GameState {
 
 let nextId = 1;
 
-/** Modales abiertos = mundo congelado. La derivan phone/choices/junta/minigame/finale, las cutscenes (Fase D) y el panel del ascensor (v1.9). */
-export function selectModalOpen(s: Pick<GameState, 'phone' | 'choices' | 'junta' | 'minigame' | 'finale' | 'cutscene' | 'elevatorPanel'>): boolean {
-  return s.phone !== null || s.choices !== null || s.junta !== null || s.minigame !== null || s.finale !== null || s.cutscene !== null || s.elevatorPanel !== null;
+/** Modales abiertos = mundo congelado. La derivan phone/choices/junta/talk (v1.79)/minigame/finale, las cutscenes (Fase D) y el panel del ascensor (v1.9). */
+export function selectModalOpen(s: Pick<GameState, 'phone' | 'choices' | 'junta' | 'talk' | 'minigame' | 'finale' | 'cutscene' | 'elevatorPanel'>): boolean {
+  return s.phone !== null || s.choices !== null || s.junta !== null || s.talk !== null || s.minigame !== null || s.finale !== null || s.cutscene !== null || s.elevatorPanel !== null;
 }
 
 // ── v1.64 — TELÉFONO SIN CONGELAR (rules.sim.phone.freeMovement del catálogo) ──
@@ -498,9 +517,9 @@ export function setPhoneFreeMovement(v: boolean): void {
  * suena, el diálogo flota y el vecino SIGUE andando — puede entrar en el edificio mientras
  * «sigue sonando el timbre». Junta/minijuego/finale/cutscene/ascensor siguen congelando.
  */
-export function selectWorldFrozen(s: Pick<GameState, 'phone' | 'choices' | 'junta' | 'minigame' | 'finale' | 'cutscene' | 'elevatorPanel'>): boolean {
+export function selectWorldFrozen(s: Pick<GameState, 'phone' | 'choices' | 'junta' | 'talk' | 'minigame' | 'finale' | 'cutscene' | 'elevatorPanel'>): boolean {
   if (s.phone !== null && phoneFreeMovement) {
-    return s.choices !== null || s.junta !== null || s.minigame !== null || s.finale !== null || s.cutscene !== null || s.elevatorPanel !== null;
+    return s.choices !== null || s.junta !== null || s.talk !== null || s.minigame !== null || s.finale !== null || s.cutscene !== null || s.elevatorPanel !== null;
   }
   return selectModalOpen(s);
 }
@@ -551,6 +570,7 @@ export const useGameStore = create<GameState>((set) => ({
   elevatorPanel: null,
   choices: null,
   junta: null,
+  talk: null,
   minigame: null,
   sideHint: null,
   finale: null,
@@ -627,6 +647,7 @@ export const useGameStore = create<GameState>((set) => ({
   setElevatorPanel: (elevatorPanel) => set({ elevatorPanel }),
   setChoices: (c) => set({ choices: c }),
   setJunta: (items) => set({ junta: items }),
+  setTalk: (talk) => set({ talk }),
   setMinigame: (m) => set({ minigame: m }),
   setSideHint: (sideHint) => set({ sideHint }),
   setFinale: (text) => set({ finale: text }),
@@ -697,6 +718,7 @@ export const useGameStore = create<GameState>((set) => ({
       elevatorPanel: null,
       choices: null,
       junta: null,
+      talk: null,
       minigame: null,
       sideHint: null,
       finale: null,

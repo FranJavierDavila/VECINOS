@@ -27,7 +27,7 @@ const DICT: Record<string, { es: string; en: string }> = {
     es: 'Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.',
     en: 'Move-ins, noise, smells, wifi, pests, smoke and levies: the neighborhood simulator.',
   },
-  'header.version': { es: 'v1.78 · fondo legible de noche: más solares y niebla en los edificios del fondo (skipChance 0.4/0.5/0.6, fog 0.35/0.45/0.6), velo nocturno desaturado y cielo que ya no se va a negro', en: 'v1.74 · retention design (Phase D): balanced economy (work 90 €/2.5 min, furniture 2,765 €), clear "Neighbor of the month" ranking (6 catalogued minigames, QA missions excluded) and co-op with € reward per role' },
+  'header.version': { es: 'v1.81 · tejado que gotea, borracho de madrugada y cartas ilegales', en: 'v1.81 · leaky roof, midnight drunk & illegal cards' },
   // ── Apagón de assets (v1.47: servidor de arte caído → mundo vacío/cápsulas) ──
   'assets.outage': {
     es: '⚠ No se pudo cargar el arte del juego (¿servidor caído?). El vecindario se recargará en {n} s…',
@@ -188,6 +188,38 @@ const DICT: Record<string, { es: string; en: string }> = {
   'ev.loaded': { es: 'Partida cargada. El vecindario, exactamente como lo dejaste.', en: 'Game loaded. The neighborhood, exactly as you left it.' },
   'ev.loadFailed': { es: 'No se pudo cargar la partida.', en: 'Could not load the game.' },
   'ev.juntaPending': { es: '⚖️ Decisión pendiente: {t}', en: '⚖️ Decision pending: {t}' },
+  // ── v1.79 — capa social: charla con tema y cotilleo de pasillo ──
+  'talk.title': { es: '¿De qué habláis?', en: 'What shall you talk about?' },
+  'talk.hint': {
+    es: 'Cada tema sienta distinto según el vecino: la charla buena sube su confianza, la pifia la baja.',
+    en: "Each topic lands differently per neighbor: a good chat raises their trust, a dud lowers it.",
+  },
+  'talk.cooldown': { es: 'Ya habláis bastante por ahora: al vecino le falta aire.', en: "That's enough chatting for now: your neighbor needs some air." },
+  'toast.trustUp': { es: '{name} confía más en ti (+{n})', en: '{name} trusts you more (+{n})' },
+  'toast.trustDown': { es: '{name} confía menos en ti (−{n})', en: '{name} trusts you less (−{n})' },
+  'ev.talk': { es: '🗣️ Charla con {name} sobre {topic}.', en: '🗣️ Chatted with {name} about {topic}.' },
+  'ev.gossip': { es: '🗣️ {a} y {b} cotillean en el pasillo', en: '🗣️ {a} and {b} gossip in the corridor' },
+  // ── v1.80 — protesta por apagón (idea #3) ──
+  'ev.protestRing': { es: '{name} timbra tu puerta: protesta por el apagón (abre con E)', en: '{name} is ringing your door: blackout protest (open with E)' },
+  'ev.protestCalm': { es: '🤝 Protesta calmada: la luz volverá. El vecino agradece que abrieras.', en: '🤝 Protest calmed: the lights will return. Your neighbor thanks you for opening.' },
+  'ev.protestTired': { es: '📣 La protesta por el apagón termina: {name} se vuelve a su casa.', en: '📣 The blackout protest ends: {name} heads back home.' },
+  'ev.protestLog': { es: '📣 Protesta vecinal por el apagón en el pasillo.', en: '📣 Blackout protest brewing in the corridor.' },
+  // ── v1.81 — tejado (idea #4): tormenta → daño → goteo → reparación ──
+  'ev.roofDamaged': { es: '⛈️ La tormenta ha destrozado el tejado. La planta alta, en cuclillas.', en: '⛈️ The storm wrecked the roof. The top floor is bracing.' },
+  'ev.roofDamagedLog': { es: '⛈️ Tejado dañado ({block}): goteo en los áticos hasta repararlo.', en: '⛈️ Roof damaged ({block}): top-floor leaks until repaired.' },
+  'ev.roofLeak': { es: '💧 Gotea sobre {block}: humedad {n}/100. El cubo hace horas extra.', en: '💧 Dripping over {block}: damp {n}/100. The bucket works overtime.' },
+  'ev.roofRepaired': { es: '🔧 Tejado reparado ({n} € de la hucha a las arcas). Los áticos respiran (y secan).', en: '🔧 Roof repaired (€{n} from your piggy to the funds). The attics breathe (and dry).' },
+  'ev.roofRepairedLog': { es: '🔧 Tejado reparado por {n} €: el goteo cesa en la planta alta.', en: '🔧 Roof repaired for €{n}: the top-floor leak stops.' },
+  'ev.roofPoor': { es: '🔧 No llega para el tejado ({n} €): el portátil sigue pagando a plazos.', en: '🔧 Short for the roof (€{n}): the laptop keeps paying in installments.' },
+  // ── v1.81 — borracho (idea #5): regreso nocturno con tambaleo ──
+  'ev.drunkStarted': { es: '🥴 {name} vuelve… elocuente esta noche. Y zigzagueante.', en: '🥴 {name} is back… unusually eloquent tonight. And zigzagging.' },
+  'ev.drunkFumble': { es: '🥴 {name} farolea ante SU puerta. La llave, nerviosa.', en: '🥴 {name} fumbles at THEIR door. The key is nervous.' },
+  'ev.drunkHome': { es: '🥴 {name} consigue entrar en casa. El sofá, en guardia.', en: '🥴 {name} made it inside. The couch braces for impact.' },
+  // ── v1.81 — juego ilegal (idea #6): mesas nocturnas, visitas y redadas ──
+  'ev.gambleNight': { es: '🃏 «Reunión de vecinos» en {block}: la mesa de {name} ya está abierta.', en: '🃏 "Neighbors meeting" at {block}: {name}\u2019s table is open.' },
+  'ev.gambleVisit': { es: '🃏 {name} sube a casa de {host}. A «ver un cuadro».', en: '🃏 {name} heads up to {host}\u2019s place. To "see a painting".' },
+  'ev.gambleRaid': { es: '🚨 Redada en la mesa de {name}: multa de {n} €. Las arcas agradecen.', en: '🚨 Raid on {name}\u2019s table: €{n} fine. The funds say thanks.' },
+  'ev.gambleOver': { es: '🃏 Se acabó la partida de {name}: cada cual a su cama.', en: '🃏 {name}\u2019s card game is over: everyone to bed.' },
   'ev.missionNew': { es: '📋 Nueva misión: {m}', en: '📋 New mission: {m}' },
   'ev.blockBought': { es: '🔑 {block} comprado por {price} €', en: '🔑 {block} bought for €{price}' },
   'ev.forSaleSign': { es: '🪧 Cartel de "SE VENDE" en {block} ({price} €)', en: '🪧 "FOR SALE" sign on {block} (€{price})' },
@@ -251,6 +283,7 @@ const DICT: Record<string, { es: string; en: string }> = {
   'neighbors.empty': { es: 'El vecindario se está mudando… pronto habrá fichas.', en: 'The neighborhood is moving in… profiles coming soon.' },
   'neighbors.moving': { es: 'en camino', en: 'on the way' },
   'neighbors.affinity': { es: 'Afinidad contigo', en: 'Affinity with you' },
+  'neighbors.trust': { es: 'Confianza', en: 'Trust' },
   'neighbors.tastes': { es: 'Le gusta', en: 'Likes' },
   'neighbors.unknown': { es: 'sin conocer', en: 'not met yet' },
   'neighbors.home': { es: 'Vive en', en: 'Lives at' },

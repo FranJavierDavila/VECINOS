@@ -19,7 +19,7 @@
 import { chromium } from 'playwright-core';
 import { io, type Socket } from 'socket.io-client';
 
-const CHROME = '/home/z/.agent-browser/browsers/chrome-156.0.8078.73/chrome';
+const CHROME = '/home/z/.agent-browser/browsers/chrome-156.0.8078.80/chrome';
 const URL = 'http://localhost:81/?qaengine=1';
 const SERVER = 'http://127.0.0.1:3010';
 

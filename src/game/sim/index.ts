@@ -13,3 +13,7 @@ export * from './extra/weather';
 export * from './extra/ai';
 export * from './extra/junta';
 export * from './extra/economy';
+export * from './extra/social';
+export * from './extra/protest';
+export * from './extra/roof';
+export * from './extra/gamble';

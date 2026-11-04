@@ -1,4 +1,4 @@
-import type { AchievementsCatalog, AssetsCatalog, Content, CrossingsCatalog, EcosystemContent, Effect, EmotesCatalog, InteriorsCatalog, StreetCatalog, SoundsCatalog, MusicCatalog, OnboardingCatalog, ProjectCatalog, PersonalitiesCatalog, CharacterDetailsCatalog, CharacterSpritesCatalog, MultiplayerCatalog } from '@/game/core/types';
+import type { AchievementsCatalog, AssetsCatalog, Content, CrossingsCatalog, EcosystemContent, Effect, EmotesCatalog, InteriorsCatalog, SocialCatalog, StreetCatalog, SoundsCatalog, MusicCatalog, OnboardingCatalog, ProjectCatalog, PersonalitiesCatalog, CharacterDetailsCatalog, CharacterSpritesCatalog, MultiplayerCatalog } from '@/game/core/types';
 import {
   achievementsCatalogSchema,
   blockListSchema,
@@ -28,6 +28,7 @@ import {
   characterDetailsCatalogSchema,
   characterSpritesCatalogSchema,
   multiplayerCatalogSchema,
+  socialCatalogSchema,
 } from './schemas';
 
 export interface Issue {
@@ -219,6 +220,17 @@ export async function loadContent(baseUrl: string = 'content/'): Promise<{ conte
       throw new Error(`multiplayer.json (cooperativa + voz) inválido: ${e instanceof Error ? e.message : String(e)}`);
     }
 
+    // v1.79 — CAPA SOCIAL (OPCIONAL): temas de charla + cotilleo de pasillo (patrón emotes).
+    // Sin fichero, la charla queda como siempre (saludo) y los pasillos callan: la partida
+    // funciona exactamente igual.
+    let social: SocialCatalog | undefined;
+    try {
+      const res = await fetch(`${baseUrl}social.json`);
+      if (res.ok) social = socialCatalogSchema.parse(await res.json()) as SocialCatalog;
+    } catch (e) {
+      throw new Error(`social.json (capa social) inválido: ${e instanceof Error ? e.message : String(e)}`);
+    }
+
     const content: Content = {
       rules,
       blocks: indexById(blocks),
@@ -248,6 +260,7 @@ export async function loadContent(baseUrl: string = 'content/'): Promise<{ conte
       characterDetails,
       characterSprites,
       multiplayer,
+      social,
     };
 
     const issues = validateContent(content);
@@ -462,6 +475,15 @@ export function validateContent(c: Content): Issue[] {
   if (c.personalities) {
     for (const id of Object.keys(c.personalities.byArchetype))
       if (!c.archetypes[id]) err('personalities/byArchetype', `arquetipo desconocido: ${id}`);
+  }
+
+  // v1.79 — capa social: los gustos de cada tema referencian arquetipos reales (indulgente
+  // con las líneas, que son texto libre; {a}/{b} del cotilleo son nombres en runtime).
+  if (c.social) {
+    for (const t of c.social.topics) {
+      for (const id of t.likedBy) if (!c.archetypes[id]) err(`social/topics/${t.id}`, `likedBy desconocido: ${id}`);
+      for (const id of t.dislikedBy) if (!c.archetypes[id]) err(`social/topics/${t.id}`, `dislikedBy desconocido: ${id}`);
+    }
   }
 
   return issues;

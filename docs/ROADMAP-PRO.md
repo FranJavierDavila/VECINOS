@@ -124,26 +124,42 @@
 ### FASE T — Playtesting (1 semana)
 - 5-10 jugadores humanos reales; observar en silencio; iterar sobre evidencia.
 
-#### Ideas del vecino para tramas (backlog de FASE T, dictadas 2026-11-03 — SIN implementar)
-1. **Cotilleo en pasillos**: de vez en cuando varios vecinos se juntan en los pasillos
-   para cotillear. Existe AFINIDAD entre vecinos (y enemistades) que evoluciona con los
-   acontecimientos — grafo social dinámico que alimenta diálogos y eventos.
-2. **Luz de planta por presencia nocturna**: si un vecino anda de noche por el pasillo de
-   una planta, se enciende la luz de ESA planta; al desalojarse, se apaga (mismo patrón
-   que las escaleras). Con APAGÓN no se enciende nada. (El catálogo ya declara
-   `ecosystem.lights.nightRequiresPresence`; extender por planta y verificar.)
-3. **Protesta por apagón largo**: si el apagón dura mucho y hay vecino despierto, baja a
-   protestar ante el jugador que ejerza de PRESIDENTE y TIMBRA en su puerta hasta que le
-   abran o se canse de timbrar.
-4. **Tormenta → destrozo del tejado**: la tormenta puede dañar el tejado y causar entrada
-   de agua en los pisos superiores (co-op de goteo ya existe; este es el origen climático).
-5. **Vecino borracho**: alguno llega borracho dando tumbos por los pasillos hasta intentar
-   entrar en su vivienda (andar errático + interacción cómica en la puerta).
-6. **Juego ilegal**: algún vecino organiza partidas de juegos ilegales en su vivienda
-   (visitas sospechosas, riesgo de incidente/multa — gancho para misiones).
-7. **Confianza por conversación**: cruzarse con un vecino habilita HABLARLE; según la
-   conversación se gana o se pierde su CONFIANZA — parámetro que influye en las
-   modalidades competitivas y cooperativas (puente directo con la afinidad del punto 1).
+#### Ideas del vecino para tramas (dictadas 2026-11-03)
+1. ~~**Cotilleo en pasillos**~~ ✅ **v1.79**: vecinos IA co-ubicados en un pasillo cotillean
+   (`sim/extra/social.ts` socialTick, catálogo `social.json` con plantillas {a}/{b}) y la
+   AFINIDAD del par deriva ±2 por cotilleo — grafo social que evoluciona (burbujas y log
+   en el cliente; cooldowns del catálogo `rules.sim.social`).
+2. ~~**Luz de planta por presencia nocturna**~~ ✅ **v1.80**: lámparas interiores por pasillo
+   (`ecosystem.lights.corridorInterior`) con fundido al patrón escaleras v1.60; se enciende
+   la planta con gente y se apaga al desalojarse; con APAGÓN nada se enciende. Verificado
+   en vivo (p0/p3 encendidas por presencia, p1/p2 oscuras).
+3. ~~**Protesta por apagón largo**~~ ✅ **v1.80**: `world.protest` en el SIM observa el param
+   de luz del pasillo (apagón del ecosistema), recluta vecino despierto tras 45', timbra
+   `maxRings` en la puerta del que ejerce de presidente (jugador con mandato de campaña;
+   si no, el presidente IA) y `answer_door` (E en tu puerta) la calma con líneas del
+   catálogo y +afinidad/+confianza; rinde o se disuelve si vuelve la luz. E2E en vivo:
+   apagón natural → armado solo → timbre con bocadillo → calma con +4/+3.
+4. ~~**Tormenta → destrozo del tejado**~~ ✅ **v1.81**: `sim/extra/roof.ts` — con tormenta el
+   tejado cede (`roof_damage`) y gotea humedad a los áticos (planta residencial más alta
+   derivada del mundo); el daño persiste hasta que alguien paga `repair_roof` (E en el
+   pasillo de la planta alta, 60 € de la hucha a las arcas, +3 afinidad de los áticos).
+   La humedad alimenta las manchas del ecosistema tal cual.
+5. ~~**Vecino borracho**~~ ✅ **v1.81**: la vuelta nocturna puede pillarlo ebrio
+   (chance/archetypes del catálogo); tambalea por SU pasillo con pasos al azar del grafo
+   (misma planta preferente) y en su puerta farolea dos veces antes de entrar. Líneas
+   cómicas del catálogo social.drunk; dos días sin repetir juerga.
+6. ~~**Juego ilegal**~~ ✅ **v1.81**: el `fondo_buitre` abre mesa de noche (ventana del
+   catálogo 22:00→03:00), teleporta hasta 3 invitados despiertos a su salón («a ver un
+   cuadro») y cada tick puede caer REDADA: multa de 120 €, parte a las arcas, invitados a
+   casa y −2 de afinidad. Cero campos nuevos en World (cooldowns); gancho para misiones
+   futuras vía eventos gamble_*.
+7. ~~**Confianza por conversación**~~ ✅ **v1.79**: pulsar E junto a un vecino abre el
+   picker de temas (TalkModal, 6 temas en `social.json`); el comando `talk` resuelve el
+   resultado por tema+arquetipo+afinidad y mueve `Relation.trust` (hasta ahora un campo
+   muerto). Puente con la junta: los votos IA ponderan la confianza
+   (`rules.sim.junta.trustWeight 0.25`). Guardas de apilamiento v1.76 extendidas al talk.
+   QA: smoke-social 24✓ · qa-v179 11✓ (modal→tema→toast→trust) · E2E en vivo con mutación
+   de confianza real (rumor −5).
 
 ## Reglas inquebrantables (de todo el proyecto)
 

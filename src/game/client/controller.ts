@@ -1,7 +1,7 @@
 'use client';
 
 import type { AbstractEngine, DirectionalLight, Scene } from '@babylonjs/core';
-import type { AchievementDef, Command, Content, CutsceneDef, GameEvent, Input, MinigameDef, ScenarioDef, World } from '@/game/core/types';
+import type { AchievementDef, Command, Content, CutsceneDef, GameEvent, Input, LocalizedText, MinigameDef, ScenarioDef, World } from '@/game/core/types';
 import type { CommandResult } from '@/game/sim';
 import { blockLabel } from '@/game/core/types';
 import { loadContent } from '@/game/content';
@@ -30,7 +30,7 @@ import { createStreetlife, type StreetlifeDirector } from './streetlife';
 import { createPaseo, type PaseoDirector } from './paseo';
 import { createVoices, type VoicesDirector } from './voices';
 import { createMusicDirector, type MusicDirector } from './music';
-import { createResidents, greetLineOf, residentsUiSnapshot, residentName, type ResidentsDirector } from './residents';
+import { createResidents, greetLineOf, loc, residentsUiSnapshot, residentName, type ResidentsDirector } from './residents';
 import { createTutorial, createNullTutorial, setCurrentTutorial, type TutorialDirector } from './tutorial';
 import { CameraRig, type CamMode } from './camera';
 import { CutscenePlayer, type CutsceneEventCtx } from './cutscene';
@@ -673,6 +673,26 @@ class GameController {
       this.pump();
       return;
     }
+    // v1.80 — ABRIR AL PROTESTANTE: la E sobre tu puerta con la protesta timbrando manda
+    // answer_door por la VÍA ÚNICA (el sim aplica la calma y la relación). Un fail local
+    // 'not_president' se ignora en silencio (no puede pasar salvo carrera de eventos).
+    if (r.type === 'answerProtest') {
+      this.sendCommand({ type: 'answer_door' });
+      this.pump();
+      return;
+    }
+    // v1.81 — REPARAR EL TEJADO: la E sobre el pasillo superior con daño manda repair_roof
+    // por la VÍA ÚNICA (el sim cobra y repara; la afinidad de los áticos solo cambia allí).
+    // Sin hucha, el fail 'poor' avisa con post-it propio (el motivo del fallo nunca lo
+    // decide la presentación).
+    if (r.type === 'repairRoof') {
+      const res = this.sendCommand({ type: 'repair_roof' });
+      if (res && !res.ok && res.reason === 'poor') {
+        useGameStore.getState().pushToast(translate(useGameStore.getState().lang, 'ev.roofPoor', { n: this.content.rules.sim.roof.repairCost }), 'bad');
+      }
+      this.pump();
+      return;
+    }
     // v1.42 — CALLE: poses del banco y calistenia (el gesto/pose lo aplica el director).
     if (r.type === 'sit') {
       this.actors?.director?.seatWhenIdle(this.actorId(), { x: r.x, z: r.z, yaw: r.yaw });
@@ -824,11 +844,17 @@ class GameController {
   }
 
   /** v1.40 — CHARLA con un vecino en circulación: os plantáis cara a cara, él suelta su
-   *  saludo (bocadillo) y los dos gesticuláis la conversación. Pura presentación: el sim
-   *  no cambia por charlar (las afinidades las mueven las misiones y los cruces). */
+   *  saludo (bocadillo) y los dos gesticuláis la conversación.
+   *  v1.79 — con catálogo social, la charla abre el SELECTOR DE TEMAS (store.talk): elegir
+   *  uno manda el comando `talk` y el sim resuelve la confianza (resolveTalk). Sin catálogo
+   *  (o sin temas) queda exactamente como siempre: saludo y gestos, pura presentación. */
   private chatWith(residentId: string): void {
     if (!this.world || !this.logic) return;
     const store = useGameStore.getState();
+    // v1.76 (junta) / v1.79 — PRIORIDAD DE MODALES: ni con la junta votando ni con llamada
+    // en curso se apila el picker de charla (Radix apilaría modales y dejaría la capa
+    // inferior INERTE: botones que se ven pero no responden). Y abierto ya, no se reabre.
+    if (store.junta !== null || store.talk !== null || this.phoneMission) return;
     const other = this.world.residents[residentId];
     if (!other) return;
     const line = greetLineOf(this.content, other, store.lang) ?? translate(store.lang, 'chat.fallback');
@@ -842,6 +868,31 @@ class GameController {
     this.actors?.director.setGesture(residentId, 'talk', 3.4);
     this.actors?.director.setGesture(this.actorId(), 'talk', 3.4);
     this.tutorial.notify('used:resident'); // conocer gente también es esto
+    // v1.79 — SELECTOR DE TEMAS: solo con catálogo social cargado; si no, saludo clásico.
+    const topics = this.content.social?.topics ?? [];
+    if (topics.length === 0) return;
+    store.setTalk({
+      residentId,
+      name: residentName(this.content, residentId, other.archetype),
+      topics: topics.map((t) => ({ id: t.id, label: loc(t.label, store.lang), icon: t.icon })),
+    });
+  }
+
+  /**
+   * v1.79 — el vecino ha elegido un tema en el picker: cierra el modal y manda el comando
+   * `talk` por la vía única. En clásico el sim responde AQUÍ MISMO (CommandResult): un
+   * fail('cooldown') solo pinta aviso (el resto de cierres ya los enseña el sim en silencio,
+   * como la puerta con candado). En multi el resultado llega con el evento talk_result.
+   */
+  talkChoose(topicId: string): void {
+    const talk = useGameStore.getState().talk;
+    if (!talk) return;
+    useGameStore.getState().setTalk(null); // el modal se cierra SIEMPRE: la charla es una
+    const res = this.sendCommand({ type: 'talk', resident: talk.residentId, topic: topicId });
+    if (res && !res.ok && res.reason === 'cooldown') {
+      const s = useGameStore.getState();
+      s.pushToast(translate(s.lang, 'talk.cooldown'), 'info');
+    }
   }
 
   /**
@@ -1646,10 +1697,10 @@ class GameController {
         // (paused) para conducir logic.update(dt, input) a mano desde la consola sin
         // interferencias del frame loop.
         qaHold: () => {
-          useGameStore.setState({ paused: true, pauseMenuOpen: false, cutscene: null, phone: null, choices: null, junta: null, minigame: null, finale: null, elevatorPanel: null });
+          useGameStore.setState({ paused: true, pauseMenuOpen: false, cutscene: null, phone: null, choices: null, junta: null, talk: null, minigame: null, finale: null, elevatorPanel: null });
         },
         qaResume: () => {
-          useGameStore.setState({ paused: false, pauseMenuOpen: false, cutscene: null, phone: null, choices: null, junta: null, minigame: null, finale: null, elevatorPanel: null });
+          useGameStore.setState({ paused: false, pauseMenuOpen: false, cutscene: null, phone: null, choices: null, junta: null, talk: null, minigame: null, finale: null, elevatorPanel: null });
         },
       };
     }
@@ -2449,6 +2500,217 @@ class GameController {
           this.dismissJunta(); // v1.30: la sala se vacía, la IA retoma a los vecinos
           this.drainPhoneQueue(); // v1.76: las llamadas aparcadas durante la votación suenan ahora
           break;
+        case 'talk_result': {
+          // v1.79 — CONFIANZA POR CONVERSACIÓN: el sim ya movió la confianza del vecino;
+          // aquí solo teatro (bocadillo con la línea del catálogo) y el post-it del resultado.
+          // Solo el autor de la charla la celebra: el resto de clientes no la viven de cerca.
+          if (d.actor !== this.actorId()) break;
+          const rid = typeof d.resident === 'string' ? d.resident : '';
+          const lineObj = d.line as LocalizedText | undefined;
+          const said = lineObj && typeof lineObj === 'object' && typeof lineObj.es === 'string' ? loc(lineObj, store.lang) : String(d.line ?? '');
+          if (rid) {
+            if (said) this.bubbles?.sayText(rid, said, 4.2);
+            this.actors?.director.setGesture(rid, 'talk', 3.4);
+          }
+          const topicDef = this.content.social?.topics.find((t) => t.id === String(d.topic));
+          const topicLabel = topicDef ? loc(topicDef.label, store.lang) : String(d.topic);
+          const delta = typeof d.trustDelta === 'number' ? d.trustDelta : 0;
+          const name = this.nameOf(rid);
+          store.pushToast(translate(store.lang, delta >= 0 ? 'toast.trustUp' : 'toast.trustDown', { name, n: Math.abs(delta) }), delta >= 0 ? 'good' : 'bad');
+          store.pushLog(translate(store.lang, 'ev.talk', { name, topic: topicLabel }), delta >= 0 ? 'good' : 'info');
+          useGameStore.getState().setTalk(null); // por si el modal quedara abierto en remoto
+          this.drainPhoneQueue(); // v1.79: las llamadas aparcadas durante la charla suenan ahora
+          break;
+        }
+        case 'gossip_started': {
+          // v1.79 — COTILLEO EN PASILLOS: el primero suelta la línea (con los nombres de los
+          // dos cotilleadores); si hay segunda línea, el segundo la contesta ~4 s después.
+          // Teatro de presentación puro: la deriva de afinidad ya la aplicó el sim.
+          const gids = (Array.isArray(d.residents) ? d.residents : []).map(String).filter((x) => !!x);
+          const glines = (Array.isArray(d.lines) ? d.lines : []) as LocalizedText[];
+          const [gidA, gidB] = gids;
+          const nameA = gidA ? this.nameOf(gidA) : '?';
+          const nameB = gidB ? this.nameOf(gidB) : '?';
+          if (gidA && glines[0]) {
+            const lang = store.lang;
+            const lineA = loc(glines[0], lang).replaceAll('{a}', nameA).replaceAll('{b}', nameB);
+            this.bubbles?.sayText(gidA, lineA, 5.5);
+            if (gidB && glines[1]) {
+              const lineB = loc(glines[1], lang).replaceAll('{a}', nameB).replaceAll('{b}', nameA);
+              const bubble = this.bubbles;
+              window.setTimeout(() => bubble?.sayText(gidB, lineB, 5.5), 4000); // presentación: setTimeout tolerado
+            }
+          }
+          for (const id of gids) this.actors?.director.setGesture(id, 'talk', 6);
+          if (gidA && gidB) store.pushLog(translate(store.lang, 'ev.gossip', { a: nameA, b: nameB }), 'info');
+          break;
+        }
+        case 'protest_armed':
+          // v1.80 — la protesta se arma (apagón bajo umbral): SOLO registro, el teatro llega con los timbrazos.
+          store.pushLog(translate(store.lang, 'ev.protestLog'), 'info');
+          break;
+        case 'protest_recruited':
+          store.pushLog(translate(store.lang, 'ev.protestLog'), 'info');
+          break;
+        case 'protest_ring': {
+          // v1.80 — TIMBRAZO DE PROTESTA: si es TU puerta (y eres la presidencia) suena tu
+          // timbre, toast con el nombre y el vecino camina hasta tu puerta (patrón knock);
+          // si es la de otro, solo teatro ambiental (bocadillo sin sonido).
+          const rid = typeof d.resident === 'string' ? d.resident : null;
+          const ring = typeof d.ring === 'number' ? d.ring : 1;
+          const lines = this.content.social?.protest?.ringLines ?? [];
+          const line = lines.length > 0 ? loc(lines[Math.min(Math.max(0, ring - 1), lines.length - 1)]!, store.lang) : '';
+          const me = this.world ? this.world.residents[this.actorId()] : undefined;
+          const myFloor = me && this.world.blocks[me.home] ? this.world.blocks[me.home]!.cell.floor : null;
+          const blockFloor = typeof d.block === 'string' && this.world?.blocks[d.block] ? this.world.blocks[d.block]!.cell.floor : null;
+          const isMyDoor = !!this.world?.protest && this.world.protest.presidentId === this.actorId() && myFloor !== null && blockFloor === myFloor;
+          if (rid && line) {
+            this.bubbles?.sayText(rid, line, 4.2);
+            this.actors?.director.setGesture(rid, 'talk', 3);
+          }
+          if (isMyDoor && rid) {
+            playSound('doorbell'); // v1.64 — mismo timbre que el knock de siempre
+            const name = this.nameOf(rid);
+            store.pushToast(translate(store.lang, 'ev.protestRing', { name }), 'info');
+            const home = me && this.world ? this.world.blocks[me.home] : undefined;
+            if (home) {
+              const v = this.content.rules.view;
+              const frontZ = v.roomZ - v.commonDepth / 2;
+              this.actors?.director.walkTo(rid, {
+                x: (home.cell.col + home.size.w / 2) * v.cellW,
+                z: frontZ + 0.45,
+                floor: home.cell.floor,
+                inside: { block: home.id, local: { x: (home.size.w * v.cellW) / 2, z: 0.45 } },
+              });
+            }
+          }
+          break;
+        }
+        case 'protest_calmed': {
+          // v1.80 — PROTESTA CALMADA (answer_door): bocadillo de calma del catálogo; el sim
+          // ya movió la relación y disolvió world.protest; el vecino vuelve solo a su casa.
+          const rid = typeof d.resident === 'string' ? d.resident : null;
+          const lineObj = d.line as LocalizedText | undefined;
+          const said = lineObj && typeof lineObj.es === 'string' ? loc(lineObj, store.lang) : '';
+          if (rid && said) {
+            this.bubbles?.sayText(rid, said, 4);
+            this.actors?.director.setGesture(rid, 'talk', 3.4);
+          }
+          store.pushToast(translate(store.lang, 'ev.protestCalm'), 'good');
+          break;
+        }
+        case 'protest_ended': {
+          // v1.80 — la protesta se disuelve ('tired' con línea del catálogo; 'power' sin ella,
+          // la luz volvió): bocadillo si hay línea, toast y registro.
+          const rid = typeof d.resident === 'string' ? d.resident : null;
+          const lineObj = d.line as LocalizedText | undefined;
+          const said = lineObj && typeof lineObj.es === 'string' ? loc(lineObj, store.lang) : '';
+          const name = rid ? this.nameOf(rid) : '?';
+          if (rid && said) {
+            this.bubbles?.sayText(rid, said, 4);
+            this.actors?.director.setGesture(rid, 'talk', 3.4);
+          }
+          store.pushToast(translate(store.lang, 'ev.protestTired', { name }), 'info');
+          store.pushLog(translate(store.lang, 'ev.protestTired', { name }), 'info');
+          break;
+        }
+        // ── v1.81 — TEJADO (idea #4): tormenta → daño → goteo → reparación ──
+        case 'roof_damaged':
+          // La tormenta ha reventado el tejado: post-it de aviso + registro (el daño PERSISTE
+          // tras la tormenta hasta que alguien pague repair_roof).
+          store.pushToast(translate(store.lang, 'ev.roofDamaged'), 'bad');
+          store.pushLog(translate(store.lang, 'ev.roofDamagedLog', { block: blockLabel(String(d.block)) }), 'bad');
+          break;
+        case 'roof_leak':
+          // Goteo a los áticos: SOLO registro (cada evento trae la humedad resultante; las
+          // manchas de humedad del ecosistema las pinta el param, no el chat).
+          store.pushLog(translate(store.lang, 'ev.roofLeak', { block: blockLabel(String(d.block)), n: String(d.humidity) }), 'bad');
+          break;
+        case 'roof_repaired':
+          // Reparación pagada (repair_roof): post-it con el coste + registro; los áticos
+          // ya han movido su afinidad en el sim.
+          store.pushToast(translate(store.lang, 'ev.roofRepaired', { n: String(d.cost) }), 'good');
+          store.pushLog(translate(store.lang, 'ev.roofRepairedLog', { block: blockLabel(String(d.block)), n: String(d.cost) }), 'good');
+          break;
+        // ── v1.81 — BORRACHO (idea #5): bocadillos del ebrio; solo el primer aviso salta toast ──
+        case 'drunk_started': {
+          const rid = typeof d.resident === 'string' ? d.resident : null;
+          const lineObj = d.line as LocalizedText | null | undefined;
+          const said = lineObj && typeof lineObj.es === 'string' ? loc(lineObj, store.lang) : '';
+          if (rid && said) {
+            this.bubbles?.sayText(rid, said, 4.2);
+            this.actors?.director.setGesture(rid, 'talk', 3.4);
+          }
+          if (rid) store.pushToast(translate(store.lang, 'ev.drunkStarted', { name: this.nameOf(rid) }), 'info');
+          if (rid) store.pushLog(translate(store.lang, 'ev.drunkStarted', { name: this.nameOf(rid) }), 'info');
+          break;
+        }
+        case 'drunk_fumble': {
+          // Faroleo en SU puerta: bocadillo (línea del catálogo) + registro; sin toast.
+          const rid = typeof d.resident === 'string' ? d.resident : null;
+          const lineObj = d.line as LocalizedText | null | undefined;
+          const said = lineObj && typeof lineObj.es === 'string' ? loc(lineObj, store.lang) : '';
+          if (rid && said) {
+            this.bubbles?.sayText(rid, said, 4.2);
+            this.actors?.director.setGesture(rid, 'talk', 3.4);
+          }
+          if (rid) store.pushLog(translate(store.lang, 'ev.drunkFumble', { name: this.nameOf(rid) }), 'info');
+          break;
+        }
+        case 'drunk_home': {
+          // Por fin entra: bocadillo + registro (comedia cerrada, sin toast).
+          const rid = typeof d.resident === 'string' ? d.resident : null;
+          const lineObj = d.line as LocalizedText | null | undefined;
+          const said = lineObj && typeof lineObj.es === 'string' ? loc(lineObj, store.lang) : '';
+          if (rid && said) {
+            this.bubbles?.sayText(rid, said, 4.2);
+            this.actors?.director.setGesture(rid, 'talk', 3.4);
+          }
+          if (rid) store.pushLog(translate(store.lang, 'ev.drunkHome', { name: this.nameOf(rid) }), 'info');
+          break;
+        }
+        case 'drunk_stumble':
+          // Trompo de borrachera: nada (log-free — el pasillo ya está bastante ruidoso).
+          break;
+        // ── v1.81 — JUEGO ILEGAL (idea #6): mesas nocturnas, visitas y redadas ──
+        case 'gamble_night': {
+          // Se abre la mesa: registro con el anfitrión y la vivienda (los invitados llegan
+          // con su propio gamble_visit).
+          store.pushLog(translate(store.lang, 'ev.gambleNight', { name: this.nameOf(d.host), block: blockLabel(String(d.block)) }), 'info');
+          break;
+        }
+        case 'gamble_visit': {
+          // Visita sospechosa: bocadillo del INVITADO (línea del catálogo, elegida por tick
+          // del evento: determinista y igual en todos los clientes) + registro.
+          const rid = typeof d.guest === 'string' ? d.guest : null;
+          const lines = this.content.social?.gamble?.linesVisit ?? [];
+          const lineObj = lines.length > 0 ? lines[e.tick % lines.length]! : undefined;
+          const said = lineObj ? loc(lineObj, store.lang) : '';
+          if (rid && said) {
+            this.bubbles?.sayText(rid, said, 4.2);
+            this.actors?.director.setGesture(rid, 'talk', 3.4);
+          }
+          if (rid) store.pushLog(translate(store.lang, 'ev.gambleVisit', { name: this.nameOf(rid), host: this.nameOf(d.host) }), 'info');
+          break;
+        }
+        case 'gamble_raid': {
+          // REDADA: post-it con la multa + registro + bocadillo del anfitrión (línea del
+          // catálogo que trae el evento). La multa/arcas/afinidades ya las movió el sim.
+          const rid = typeof d.host === 'string' ? d.host : null;
+          const lineObj = d.line as LocalizedText | null | undefined;
+          const said = lineObj && typeof lineObj.es === 'string' ? loc(lineObj, store.lang) : '';
+          if (rid && said) {
+            this.bubbles?.sayText(rid, said, 4.2);
+            this.actors?.director.setGesture(rid, 'talk', 3.4);
+          }
+          store.pushToast(translate(store.lang, 'ev.gambleRaid', { name: this.nameOf(d.host), n: String(d.fine) }), 'bad');
+          store.pushLog(translate(store.lang, 'ev.gambleRaid', { name: this.nameOf(d.host), n: String(d.fine) }), 'bad');
+          break;
+        }
+        case 'gamble_over':
+          // Cierre natural de la mesa: solo registro.
+          store.pushLog(translate(store.lang, 'ev.gambleOver', { name: this.nameOf(d.host) }), 'info');
+          break;
         case 'stairs_grumble':
           // Malestar vecinal (v1.5): texto del catálogo con el nombre del vecino que sube a pie.
           store.pushLog(String(this.content.rules.sim.elevator.grumbleText).replace('{name}', this.nameOf(d.resident)), 'info');
@@ -2566,6 +2828,13 @@ class GameController {
       if (!this.phoneQueue.some((q) => q.mission === mission)) this.phoneQueue.push({ mission, dialogId });
       return;
     }
+    // v1.79 — LA CONVERSACIÓN TIENE PRIORIDAD: misma lección de la junta aplicada al picker
+    // de charla. La llamada aparca en cola y suena al cerrarse la conversación (talk_result
+    // drena la cola); el mundo del talk está congelado (selectWorldFrozen), nadie lo nota.
+    if (useGameStore.getState().talk !== null) {
+      if (!this.phoneQueue.some((q) => q.mission === mission)) this.phoneQueue.push({ mission, dialogId });
+      return;
+    }
     this.tutorial.tip('phone'); // v1.39 — consejo contextual one-shot (idempotente)
     // Si ya hay una llamada en pantalla, la nueva espera en cola (dedupe por misión).
     if (this.phoneMission) {
@@ -2660,6 +2929,12 @@ class GameController {
         case 'resident':
           // v1.40 — cruzarte con un vecino = charla (ya no es llamar a su puerta).
           return (ic.chat ?? ic.greet).replace('{name}', this.nameOf(t.residentId));
+        // v1.80 — protesta en tu puerta: prompt del catálogo (reglas interact.answerProtest).
+        case 'answer_protest':
+          return ic.answerProtest ?? ic.doorbell ?? ic.greet;
+        // v1.81 — tejado dañado: prompt del catálogo (reglas interact.repairRoof).
+        case 'repair_roof':
+          return ic.repairRoof ?? ic.fusebox?.prompt ?? 'E · reparar el tejado';
         case 'mailbox':
           return ic.mailbox.prompt;
         case 'noticeboard':

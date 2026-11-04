@@ -30,7 +30,11 @@ export type InteractResult =
   | { type: 'frontBlocked' }
   /** v1.48 — CUADRO DE FUSIBLES (garaje): el controlador decide (apagón → minijuego;
    *  en calma → aviso del catálogo). Faltaba en la unión: el runtime lo usaba desde v1.48. */
-  | { type: 'fusebox' };
+  | { type: 'fusebox' }
+  /** v1.80 — PROTESTA EN TU PUERTA: la E abre (answer_door) en vez de entrar/timbrar. */
+  | { type: 'answerProtest' }
+  /** v1.81 — pasillo de la planta alta con el tejado dañado: la E repara (repair_roof). */
+  | { type: 'repairRoof' };
 
 /**
  * Firma de la vía de salida de comandos. En partida clásica el controlador devuelve el
@@ -91,6 +95,10 @@ export class PlayerLogic {
   readonly autoEvents: InteractResult[] = [];
   private readonly width: number;
   private readonly topFloor: number;
+  /** v1.81 — planta residencial más alta (la última CON viviendas): ahí avisa la E del
+   *  tejado dañado. El tejado y la bajocubierta son 'main' pero no viviendas, así que el
+   *  topFloor transitable y este no coinciden necesariamente en otras plantillas. */
+  private readonly topDwellingFloor: number;
   private readonly view;
   /** Residente controlado por esta lógica (world.playerId en solitario). */
   private readonly actorId: string;
@@ -153,6 +161,7 @@ export class PlayerLogic {
       // tiene forjado — nunca es topFloor aunque sea la planta más alta de la plantilla.
       ...blocks.filter((b) => this.content.blocks[b.defId]!.traversable !== false).map((b) => b.cell.floor),
     );
+    this.topDwellingFloor = Math.max(0, ...blocks.filter((b) => b.kind === 'dwelling').map((b) => b.cell.floor));
     // Si el actor aún no existe en el mundo (estado del servidor en camino), se cae al jugador clásico.
     const me = world.residents[this.actorId] ?? world.residents[world.playerId]!;
     const start = world.blocks[me.location ?? me.home] ?? blocks.find((b) => b.kind !== 'dwelling')!;
@@ -1224,6 +1233,32 @@ export class PlayerLogic {
       const [za] = this.rangeOf(zoneFirst);
       if (this.content.blocks[zoneFirst.defId]!.features?.mailboxes && Math.abs(this.x - (za + 1.2)) < this.view.itemRadius) return { kind: 'mailbox' };
       const door = this.doorInFront();
+      // v1.80 — PROTESTA EN TU PUERTA: con world.protest TIMBRANDO y tú de presidente,
+      // la E sobre TU puerta es ABRIR (responder a la protesta) y no entrar/timbrar.
+      // Detección de puerta propia idéntica a la del timbre (dueño de la vivienda delante).
+      const protest = this.world.protest;
+      if (
+        door &&
+        door.kind === 'dwelling' &&
+        (door.ownerId === this.actorId || door.id === this.world.residents[this.actorId]?.home) &&
+        protest?.phase === 'ringing' &&
+        protest.presidentId === this.actorId
+      ) {
+        return { kind: 'answer_protest' };
+      }
+      // v1.81 — TEJADO DAÑADO: plantado en el pasillo de la planta residencial más alta con
+      // el tejado goteando (algún bloque del roofDef con roof_damage=1, origen climático en
+      // extra/roof.ts), la E es REPARAR. Va delante de las puertas porque el agua no espera:
+      // el CUÁNDO se ofrece es presentación; el coste y los efectos los pone el sim.
+      const roofCfg = this.content.rules.sim.roof;
+      if (
+        this.mode === 'corridor' &&
+        this.floor === this.topDwellingFloor &&
+        roofCfg &&
+        Object.values(this.world.blocks).some((b) => b.defId === roofCfg.roofDef && b.params.roof_damage === 1)
+      ) {
+        return { kind: 'repair_roof' };
+      }
       // v1.47 — la E solo anuncia puertas de VIVIENDA: los locales se entran andando
       // (empujón hacia la fachada) y anunciar «E · entrar» era el segundo sistema confuso.
       if (door && door.kind === 'dwelling') return { kind: 'door', blockId: door.id };
@@ -1293,6 +1328,10 @@ export class PlayerLogic {
     if (t?.kind === 'noticeboard') return { type: 'used', kind: 'noticeboard' };
     // v1.48 — CUADRO DE FUSIBLES: el controlador decide (apagón → minijuego; en calma → aviso).
     if (t?.kind === 'fusebox') return { type: 'fusebox' };
+    // v1.80 — PROTESTA EN TU PUERTA: abrir (el sim resuelve answer_door; el controlador suena).
+    if (t?.kind === 'answer_protest') return { type: 'answerProtest' };
+    // v1.81 — TEJADO: la E en el pasillo superior manda repair_roof (el sim cobra y repara).
+    if (t?.kind === 'repair_roof') return { type: 'repairRoof' };
     if (t?.kind === 'resident') {
       // v1.40 — CRUZARSE CON UN VECINO = CHARLA (regla del barrio): está fuera, en
       // circulación; la E os planta cara a cara y el controlador saca su línea de saludo.

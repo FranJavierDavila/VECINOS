@@ -99,6 +99,52 @@
     "phone": {
       "freeMovement": true
     },
+    "social": {
+      "gossipChance": 0.02,
+      "gossipMinGroup": 2,
+      "gossipCooldownMinutes": 90,
+      "gossipAffinityDelta": 2,
+      "talkCooldownMinutes": 30
+    },
+    "roof": {
+      "roofDef": "tejado",
+      "damageChancePerTick": 0.004,
+      "leakEveryTicks": 20,
+      "humidityPerLeak": 6,
+      "repairCost": 60,
+      "affinityPerRepair": 3,
+      "maxHumidity": 100
+    },
+    "drunk": {
+      "chance": 0.35,
+      "archetypes": [],
+      "staggerChance": 0.55,
+      "fumbleTries": 2,
+      "lineEveryHops": 3
+    },
+    "gamble": {
+      "hostArchetype": "fondo_buitre",
+      "startMinute": "22:00",
+      "endMinute": "03:00",
+      "chancePerNight": 0.3,
+      "maxGuests": 3,
+      "raidChancePerTick": 0.0015,
+      "fine": 120,
+      "fundsShare": 0.5,
+      "cooldownDays": 2
+    },
+    "protest": {
+      "watchDef": "pasillo_planta",
+      "watchParam": "lighting",
+      "belowThreshold": 20,
+      "delayMinutes": 45,
+      "recruitEveryMinutes": 10,
+      "ringIntervalMinutes": 4,
+      "maxRings": 5,
+      "calmAffinity": 4,
+      "calmTrust": 3,
+      "tiredAffinity": -3
+    },
     "missionLoopMax": 4,
     "defaultNeeds": {
       "sleep": 80,
@@ -176,6 +222,7 @@
       "defaultGenerosity": 0.3,
       "moodThreshold": 25,
       "moodPenalty": 0.15,
+      "trustWeight": 0.25,
       "clamp": {
         "min": 0.05,
         "max": 0.95
@@ -2156,6 +2203,8 @@
     "greet": "E · saludar a {name}",
     "doorbell": "E · timbre de {name}",
     "chat": "E · charlar con {name}",
+    "answerProtest": "E · abrir la puerta (protesta por el apagón)",
+    "repairRoof": "E · reparar el tejado (gotea la planta de arriba)",
     "bench": "E · sentarse a contemplar el edificio",
     "exercise": "E · un rato de calistenia",
     "standUp": "E · levantarse",

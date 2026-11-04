@@ -603,6 +603,60 @@ export function createEcosystem(
     }
   };
 
+  // ───────────────── Lámparas INTERIORES del pasillo (v1.80, idea #2) ─────────────────
+
+  // El pasillo "se siente iluminado de noche DONDE HAY GENTE": un vecino (o el jugador)
+  // caminando por el pasillo de la planta N la enciende; vaciada, se apaga en fundido.
+  // Mismo patrón que la activityLight de la escalera (v1.60): emisivos + fundido, SIN
+  // PointLights. Con APAGÓN las interiores nuevas quedan a CERO (circuito común caído);
+  // las fachadas de arriba no se tocan (blackoutOccupiedIntensity sigue mandando).
+
+  /** Material por PLANTA (un mat por bloque de pasillo basta) + nivel actual para el fundido. */
+  const interiorLamps = new Map<string, { mat: StandardMaterial; meshes: Mesh[]; color: Color3; floor: number; level: number }>();
+
+  const ensureInteriorLamps = (): void => {
+    const ci = eco.lights.corridorInterior;
+    if (!ci?.enabled) return;
+    for (const b of Object.values(world.blocks)) {
+      if (b.layer !== 'corridor' || interiorLamps.has(b.id)) continue;
+      const color = Color3.FromHexString(ci.color);
+      const mat = new StandardMaterial(`${b.id}_interior_mat`, scene);
+      mat.specularColor = new Color3(0, 0, 0);
+      mat.diffuseColor = color.scale(0.2);
+      mat.emissiveColor = color.scale(0);
+      const meshes: Mesh[] = [];
+      const size = ci.lampSize;
+      // Techo del paseo: casi el canto del forjado superior (ratio del catálogo).
+      const y = b.cell.floor * v.cellH + v.cellH * ci.heightRatio;
+      for (let i = 0; i < ci.lampsPerCorridor; i++) {
+        const t = (i + 0.5) / ci.lampsPerCorridor;
+        const lamp = MeshBuilder.CreateBox(`corridorLight_p${b.cell.floor}_${i}`, { width: size[0], height: size[1], depth: size[2] }, scene);
+        // DENTRO del pasillo: sobre la línea del paseo (z = corridorZ), repartidas por la X del bloque.
+        lamp.position.set(b.cell.col * v.cellW + t * b.size.w * v.cellW, y, v.corridorZ);
+        lamp.material = mat;
+        lamp.isPickable = false;
+        meshes.push(lamp);
+      }
+      interiorLamps.set(b.id, { mat, meshes, color, floor: b.cell.floor, level: 0 });
+    }
+  };
+
+  /** Fundido por planta hacia el objetivo (patrón de la escalera: dt/fadeSecs, sin saltos). */
+  const updateCorridorLights = (pos: PlayerPosition, dt: number): void => {
+    const ci = eco.lights.corridorInterior;
+    if (!ci?.enabled) return;
+    const blackout = brain.blackoutUntilTick !== null;
+    const night = inMinuteWindow(world.clock.minute, content.rules.sim.night);
+    for (const lamp of interiorLamps.values()) {
+      // Objetivo: APAGÓN → 0 seco; de noche SOLO con alguien en la planta (el mismo
+      // floorOccupied de las fachadas: el jugador fuera de casa también enciende); de día, 0.
+      const target = !blackout && night && floorOccupied(lamp.floor, pos) ? ci.nightIntensity : 0;
+      lamp.level += (target - lamp.level) * Math.min(1, dt / Math.max(0.05, ci.fadeSecs));
+      if (Math.abs(target - lamp.level) < 0.004) lamp.level = target; // asentar al fondo (evita cola infinita)
+      lamp.mat.emissiveColor.copyFrom(lamp.color).scaleInPlace(lamp.level);
+    }
+  };
+
   // ───────────────────────── Deterioro visual (feedback del estado del sim) ─────────────────────────
 
   const decals = new Map<string, Map<string, { meshes: Mesh[]; on: boolean; mat: StandardMaterial }>>();
@@ -699,7 +753,12 @@ export function createEcosystem(
 
       // 4) LUCES por planta (barato, sin allocs; el param lighting del sim manda).
       ensureLamps();
-      updateLights(getPlayerPos());
+      const playerPos = getPlayerPos();
+      updateLights(playerPos);
+      // v1.80 — INTERIORES del pasillo: misma lectura de mundo (posiciones + reloj + apagón
+      // del cerebro) y fundido por planta según ocupación.
+      ensureInteriorLamps();
+      updateCorridorLights(playerPos, dt);
 
       // 5) DETERIORO: comprobación perezosa a cadencia del catálogo.
       checkAcc += dt;
@@ -732,6 +791,11 @@ export function createEcosystem(
       decals.clear();
       for (const lamp of lamps.values()) lamp.mat.dispose();
       lamps.clear();
+      for (const lamp of interiorLamps.values()) {
+        for (const mesh of lamp.meshes) mesh.dispose();
+        lamp.mat.dispose();
+      }
+      interiorLamps.clear();
     },
     get report(): EcosystemReport | null {
       return lastReport;

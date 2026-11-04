@@ -1,8 +1,8 @@
-import type { Content, ResidentInstance, ScheduleWindow, World } from '@/game/core/types';
+import type { Content, LocalizedText, ResidentInstance, ScheduleWindow, World } from '@/game/core/types';
 import { emit } from '../events';
 import { nextRandom } from '../rng';
 import { applyEffects, resolveBlocks } from '../effects';
-import { nextStepTowards } from '../graph';
+import { buildCirculation, nextStepTowards } from '../graph';
 
 /**
  * IA de los vecinos: sin física y SIN datos de gameplay. Cada arquetipo declara sus
@@ -85,6 +85,37 @@ function setActivity(world: World, content: Content, r: ResidentInstance, activi
   }
 }
 
+// ── v1.81 — VECINO BORRACHO (idea #5): regreso nocturno con tambaleo y faroleo en la puerta ──
+
+/** Línea al azar (determinista por rng del mundo) de un banco localizado; null si no hay catálogo. */
+function pickDrunkLine(pool: LocalizedText[] | undefined, world: World): LocalizedText | null {
+  if (!pool || pool.length === 0) return null;
+  return pool[Math.floor(nextRandom(world) * pool.length)]!;
+}
+
+/**
+ * ¿Está `r` EBRIO ahora mismo? El estado vive en cooldowns['drunk'] (tick hasta el que
+ * dura la juerga de las piernas; se limpia al lograr entrar en casa). Cero campos nuevos
+ * en World: los cooldowns del residente sincronizan bien en los snapshots de multi.
+ */
+function isDrunk(r: ResidentInstance, tick: number): boolean {
+  return (r.cooldowns['drunk'] ?? 0) > tick;
+}
+
+/**
+ * Paso BORRACHO: un vecino de circulación al azar (grafo de graph.ts, SOLO lectura —
+ * mismas aristas que la IA sobria), prefiriendo quedarse en la MISMA planta para que la
+ * borrachera desfile por su propio pasillo en vez de perderse por la escalera.
+ */
+function drunkStep(world: World, content: Content, fromId: string): string | null {
+  const opts = [...(buildCirculation(world, content).edges.get(fromId)?.keys() ?? [])];
+  if (opts.length === 0) return null;
+  const from = world.blocks[fromId]!;
+  const sameFloor = opts.filter((id) => world.blocks[id]!.cell.floor === from.cell.floor);
+  const pool = sameFloor.length > 0 ? sameFloor : opts;
+  return pool[Math.floor(nextRandom(world) * pool.length)]!;
+}
+
 /** Un paso de IA por tick para cada vecino IA/script presente. */
 export function runAI(world: World, content: Content): void {
   for (const r of Object.values(world.residents).sort((a, b) => a.id.localeCompare(b.id))) {
@@ -107,15 +138,45 @@ export function runAI(world: World, content: Content): void {
     if (r.location === null) {
       r.location = world.entry;
       emit(world, 'resident_moved', { resident: r.id, block: world.entry });
+      // v1.81 — ¿VUELVE BORRACHO? La transición out→dentro es EL momento: con la ventana
+      // nocturna en marcha, el arquetipo apto (y sin la resaca del cooldown drunkDone),
+      // la tirada del catálogo puede traerlo tambaleándose hasta SU puerta. Frases del
+      // catálogo social (social.drunk): sin catálogo, el borracho tambalea en silencio.
+      const cfgD = content.rules.sim.drunk;
+      if (
+        cfgD &&
+        !isDrunk(r, world.tick) &&
+        world.tick >= (r.cooldowns['drunkDone'] ?? 0) &&
+        (cfgD.archetypes.length === 0 || cfgD.archetypes.includes(r.archetype)) &&
+        inMinuteWindow(world.clock.minute, content.rules.sim.night) &&
+        nextRandom(world) < cfgD.chance
+      ) {
+        r.cooldowns['drunk'] = world.tick + 999_999; // las piernas siguen suyas hasta entrar en casa
+        r.cooldowns['drunkHops'] = 0; // pasos de borrachera dados (ritmo de drunk_stumble)
+        r.cooldowns['drunkTries'] = 0; // faroleos en su puerta
+        emit(world, 'drunk_started', { resident: r.id, line: pickDrunkLine(content.social?.drunk?.linesStart, world) });
+      }
     }
 
     if (targetBlock && r.location !== targetBlock) {
       if (world.tick >= (r.cooldowns['hop'] ?? 0)) {
-        const step = nextStepTowards(world, content, r.location, targetBlock);
+        // v1.81 — TAMBALEO: el ebrio, con probabilidad del catálogo, no da el paso hacia
+        // casa sino un trompo a un bloque vecino (misma planta si puede). El resto del
+        // tramo (cooldown de salto, gruñido de escalera…) es EXACTAMENTE el de la IA sobria.
+        const drunkNow = isDrunk(r, world.tick);
+        const stagger = drunkNow && nextRandom(world) < content.rules.sim.drunk!.staggerChance;
+        const step = stagger ? drunkStep(world, content, r.location) : nextStepTowards(world, content, r.location, targetBlock);
         if (step) {
           r.location = step;
           emit(world, 'resident_moved', { resident: r.id, block: step });
           r.cooldowns['hop'] = world.tick + content.rules.sim.aiHopTicks;
+          if (drunkNow) {
+            const hops = (r.cooldowns['drunkHops'] ?? 0) + 1;
+            r.cooldowns['drunkHops'] = hops;
+            // Un drunk_stumble cada lineEveryHops pasos TROPEZADOS: el cliente NO lo registra
+            // (anti-spam), teatro de pasillo puro.
+            if (stagger && hops % content.rules.sim.drunk!.lineEveryHops === 0) emit(world, 'drunk_stumble', { resident: r.id });
+          }
           // Malestar vecinal (v1.5): si el paso usa la ESCALERA y el ascensor de esa planta
           // está averiado, subir a pie cuesta ánimo social y, de vez en cuando, resoplido
           // público. Todo desde el catálogo (rules.sim.elevator): coste, azar y texto.
@@ -138,6 +199,31 @@ export function runAI(world: World, content: Content): void {
       }
       // De camino: sin actividad destacable (pasea).
       setActivity(world, content, r, null);
+    } else if (isDrunk(r, world.tick) && targetBlock === r.home) {
+      // v1.81 — EN SU PUERTA (y ebrio): faroleo. Los primeros fumbleTries intentos se van
+      // en llaves que no entran (drunk_fumble + pasito de más que lo aleja de la puerta);
+      // al agotarse, entra (drunk_home) y limpia la juerga — nunca se queda atrapado:
+      // el peor caso llega a casa tras los faroleos, como manda la IA.
+      const cfgD = content.rules.sim.drunk!;
+      const tries = r.cooldowns['drunkTries'] ?? 0;
+      if (tries < cfgD.fumbleTries) {
+        r.cooldowns['drunkTries'] = tries + 1;
+        emit(world, 'drunk_fumble', { resident: r.id, line: pickDrunkLine(content.social?.drunk?.linesFumble, world) });
+        const step = drunkStep(world, content, r.location);
+        if (step) {
+          r.location = step;
+          emit(world, 'resident_moved', { resident: r.id, block: step });
+          r.cooldowns['hop'] = world.tick + content.rules.sim.aiHopTicks;
+        }
+        setActivity(world, content, r, null);
+      } else {
+        emit(world, 'drunk_home', { resident: r.id, line: pickDrunkLine(content.social?.drunk?.linesHome, world) });
+        r.cooldowns['drunk'] = 0;
+        r.cooldowns['drunkDone'] = world.tick + 2880; // ~2 días sin repetir juerga
+        r.cooldowns['drunkTries'] = 0;
+        r.cooldowns['drunkHops'] = 0;
+        setActivity(world, content, r, activity);
+      }
     } else {
       setActivity(world, content, r, activity);
     }

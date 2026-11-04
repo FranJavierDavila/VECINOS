@@ -28,6 +28,7 @@ export function createWorld(content: Content, scenarioId: string, overrides: { s
     missions: [],
     favors: {},
     junta: null,
+    protest: null, // v1.80 — protesta por apagón (la arma extra/protest.ts)
     events: [],
   };
 

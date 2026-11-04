@@ -13,6 +13,12 @@ export function castVotes(world: World, content: Content): void {
     const traits = content.archetypes[r.archetype]?.traits ?? {};
     let pYes = cfg.baseYes + affinity / cfg.affinityDivisor + (traits.generosity ?? cfg.defaultGenerosity) * cfg.generosityFactor;
     pYes += content.archetypes[r.archetype]?.voteBias ?? 0;
+    // v1.79 — PUENTE SOCIAL: la CONFIANZA del vecino hacia el jugador (Relation.trust, la que
+    // mueve la charla con tema) pesa un poco en su voto. Data-driven: trustWeight del catálogo
+    // (ausente/0 = comportamiento de siempre); clamp ±50 para que ni el mayor devoto ni el
+    // peor resentido manden en la votación por sí solos.
+    const trust = r.relations.find((x) => x.with === world.playerId)?.trust ?? 0;
+    pYes += (Math.max(-50, Math.min(50, trust)) / 100) * (cfg.trustWeight ?? 0);
     if ((r.needs['fun'] ?? 50) < cfg.moodThreshold) pYes -= cfg.moodPenalty; // de mal humor
     const vote: Vote = nextRandom(world) < Math.max(cfg.clamp.min, Math.min(cfg.clamp.max, pYes)) ? 'yes' : 'no';
     world.junta.votes[r.id] = vote;
