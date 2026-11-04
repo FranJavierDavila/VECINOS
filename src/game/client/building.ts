@@ -1833,6 +1833,57 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
             standsW.push({ x: wx, z: wz, yaw: Math.atan2(-fz / len, fx / len) });
           }
           hallSeats.set(b.id, { seats: seatsW, stands: standsW });
+          // ── v1.83 — PUERTA TRASERA DE EL RINCÓN (petición del vecino: «dentro, en una
+          //  puerta trasera, se accedía a la sala de juntas»): el bar vuelve a tener su
+          //  trastienda. Tabique fino a media profundidad (dos paños + dintel alrededor
+          //  del hueco central), hoja con bisagra y el cartel pequeño de la SALA encima.
+          //  PURAMENTE VISUAL: sin colisión ni rutas nuevas — la hoja abre con los mismos
+          //  movers de hallDoors (se añade a la lista más abajo) y los asistentes ya
+          //  caminan a sus sillas por el hueco central, igual que entraron.
+          const rd = jh.rearDoor;
+          if (rd?.enabled) {
+            const partZ = frontZ + rd.z;
+            const partM = mat(`${b.id}_tabique_mat`);
+            partM.diffuseColor = Color3.FromHexString(loc.corridorWall);
+            partM.specularColor = new Color3(0.02, 0.02, 0.02);
+            const gapL = cx - rd.doorW / 2;
+            const gapR = cx + rd.doorW / 2;
+            const panel = (nm: string, pw: number, px: number): void => {
+              if (pw < 0.02) return;
+              view.greybox.push(box(nm, pw, H, 0.06, px, baseY + H / 2, partZ, partM));
+            };
+            // NADA COPLANAR: paños y dintel no comparten plano con la hoja ni entre sí
+            // (offsets de 12 mm; los cantos quedan embebidos en los muros laterales).
+            panel(`${b.id}_tabique_i`, gapL - x0, (x0 + gapL) / 2);
+            panel(`${b.id}_tabique_d`, x0 + w - gapR, (gapR + x0 + w) / 2);
+            if (H - rd.doorH > 0.02) {
+              view.greybox.push(box(`${b.id}_tabique_dintel`, rd.doorW, H - rd.doorH, 0.06, cx, baseY + rd.doorH + (H - rd.doorH) / 2, partZ - 0.012, partM));
+            }
+            // Hoja trasera: MISMO oficio que la delantera (arte door_casa_a con bisagra).
+            const rearHinge = new TransformNode(`${b.id}_hoja_trasera_hinge`, scene);
+            rearHinge.position.set(gapL, baseY, partZ);
+            const rearLeaf = MeshBuilder.CreatePlane(`${b.id}_hoja_trasera`, { width: rd.doorW, height: rd.doorH }, scene);
+            const rlm = mat(`${b.id}_hoja_trasera_mat`);
+            rlm.specularColor = new Color3(0, 0, 0);
+            rlm.diffuseTexture = doorArtTexSized(scene, rd.art, rd.doorW, rd.doorH);
+            rearLeaf.material = rlm;
+            rearLeaf.isPickable = true; // oculta bocadillos como cualquier hoja
+            rearLeaf.position.set(rd.doorW / 2, rd.doorH / 2, 0);
+            rearLeaf.parent = rearHinge;
+            view.doorDecor.push(rearHinge);
+            hallDoors.push({ hinge: rearHinge, openT: 0, doorX: cx, doorZ: partZ, floorY: baseY, side: 1, blockId: b.id });
+            // Cartel pequeño sobre la puerta trasera: la identidad de la SALA se conserva
+            // (la fachada dice EL RINCÓN; el interior sigue anunciando la sala de juntas).
+            const rearSign = MeshBuilder.CreatePlane(`${b.id}_cartel_sala`, { width: 1.3, height: 0.24 }, scene);
+            const rsm = mat(`${b.id}_cartel_sala_mat`);
+            rsm.specularColor = new Color3(0, 0, 0);
+            rsm.diffuseTexture = signTex(`${b.id}_cartel_sala`, rd.sign, rd.signBg, rd.signText);
+            rsm.emissiveColor = Color3.FromHexString(rd.signBg).scale(0.4);
+            rearSign.material = rsm;
+            rearSign.isPickable = false;
+            rearSign.position.set(cx, baseY + Math.min(rd.doorH + 0.2, H - 0.16), partZ - 0.045);
+            view.greybox.push(rearSign);
+          }
         } else if (b.defId === 'portal') {
           // v1.36 — el VESTÍBULO ya no lleva muebles 3D: el vecino pidió que el interior
           // del portal sea UNA IMAGEN del hall («una imagen del hall de un Portal de un
@@ -3049,16 +3100,19 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
           }
         }
         if (b.defId === 'trasteros' || b.defId === 'local_comercial' || b.defId === 'lavanderia_comunal') {
+          // v1.83 — el rótulo del local puede ser NEÓN: signGlow (catálogo) escala el
+          // emissive sobre el color de fondo (0.55 = cartel de siempre; ≥1.2 arde de
+          // noche y el GlowLayer le da el halo — El Rincón vuelve a brillar).
           const sign = b.defId === 'trasteros'
-            ? { t: loc.trasteroComunal.sign, bg: loc.trasteroComunal.signBg, fg: loc.trasteroComunal.signText }
+            ? { t: loc.trasteroComunal.sign, bg: loc.trasteroComunal.signBg, fg: loc.trasteroComunal.signText, glow: 0.55 }
             : b.defId === 'local_comercial'
-              ? { t: loc.juntaHall.sign, bg: loc.juntaHall.signBg, fg: loc.juntaHall.signText }
-              : { t: loc.lavanderia.sign, bg: loc.lavanderia.signBg, fg: loc.lavanderia.signText };
+              ? { t: loc.juntaHall.sign, bg: loc.juntaHall.signBg, fg: loc.juntaHall.signText, glow: loc.juntaHall.signGlow ?? 0.55 }
+              : { t: loc.lavanderia.sign, bg: loc.lavanderia.signBg, fg: loc.lavanderia.signText, glow: 0.55 };
           const rotulo = meshBySuffix('rotulo');
           if (rotulo) {
             const rmat = mat(`${b.id}_rotulo_mat`);
             rmat.diffuseTexture = signTex(`${b.id}_rotulo`, sign.t, sign.bg, sign.fg);
-            rmat.emissiveColor = Color3.FromHexString(sign.bg).scale(0.55);
+            rmat.emissiveColor = Color3.FromHexString(sign.bg).scale(sign.glow);
             rotulo.material = rmat;
           }
         }

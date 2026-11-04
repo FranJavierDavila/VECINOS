@@ -27,7 +27,7 @@ const DICT: Record<string, { es: string; en: string }> = {
     es: 'Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.',
     en: 'Move-ins, noise, smells, wifi, pests, smoke and levies: the neighborhood simulator.',
   },
-  'header.version': { es: 'v1.82 · fusión de las dos líneas: telemetría de playtest (latidos + sesiones) + tejado que gotea, borracho de madrugada y cartas ilegales — jugable online en GitHub Pages', en: 'v1.82 · merge of both lines: playtest telemetry (heartbeats + sessions) + leaky roof, midnight drunk & illegal cards — playable online on GitHub Pages' },
+  'header.version': { es: 'v1.83 · restauración del vecino: El Rincón vuelve al local con su neón y su puerta trasera a la sala de juntas, puertas de escalera cartoon y todas las lavadoras girando — jugable online en GitHub Pages', en: 'v1.83 · neighbor restoration: El Rincón is back with its neon and rear door to the meeting room, cartoon stair doors and every washer spinning — playable online on GitHub Pages' },
   // ── Apagón de assets (v1.47: servidor de arte caído → mundo vacío/cápsulas) ──
   'assets.outage': {
     es: '⚠ No se pudo cargar el arte del juego (¿servidor caído?). El vecindario se recargará en {n} s…',

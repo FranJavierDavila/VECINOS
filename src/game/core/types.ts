@@ -1683,6 +1683,23 @@ export interface Rules {
         sign: string;
         signBg: string;
         signText: string;
+        /** v1.83 — intensidad del NEÓN del rótulo: emissive = signBg × signGlow
+         *  (0.55 = cartel apagado de siempre; ≥1.2 = neón que arde de noche). */
+        signGlow?: number;
+        /** v1.83 — PUERTA TRASERA al fondo del local (el bar da paso a la sala de
+         *  juntas por detrás, como recuerda el vecino): tabique + hoja con bisagra
+         *  + cartel pequeño encima. Visual/simático: nada de colisiones ni rutas nuevas. */
+        rearDoor?: {
+          enabled: boolean;
+          /** z del tabique en coords locales del bloque (desde frontZ). */
+          z: number;
+          doorW: number;
+          doorH: number;
+          art: string;
+          sign: string;
+          signBg: string;
+          signText: string;
+        };
         tableW: number;
         tableD: number;
         tableZ: number;

@@ -1487,6 +1487,26 @@ export const rulesSchema = z.object({
             sign: z.string().default('SALA DE JUNTAS'),
             signBg: z.string().default('#3b3129'),
             signText: z.string().default('#ffd166'),
+            /** v1.83 — intensidad del NEÓN del rótulo (emissive = signBg × signGlow). */
+            signGlow: z.number().min(0).max(3).optional(),
+            /** v1.83 — PUERTA TRASERA al fondo del local: el bar (El Rincón) da paso
+             *  a la sala de juntas por detrás (tabique + hoja + cartel). Sin colisión. */
+            rearDoor: z
+              .object({
+                enabled: z.boolean().default(true),
+                z: z.number().min(0.2).default(0.55),
+                doorW: z.number().positive().default(1.05),
+                doorH: z.number().positive().default(1.84),
+                art: z.string().default('art/interiors/raw/door_casa_a.png'),
+                sign: z.string().default('SALA DE JUNTAS'),
+                signBg: z.string().default('#3b3129'),
+                signText: z.string().default('#ffd166'),
+              })
+              .default({
+                enabled: true, z: 0.55, doorW: 1.05, doorH: 1.84,
+                art: 'art/interiors/raw/door_casa_a.png',
+                sign: 'SALA DE JUNTAS', signBg: '#3b3129', signText: '#ffd166',
+              }),
             tableW: z.number().positive().default(2.6),
             tableD: z.number().positive().default(0.95),
             tableZ: z.number().positive().default(1.5),
@@ -1504,6 +1524,7 @@ export const rulesSchema = z.object({
           })
           .default({
             doorW: 1.05, sign: 'SALA DE JUNTAS', signBg: '#3b3129', signText: '#ffd166',
+            rearDoor: { enabled: true, z: 0.55, doorW: 1.05, doorH: 1.84, art: 'art/interiors/raw/door_casa_a.png', sign: 'SALA DE JUNTAS', signBg: '#3b3129', signText: '#ffd166' },
             tableW: 2.6, tableD: 0.95, tableZ: 1.5,
             seats: [[1.15, 0.72], [2.34, 0.72], [3.53, 0.72], [1.15, 2.28], [2.34, 2.28], [3.53, 2.28], [0.6, 1.5], [4.08, 1.5]],
             standSpots: [[1.0, 2.62], [1.85, 2.62], [2.7, 2.62], [3.55, 2.62], [0.5, 0.5], [4.18, 0.5]],
@@ -1617,6 +1638,7 @@ export const rulesSchema = z.object({
         hallDoors: { enabled: true, openAhead: 1.15, openSeconds: 0.45, openAngle: 1.0, liftAngle: 1.45 },
         juntaHall: {
           doorW: 1.05, sign: 'SALA DE JUNTAS', signBg: '#3b3129', signText: '#ffd166',
+          rearDoor: { enabled: true, z: 0.55, doorW: 1.05, doorH: 1.84, art: 'art/interiors/raw/door_casa_a.png', sign: 'SALA DE JUNTAS', signBg: '#3b3129', signText: '#ffd166' },
           tableW: 2.6, tableD: 0.95, tableZ: 1.5,
           seats: [[1.15, 0.72], [2.34, 0.72], [3.53, 0.72], [1.15, 2.28], [2.34, 2.28], [3.53, 2.28], [0.6, 1.5], [4.08, 1.5]],
           standSpots: [[1.0, 2.62], [1.85, 2.62], [2.7, 2.62], [3.55, 2.62], [0.5, 0.5], [4.18, 0.5]],
