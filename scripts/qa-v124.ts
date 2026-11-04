@@ -86,7 +86,8 @@ const stF = v.stairs.facade;
 const al = v.stairs.activityLight;
 check('muro frontal configurado alrededor de la puerta', stF.enabled && stF.halfW >= 0.8, `halfW ${stF.halfW}`);
 check('arte de zonas comunes en disco', exists(stF.art), stF.art);
-check('número de planta negro y grande (color + fuente del runtime)', stF.numberColor === '#1c1c1c', stF.numberColor);
+// v1.84 — el número es CLARO (#f4f4f5): la puerta es grafito y un número negro no se leía.
+check('número de planta claro y grande (color + fuente del runtime)', stF.numberColor === '#f4f4f5', stF.numberColor);
 check('bisagras a la IZQUIERDA (vista pasillo)', stF.hinge === 'left', stF.hinge);
 check('apertura automática ANTES de cruzar', stF.openAhead >= 0.8 && stF.openSpeed >= 2, `ahead ${stF.openAhead} m · speed ${stF.openSpeed}`);
 check('ángulo de apertura de hoja real (>90°)', stF.openAngle > Math.PI / 2, `${((stF.openAngle * 180) / Math.PI).toFixed(0)}°`);

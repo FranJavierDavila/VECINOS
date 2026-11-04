@@ -902,8 +902,11 @@ export const rulesSchema = z.object({
             doorBottom: z.number().min(0).default(0.14),
             doorZ: z.number().default(0.08),
             wallT: z.number().positive().default(0.3),
-            art: z.string().default('art/interiors/raw/door_comunal.png'),
-            numberColor: z.string().default('#1c1c1c'),
+            /** v1.84 — puerta MODERNA GRIS (petición del vecino: «ya dijimos que se
+             *  sustituyeran por unas puertas modernas grises»). El cartoon verde de
+             *  v1.26 vuelve a ser solo el arte de las hojas de vivienda. */
+            art: z.string().default('art/interiors/raw/door_moderna_gris.png'),
+            numberColor: z.string().default('#f4f4f5'),
             hinge: z.enum(['left', 'right']).default('left'),
             openAngle: z.number().positive().default(1.75),
             openAhead: z.number().positive().default(1.05),
@@ -950,8 +953,8 @@ export const rulesSchema = z.object({
             doorBottom: 0.14,
             doorZ: 0.08,
             wallT: 0.3,
-            art: 'art/interiors/raw/door_comunal.png',
-            numberColor: '#1c1c1c',
+            art: 'art/interiors/raw/door_moderna_gris.png',
+            numberColor: '#f4f4f5',
             hinge: 'left',
             openAngle: 1.75,
             openAhead: 1.05,
@@ -987,7 +990,7 @@ export const rulesSchema = z.object({
         floorSlab: { enabled: true, thickness: 0.14, color: '#b8c0a8', topAt: 0.14 },
         facade: {
           enabled: true, halfW: 1.2, fullWall: true, color: '#ddd1b8', doorW: 0.86, doorH: 1.84, doorBottom: 0.14, doorZ: 0.08, wallT: 0.3,
-          art: 'art/interiors/raw/door_comunal.png', numberColor: '#1c1c1c', hinge: 'left', openAngle: 1.75, openAhead: 1.05, openSpeed: 3.2,
+          art: 'art/interiors/raw/door_moderna_gris.png', numberColor: '#f4f4f5', hinge: 'left', openAngle: 1.75, openAhead: 1.05, openSpeed: 3.2,
           window: { enabled: true, sill: 0.5, head: 2.3, color: '#cfe3ea', alpha: 0.24, mullions: 5, mullionW: 0.045, frameColor: '#7d7668', rear: true },
           hideNodes: [],
         },

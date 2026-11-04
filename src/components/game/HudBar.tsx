@@ -89,8 +89,22 @@ export function HudBar() {
           </Chip>
         )}
 
-        <Chip icon={Star} iconClassName="text-amber-500" label={t('hud.repAria')}>
-          {reputation}
+        {/* v1.84 — MEDIDOR de reputación (FASE U): número + barra 0..100 en el chip. */}
+        <Chip icon={Star} iconClassName="text-amber-500" label={t('hud.repMeter', { n: reputation })}>
+          <span className="font-semibold tabular-nums">{reputation}</span>
+          <span
+            data-rep-meter=""
+            className="relative inline-block h-1.5 w-14 overflow-hidden rounded-full bg-muted"
+            aria-hidden
+          >
+            <span
+              className={cn(
+                'absolute inset-y-0 left-0 rounded-full',
+                reputation >= 70 ? 'bg-emerald-500' : reputation >= 40 ? 'bg-amber-500' : 'bg-rose-500',
+              )}
+              style={{ width: `${Math.max(0, Math.min(100, reputation))}%` }}
+            />
+          </span>
         </Chip>
 
         {elevator === 'ok' ? (

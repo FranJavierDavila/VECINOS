@@ -27,7 +27,7 @@ const DICT: Record<string, { es: string; en: string }> = {
     es: 'Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.',
     en: 'Move-ins, noise, smells, wifi, pests, smoke and levies: the neighborhood simulator.',
   },
-  'header.version': { es: 'v1.83 · restauración del vecino: El Rincón vuelve al local con su neón y su puerta trasera a la sala de juntas, puertas de escalera cartoon y todas las lavadoras girando — jugable online en GitHub Pages', en: 'v1.83 · neighbor restoration: El Rincón is back with its neon and rear door to the meeting room, cartoon stair doors and every washer spinning — playable online on GitHub Pages' },
+  'header.version': { es: 'v1.84 · puertas de escalera modernas grises, calidad máxima sin bajar de 30 FPS, últimas recomendaciones y medidores de reputación', en: 'v1.84 · modern gray stair doors, max quality without dropping below 30 FPS, latest recommendations and reputation meters' },
   // ── Apagón de assets (v1.47: servidor de arte caído → mundo vacío/cápsulas) ──
   'assets.outage': {
     es: '⚠ No se pudo cargar el arte del juego (¿servidor caído?). El vecindario se recargará en {n} s…',
@@ -422,7 +422,7 @@ const DICT: Record<string, { es: string; en: string }> = {
   },
   'opt.perfTarget': { es: 'Objetivo de FPS', en: 'FPS target' },
   'opt.perfTargetAria': { es: 'Objetivo de FPS que el auto-ajuste garantiza', en: 'FPS target the optimizer guarantees' },
-  'opt.perf.max': { es: 'Máximo rendimiento', en: 'Max performance' },
+  'opt.perf.max': { es: 'Máxima calidad (mín. 30 FPS)', en: 'Max quality (30 FPS floor)' },
   'opt.perf.60': { es: '60 FPS', en: '60 FPS' },
   'opt.perf.45': { es: '45 FPS', en: '45 FPS' },
   'opt.perf.30': { es: '30 FPS (mínimo garantizado)', en: '30 FPS (guaranteed minimum)' },
@@ -430,12 +430,12 @@ const DICT: Record<string, { es: string; en: string }> = {
   'opt.perf.statusManual': { es: 'Auto-ajuste desactivado — manda tu calidad elegida', en: 'Adaptive off — your chosen quality rules' },
   'opt.perf.level.0': { es: 'calidad completa', en: 'full quality' },
   'opt.perf.level.1': { es: 'sombras cada 2 fotogramas', en: 'shadows every 2 frames' },
-  'opt.perf.level.2': { es: 'sin halo de luces (glow off)', en: 'no light glow' },
-  'opt.perf.level.3': { es: 'resolución reducida ×1.2', en: 'reduced resolution ×1.2' },
-  'opt.perf.level.4': { es: 'resolución reducida ×1.4', en: 'reduced resolution ×1.4' },
-  'opt.perf.level.5': { es: 'resolución ×1.65 · sombras cada 3', en: 'resolution ×1.65 · shadows every 3' },
-  'opt.perf.level.6': { es: 'sin sombras', en: 'no shadows' },
-  'opt.perf.level.7': { es: 'resolución ×1.95 · sin sombras', en: 'resolution ×1.95 · no shadows' },
+  'opt.perf.level.2': { es: 'resolución ×1.12 (glow intacto)', en: 'resolution ×1.12 (glow intact)' },
+  'opt.perf.level.3': { es: 'resolución ×1.12 · sin glow', en: 'resolution ×1.12 · no glow' },
+  'opt.perf.level.4': { es: 'resolución ×1.3 · sin glow', en: 'resolution ×1.3 · no glow' },
+  'opt.perf.level.5': { es: 'resolución ×1.5 · sombras cada 3', en: 'resolution ×1.5 · shadows every 3' },
+  'opt.perf.level.6': { es: 'resolución ×1.5 · sin sombras', en: 'resolution ×1.5 · no shadows' },
+  'opt.perf.level.7': { es: 'resolución ×1.9 · sin sombras', en: 'resolution ×1.9 · no shadows' },
   'opt.perf.level.8': { es: 'resolución mínima ×2.3 · sin sombras', en: 'min resolution ×2.3 · no shadows' },
   // ── v1.39 — música + accesibilidad ──
   'opt.music': { es: 'Música', en: 'Music' },
@@ -459,6 +459,46 @@ const DICT: Record<string, { es: string; en: string }> = {
   'opt.colorblind.tritanopia': { es: 'Tritanopía', en: 'Tritanopia' },
   'opt.reduceMotion': { es: 'Reducir animaciones', en: 'Reduce motion' },
   'opt.reduceMotionAria': { es: 'Reducir las animaciones de la interfaz', en: 'Reduce interface animations' },
+  // ── v1.84 — últimas recomendaciones (panel de misiones) + medidores de reputación ──
+  'reco.title': { es: 'Últimas recomendaciones', en: 'Latest recommendations' },
+  'reco.aria': { es: 'Recomendaciones de la comunidad para tu partida', en: 'Community recommendations for your game' },
+  'reco.empty': {
+    es: 'Todo en orden: pasea el barrio, charla con los vecinos (E) y echa un ojo al tablón.',
+    en: 'All quiet: stroll the block, chat with neighbors (E) and keep an eye on the board.',
+  },
+  'reco.decision': {
+    es: 'Tienes una DECISIÓN pendiente: «{title}». Resuélvela en Misiones.',
+    en: 'You have a PENDING decision: “{title}”. Resolve it in Missions.',
+  },
+  'reco.elevator': {
+    es: 'El ascensor sigue averiado: los vecinos de arriba te lo agradecerán.',
+    en: 'The elevator is still broken: the upstairs neighbors will thank you.',
+  },
+  'reco.funds': {
+    es: 'Las arcas de la comunidad están justas ({n} €): las misiones que ingresan dinero ayudan.',
+    en: 'Community funds are running low ({n} €): money-earning missions help.',
+  },
+  'reco.repLow': {
+    es: 'Tu reputación ({n}/100) anda baja: cumple misiones y saluda a los vecinos.',
+    en: 'Your reputation ({n}/100) is low: complete missions and greet the neighbors.',
+  },
+  'reco.repHigh': {
+    es: 'Reputación {n}/100: el vecindario te adora. No lo pierdas.',
+    en: 'Reputation {n}/100: the neighborhood loves you. Don’t lose it.',
+  },
+  'reco.mandate': {
+    es: 'Mandato: día {d} de {n}. Mantén el ánimo del edificio alto para aguantar el cargo.',
+    en: 'Term: day {d} of {n}. Keep the building’s mood high to hold office.',
+  },
+  'reco.mission': { es: 'Sigue la misión «{title}»{rest}.', en: 'Keep going on “{title}”{rest}.' },
+  'reco.missionRest': { es: ' — {s}', en: ' — {s}' },
+  'reco.neighbor': {
+    es: '{name} aún te mira frío ({n}/100): charla con un tema que le guste.',
+    en: '{name} still seems cold ({n}/100): chat with a topic they like.',
+  },
+  'neighbors.affinityMeter': { es: 'Medidor de afinidad: {n} de 100', en: 'Affinity meter: {n} out of 100' },
+  'neighbors.trustMeter': { es: 'Medidor de confianza: {n} de 100', en: 'Trust meter: {n} out of 100' },
+  'hud.repMeter': { es: 'Medidor de reputación: {n} de 100', en: 'Reputation meter: {n} out of 100' },
 };
 
 /** Interpola {vars} simples sobre una plantilla. */

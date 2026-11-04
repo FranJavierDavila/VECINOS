@@ -1,7 +1,10 @@
 /**
- * QA v1.83 "restauración del vecino" — el reporte en vivo tras v1.82 (GitHub Pages):
- *  1. PUERTAS DE ESCALERA: vuelve el arte cartoon v1.26 (door_comunal.png plano de
- *     dos paneles) — adiós la puerta realista «moderna» que v1.27 coló en el cubo.
+ * QA v1.83→v1.84 "la puerta que el vecino quería" — ACTUALIZADO en v1.84: el vecino
+ * aclaró el canon de las puertas («ya dijimos que se sustituyeran por unas puertas
+ * modernas GRISES»), así que la suite v1.83 verifica ahora:
+ *  1. PUERTAS DE ESCALERA: arte MODERNO GRIS (door_moderna_gris.png, md5 de la generación
+ *     IA v1.84) en el catálogo, con número de planta CLARO (legible sobre el grafito).
+ *     door_comunal.png (cartoon verde) sigue en el repo para trasteros/vivienda.
  *  2. LAVANDERÍA: TODAS las máquinas con el bombo girando (drumOnChance 1.0) —
  *     nunca más «planos grises sin nada» por los agujeros sin bombo.
  *  3. EL RINCÓN: la fachada del local vuelve a anunciar el bar con NEÓN
@@ -9,7 +12,7 @@
  *  4. PUERTA TRASERA: dentro del local, tabique a media profundidad con hoja con
  *     bisagra (hallDoors) y cartel pequeño de la SALA DE JUNTAS encima — el bar
  *     da paso a la sala por detrás, sin colisiones ni rutas nuevas (sim intacto).
- *  5. VERSIONES espejadas: sw.js = PwaRegister = v1.83 + banner i18n.
+ *  5. VERSIONES espejadas: sw.js = PwaRegister = v1.84 + banner i18n.
  *  + Sim determinista intacto (240 ticks).
  */
 import fs from 'fs';
@@ -44,11 +47,11 @@ const pwaTs = srcOf('src/components/game/PwaRegister.tsx');
 const swJs = srcOf('public/sw.js');
 const i18nTs = srcOf('src/game/client/i18n.ts');
 
-console.log('── 1. Puertas de escalera: arte cartoon restaurado ──');
-const doorPath = path.join(import.meta.dir, '..', 'public/art/interiors/raw/door_comunal.png');
-check('door_comunal.png existe en disco', fs.existsSync(doorPath));
-// El arte cartoon v1.26 (md5 d6cad51c...) frente a la puerta realista v1.27 (cacb88ea...):
-// comprobación por TAMAÑO de fichero + paleta dominante (el cartoon es plano y pesa menos).
+console.log('── 1. Puertas de escalera: MODERNAS GRISES (canon v1.84) ──');
+const doorPath = path.join(import.meta.dir, '..', 'public/art/interiors/raw/door_moderna_gris.png');
+check('door_moderna_gris.png existe en disco', fs.existsSync(doorPath));
+// v1.84 — el canon del vecino: «ya dijimos que se sustituyeran por unas puertas
+// modernas GRISES». Arte IA generado (grafito, pomo de acero, vista frontal).
 const doorStat = fs.statSync(doorPath);
 const doorBytes = fs.readFileSync(doorPath);
 const md5 = (buf: Buffer): string => {
@@ -57,8 +60,13 @@ const md5 = (buf: Buffer): string => {
   return require('crypto').createHash('md5').update(buf).digest('hex');
 };
 const hash = md5(doorBytes);
-check('door_comunal.png es el arte cartoon v1.26 (md5)', hash === 'd6cad51cef15f3a8dbb088babac478a1', hash);
-check('el arte pesa como el cartoon (no el realista v1.27)', doorStat.size < 900 * 1024, `${doorStat.size} bytes`);
+check('door_moderna_gris.png es el arte generado v1.84 (md5)', hash === 'bbf74c18beea4f6167860b1fd9a9ff62', hash);
+check('el arte pesa como una textura razonable', doorStat.size > 20 * 1024 && doorStat.size < 3 * 1024 * 1024, `${doorStat.size} bytes`);
+const facadeArt = (v.stairs.facade as { art?: string; numberColor?: string }).art;
+check('el catálogo apunta a la puerta gris', facadeArt === 'art/interiors/raw/door_moderna_gris.png', String(facadeArt));
+const facadeNum = (v.stairs.facade as { numberColor?: string }).numberColor;
+check('número de planta CLARO (legible sobre grafito)', facadeNum === '#f4f4f5', String(facadeNum));
+check('door_comunal.png sigue en el repo (trasteros/vivienda)', fs.existsSync(path.join(import.meta.dir, '..', 'public/art/interiors/raw/door_comunal.png')));
 
 console.log('── 2. Lavandería: todos los bombos giran ──');
 const lav = v.locals.lavanderia as unknown as Record<string, number>;
@@ -82,10 +90,10 @@ check('tabique del color del pasillo (corridorWall)', buildingTs.includes('_tabi
 check('la mesa de la junta SIGUE dentro (nada se pierde)', !!jh.tableW && (jh.seats as unknown[]).length >= 8);
 check('asientos de la junta tras el tabique (z > rearDoor.z)', (jh.seats as [number, number][]).every(([, sz]) => sz > (rd.z as number)));
 
-console.log('── 5. Versiones espejadas v1.83 ──');
-check('sw.js VERSION = vecinos-v1.83', swJs.includes("vecinos-v1.83"));
-check('PwaRegister espeja v1.83', pwaTs.includes('vecinos-v1.83'));
-check('banner i18n v1.83 (es)', i18nTs.includes('v1.83 · restauración del vecino'));
+console.log('── 5. Versiones espejadas v1.84 ──');
+check('sw.js VERSION = vecinos-v1.84', swJs.includes("vecinos-v1.84"));
+check('PwaRegister espeja v1.84', pwaTs.includes('vecinos-v1.84'));
+check('banner i18n v1.84 (es)', i18nTs.includes('v1.84 · puertas de escalera modernas grises'));
 
 console.log('── 6. Sim determinista (240 ticks) ──');
 const world = createWorld(content, 'slice');
@@ -102,5 +110,5 @@ for (let i = 0; i < 240; i++) {
 }
 check('determinismo (240 ticks idénticos)', hashes.join('|') === hashes2.join('|'), hashes[hashes.length - 1] ?? '');
 
-console.log(`\nqa-v183: ${pass} ✓ / ${fail} ✗`);
+console.log(`\nqa-v183 (actualizada v1.84): ${pass} ✓ / ${fail} ✗`);
 process.exit(fail === 0 ? 0 : 1);

@@ -31,6 +31,7 @@ import { EventLog } from './EventLog';
 import { MissionsPanel } from './MissionsPanel';
 import { ParamsPanel } from './ParamsPanel';
 import { ProjectCard } from './ProjectCard';
+import { RecommendationsPanel } from './RecommendationsPanel';
 import { ResidentsPanel } from './ResidentsPanel';
 
 // ── Tinta a bolígrafo: iconos garabateados (mismo trazo que PostItControls) ──
@@ -312,6 +313,9 @@ export function InfoOverlay() {
                     <span aria-hidden>⌨</span> {prompt}
                   </p>
                 )}
+                {/* v1.84 — las ÚLTIMAS RECOMENDACIONES viven aquí arriba: se abre Misiones
+                    y lo primero que se lee es qué conviene hacer ahora mismo. */}
+                <RecommendationsPanel />
                 <PostitPager
                   pages={[
                     { id: 'curso', labelKey: 'missions.page.active', content: <MissionsPanel filter="active" fill /> },

@@ -19,8 +19,9 @@ export type ColorblindMode = 'off' | 'protanopia' | 'deuteranopia' | 'tritanopia
 /**
  * v1.38 — Objetivo de FPS del auto-ajuste de rendimiento:
  *  · 30/45/60 — el optimizador mantiene esa cadencia degradando detalles solo si hace falta.
- *  · 'max'    — preset de máximo rendimiento: arranca sin glow y con sombras baratas,
- *               y solo degrada resolución si no llega a 30 (el suelo mínimo garantizado).
+ *  · 'max'    — v1.84: CALIDAD MÁXIMA — el piso es S0 (calidad completa, con glow y
+ *               sombras) y solo degrada si el juego real no llega a 30 FPS (el suelo
+ *               mínimo garantizado: «sin llegar a bajar de los 30FPS»).
  */
 export type PerfTarget = 30 | 45 | 60 | 'max';
 
@@ -49,9 +50,14 @@ export interface GameOptions {
 
 const OPTIONS_KEY = 'vecinos.options';
 
+/** v1.84 — versión del formato de opciones: el snapshot antiguo (sin optsVer) sube su
+ *  calidad 'normal' de fábrica a 'alta' UNA sola vez (petición del vecino: «se deben
+ *  permitir calidad máxima»); después, lo que el jugador elija manda. */
+const OPTS_VER = 2;
+
 export const DEFAULT_OPTIONS: GameOptions = {
   volume: 0.7,
-  quality: 'normal',
+  quality: 'alta',
   fpsVisible: false,
   lang: 'es',
   perfAuto: true,
@@ -72,11 +78,20 @@ export function loadOptions(): GameOptions {
   try {
     const raw = localStorage.getItem(OPTIONS_KEY);
     if (!raw) return { ...DEFAULT_OPTIONS };
-    const parsed = JSON.parse(raw) as Partial<GameOptions>;
+    const parsed = JSON.parse(raw) as Partial<GameOptions> & { optsVer?: number };
+    // v1.84 — migración única: un snapshot SIN optsVer con la calidad vieja de fábrica
+    // ('normal') se considera sin elegir → sube a 'alta'. Un snapshot con optsVer
+    // respeta SIEMPRE la calidad guardada (aunque sea 'normal').
+    const legacyNormal = parsed.optsVer === undefined && parsed.quality === 'normal';
+    const quality = legacyNormal
+      ? 'alta'
+      : parsed.quality === 'eco' || parsed.quality === 'alta' || parsed.quality === 'normal'
+        ? parsed.quality
+        : DEFAULT_OPTIONS.quality;
     return {
       volume:
         typeof parsed.volume === 'number' ? Math.min(1, Math.max(0, parsed.volume)) : DEFAULT_OPTIONS.volume,
-      quality: parsed.quality === 'eco' || parsed.quality === 'alta' ? parsed.quality : 'normal',
+      quality,
       fpsVisible: parsed.fpsVisible === true,
       lang: parsed.lang === 'en' ? 'en' : 'es',
       perfAuto: parsed.perfAuto !== false,
@@ -102,7 +117,7 @@ export function loadOptions(): GameOptions {
 
 function persist(o: GameOptions): void {
   try {
-    localStorage.setItem(OPTIONS_KEY, JSON.stringify(o));
+    localStorage.setItem(OPTIONS_KEY, JSON.stringify({ ...o, optsVer: OPTS_VER }));
   } catch {
     /* la preferencia solo vive en sesión */
   }

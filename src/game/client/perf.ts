@@ -13,12 +13,16 @@ import type { ShadowsDirector } from './shadows';
  * objetivo del menú de opciones (30/45/60 o máximo rendimiento). Solo presentación:
  * no toca el sim, la partida ni el contenido.
  *
- * La escalera (S0 → S8) tira primero de lo que no se ve y luego de lo que sí:
- *   S0 calidad completa → S1 sombras cada 2 fotogramas → S2 sin glow (bloom)
- *   → S3/S4/S5 resolución interna ↓ → S6 sin sombras → S7/S8 resolución al mínimo.
- * Recuperar es SIMÉTRICO pero lento (más muestras a favor + cooldown) para no
- * oscilar; el modo 'máximo' además nunca re-enciende el glow (piso en S2) y arranca
- * ya optimizado.
+ * La escalera (S0 → S8) tira primero de lo que no se ve y luego de lo que sí, y la
+ * resolución — lo que el vecino nota como «se degrada la calidad» — se toca LO ÚLTIMO:
+ *   S0 calidad completa → S1 sombras cada 2 fotogramas → S2 resolución −12% (glow intacto)
+ *   → S3 sin glow → S4/S5 resolución −30/−50% → S6 sin sombras → S7/S8 resolución al mínimo.
+ * Recuperar es SIMÉTRICO y rápido (2 muestras + cooldown corto) para volver a la
+ * calidad máxima en cuanto el presupuesto de frame lo permita: el piso SIEMPRE es S0
+ * (calidad completa) mientras los FPS no bajen de 30 — v1.84, petición del vecino:
+ * «se deben permitir calidad máxima sin llegar a bajar de los 30FPS». El modo
+ * 'máximo' del menú ya no arranca exprimido: apunta a S0 y solo degrada si el
+ * juego no llega a 30 FPS reales.
  *
  * Regalo extra siempre activo (cero impacto visual): con sol apagado (noche/cielo
  * cerrado) el mapa de profundidad de las sombras se CONGELA — el sol de la escena
@@ -44,31 +48,31 @@ interface Rung {
   shadows: number | 'off';
 }
 
-/** La escalera completa, de más bonita a más rápida (S0..S8). */
+/** La escalera completa, de más bonita a más rápida (S0..S8). v1.84: la resolución
+ *  (el desenfoque que el vecino llama «degradación») se toca al FINAL; el glow
+ *  aguanta hasta S3. */
 const LADDER: readonly Rung[] = [
   { scale: 1, glow: true, shadows: 1 },
   { scale: 1, glow: true, shadows: 2 },
-  { scale: 1, glow: false, shadows: 2 },
-  { scale: 1.2, glow: false, shadows: 2 },
-  { scale: 1.4, glow: false, shadows: 2 },
-  { scale: 1.65, glow: false, shadows: 3 },
-  { scale: 1.65, glow: false, shadows: 'off' },
-  { scale: 1.95, glow: false, shadows: 'off' },
+  { scale: 1.12, glow: true, shadows: 2 },
+  { scale: 1.12, glow: false, shadows: 2 },
+  { scale: 1.3, glow: false, shadows: 2 },
+  { scale: 1.5, glow: false, shadows: 3 },
+  { scale: 1.5, glow: false, shadows: 'off' },
+  { scale: 1.9, glow: false, shadows: 'off' },
   { scale: 2.3, glow: false, shadows: 'off' },
 ];
 
-/** Piso del modo 'máximo': nunca se recupera por encima de este peldaño (sin glow). */
-const MAX_MODE_FLOOR = 2;
-
-/** FPS objetivo real por ajuste del menú (máximo sigue prometiendo el mínimo de 30). */
+/** FPS objetivo real por ajuste del menú: TODOS los modos prometen el suelo de 30
+ *  FPS (v1.84) — 'máximo' significa «calidad máxima posible sin bajar de 30». */
 const TARGET_FPS: Record<PerfTarget, number> = { 30: 30, 45: 45, 60: 60, max: 30 };
 
 const SAMPLE_WINDOW = 1.2; // s por ventana de medición
 const GRACE_AFTER_CHANGE = 5000; // ms sin decidir tras tocar algo (compilación de shaders, etc.)
 const COOLDOWN_DOWN = 4000; // ms entre degradaciones
-const COOLDOWN_UP = 9000; // ms entre recuperaciones (más tímido: que no baile)
+const COOLDOWN_UP = 6000; // ms entre recuperaciones (v1.84: volver a calidad máxima PRONTO)
 const DOWN_SAMPLES = 2; // ventanas seguidas por debajo del objetivo → degradar
-const UP_SAMPLES = 3; // ventanas seguidas cómodas → recuperar
+const UP_SAMPLES = 2; // ventanas seguidas cómodas → recuperar (v1.84: antes 3, tardaba en subir)
 
 export class PerfDirector {
   private baseScale = QUALITY_SCALE.normal;
@@ -124,9 +128,8 @@ export class PerfDirector {
     this.below = 0;
     this.above = 0;
     this.graceUntil = performance.now() + GRACE_AFTER_CHANGE;
-    // Máximo rendimiento: arranca ya exprimido (sin glow, sombras baratas).
-    // Solo con el auto-ajuste activo: en manual el jugador manda (nivel 0 siempre).
-    if (this.auto && target === 'max' && this.level < MAX_MODE_FLOOR) this.setLevel(MAX_MODE_FLOOR);
+    // v1.84 — 'máximo' YA NO arranca exprimido (antes saltaba a S2 y mataba el glow):
+    // apunta a la calidad completa (S0) y solo degrada si el juego no llega a 30 FPS.
   }
 
   /** La calidad manual (alta/normal/eco) es el SUELO visual del peldaño S0. */
@@ -175,8 +178,9 @@ export class PerfDirector {
     } else if (fps >= target + Math.max(6, target * 0.18)) {
       this.below = 0;
       this.above += 1;
-      const floor = this.target === 'max' ? MAX_MODE_FLOOR : 0;
-      if (this.above >= UP_SAMPLES && sinceChange >= COOLDOWN_UP && this.level > floor) {
+      // v1.84: el piso de recuperación SIEMPRE es S0 — la calidad máxima se permite
+      // en cualquier modo mientras el presupuesto de frame lo permita.
+      if (this.above >= UP_SAMPLES && sinceChange >= COOLDOWN_UP && this.level > 0) {
         this.setLevel(this.level - 1);
       }
     } else {
