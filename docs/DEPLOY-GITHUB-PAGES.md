@@ -4,20 +4,23 @@
 
 **https://franjavierdavila.github.io/VECINOS/**
 
-## Estado (2026-11-04, sesión «Opción B»)
+## Estado (2026-11-05, v1.82·C — EN VIVO ✅)
 
-- **gh-pages = 0147ad4, export v1.82 publicado y verificado en navegador** (banner, escena
-  viva 2239+ mallas, barrio 3D con píxeles, guardar→recargar→cargar por localStorage).
-- **La URL sigue 404**: Pages está en `build_type: "workflow"` sin ningún run. Ni el PAT
-  viejo (Contents-only) ni el nuevo (2026-11-04: **read-only** — GET 200, PUT/push 403;
-  el `permissions.admin:true` del payload es el rol del usuario, no del token) puede
-  activarla. Falta UNA acción humana:
-  - **(A) Click manual [10 s]**: Settings → Pages → Source *«Deploy from a branch»* →
-    `gh-pages` / (root) → Save. La URL sirve el export v1.82 en 1–3 min.
-  - **(B) PAT con Contents R-W + Workflows R-W** (fine-grained) o classic con scope
-    `workflow`: `git push origin workflows-activate:main` (fast-forward, el commit
-    62c8478 trae el yml corregido) y Pages se activa sola vía Actions; cada push a main
-    auto-despliega para siempre.
+- **La URL está VIVA**: https://franjavierdavila.github.io/VECINOS/ → HTTP 200, juego
+  v1.82 verificado en navegador real sobre el sitio público (banner, barrio 3D con
+  píxeles, HUD Día 1 · 08:08, Arcas/Hucha 800 €, intro Molina & Hijos, 0 errores de
+  consola).
+- Cómo se desbloqueó (camino B, completado): el usuario activó Pages con fuente
+  «GitHub Actions» (build_type workflow — por eso el 404 persistía: Pages existía pero
+  sin ningún run) y trajo un PAT fine-grained con **Contents R-W + Workflows R-W**. El
+  push `workflows-activate:main` (fast-forward 336ffaa→177ce22) disparó el run
+  41881742781 → build + deploy **success** en ~2 min con el GITHUB_TOKEN del runner
+  (sin necesitar PAT de Pages).
+- **Contrato vigente: cada push a main despliega.** La rama gh-pages (0147ad4) queda
+  como histórico del camino A; ya no se usa.
+- Límites del PAT (fine-grained, para el futuro): sin Actions:write (dispatch por API
+  → 403) ni Pages:write (PUT /pages → 403) — sobran: el workflow es la fuente de la
+  verdad. Rotar el token: vivió pegado en el chat.
 
 ## El flujo (probado desde v1.74.1)
 
@@ -29,11 +32,13 @@ sirve tal cual con un export estático.
    pisar el `.next` del dev), retira `src/app/api` temporalmente, ajusta el manifest al
    subpath, añade `.nojekyll` y publica la rama **`gh-pages`** como commit huérfano
    (plumbing `GIT_INDEX_FILE`/`GIT_WORK_TREE`: el working tree de main jamás se toca).
-2. **Alta de Pages (una sola vez)**: con los tokens actuales es un **click manual**
-   (camino A del bloque «Estado») o se automatiza con un PAT con permisos (camino B).
-3. Cada redeploy = volver a correr el script; la URL se refresca en 1–3 min. OJO: los
-   commits de gh-pages son huérfanos — el push lleva `--force` (corregido en el script;
-   solo el primer push de la rama puede ser fast-forward).
+2. **Alta de Pages**: HECHA (2026-11-05) y además el workflow vive ya en main, así que
+   el alta no se toca más: **cada push a main construye y publica solo**
+   (run Actions «Deploy a GitHub Pages», ~2 min). El script y la rama gh-pages quedan
+   como camino histórico (B) si algún día se prefiere «Deploy from a branch».
+3. Redeploy manual (alternativa al push): volver a correr el script y force-push la
+   rama gh-pages — SOLO si Pages se cambiase a «Deploy from a branch» (los commits de
+   gh-pages son huérfanos y el push lleva `--force`).
 
 ## Qué cambia en el export estático (`NEXT_PAGES=1` + `NEXT_PUBLIC_SW=off`)
 
