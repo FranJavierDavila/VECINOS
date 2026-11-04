@@ -1,0 +1,79 @@
+# VECINOS — Despliegue a GitHub Pages (Opción B, activado en v1.82).
+#
+# El juego entero es cliente (Babylon.js + sim determinista en el navegador), así que
+# Pages lo sirve tal cual: build de export estático con basePath /VECINOS y sin rutas
+# /api/* (el cliente ya degrada: guardado en localStorage, telemetría descarta lotes,
+# multijugador con aviso honesto, artref descarga PNG). Pages está configurado con
+# build_type "workflow": este workflow es la fuente de la verdad — cada push a main
+# despliega (o manual desde Actions → Run workflow).
+#
+# Réplica exacta del canon validado scripts/deploy-pages.sh (NEXT_PAGES=1 +
+# NEXT_PUBLIC_SW=off, export en distDir .next-pages), pero ejecutado en el runner de
+# Actions y publicado vía actions/deploy-pages: sin rama gh-pages y sin necesitar un
+# PAT con permisos de Pages (el GITHUB_TOKEN del runner lleva pages:write).
+#
+# URL pública: https://franjavierdavila.github.io/VECINOS/
+name: Deploy a GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Export estático (basePath /VECINOS)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Instalar dependencias
+        run: bun install --frozen-lockfile
+
+      # output:'export' no admite route handlers con POST: las /api/* viven solo en el
+      # despliegue con servidor (el checkout es efímero, fuera no rompen nada).
+      - name: Retirar rutas de servidor (incompatibles con export estático)
+        run: rm -rf src/app/api
+
+      # Canon de scripts/deploy-pages.sh: NEXT_PAGES=1 → output:'export' + basePath
+      # /VECINOS + distDir .next-pages (no pisa el .next del dev); NEXT_PUBLIC_SW=off →
+      # guards estáticos v1.82 (SW sin registrar, guardado localStorage, telemetría
+      # descarta lotes, multijugador aviso honesto, artref descarga los PNG).
+      - name: Build estático
+        env:
+          NEXT_PAGES: '1'
+          NEXT_PUBLIC_SW: 'off'
+        run: bunx next build
+
+      # GitHub Pages ignora carpetas que empiezan por _ (Jekyll): sin .nojekyll, /_next/ muere.
+      - name: Marca .nojekyll
+        run: touch .next-pages/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .next-pages
+
+  deploy:
+    name: Publicar en Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
