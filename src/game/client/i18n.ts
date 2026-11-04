@@ -27,7 +27,7 @@ const DICT: Record<string, { es: string; en: string }> = {
     es: 'Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.',
     en: 'Move-ins, noise, smells, wifi, pests, smoke and levies: the neighborhood simulator.',
   },
-  'header.version': { es: 'v1.75 · recuperación: caché PWA refrescada — el vecino vuelve a VER lo último (recercados de puertas, lavandería, fachada de ladrillo del cubo de escalera, cristal del portal) y la telemetría de playtest vuelve a casa', en: 'v1.75 · recovery: PWA cache refreshed — the neighbor sees the latest work again (door frames, laundry, brick stair-core facade, entry-hall glass) and playtest telemetry is back home' },
+  'header.version': { es: 'v1.76 · FASE T: telemetría de playtest viva — minutos activos por sesión (latido solo con pestaña visible), errores deduplicados por huella, vista de sesiones en /api/telemetry', en: 'v1.76 · PHASE T: playtest telemetry live — active minutes per session (heartbeat only while tab visible), fingerprint-deduped errors, sessions view at /api/telemetry' },
   // ── Apagón de assets (v1.47: servidor de arte caído → mundo vacío/cápsulas) ──
   'assets.outage': {
     es: '⚠ No se pudo cargar el arte del juego (¿servidor caído?). El vecindario se recargará en {n} s…',

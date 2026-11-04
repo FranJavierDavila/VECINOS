@@ -1,5 +1,5 @@
 /**
- * TELEMETRÍA DE VECINOS — CLIENTE (v1.75, reconstruida).
+ * TELEMETRÍA DE VECINOS — CLIENTE (v1.76: FASE T viva).
  *
  * Reconstrucción del módulo perdido en el rollback. Diseño:
  *   - CAPTURA: window 'error' + 'unhandledrejection' + console.error envuelto (una vez).
@@ -7,16 +7,18 @@
  *     coincide en los dos lados (los 437× de `nodeOf` se contaron como UNA fila).
  *   - FLUSH POR LOTES: el buffer viaja a POST /api/telemetry al llegar a MAX_BATCH
  *     eventos o cada FLUSH_MS — el juego no paga una petición por error.
+ *   - LATIDO DE ACTIVIDAD (FASE T): cada HEARTBEAT_MS con la pestaña VISIBLE manda un
+ *     'heartbeat' — el servidor lo convierte en minutos activos por sesión (activeMins).
+ *     Pestaña en segundo plano = sin latido: mide atención real, no pestañas abiertas.
  *   - BEACON DE DESPEDIDA: pagehide / visibilitychange→hidden manda lo pendiente con
  *     navigator.sendBeacon (el último error de una pestaña cerrada también cuenta).
  *   - JAMÁS MOLESTA: todo envuelto en try/catch, sin logs propios en consola, sin
  *     reintento infinito si la red cae (los lotes se pierden con dignidad).
- *
- * El latido de actividad por minutos (FASE T) viene después: esta base es la que se perdió.
  */
 
 const MAX_BATCH = 12;
 const FLUSH_MS = 5000;
+const HEARTBEAT_MS = 60_000;
 const SESSION_KEY = 'vecinos.telemetry.session';
 
 /** FNV-1a 32-bit — espejo exacto del de src/lib/telemetry-store.ts. */
@@ -63,6 +65,7 @@ class TelemetryClient {
   private session = sessionId();
   private buffer: ClientEvent[] = [];
   private timer: ReturnType<typeof setInterval> | null = null;
+  private beatTimer: ReturnType<typeof setInterval> | null = null;
   private installed = false;
 
   install(): void {
@@ -114,6 +117,18 @@ class TelemetryClient {
     this.timer = setInterval(() => this.flush(false), FLUSH_MS);
     const t = this.timer as unknown as { unref?: () => void };
     if (typeof t.unref === 'function') t.unref();
+
+    // LATIDO FASE T: un 'heartbeat' por minuto SOLO con la pestaña visible. El servidor
+    // los convierte en activeMins (minutos activos) en la vista de sesiones.
+    this.beatTimer = setInterval(() => {
+      try {
+        if (document.visibilityState === 'visible') this.push({ type: 'heartbeat', msg: 'min' });
+      } catch {
+        /* nada */
+      }
+    }, HEARTBEAT_MS);
+    const b = this.beatTimer as unknown as { unref?: () => void };
+    if (typeof b.unref === 'function') b.unref();
 
     // Primer flush temprano: si el boot truena, el 'session' ya llegó.
     setTimeout(() => this.flush(false), 1200);

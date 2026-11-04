@@ -14,7 +14,7 @@
  *     página se recarga UNA vez sola (guardada en PwaRegister). Adiós a la doble recarga manual.
  *   - Las peticiones que no son GET (save/load API) NUNCA se cachean.
  */
-const VERSION = 'vecinos-v1.75'; // v1.75 (recuperación): bump de caché — el vecino veía la escena vieja (recercados/lavandería/cubo escalera/cristal portal) por shell precacheado de un snapshot anterior; instalación fresca = escena actual
+const VERSION = 'vecinos-v1.76'; // v1.76 (FASE T): telemetría de playtest viva — latido de actividad por minuto (solo pestaña visible), errores deduplicados por huella FNV-1a, vista de sesiones en GET /api/telemetry. Antes v1.75 (recuperación): la shell precacheada servía código viejo; el bump la refrescó
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const SHELL_ASSETS = ['/', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];

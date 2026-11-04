@@ -73,6 +73,7 @@ export interface ErrorAggregate {
   stack: string;
   firstTs: number;
   lastTs: number;
+  /** Cuántas sesiones distintas han visto este error (triage: 1 sesión = casi seguro local). */
   sessions: number;
 }
 
@@ -83,6 +84,8 @@ export interface SessionView {
   lastSeen: number;
   events: number;
   errors: number;
+  /** Minutos ACTIVOS: cada latido del cliente (solo con pestaña visible) suma 1. */
+  activeMins: number;
   lastType: string;
 }
 
@@ -104,7 +107,7 @@ const SNAPSHOT_DEBOUNCE_MS = 1000;
 
 export class TelemetryStore {
   private events: TelemetryEvent[] = [];
-  private errors = new Map<string, ErrorAggregate>();
+  private errors = new Map<string, ErrorAggregate & { seen: Set<string> }>();
   private sessions = new Map<string, SessionView & { lastType: string }>();
   private totals = { events: 0, errors: 0, drops: 0 };
   private readonly boot = Date.now();
@@ -139,7 +142,7 @@ export class TelemetryStore {
         if (agg) {
           agg.count += 1;
           agg.lastTs = ts;
-          agg.sessions += agg.stack || !e.stack ? 0 : 0; // sesiones únicas se ajustan abajo
+          agg.seen.add(session);
           if (!agg.msg && msg) agg.msg = msg;
         } else {
           // Techo del mapa de errores: expulsa el de contador mínimo (nunca crece sin fin).
@@ -163,6 +166,7 @@ export class TelemetryStore {
             firstTs: ts,
             lastTs: ts,
             sessions: 1,
+            seen: new Set([session]),
           });
         }
         this.totals.errors += 1;
@@ -175,12 +179,13 @@ export class TelemetryStore {
       }
       this.totals.events += 1;
 
-      // Sesión: lastSeen latiendo con cada lote (base del playtest FASE T).
+      // Sesión: lastSeen latiendo con cada evento; los heartbeats cuentan minutos ACTIVOS.
       const sess = this.sessions.get(session);
       if (sess) {
         sess.lastSeen = ts;
         sess.events += 1;
         if (isError) sess.errors += 1;
+        if (type === 'heartbeat') sess.activeMins += 1;
         sess.lastType = type;
       } else {
         if (this.sessions.size >= MAX_SESSIONS) {
@@ -201,6 +206,7 @@ export class TelemetryStore {
           lastSeen: ts,
           events: 1,
           errors: isError ? 1 : 0,
+          activeMins: type === 'heartbeat' ? 1 : 0,
           lastType: type,
         });
       }
@@ -213,8 +219,10 @@ export class TelemetryStore {
   /** GET /api/telemetry — la vista agregada que lee el humano. */
   snapshot(): TelemetrySnapshot {
     const now = Date.now();
-    const errors = [...this.errors.values()].sort((a, b) => b.count - a.count);
-    const sessions = [...this.sessions.values()].sort((a, b) => b.lastSeen - a.lastSeen);
+    const errors: ErrorAggregate[] = [...this.errors.values()]
+      .sort((a, b) => b.count - a.count)
+      .map(({ seen, ...pub }) => ({ ...pub, sessions: seen.size }));
+    const sessions: SessionView[] = [...this.sessions.values()].sort((a, b) => b.lastSeen - a.lastSeen);
     const recent = this.events.slice(-50);
     return {
       boot: this.boot,
