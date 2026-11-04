@@ -33,5 +33,5 @@ COMMIT=$(git commit-tree "$TREE" -m "gh-pages: export estático desde main $(git
 git update-ref refs/heads/gh-pages "$COMMIT"
 unset GIT_INDEX_FILE GIT_WORK_TREE
 
-git push origin gh-pages
+git push --force origin gh-pages
 echo "✓ gh-pages actualizado desde main $(git rev-parse --short main) → https://franjavierdavila.github.io/VECINOS/"

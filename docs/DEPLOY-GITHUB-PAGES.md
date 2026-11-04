@@ -4,6 +4,21 @@
 
 **https://franjavierdavila.github.io/VECINOS/**
 
+## Estado (2026-11-04, sesión «Opción B»)
+
+- **gh-pages = 0147ad4, export v1.82 publicado y verificado en navegador** (banner, escena
+  viva 2239+ mallas, barrio 3D con píxeles, guardar→recargar→cargar por localStorage).
+- **La URL sigue 404**: Pages está en `build_type: "workflow"` sin ningún run. Ni el PAT
+  viejo (Contents-only) ni el nuevo (2026-11-04: **read-only** — GET 200, PUT/push 403;
+  el `permissions.admin:true` del payload es el rol del usuario, no del token) puede
+  activarla. Falta UNA acción humana:
+  - **(A) Click manual [10 s]**: Settings → Pages → Source *«Deploy from a branch»* →
+    `gh-pages` / (root) → Save. La URL sirve el export v1.82 en 1–3 min.
+  - **(B) PAT con Contents R-W + Workflows R-W** (fine-grained) o classic con scope
+    `workflow`: `git push origin workflows-activate:main` (fast-forward, el commit
+    62c8478 trae el yml corregido) y Pages se activa sola vía Actions; cada push a main
+    auto-despliega para siempre.
+
 ## El flujo (probado desde v1.74.1)
 
 El juego entero es cliente (Babylon.js + sim determinista en el navegador): Pages lo
@@ -14,10 +29,11 @@ sirve tal cual con un export estático.
    pisar el `.next` del dev), retira `src/app/api` temporalmente, ajusta el manifest al
    subpath, añade `.nojekyll` y publica la rama **`gh-pages`** como commit huérfano
    (plumbing `GIT_INDEX_FILE`/`GIT_WORK_TREE`: el working tree de main jamás se toca).
-2. **Alta de Pages (una sola vez, manual)**: GitHub → Settings → Pages → Source:
-   *«Deploy from a branch»* → `gh-pages` / (root) → Save. El PAT del sandbox es
-   Contents-only y la API de Pages responde 403: este click no se puede automatizar hoy.
-3. Cada redeploy = volver a correr el script; la URL se refresca en 1–3 min.
+2. **Alta de Pages (una sola vez)**: con los tokens actuales es un **click manual**
+   (camino A del bloque «Estado») o se automatiza con un PAT con permisos (camino B).
+3. Cada redeploy = volver a correr el script; la URL se refresca en 1–3 min. OJO: los
+   commits de gh-pages son huérfanos — el push lleva `--force` (corregido en el script;
+   solo el primer push de la rama puede ser fast-forward).
 
 ## Qué cambia en el export estático (`NEXT_PAGES=1` + `NEXT_PUBLIC_SW=off`)
 
@@ -34,17 +50,22 @@ Las URLs de contenido y arte son **relativas** en los catálogos y en el código
 El `manifest.webmanifest` usa `start_url`/`scope` `./` e iconos relativos, y el
 `layout.tsx` prefija manifest/iconos con `/VECINOS` solo cuando `NEXT_PAGES=1`.
 
-## Workflows de GitHub Actions (aparcao, listo para el futuro)
+## Workflows de GitHub Actions (a un push de distancia)
 
 El PAT del sandbox **no puede publicar `.github/workflows/`** (scope «workflow»
-requerido; rechaza el push entero). Aparcao y listo:
+requerido; rechaza el push entero — probado también con el PAT read-only de 2026-11-04).
+El yml ya está escrito y commitido:
 
-- `docs/DEPLOY-PAGES-ACTIONS.yml.txt` — workflow de deploy (build en runner +
-  `deploy-pages`), con rutas scope-relative del SW v1.82 ya compatibles.
-- `docs/PAGES-WORKFLOW.yml.txt` y `docs/ci-fase-h.yml.txt` — el canon de la rama
-  remota (rama local `workflows-activate`, commit 5e9ffb9, con ambos yml listos).
+- Rama local **`workflows-activate`** — commit del yml corregido (62c8478, rebasado sobre
+  main): build canon `NEXT_PAGES=1` + `NEXT_PUBLIC_SW='off'` en el runner + `.nojekyll` +
+  `upload-pages-artifact` desde **`.next-pages`** + `actions/deploy-pages@v4` con el
+  GITHUB_TOKEN del runner (no necesita PAT de Pages).
+- `docs/DEPLOY-PAGES-ACTIONS.yml.txt` — copia del mismo canon (reemplaza al txt viejo,
+  que apuntaba a `out/` y a `VECINOS_STATIC_EXPORT`: nombres de la línea remota v1.81).
+- `docs/PAGES-WORKFLOW.yml.txt` y `docs/ci-fase-h.yml.txt` — canon histórico de la rama
+  remota (5e9ffb9).
 
-En cuanto el token tenga **Workflows: R-W** (+ Pages write): `git push origin
+En cuanto el token tenga **Contents R-W + Workflows R-W**: `git push origin
 workflows-activate:main` y el despliegue pasa a ser automático en cada push a main.
 
 ## Comprobación rápida tras un deploy
