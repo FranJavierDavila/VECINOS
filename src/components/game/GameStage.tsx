@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { getController } from '@/game/client/bridge';
 import { loadBabylonScript } from '@/game/client/babylon';
+import { installTelemetry } from '@/game/client/telemetry';
 import { selectModalOpen, useGameStore } from '@/game/client/store';
 import { useT } from '@/game/client/i18n';
 import { TEXT_SCALE_PCT } from '@/game/client/options';
@@ -19,6 +20,10 @@ import { TouchControls } from './TouchControls';
 import { PauseMenu } from './PauseMenu';
 import { TutorialCard } from './TutorialCard';
 import { MoveRight } from 'lucide-react';
+
+// Telemetría v1.75: la instalamos en la evaluación del módulo (lo más pronto del cliente).
+// Idempotente; en SSR no hace nada (guard interno de window).
+installTelemetry();
 
 /**
  * v1.40 — Overlay de CONTEXTO GRÁFICO PERDIDO: el navegador nos quitó el WebGL/WebGPU
