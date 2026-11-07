@@ -1752,12 +1752,17 @@ class GameController {
         light.specular = Color3.FromHexString(fl.color).scale(0.35);
         light.intensity = 0;
         light.range = fl.range;
+        light.setEnabled(false); // v1.87 — apagada de verdad: fuera del bucle de luces de TODOS los materiales
         this.flashlight = {
           light,
           update: (pos) => {
             light.position.set(pos.x, pos.y + fl.height, pos.z);
             const on = this.ecosystem?.isBlackout() === true;
             light.intensity = on ? fl.intensity : 0;
+            // v1.87 — setEnabled además de intensity (restaurado del árbol local): una luz
+            // deshabilitada no entra en el bucle de iluminación del shader (intensity 0 sí
+            // entra y se paga igual en TODOS los materiales de la escena).
+            light.setEnabled(on);
           },
           dispose: () => light.dispose(),
         };

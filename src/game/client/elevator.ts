@@ -487,6 +487,25 @@ export function createElevators(scene: Scene, world: World, content: Content): E
     });
   }
 
+  // ── v1.87 — LUZ DE CABINA CON PÚBLICO ASIGNADO (FPS, restaurado del árbol local) ──
+  //  Sin `includedOnlyMeshes`, cada PointLight de cabina entra en el bucle de luz de
+  //  TODOS los materiales de la escena (4 luces por fragmento) para iluminar, en la
+  //  práctica, solo su pozo. Limitamos su lista a las mallas que toca de verdad —
+  //  equipamiento del ascensor (asc_) y el pasillo/losas de la planta, por donde
+  //  derrama al abrirse las puertas — y el RESTO de la escena pasa a sombrear con una
+  //  luz menos (~25 % menos coste de fragmento en toda la partida). La cabina se
+  //  mueve en VERTICAL y el filtro es por nombres estables: la lista se calcula una
+  //  vez, aquí, y sirve para toda la vida de la escena.
+  {
+    const cabinLightMeshes = scene.meshes.filter((mesh) => {
+      const n = mesh.name;
+      return n.startsWith('asc_') || n.includes('pasillo');
+    });
+    for (const l of scene.lights) {
+      if (l.name.startsWith('asc_luz_')) l.includedOnlyMeshes = cabinLightMeshes;
+    }
+  }
+
   /** Duración de un viaje de `d` plantas en MS (v1.12: el estado acumula dtMs — el dur era
    *  segundos contra t en ms y la fase moving moría en UN frame: el teletransporte clásico). */
   const rideDurMs = (d: number): number => rideDurationSec(Math.abs(d), cfg.floorsPerSecond, cfg.accelFloorsPerSecond2) * 1000;

@@ -104,7 +104,7 @@ interface InteriorView {
  * bloqueadas, con panel y candado como siempre.
  */
 export function createBuilding(scene: Scene, world: World, content: Content) {
-  const { Color3, Color4, MeshBuilder, StandardMaterial, TransformNode } = B();
+  const { Color3, Color4, Mesh: BMesh, MeshBuilder, StandardMaterial, TransformNode } = B();
   const v = content.rules.view;
   // v1.60 — FACHADA DE LADRILLO EN LOS PAÑOS CIEGOS DE LA FACHADA EXTERIOR (la aclaración
   //  definitiva del vecino, con captura: «las paredes interiores que dan a los pasillos de
@@ -779,6 +779,9 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
   };
   /** Apliques de las puertas de vivienda: el foco cálido amaanece con la noche (update). */
   const doorLampMats: { mat: StandardMaterial; hex: string }[] = [];
+  /** v1.87 — rótulos de NEÓN registrados (glow ≥ 1.2, hoy El Rincón): la mecánica «el
+   *  cartel se estropea» los hace parpadear y apagarse a ratos (solo presentación). */
+  const neonSigns: { mat: StandardMaterial; base: Color3; seed: number }[] = [];
   /** Dioramas interiores (v1.23): null sin catálogo interiors.json — greybox como siempre. */
   const diro: DioramaDirector | null = createDioramaDirector(scene, content);
   const box = (name: string, w: number, h: number, d: number, x: number, y: number, z: number, m: StandardMaterial) => {
@@ -1454,6 +1457,63 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
       // Tejadillo (v1.16): fallback = canto de cerramiento (el glTF trae faldones, cumbrera,
       // chimenea y antena).
       view.greybox.push(box(`${b.id}_canto`, w, v.slab * 2, d, cx, bottom + v.slab, frontZ + d / 2, m));
+      // ── v1.87 — TERRAZA EN EL TEJADO (bloques de terraza en los edificios con pared al
+      //  exterior) ── plataforma de terracota sobre el tejadillo (mitad delantera del
+      //  tejado), barandilla metálica con barrotes, dos macetas con verde, toldo inclinado
+      //  colgado de la fachada y banquito. Todo determinista por hash01(b.id) (nº de
+      //  barrotes) — greybox puro: si el arte glTF del tejado llega, el grupo se aparta
+      //  igual que el resto (setEnabled grupal del swap).
+      {
+        const s1 = hash01(b.id, 911);
+        const tz = bottom + v.slab * 2 + 0.035;
+        const tw = w * 0.82;
+        const td = Math.min(d * 0.5, 2.4);
+        const zc = frontZ + td / 2 + 0.1;
+        const floorM = mat(`${b.id}_terraza_suelo_mat`);
+        floorM.diffuseColor = Color3.FromHexString('#b8664a');
+        floorM.specularColor = new Color3(0.02, 0.02, 0.02);
+        const railM = mat(`${b.id}_terraza_barra_mat`);
+        railM.diffuseColor = Color3.FromHexString('#4a4a52');
+        railM.specularColor = new Color3(0.05, 0.05, 0.06);
+        const greenM = mat(`${b.id}_terraza_verde_mat`);
+        greenM.diffuseColor = Color3.FromHexString('#3f7d3a');
+        const creamM = mat(`${b.id}_terraza_toldo_mat`);
+        creamM.diffuseColor = Color3.FromHexString('#e8ddc8');
+        creamM.backFaceCulling = false; // el toldo se ve desde debajo
+        const rz = zc - td / 2 + 0.05; // borde delantero de la plataforma
+        view.greybox.push(
+          box(`${b.id}_terraza_suelo`, tw, 0.06, td, cx, tz, zc, floorM),
+          box(`${b.id}_terraza_riel_f`, tw, 0.05, 0.045, cx, tz + 1.0, rz, railM),
+          box(`${b.id}_terraza_riel_f_bajo`, tw, 0.04, 0.04, cx, tz + 0.32, rz, railM),
+        );
+        const posts = 5 + Math.floor(s1 * 4);
+        for (let i = 0; i <= posts; i++) {
+          const px = cx - tw / 2 + (tw * i) / posts;
+          view.greybox.push(box(`${b.id}_terraza_poste_f_${i}`, 0.04, 1.0, 0.04, px, tz + 0.5, rz, railM));
+        }
+        for (const sx of [-1, 1] as const) {
+          const sxx = cx + sx * (tw / 2 - 0.03);
+          view.greybox.push(
+            box(`${b.id}_terraza_riel_l_${sx}`, 0.045, 0.05, td, sxx, tz + 1.0, zc, railM),
+            box(`${b.id}_terraza_poste_l_${sx}`, 0.04, 1.0, 0.04, sxx, tz + 0.5, rz, railM),
+          );
+        }
+        for (const sx of [-1, 1] as const) {
+          const px = cx + sx * tw * 0.3;
+          view.greybox.push(
+            box(`${b.id}_terraza_maceta_${sx}`, 0.34, 0.28, 0.34, px, tz + 0.17, zc + td * 0.18, floorM),
+            box(`${b.id}_terraza_planta_${sx}`, 0.4, 0.3, 0.4, px, tz + 0.46, zc + td * 0.18, greenM),
+          );
+        }
+        const toldo = box(`${b.id}_terraza_toldo`, tw * 0.62, 0.035, td * 0.55, cx - tw * 0.12, tz + 1.78, zc + td * 0.18, creamM);
+        toldo.rotation.x = 0.38; // ala inclinada: el frente cae hacia la calle
+        view.greybox.push(
+          toldo,
+          box(`${b.id}_terraza_banco`, 0.72, 0.07, 0.3, cx + tw * 0.28, tz + 0.35, zc - td * 0.05, creamM),
+          box(`${b.id}_terraza_banco_p_i`, 0.06, 0.32, 0.26, cx + tw * 0.28 - 0.28, tz + 0.16, zc - td * 0.05, railM),
+          box(`${b.id}_terraza_banco_p_d`, 0.06, 0.32, 0.26, cx + tw * 0.28 + 0.28, tz + 0.16, zc - td * 0.05, railM),
+        );
+      }
     } else if (b.defId === 'trasteros' || b.defId === 'local_comercial' || b.defId === 'lavanderia_comunal' || b.defId === 'garaje' || b.defId === 'portal') {
       // ── v1.30 — LOCALES DE LA PLANTA 0 con interior de verdad (v1.34: también el GARAJE;
       //  v1.35: también el PORTAL) ──
@@ -1833,6 +1893,53 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
             standsW.push({ x: wx, z: wz, yaw: Math.atan2(-fz / len, fx / len) });
           }
           hallSeats.set(b.id, { seats: seatsW, stands: standsW });
+          // ── v1.87 — LA BARRA DE COPAS (El Rincón vuelve a ser un local de copas) ──
+          //  La esquina izquierda de la franja frontal (entre fachada y tabique de la
+          //  sala) recupera su oficio: mueble de madera con tapa, estantería con botellas
+          //  de colores, dos copas servidas y un taburete. Materiales del propio catálogo
+          //  del local (madera clara/oscura) — visual puro, sin rutas ni colisión nueva;
+          //  los de pie del catálogo (standSpots) ya ocupaban esta franja como «la barra».
+          {
+            const barX = x0 + v.wall + 0.22; // pegado al lateral izquierdo
+            const barZ = frontZ + 0.29; // centrado en la franja frontal (tabique a +0.55)
+            view.greybox.push(
+              box(`${b.id}_barra_cuerpo`, 0.42, 0.98, 0.44, barX, baseY + 0.49, barZ, woodDarkM),
+              box(`${b.id}_barra_tapa`, 0.5, 0.045, 0.5, barX, baseY + 1.0, barZ, woodM),
+              box(`${b.id}_barra_estante`, 0.05, 0.035, 0.44, x0 + 0.15, baseY + 1.52, barZ, woodDarkM),
+            );
+            const bottleHexes = ['#2f6b34', '#c47f17', '#8e2b2b'];
+            for (let bi = 0; bi < 5; bi++) {
+              const bm = mat(`${b.id}_botella_${bi}_mat`);
+              const bc = Color3.FromHexString(bottleHexes[bi % bottleHexes.length]!);
+              bm.diffuseColor = bc;
+              bm.emissiveColor = bc.scale(0.18); // se leen con la lámpara baja
+              bm.specularColor = new Color3(0.08, 0.08, 0.08);
+              view.greybox.push(box(`${b.id}_botella_${bi}`, 0.085, 0.2, 0.07, x0 + 0.155, baseY + 1.64, frontZ + 0.1 + bi * 0.095, bm));
+            }
+            const copaM = mat(`${b.id}_copa_mat`);
+            copaM.diffuseColor = Color3.FromHexString('#dbeafe');
+            copaM.emissiveColor = Color3.FromHexString('#dbeafe').scale(0.1);
+            copaM.specularColor = new Color3(0.2, 0.2, 0.2);
+            const stoolM = mat(`${b.id}_taburete_mat`);
+            stoolM.diffuseColor = Color3.FromHexString('#7f1d1d');
+            stoolM.specularColor = new Color3(0.04, 0.04, 0.04);
+            const stoolLegM = mat(`${b.id}_taburete_pata_mat`);
+            stoolLegM.diffuseColor = Color3.FromHexString('#3f3f46');
+            view.greybox.push(
+              box(`${b.id}_copa_1`, 0.05, 0.09, 0.05, barX + 0.04, baseY + 1.07, frontZ + 0.2, copaM),
+              box(`${b.id}_copa_2`, 0.05, 0.09, 0.05, barX - 0.05, baseY + 1.07, frontZ + 0.38, copaM),
+            );
+            const tabSeat = MeshBuilder.CreateCylinder(`${b.id}_taburete_asiento`, { diameter: 0.3, height: 0.06 }, scene);
+            tabSeat.position.set(x0 + 0.84, baseY + 0.64, barZ);
+            tabSeat.material = stoolM;
+            const tabLeg = MeshBuilder.CreateCylinder(`${b.id}_taburete_pata`, { diameter: 0.05, height: 0.6 }, scene);
+            tabLeg.position.set(x0 + 0.84, baseY + 0.31, barZ);
+            tabLeg.material = stoolLegM;
+            const tabBase = MeshBuilder.CreateCylinder(`${b.id}_taburete_base`, { diameter: 0.22, height: 0.03 }, scene);
+            tabBase.position.set(x0 + 0.84, baseY + 0.02, barZ);
+            tabBase.material = stoolLegM;
+            view.greybox.push(tabSeat, tabLeg, tabBase);
+          }
           // ── v1.83 — PUERTA TRASERA DE EL RINCÓN (petición del vecino: «dentro, en una
           //  puerta trasera, se accedía a la sala de juntas»): el bar vuelve a tener su
           //  trastienda. Tabique fino a media profundidad (dos paños + dintel alrededor
@@ -3114,6 +3221,13 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
             rmat.diffuseTexture = signTex(`${b.id}_rotulo`, sign.t, sign.bg, sign.fg);
             rmat.emissiveColor = Color3.FromHexString(sign.bg).scale(sign.glow);
             rotulo.material = rmat;
+            // v1.87 — los NEONES (glow ≥ 1.2) se registran para la mecánica «el cartel se
+            //  estropea»: parpadeo irregular y apagones breves, deterministic por bloque.
+            if (sign.glow >= 1.2) {
+              let seed = 7;
+              for (let i = 0; i < b.id.length; i++) seed = (seed * 31 + b.id.charCodeAt(i)) | 0;
+              neonSigns.push({ mat: rmat, base: Color3.FromHexString(sign.bg).scale(sign.glow), seed });
+            }
           }
         }
         if (entry.overlay) {
@@ -4314,6 +4428,64 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
     }
   };
 
+  // ── v1.87 — CONSOLIDACIÓN GEOMÉTRICA DEL GREYBOX (FPS, restaurado del árbol local) ─
+  //  El greybox nacía caja a caja (una malla por pared/losa/peldaño de estantería): con
+  //  el edificio entero en cuadro eran ~550 draw calls SOLO para el bloque — el precio
+  //  fijo más alto del fotograma, multiplicado por dos cuando el pase de sombras está
+  //  activo. Aquí se FUNDEN, por bloque y por material, las cajas estructurales
+  //  estáticas de view.greybox en UNA malla por material: mismos vértices, mismo
+  //  material, misma raíz — idéntico píxel a píxel, una sola firma de draw por grupo.
+  //
+  //  Quedan FUERA de la fusión (se conmutan individualmente en applyPanels/applyLod o
+  //  llevan referencias vivas): frontParts (fachadas partidas), frontExtras (zócalos
+  //  del frente), edgesMesh/edgesMesh2 (bordes destacados de la vivienda), las mallas
+  //  que no cuelgan de la raíz del bloque y los grupos de un solo miembro (carteles,
+  //  lámparas…: cada uno con material propio, no ganan nada).
+  //  Solo presentación: si un modelo glTF llega después, su `setEnabled(false)` grupal
+  //  sobre view.greybox sigue funcionando exactamente igual (ahora sobre las fusionadas).
+  //  Idempotente: grupos de 1 quedan como estaban y una fusión imposible no rompe nada.
+  const consolidateGreybox = (): void => {
+    for (const [blockId, view] of views) {
+      const root = roots.get(blockId);
+      if (!root) continue;
+      const prot = new Set<Mesh>();
+      if (view.edgesMesh) prot.add(view.edgesMesh);
+      if (view.edgesMesh2) prot.add(view.edgesMesh2);
+      if (view.front) prot.add(view.front);
+      for (const p of view.frontParts) prot.add(p);
+      for (const e of view.frontExtras) prot.add(e);
+      const keep: Mesh[] = [];
+      const byMat = new Map<StandardMaterial, Mesh[]>();
+      for (const mesh of view.greybox) {
+        const m = mesh.material as StandardMaterial | null;
+        if (prot.has(mesh) || !m || mesh.parent !== root) {
+          keep.push(mesh);
+          continue;
+        }
+        const g = byMat.get(m);
+        if (g) g.push(mesh);
+        else byMat.set(m, [mesh]);
+      }
+      const next: Mesh[] = keep;
+      for (const group of byMat.values()) {
+        if (group.length < 2) {
+          next.push(...group);
+          continue;
+        }
+        const fused = BMesh.MergeMeshes(group, true, false, undefined, false, false);
+        if (!fused) {
+          next.push(...group); // fusión imposible: se quedan como estaban (idempotente)
+          continue;
+        }
+        fused.name = `${group[0]!.name}_fus`;
+        fused.parent = root;
+        next.push(fused);
+      }
+      view.greybox = next;
+    }
+  };
+  consolidateGreybox();
+
   return {
     /** v1.41 — conmutador de la VISTA FACHADA (el controlador lo manda al cambiar de cámara):
      *  cierra todas las fachadas (applyPanels) y muestra la cortina acristalada.
@@ -4497,6 +4669,28 @@ export function createBuilding(scene: Scene, world: World, content: Content) {
         // v1.48 — con APAGÓN el circuito común cae: ni apliques ni escaleras (cero luz).
         const lampGlow = env?.blackout ? 0 : litWorld ? 1.0 : 0.06;
         for (const { mat: lm, hex } of doorLampMats) lm.emissiveColor = Color3.FromHexString(hex).scale(lampGlow);
+        // ── v1.87 — EL CARTEL QUE SE ESTROPEA (neón vivo) ──
+        //  Cada ciclo de 4-7.5 min el neón entra en una ventana de avería (26-48 s):
+        //  parpadea con arranques irregulares, se queda a oscuras un par de veces y vuelve
+        //  solo. Determinista por tiempo + semilla del bloque; solo presentación — el
+        //  diffuse (arte del cartel) sigue visible y el GlowLayer sigue el halo. Cero
+        //  allocations: copyFrom + scaleInPlace.
+        {
+          const tNow = performance.now() / 1000;
+          for (const ns of neonSigns) {
+            const cycle = 240 + (ns.seed % 210);
+            const p = (tNow + (ns.seed % 89)) % cycle;
+            const bad = 26 + ((ns.seed >> 2) % 22);
+            let k = 1;
+            if (p < bad) {
+              const q = p / bad;
+              const flick =
+                Math.sin(q * 61.7 + ns.seed) * Math.sin(q * 17.3 + ns.seed * 0.7) + Math.sin(q * 7.9);
+              k = flick > 0.55 ? 0.04 : flick > -0.5 ? 0.35 + 0.5 * (flick + 0.5) : 0.85;
+            }
+            ns.mat.emissiveColor.copyFrom(ns.base).scaleInPlace(Math.max(0.04, k));
+          }
+        }
         // PUERTAS DE ESCALERA (v1.24): se abren antes de que alguien entre o salga (cualquier
         // mover cerca del umbral) y la ILUMINACIÓN COMPARTIDA de TODOS los cubos se enciende
         // de noche si algún vecino se mueve por las escaleras (un solo nivel para todos).
