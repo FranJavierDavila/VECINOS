@@ -27,7 +27,7 @@ const DICT: Record<string, { es: string; en: string }> = {
     es: 'Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.',
     en: 'Move-ins, noise, smells, wifi, pests, smoke and levies: the neighborhood simulator.',
   },
-  'header.version': { es: 'v1.86 · el juego vuela: objetivo de 60 FPS de fábrica (antes 30) con banda de decisión adaptativa — el optimizador ahora sí recupera la calidad completa en pantallas de 60 Hz', en: 'v1.86 · the game flies: 60 FPS factory target (was 30) with an adaptive decision band — the optimizer now recovers full quality on 60 Hz screens' },
+  'header.version': { es: 'v1.87 · restauración: terrazas en los tejados de los bloques con fachada, El Rincón vuelve a ser local de copas (barra, botellas y taburete), el cartel de neón vuelve a estropearse a ratos — y de regalo, el edificio entero se dibuja con menos de la mitad de draw calls', en: 'v1.87 · restoration: terraces on the rooftops of street-facing blocks, El Rincón is a bar again (counter, bottles and a stool), the neon sign breaks down now and then — plus the whole building draws with less than half the draw calls' },
   // ── Apagón de assets (v1.47: servidor de arte caído → mundo vacío/cápsulas) ──
   'assets.outage': {
     es: '⚠ No se pudo cargar el arte del juego (¿servidor caído?). El vecindario se recargará en {n} s…',
