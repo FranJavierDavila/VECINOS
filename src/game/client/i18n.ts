@@ -27,7 +27,7 @@ const DICT: Record<string, { es: string; en: string }> = {
     es: 'Mudanzas, ruido, olores, wifi, plagas, humo y derramas: el simulador de vecindario.',
     en: 'Move-ins, noise, smells, wifi, pests, smoke and levies: the neighborhood simulator.',
   },
-  'header.version': { es: 'v1.85 · comedia de barrio: 18 tramas secundarias entre vecinos, presencia premiada con confianza y reputación, 2 temas de charla nuevos y 3 logros de teatro', en: 'v1.85 · neighborhood comedy: 18 secondary skits between neighbors, rewarded presence with trust and reputation, 2 new chat topics and 3 stage achievements' },
+  'header.version': { es: 'v1.86 · el juego vuela: objetivo de 60 FPS de fábrica (antes 30) con banda de decisión adaptativa — el optimizador ahora sí recupera la calidad completa en pantallas de 60 Hz', en: 'v1.86 · the game flies: 60 FPS factory target (was 30) with an adaptive decision band — the optimizer now recovers full quality on 60 Hz screens' },
   // ── Apagón de assets (v1.47: servidor de arte caído → mundo vacío/cápsulas) ──
   'assets.outage': {
     es: '⚠ No se pudo cargar el arte del juego (¿servidor caído?). El vecindario se recargará en {n} s…',

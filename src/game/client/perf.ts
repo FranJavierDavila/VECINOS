@@ -24,6 +24,14 @@ import type { ShadowsDirector } from './shadows';
  * 'máximo' del menú ya no arranca exprimido: apunta a S0 y solo degrada si el
  * juego no llega a 30 FPS reales.
  *
+ * v1.86 — EL JUEGO VUELA: el objetivo por defecto pasa de 30 a 60 FPS (el vecino
+ * pidió que «vuele»: los juegos web sofisticados van a 90). Con objetivos altos la
+ * banda de decisión se adapta: en una pantalla de 60 Hz el rAF nunca supera 60, así
+ * que la banda clásica (target + 18 %) sería inalcanzable y el optimizador, tras la
+ * primera degradación, JAMÁS recuperaría — ahora se mide en fracción del objetivo
+ * (degradar < 86 %, recuperar ≥ 95 %). El contrato de v1.84 se respeta: 'máximo'
+ * sigue siendo «calidad máxima con suelo de 30» y 30 sigue siendo opción del menú.
+ *
  * Regalo extra siempre activo (cero impacto visual): con sol apagado (noche/cielo
  * cerrado) el mapa de profundidad de las sombras se CONGELA — el sol de la escena
  * 2.5D no gira (solo cambia su intensidad), así que el mapa congelado es idéntico
@@ -63,8 +71,8 @@ const LADDER: readonly Rung[] = [
   { scale: 2.3, glow: false, shadows: 'off' },
 ];
 
-/** FPS objetivo real por ajuste del menú: TODOS los modos prometen el suelo de 30
- *  FPS (v1.84) — 'máximo' significa «calidad máxima posible sin bajar de 30». */
+/** FPS objetivo real por ajuste del menú. v1.86: el 60 de fábrica hace volar el juego;
+ *  'máximo' conserva su contrato v1.84 («calidad máxima posible sin bajar de 30»). */
 const TARGET_FPS: Record<PerfTarget, number> = { 30: 30, 45: 45, 60: 60, max: 30 };
 
 const SAMPLE_WINDOW = 1.2; // s por ventana de medición
@@ -77,7 +85,7 @@ const UP_SAMPLES = 2; // ventanas seguidas cómodas → recuperar (v1.84: antes 
 export class PerfDirector {
   private baseScale = QUALITY_SCALE.normal;
   private level = 0;
-  private target: PerfTarget = 30;
+  private target: PerfTarget = 60; // v1.86: objetivo de fábrica — el juego debe volar
   private auto = true;
 
   private frames = 0;
@@ -169,13 +177,21 @@ export class PerfDirector {
     if (now < this.graceUntil) return;
     const target = TARGET_FPS[this.target];
     const sinceChange = now - this.lastChange;
-    if (fps < target - 2) {
+    // v1.86 — banda adaptativa: con objetivos altos (60) el rAF nunca supera target+6
+    // en una pantalla de 60 Hz — la banda clásica sería inalcanzable para recuperar y
+    // el optimizador, tras la primera degradación, jamás volvería a S0. Ahí la banda
+    // se mide en fracción del objetivo: degradar < 86 % (51.6 a 60 Hz), recuperar ≥ 95 %
+    // (57). En objetivos clásicos (30/45) la banda histórica sigue intacta.
+    const hi = target >= 55;
+    const downAt = hi ? target * 0.86 : target - 2;
+    const upAt = hi ? target * 0.95 : target + Math.max(6, target * 0.18);
+    if (fps < downAt) {
       this.above = 0;
       this.below += 1;
       if (this.below >= DOWN_SAMPLES && sinceChange >= COOLDOWN_DOWN && this.level < LADDER.length - 1) {
         this.setLevel(this.level + 1);
       }
-    } else if (fps >= target + Math.max(6, target * 0.18)) {
+    } else if (fps >= upAt) {
       this.below = 0;
       this.above += 1;
       // v1.84: el piso de recuperación SIEMPRE es S0 — la calidad máxima se permite

@@ -22,6 +22,8 @@ export type ColorblindMode = 'off' | 'protanopia' | 'deuteranopia' | 'tritanopia
  *  · 'max'    — v1.84: CALIDAD MÁXIMA — el piso es S0 (calidad completa, con glow y
  *               sombras) y solo degrada si el juego real no llega a 30 FPS (el suelo
  *               mínimo garantizado: «sin llegar a bajar de los 30FPS»).
+ * v1.86 — el objetivo de FÁBRICA es 60 (el juego debe VOLAR): 'máximo' y 30 siguen
+ *          disponibles en el menú para quien prefiera priorizar la calidad.
  */
 export type PerfTarget = 30 | 45 | 60 | 'max';
 
@@ -36,7 +38,7 @@ export interface GameOptions {
   lang: Lang;
   /** v1.38 — auto-ajuste de rendimiento activo (degrada/recupera detalles para cumplir el objetivo). */
   perfAuto: boolean;
-  /** v1.38 — cadencia objetivo que el auto-ajuste garantiza (30 mínimo prometido). */
+  /** v1.38 — cadencia objetivo que el auto-ajuste garantiza. v1.86: 60 de fábrica — el juego debe VOLAR. */
   perfTarget: PerfTarget;
   /** v1.39 — música ambiental procedural (por hora del día y lluvia) activada. */
   music: boolean;
@@ -52,8 +54,10 @@ const OPTIONS_KEY = 'vecinos.options';
 
 /** v1.84 — versión del formato de opciones: el snapshot antiguo (sin optsVer) sube su
  *  calidad 'normal' de fábrica a 'alta' UNA sola vez (petición del vecino: «se deben
- *  permitir calidad máxima»); después, lo que el jugador elija manda. */
-const OPTS_VER = 2;
+ *  permitir calidad máxima»); después, lo que el jugador elija manda.
+ * v1.86 — ver 3: el snapshot con optsVer<3 y el objetivo viejo de fábrica (30) sube a
+ *  60 UNA sola vez (el juego debe VOLAR); después, lo que el jugador elija manda. */
+const OPTS_VER = 3;
 
 export const DEFAULT_OPTIONS: GameOptions = {
   volume: 0.7,
@@ -61,7 +65,7 @@ export const DEFAULT_OPTIONS: GameOptions = {
   fpsVisible: false,
   lang: 'es',
   perfAuto: true,
-  perfTarget: 30,
+  perfTarget: 60, // v1.86: el juego debe VOLAR (antes 30)
   music: true,
   textScale: 'normal',
   colorblind: 'off',
@@ -82,7 +86,12 @@ export function loadOptions(): GameOptions {
     // v1.84 — migración única: un snapshot SIN optsVer con la calidad vieja de fábrica
     // ('normal') se considera sin elegir → sube a 'alta'. Un snapshot con optsVer
     // respeta SIEMPRE la calidad guardada (aunque sea 'normal').
+    // v1.86 — migración gemela del objetivo: un snapshot con optsVer ausente o <3 y el
+    // objetivo viejo de fábrica (30) se considera sin elegir → sube a 60. Con optsVer>=3
+    // manda SIEMPRE lo guardado (30 incluido: quien lo eligió, lo quiere).
     const legacyNormal = parsed.optsVer === undefined && parsed.quality === 'normal';
+    const legacyTarget =
+      (parsed.optsVer === undefined || parsed.optsVer < OPTS_VER) && parsed.perfTarget === 30;
     const quality = legacyNormal
       ? 'alta'
       : parsed.quality === 'eco' || parsed.quality === 'alta' || parsed.quality === 'normal'
@@ -95,10 +104,14 @@ export function loadOptions(): GameOptions {
       fpsVisible: parsed.fpsVisible === true,
       lang: parsed.lang === 'en' ? 'en' : 'es',
       perfAuto: parsed.perfAuto !== false,
-      perfTarget:
-        parsed.perfTarget === 'max' || parsed.perfTarget === 45 || parsed.perfTarget === 60
+      perfTarget: legacyTarget
+        ? 60
+        : parsed.perfTarget === 'max' ||
+            parsed.perfTarget === 45 ||
+            parsed.perfTarget === 60 ||
+            parsed.perfTarget === 30
           ? parsed.perfTarget
-          : 30,
+          : 60,
       music: parsed.music !== false,
       textScale:
         parsed.textScale === 'small' || parsed.textScale === 'large' || parsed.textScale === 'huge'
